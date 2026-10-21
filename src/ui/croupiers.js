@@ -48,7 +48,7 @@ export const CROUPIERS = {
   },
   cut: {
     name: 'Cut', abbr: 'CUT', family: SHAPE, ports: ['top', 'bottom'],
-    desc: 'Splits the hand: the top ⌊n/2⌋ cards to top, the rest to bottom. A single card goes to bottom.',
+    desc: 'Splits the hand: the top ⌊n/2⌋ cards to top, the rest to bottom. A single card goes to bottom. Point both at the same side to complete the cut: the top half ends up underneath.',
   },
   outshuffle: {
     name: 'Out-shuffle', abbr: 'OUT', family: SHAPE, ports: ['out'],

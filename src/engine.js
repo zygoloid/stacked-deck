@@ -54,7 +54,9 @@ export const FUNCTIONS = {
   sort: (st, h) => [['out', [...h].sort((a, b) => newDeckIndex(a.c) - newDeckIndex(b.c))]],
   cut: (st, h) => {
     const k = Math.floor(h.length / 2);
-    return [['top', h.slice(0, k)], ['bottom', h.slice(k)]];
+    // Bottom half listed first: if both halves go to one side, the top half
+    // lands underneath, i.e. the cut is completed as at a real table.
+    return [['bottom', h.slice(k)], ['top', h.slice(0, k)]];
   },
   outshuffle: (st, h) => [['out', riffle(h, true)]],
   inshuffle: (st, h) => [['out', riffle(h, false)]],
@@ -198,12 +200,15 @@ export class Floor {
         const side = typeof port === 'string' && port[0] === '@' ? Number(port.slice(1)) : ports[port];
         if (!h.length || side === undefined) continue; // dropped
         // Outputs to the same side are stacked into one hand, earlier ones on
-        // top (cut: top half above bottom; set: set above rest; war: winner
+        // top (cut: bottom half above top, completing the cut; set: set above rest; war: winner
         // above loser; duplicate: a above b; deal: piles in list order).
         const same = cell.pending.find(([d]) => d === side);
         if (same) same[1] = [...same[1], ...h];
         else cell.pending.push([side, h]);
-        if (cell.fn !== 'war' || port === 'win' || port === 'lose') face = side;
+        // Facing: war faces its player's hand, cut its bottom half (else the
+        // top), everything else its last output.
+        if (cell.fn === 'war' ? port === 'win' || port === 'lose'
+          : cell.fn !== 'cut' || port === 'bottom' || face === undefined) face = side;
       }
       this.live += cell.pending.reduce((a, [, h]) => a + playerCards(h), 0) + heldCards(cell) - before;
       // Having handed cards on, the croupier faces the side of its last output

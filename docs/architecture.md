@@ -59,7 +59,8 @@ An unassigned port, or a port pointing at a hex with no table, drops cards on
 the floor (they are gone). Every croupier accepts input from any side.
 
 **Outputs to the same side are stacked** into one hand, earlier outputs on
-top: cut top above bottom (so both halves to one side rebuild the hand), set
+top: cut bottom half above top (so both halves to one side complete the cut,
+as at a real table), set
 `set` above `rest`, duplicate `a` above `b`, deal piles in list order, war the
 winning hand above the losing one. So a War with all four ports on one side
 hands on a single stack with the winner on top.
@@ -79,7 +80,7 @@ use while holding their first hand.
 | `pass` | `out` | | passes the hand on |
 | `duplicate` | `a`, `b` | | one copy to each |
 | `sort` | `out` | | new deck order (A♠ top) |
-| `cut` | `top`, `bottom` | | top floor(n/2) cards / rest |
+| `cut` | `top`, `bottom` | | top floor(n/2) cards / rest; both to one side completes the cut (top half underneath) |
 | `outshuffle`, `inshuffle` | `out` | | perfect riffle |
 | `straight` | `yes`, `no` | | consecutive distinct ranks (A high or low); 1 card = yes |
 | `flush` | `yes`, `no` | | all one suit |

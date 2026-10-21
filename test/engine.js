@@ -88,7 +88,7 @@ console.log('facing ok');
   for (let i = 0; i < 8; i++) floor.step();
   assert.deepStrictEqual(floor.paid, [['KS', '9C'], ['9C', '2S']], JSON.stringify(floor.paid));
 }
-// Cut with both halves to one side gives back the original hand.
+// Cut with both halves to one side completes the cut: the top half goes under.
 {
   const floor = new Floor({ cells: [
     { at: [-1, 0], kind: 'source', out: 0 },
@@ -96,6 +96,6 @@ console.log('facing ok');
     { at: [1, 0], kind: 'payout' },
   ] }, [['AS', '2S', '3S', '4S', '5S']]);
   for (let i = 0; i < 4; i++) floor.step();
-  assert.deepStrictEqual(floor.paid, [['AS', '2S', '3S', '4S', '5S']]);
+  assert.deepStrictEqual(floor.paid, [['3S', '4S', '5S', 'AS', '2S']]);
 }
 console.log('stacking ok');
