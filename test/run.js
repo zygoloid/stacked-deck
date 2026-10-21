@@ -6,7 +6,7 @@ import { fmtHand } from '../src/cards.js';
 
 const only = process.argv[2];
 let failed = 0;
-for (const f of readdirSync(new URL('../solutions/', import.meta.url)).sort()) {
+for (const f of readdirSync(new URL('../solutions/', import.meta.url)).filter((f) => f.endsWith('.js')).sort()) {
   if (only && !f.includes(only)) continue;
   const sol = (await import(`../solutions/${f}`)).default;
   const pz = PUZZLES[sol.puzzle];

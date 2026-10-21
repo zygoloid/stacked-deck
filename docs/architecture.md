@@ -89,6 +89,7 @@ A shoe counts as a croupier for scoring.
   floor: [[q, r], ...],         // hexes where the player may place croupiers
   fixed: [cells],               // sources and payouts (not editable)
   croupiers: ['pass', 'shoe', ...],  // palette: fn names plus 'shoe'
+  warRules: ['high', 'top'],    // War rules allowed (when 'war' is in the palette)
   pays: (hand, earlierHands) => boolean,
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays)
   par: { croupiers, rounds },   // from the reference solution (optional)
