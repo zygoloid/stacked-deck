@@ -281,7 +281,7 @@ export const LEVELS = [
     title: 'Next Door',
     story: [
       'The Owner\'s second note: "The house lucky number is 7. Pay the neighbours." Back to single cards: a 6 or an 8 wins.',
-      'Your new croupiers: a shoe deals the same stacked card over and over; a gatherer stacks two hands into one; a cutter splits a hand into its top half and the rest. With a 7 under your card, "next to 7" is just a run.',
+      'Your new croupiers: a shoe deals the same stacked card over and over; a gatherer stacks two hands into one; a cutter splits a hand into its top half and the rest.',
       'Tonight\'s game is in the service corridor, so mind the walls.',
     ],
     brief: 'Pay out every 6 and every 8.',
@@ -432,7 +432,7 @@ export const LEVELS = [
     title: 'High Spade',
     story: [
       'The Owner\'s calling card is the ace of spades, and on the Owner\'s birthday any hand whose best card is a spade wins. If the best rank is shared, a spade holding it is enough.',
-      'A new croupier makes perfect copies. Copies can be torn apart for testing while the original waits; a War between the two is as good as a question.',
+      'A new croupier makes perfect copies of a hand.',
     ],
     brief: 'Five-card hands. Pay out every hand where no card outranks its best spade.',
     handSize: 5,
@@ -528,7 +528,7 @@ export const LEVELS = [
     title: 'Knockout',
     story: [
       'The Kesslers are still sure the house is hiding aces. With top-card War, an ace in the middle of a hand is invisible, so pay any hand with an ace in it, wherever it hides.',
-      'A new croupier deals a hand out one card at a time, round the table. Run a knockout: play the cards against each other and stack each winner on top.',
+      'A new croupier deals a hand out one card at a time, round the table.',
     ],
     brief: 'Five-card hands. Pay out every hand containing an ace. (Top-card War only.)',
     handSize: 5,
@@ -550,7 +550,7 @@ export const LEVELS = [
     title: 'Low Ball',
     story: [
       'Commissioner Pryce plays a quiet game every Tuesday, and he prefers it when he wins. His game: a hand wins only if every one of its cards beats a 5. Aces are high.',
-      'Same tournament, other way up.',
+      'Nobody has told him that the house always wins.',
     ],
     brief: 'Five-card hands. Pay out every hand in which every card beats a 5. (Top-card War only.)',
     handSize: 5,
@@ -595,7 +595,7 @@ export const LEVELS = [
     title: 'High Roller',
     story: [
       'The mayor has started playing at your tables. He likes records: a five-card hand wins if its high card ties or beats the high card of every hand before it tonight.',
-      'Keep the best hand so far going round in a loop. It is the casino\'s memory.',
+      'He keeps his own tally on a napkin. The house had better keep one too.',
     ],
     brief: 'Five-card hands. Pay out every hand whose high card ties or beats every earlier hand\'s high card.',
     handSize: 5,
@@ -617,7 +617,7 @@ export const LEVELS = [
     title: 'Full House',
     story: [
       'The city council now meets in the back room, between the bar and the string quartet. To celebrate, the house pays a full house: three of a kind plus a pair.',
-      'Test a copy, release a verdict card, and let the original past a War only if the verdict is low. And let in one hand at a time, or a quick verdict will overtake a slow one.',
+      'Sal\'s uncle swears there is a full house in every deck. The house intends to pay out exactly as many as there are.',
     ],
     brief: 'Five-card hands. Pay out every full house (three of a kind plus a pair).',
     handSize: 5,

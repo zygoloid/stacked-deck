@@ -177,6 +177,33 @@ try {
   check(await page.locator('.modal.help .help-table tr').count() >= 10, 'help panel lists croupiers');
   await page.keyboard.press('Escape');
 
+  // When the watched test passes but another fails, the floor is left paused
+  // at the failure. This 'Beat the Dealer' machine plays an 8 instead of a 9,
+  // so it passes test 4 (no 9s) and pays a 9 wrongly in test 1.
+  {
+    const lv = LEVELS.find((l) => l.id === 'beat-the-dealer');
+    const sol = (await import(join(repo, 'solutions/levels/beat-the-dealer.js'))).default;
+    const cells = sol.cells.map((c) => (c.kind === 'shoe' ? { ...c, deck: ['8S'] } : c));
+    await page.goto(base);
+    await page.evaluate(([id, cells]) => {
+      const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+      s.levels[id] = { cells };
+      localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+    }, [lv.id, cells]);
+    await page.goto(`${base}?unlockall#/level/${lv.id}`);
+    await page.waitForSelector('svg.board');
+    await page.click('.test-chip:nth-child(4)');
+    await page.click('.speeds .sp:last-child');
+    await page.waitForSelector('.toast.bad', { timeout: 20000 });
+    const msg = await page.textContent('.toast');
+    check(/Test 4 passed, but test 1 failed\. Wrong payout in round \d+/.test(msg) && !/watch/i.test(msg), `other failing test reported: "${msg.slice(0, 80)}..."`);
+    check((await page.textContent('.test-chip.on')).trim() === '1', 'failing test 1 is selected');
+    check(await page.locator('.p-item.bad').count() === 1, 'paused at the bad payout');
+    const round = Number((await page.textContent('.tp-round b')).trim());
+    await page.keyboard.press(',');
+    check(await page.locator('.p-item.bad').count() === 0 && Number((await page.textContent('.tp-round b')).trim()) === round - 1, 'one step back undoes it');
+  }
+
   // On a phone-sized screen, playing must not scroll the page away from the floor.
   {
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

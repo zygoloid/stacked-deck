@@ -225,8 +225,12 @@ export function openEditor(root, ctx, level, index) {
   function reportStatus() {
     const st = sim.status;
     if (st.kind === 'passed') showToast(`Test ${testIndex + 1} passed in ${st.rounds} rounds.`, 'good');
-    else if (st.kind === 'wrong') showToast(`Wrong payout in round ${sim.round}: ${st.msg} Step back (,) to see how it got there.`, 'bad');
-    else showToast(st.msg, 'bad');
+    else showToast(failureText(), 'bad');
+  }
+  function failureText() {
+    const st = sim.status;
+    if (st.kind === 'wrong') return `Wrong payout in round ${sim.round}: ${st.msg} Step back (,) to see how it got there.`;
+    return st.msg;
   }
 
   async function checkAll() {
@@ -261,12 +265,18 @@ export function openEditor(root, ctx, level, index) {
       renderAll();
       showResults({ croupiers, rounds, prev, wasSolved });
     } else {
+      // Load the failing test and run it up to the failure, so the floor is
+      // left paused at the moment it goes wrong (e.g. the bad payout).
       const first = runResults.findIndex((r) => !r.ok);
       testIndex = first;
       resetSim();
+      if (makeSim()) while (!sim.finished) sim.step();
       renderAll();
-      const r = runResults[first];
-      showToast(`Test ${watched + 1} passed, but test ${first + 1} fails: ${describeFailure(r)} Press play to watch it.`, 'bad');
+      if (sim?.finished && sim.status.kind !== 'passed') {
+        showToast(`Test ${watched + 1} passed, but test ${first + 1} failed. ${failureText()}`, 'bad');
+      } else {
+        showToast(`Test ${first + 1} failed: ${describeFailure(runResults[first])}`, 'bad');
+      }
     }
   }
   function describeFailure(r) {
