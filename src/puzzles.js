@@ -16,7 +16,7 @@ function dealTests(handSize, handsPerTest, fixed, nRandom, seed) {
 export const PUZZLES = {
   even: {
     title: 'Even money',
-    brief: 'Single cards. Pay out every even card (2 4 6 8 10 Q); scratch the rest.',
+    brief: 'Single cards. Pay out every even card (2 4 6 8 10 Q); drop the rest.',
     pays: (h) => rankValue(h[0]) % 2 === 0,
     tests: dealTests(1, 26, [
       ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', 'TS', 'JS', 'QS', 'KS'],

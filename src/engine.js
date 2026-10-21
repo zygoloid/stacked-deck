@@ -15,7 +15,8 @@
 //   3. Deposit: every undelivered output is placed if the target slot is empty
 //      (slots emptied in phase 1 count as empty). Otherwise the croupier keeps
 //      it and stalls until it can deliver. Players at sources place their next
-//      hand in this phase too.
+//      hand in this phase too. Cards handed towards a hex with no table are
+//      dropped on the floor and leave play; that is how hands are discarded.
 //
 // Cards carry provenance (`src`: 'player' or 'house') so the checker knows when
 // every player card has left the floor.
@@ -36,7 +37,6 @@ const playerCards = (hand) => hand.filter((x) => x.src === 'player').length;
 // [dir, hand] outputs. `two(hand, yes)` routes to +2 / +4 (swapped by flip).
 export const FUNCTIONS = {
   pass: (st, h, d) => [[d + st.n, h]],
-  scratch: () => [],
   duplicate: (st, h, d) => [[d + 2, h], [d + 4, h.map((x) => ({ ...x }))]],
   sort: (st, h, d) => [[d + 3, [...h].sort((a, b) => newDeckIndex(a.c) - newDeckIndex(b.c))]],
   cut: (st, h, d) => {
@@ -106,7 +106,6 @@ export class Floor {
     this.cells = new Map();
     this.round = 0;
     this.paid = [];
-    this.errors = [];
     this.inputs = inputs.map((h) => h.map((c) => ({ c, src: 'player' })));
     this.inputPos = 0;
     this.live = 0; // player cards currently on the floor (including held ones)
@@ -172,7 +171,8 @@ export class Floor {
   deposit(from, d, hand) {
     const to = this.neighbour(from, d);
     if (!to || to.kind === 'source' || to.kind === 'shoe') {
-      this.errors.push(`round ${this.round}: cards dropped on the floor ${DIR_NAMES[d]} of ${from.q},${from.r}`);
+      // Dropped on the floor: the cards are gone.
+      if (from.kind !== 'source') this.removed(hand);
       return true;
     }
     if (to.kind === 'payout') {
@@ -215,7 +215,7 @@ export class Floor {
 // be paid out; history is the list of earlier input hands.
 export function runTest(spec, inputs, pays, { maxRounds = 5000 } = {}) {
   const floor = new Floor(spec, inputs);
-  while (!floor.done() && floor.round < maxRounds && !floor.errors.length) floor.step();
+  while (!floor.done() && floor.round < maxRounds) floor.step();
   const expected = inputs.filter((h, i) => pays(h, inputs.slice(0, i)));
   const canon = (h) => [...h].sort().join(' ');
   const remaining = expected.map(canon);
@@ -224,9 +224,9 @@ export function runTest(spec, inputs, pays, { maxRounds = 5000 } = {}) {
     const i = remaining.indexOf(canon(h));
     if (i < 0) wrong.push(h); else remaining.splice(i, 1);
   }
-  const ok = floor.done() && !floor.errors.length && !wrong.length && !remaining.length;
+  const ok = floor.done() && !wrong.length && !remaining.length;
   return {
     ok, rounds: floor.round, croupiers: floor.croupierCount(),
-    errors: floor.errors, wrong, missing: remaining, timeout: !floor.done(),
+    wrong, missing: remaining, timeout: !floor.done(),
   };
 }

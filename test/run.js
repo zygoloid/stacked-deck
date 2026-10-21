@@ -19,8 +19,7 @@ for (const f of readdirSync(new URL('../solutions/', import.meta.url)).sort()) {
   results.forEach((r, i) => {
     if (r.ok) return;
     failed++;
-    console.log(`   test ${i} failed after ${r.rounds} rounds:`, r.errors.join('; '),
-      r.timeout ? 'TIMEOUT' : '', 'wrong:', r.wrong.map(fmtHand).join(' '),
+    console.log(`   test ${i} failed after ${r.rounds} rounds:`, r.timeout ? 'TIMEOUT' : '', 'wrong:', r.wrong.map(fmtHand).join(' '),
       'missing:', r.missing.join(' | '));
   });
 }

@@ -7,6 +7,6 @@ export default {
     { at: [0, 0], kind: 'source', dir: 0 },
     { at: [1, 0], kind: 'croupier', fn: 'war', deck: ['AS'] }, // in from W
     { at: [2, 0], kind: 'payout' },                             // push: straight on
-    { at: [1, 1], kind: 'croupier', fn: 'scratch' },            // lower: +4 = SE
+    // lower hands go out at +4 (SE) onto the floor
   ],
 };

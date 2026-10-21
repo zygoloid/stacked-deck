@@ -3,11 +3,13 @@
 To check the rules, `src/engine.js` simulates a floor and `test/run.js` runs
 each machine in `solutions/` against fixed and random tests (`npm test`).
 Each solution file includes an ASCII map. Map key: `in>` is a card player
-with an arrow showing which way they hand cards, `$$` is the chip desk, `XX`
-is scratch, `3\` is a shoe dealing 3s, `G3`/`P2` are a gather/pass with
+with an arrow showing which way they hand cards, `$$` is the chip desk, `3\` is a shoe dealing 3s, `G3`/`P2` are a gather/pass with
 offset 3/2, and `~` marks a flipped croupier.
 
 ## Rules I had to pin down
+
+(Update: Scratch has been removed. Cards handed towards a hex with no table
+are dropped on the floor, which is how hands are discarded.)
 
 These are my picks. The simulator implements them, and all of them can be changed.
 
@@ -19,7 +21,7 @@ These are my picks. The simulator implements them, and all of them can be change
   acts. Then all outputs are placed at once. A slot emptied this round can
   be refilled this round. A croupier whose output is blocked holds it and does
   nothing else until it can place it. Empty hands are never placed. Cards
-  handed to a side with no table count as *dropped on the floor*, which fails the test.
+  handed to a side with no table are *dropped on the floor* and leave play.
 * **Gather** (your first "Stack") holds the first hand it picks up. It then
   waits for a hand from a *different* side, puts that hand on top, and outputs
   at (second side)+n. It keeps facing the first side. So if a shoe feeds it,
@@ -31,7 +33,7 @@ These are my picks. The simulator implements them, and all of them can be change
 * **Cut**: the top floor(n/2) cards go to +2 and the rest to +4. **Set**: cards of
   the rank(s) tied for the highest count go to +2 and the rest go to +4.
 * **Checking a run.** A test passes once every player card has left the floor
-  (paid out or scratched), every paid hand is a winning input hand, and every
+  (paid out or dropped on the floor), every paid hand is a winning input hand, and every
   winning hand was paid. Payout **order is not checked**. A hand counts as the
   same if it has the same cards, whatever their order.
 
@@ -39,20 +41,18 @@ These are my picks. The simulator implements them, and all of them can be change
 
 | Puzzle | Rules | Croupiers | Rounds | Status |
 |---|---|---|---|---|
-| Even card (1-card hands) | core | 20 (25 with one chip desk) | 55 for 26 cards | built, passes |
-| Contains an ace (5-card hands) | core + War | **2** | 11 for 10 hands | built, passes |
+| Even card (1-card hands) | core | 14 (19 with one chip desk) | 54 for 26 cards | built, passes |
+| Contains an ace (5-card hands) | core + War | **1** | 10 for 10 hands | built, passes |
 | Contains an ace | core only | ~45 (estimate) | — | design sketch only |
 | Largest set so far | core | far bigger (estimate) | — | analysis only |
 
 ### Even card, core croupiers only (`solutions/even-core.js`)
 
 ```
- .     .    XX     .     .     .     .     .     .
-   3\     .    Cut   $$    XX     .     .     .     .
-in>   G3    Str   7\     .    Cut   $$    XX     .
+   3\     .    Cut   $$     .     .     .     .     .
+in>   G3    Str   7\     .    Cut   $$     .     .
     .     .    Cut~  G3    Str   J\     .    Cut   $$
- .     .    XX     .     .    Cut~  G3    Str    .
-    .     .     .     .    XX     .     .    XX     .
+ .     .     .     .     .    Cut~  G3    Str    .
 ```
 
 **Every core test is trivially true for a single card**: one card is a
@@ -64,9 +64,9 @@ solution chains three stages with references 3, 7 and J:
 2. Straight: `[R, X]` is a straight exactly when X is next to R. So the three
    stages catch {2,4}, {6,8} and {10,Q}.
 3. A cut on either branch splits R (top half) away from X (bottom half).
-   R goes to scratch, and X goes to the desk or on to the next stage.
+   R is dropped on the floor, and X goes to the desk or on to the next stage.
 
-Each stage is about 6 croupiers. A single stage on its own ("pay 2s and 4s")
+Each stage is 4–5 croupiers. A single stage on its own ("pay 2s and 4s")
 is a nice early "aha" level. The whole machine fits in about a 6×9 patch.
 Throughput is 2 rounds per card, because each gather takes two pickups.
 
@@ -78,14 +78,13 @@ than 8" fit cards much better for early puzzles.
 
 ```
 in>   WA    $$
-    .    XX
 ```
 
 **War** (Casino War): for each hand, the dealer turns over the next card of a
 stacked house deck and compares it with the hand's high card, ace high.
 Higher goes to +2, lower to +4, and a tie ("push") passes straight through at +3.
 The house card goes to the discard. With a house deck of nothing but aces, a
-push means "this hand contains an ace". That's 2 croupiers.
+push means "this hand contains an ace". Lower hands go out at +4 onto the floor, so the whole machine is 1 croupier.
 
 ### Contains an ace with core croupiers only: possible, but about 45 croupiers
 
@@ -132,9 +131,9 @@ take two hands; the better hand goes straight on and the worse one is deflected.
    misbehave depending on load. The fix is the "keeps facing the hand it holds" rule.
 3. **Streams can't merge.** Every core croupier sends each input side to a
    different output side. So two streams of cards can only meet at a sink
-   (scratch or the desk) or a gather (which combines them). One six-sided desk
+   (the desk) or a gather (which combines them). One six-sided desk
    makes routing costly. Moving even-core to a single desk added 5
-   runners (20 → 25). Options:
+   runners (14 → 19). Options:
    * make the cashier cage several hexes long, along a wall;
    * add a **runner** who always delivers to one fixed table;
    * accept it as part of the puzzle.
@@ -150,6 +149,6 @@ take two hands; the better hand goes straight on and the worse one is deflected.
 ## Next steps
 
 Settle the rule choices above (especially Gather order and merging). Then
-write the first 5–6 one-card levels as a progression: Pass → Scratch →
+write the first 5–6 one-card levels as a progression: Pass → dropping cards →
 Shoe+Gather+Straight ("pay 2s and 4s") → Cut to strip references → a
 multi-stage level such as "Even money".

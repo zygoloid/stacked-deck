@@ -1,6 +1,6 @@
 // ASCII rendering of a floor layout (pointy-top hexes, odd rows shifted).
 const LABELS = {
-  pass: (c) => `P${c.n}`, scratch: () => 'XX', duplicate: () => 'Dup', sort: () => 'Srt',
+  pass: (c) => `P${c.n}`, duplicate: () => 'Dup', sort: () => 'Srt',
   cut: () => 'Cut', outshuffle: () => 'Out', inshuffle: () => 'In', straight: () => 'Str',
   flush: () => 'Fl', set: () => 'Set', deal: () => 'Del', gather: (c) => `G${c.n}`,
   war: (c) => `W${c.deck.map((x) => x[0]).join('')}`,
