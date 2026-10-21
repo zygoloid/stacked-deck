@@ -1,4 +1,6 @@
-import { fullDeck, shuffled, rng, rankOf, largestSet, rankValue } from './cards.js';
+import { fullDeck, shuffled, rng, rankOf, largestSet, rankValue, highValue } from './cards.js';
+
+const highCard = (h) => Math.max(...h.map(highValue));
 
 // A test is a list of input hands dealt from one shuffled deck.
 function dealTests(handSize, handsPerTest, fixed, nRandom, seed) {
@@ -28,8 +30,17 @@ export const PUZZLES = {
     brief: 'Five-card hands. Pay out every hand containing an ace.',
     pays: (h) => h.some((c) => rankOf(c) === 'A'),
     tests: dealTests(5, 10, [
-      ['AS 2S 3S 4S 5S', 'KS KD KC KH QS', 'AH KH QH JH TH', 'AH AD AC AS 2C', '2D 3D 4D 5D 7C'],
+      ['2S 3S AS 4S 5S', 'KS KD KC KH QS', 'KH QH JH TH AH', '2C AH AD AC AS', '2D 3D 4D 5D 7C'],
     ], 6, 2),
+  },
+  recordHigh: {
+    title: 'High roller',
+    brief: 'Five-card hands. Pay out every hand whose high card ties or beats every earlier hand\'s.',
+    pays: (h, before) => before.every((b) => highCard(h) >= highCard(b)),
+    tests: dealTests(5, 10, [
+      ['2S 3S 4S 5S 7S', '8D 3D 4C 5C 6C', '2D 3H 4H 5H 6H', '8S 2C 3C 4D 5D',
+        'KS 2H 3D 6D 7D', 'QS JS TS 9S 8H', 'KH 9D TD JD 7C', 'AS 9C TC JC QC'],
+    ], 6, 4),
   },
   record: {
     title: 'House record',

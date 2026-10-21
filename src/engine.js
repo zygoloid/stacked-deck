@@ -3,23 +3,27 @@
 // Geometry: pointy-top hexes in axial coordinates (q, r). Directions are
 // numbered clockwise starting from east:
 //   0 E   1 SE   2 SW   3 W   4 NW   5 NE
-// Every table has one input slot per direction; slot[d] holds the hand that
-// arrived from the neighbour in direction d. A croupier "outputting at
-// input+n" deposits into the neighbour at direction (in+n)%6.
+// Every table has one input slot per side; slot[d] holds the hand that arrived
+// from the neighbour in direction d. Croupiers accept hands from any side, so
+// streams merge freely.
+//
+// Outputs are named ports ("yes"/"no", "top"/"bottom", ...) and the player
+// points each port at a side. A port left unassigned, or pointing at a hex with
+// no table, drops its cards on the floor; that is how hands are discarded.
 //
 // A round has three phases:
 //   1. Read: every croupier that is not holding undelivered output picks up
-//      one hand: from the direction it faces, otherwise from the next
-//      non-empty slot clockwise. With nothing to pick up it stalls.
-//   2. Act: croupiers compute their outputs. Empty hands are never deposited.
+//      one hand: from the side it faces, otherwise from the next filled slot
+//      clockwise, and then faces that side. With nothing to pick up it stalls.
+//   2. Act: croupiers compute their outputs. Empty hands are never placed.
 //   3. Deposit: every undelivered output is placed if the target slot is empty
 //      (slots emptied in phase 1 count as empty). Otherwise the croupier keeps
-//      it and stalls until it can deliver. Players at sources place their next
-//      hand in this phase too. Cards handed towards a hex with no table are
-//      dropped on the floor and leave play; that is how hands are discarded.
+//      it and stalls until it can deliver. Players and shoes place their next
+//      hand in this phase too.
 //
-// Cards carry provenance (`src`: 'player' or 'house') so the checker knows when
-// every player card has left the floor.
+// Hands are arrays with the top card first. Cards carry provenance (`src`:
+// 'player' or 'house') so the checker knows when every player card has left
+// the floor.
 
 import {
   rankOf, highValue, newDeckIndex, isFlush, isStraight, rankCounts,
@@ -32,55 +36,71 @@ const mod6 = (n) => ((n % 6) + 6) % 6;
 
 const cardsOf = (hand) => hand.map((x) => x.c);
 const playerCards = (hand) => hand.filter((x) => x.src === 'player').length;
+const heldCards = (cell) => {
+  if (!cell.held) return 0;
+  if (cell.fn === 'gather') return playerCards(cell.held[0]);
+  return Object.values(cell.held).reduce((a, h) => a + playerCards(h), 0);
+};
 
-// Croupier functions. Each gets (state, hand, inDir) and returns a list of
-// [dir, hand] outputs. `two(hand, yes)` routes to +2 / +4 (swapped by flip).
+// Croupier functions. Each gets (cell, hand, inSide) and returns a list of
+// [port, hand] outputs. Croupiers that need two hands (gather, war) keep the
+// first in `cell.held` and return nothing until the second arrives.
 export const FUNCTIONS = {
-  pass: (st, h, d) => [[d + st.n, h]],
-  duplicate: (st, h, d) => [[d + 2, h], [d + 4, h.map((x) => ({ ...x }))]],
-  sort: (st, h, d) => [[d + 3, [...h].sort((a, b) => newDeckIndex(a.c) - newDeckIndex(b.c))]],
-  cut: (st, h, d) => {
+  pass: (st, h) => [['out', h]],
+  duplicate: (st, h) => [['a', h], ['b', h.map((x) => ({ ...x }))]],
+  sort: (st, h) => [['out', [...h].sort((a, b) => newDeckIndex(a.c) - newDeckIndex(b.c))]],
+  cut: (st, h) => {
     const k = Math.floor(h.length / 2);
-    return st.split(d, h.slice(0, k), h.slice(k));
+    return [['top', h.slice(0, k)], ['bottom', h.slice(k)]];
   },
-  outshuffle: (st, h, d) => [[d + 3, riffle(h, true)]],
-  inshuffle: (st, h, d) => [[d + 3, riffle(h, false)]],
-  straight: (st, h, d) => st.route(d, h, isStraight(cardsOf(h))),
-  flush: (st, h, d) => st.route(d, h, isFlush(cardsOf(h))),
-  set: (st, h, d) => {
+  outshuffle: (st, h) => [['out', riffle(h, true)]],
+  inshuffle: (st, h) => [['out', riffle(h, false)]],
+  straight: (st, h) => [[isStraight(cardsOf(h)) ? 'yes' : 'no', h]],
+  flush: (st, h) => [[isFlush(cardsOf(h)) ? 'yes' : 'no', h]],
+  set: (st, h) => {
     const counts = rankCounts(cardsOf(h));
     const max = Math.max(...counts.values());
-    return st.split(d, h.filter((x) => counts.get(rankOf(x.c)) === max),
-      h.filter((x) => counts.get(rankOf(x.c)) !== max));
+    return [['set', h.filter((x) => counts.get(rankOf(x.c)) === max)],
+      ['rest', h.filter((x) => counts.get(rankOf(x.c)) !== max)]];
   },
-  deal: (st, h, d) => {
-    const targets = [];
-    for (let i = 1; i < 6; i++) if (st.isTable(mod6(d + i))) targets.push(mod6(d + i));
-    const piles = targets.map(() => []);
-    h.forEach((x, i) => piles[i % targets.length].push(x));
-    return targets.map((t, i) => [t, piles[i]]);
+  // Deal: one card at a time, round-robin, to the sides listed in out.to.
+  deal: (st, h) => {
+    const piles = st.out.to.map(() => []);
+    h.forEach((x, i) => piles[i % piles.length].push(x));
+    return piles.map((p, i) => [i, p]);
   },
-  // Gather ("stack"): hold the first hand, wait for one from another
-  // direction, put it on top and deposit at (second input)+n. The croupier
-  // keeps facing the first hand's direction, so with a shoe that always has a
-  // card waiting, the shoe's card reliably ends up at the bottom.
+  // Gather ("stack"): put two hands from different sides together. The hand
+  // from side `under` goes underneath; without `under`, the first one picked up does.
   gather: (st, h, d) => {
-    if (!st.held) { st.held = h; st.heldDir = d; return []; }
-    const out = [...st.held, ...h];
+    if (!st.held) { st.held = [h, d]; return []; }
+    const [first, firstSide] = st.held;
     st.held = null;
-    return [[d + st.n, out]];
+    const firstUnder = st.under === undefined ? true : firstSide === st.under;
+    return [['out', firstUnder ? [...h, ...first] : [...first, ...h]]];
   },
-  // --- proposed additions ---
-  // War: compare the hand's high card (ace high) with the next card of the
-  // house's stacked deck. Higher -> +2, lower -> +4, tie ("push") -> +3.
+  // War: the player's hand (any side but `dealer`) against the dealer's hand
+  // (from side `dealer`). Rule 'high' compares high cards, rule 'top' compares
+  // top cards; aces high. Ties go to the house.
+  // Ports: win / lose for the player's hand, dwin / dlose for the dealer's.
   war: (st, h, d) => {
-    const house = st.deck[st.pos++ % st.deck.length];
-    const mine = Math.max(...h.map((x) => highValue(x.c)));
-    const theirs = highValue(house);
-    if (mine === theirs) return [[d + 3, h]];
-    return st.split(d, mine > theirs ? h : [], mine > theirs ? [] : h);
+    const role = d === st.dealer ? 'dealer' : 'player';
+    if (!st.held) { st.held = { [role]: h }; return []; }
+    const { player, dealer } = { ...st.held, [role]: h };
+    st.held = null;
+    const value = (hand) => (st.rule === 'top' ? highValue(hand[0].c)
+      : Math.max(...hand.map((x) => highValue(x.c))));
+    const won = value(player) > value(dealer);
+    return [[won ? 'win' : 'lose', player], [won ? 'dlose' : 'dwin', dealer]];
   },
 };
+
+// Which sides a waiting croupier may pick up from next.
+function canTake(cell, d) {
+  if (!cell.held) return true;
+  if (cell.fn === 'gather') return d !== cell.held[1];
+  if (cell.fn === 'war') return cell.held.player ? d === cell.dealer : d !== cell.dealer;
+  return true;
+}
 
 function riffle(h, out) {
   const k = out ? Math.ceil(h.length / 2) : Math.floor(h.length / 2);
@@ -95,29 +115,26 @@ function riffle(h, out) {
 }
 
 export class Floor {
-  // spec: { cells: [...], level }
-  // cell kinds:
-  //   { at:[q,r], kind:'source', dir }            card player placing hands
-  //   { at:[q,r], kind:'payout' }                 chip desk / cashier cage
-  //   { at:[q,r], kind:'croupier', fn, facing, n, flip, deck }
-  //   { at:[q,r], kind:'shoe', dir, deck }        croupier dealing a stacked deck,
-  //                                               one card per round
+  // spec.cells entries:
+  //   { at:[q,r], kind:'source', out }          card player placing hands
+  //   { at:[q,r], kind:'payout' }               chip desk
+  //   { at:[q,r], kind:'shoe', out, deck, once } deals its stacked deck one card
+  //                                             per round, repeating unless `once`
+  //   { at:[q,r], kind:'croupier', fn, out:{port: side}, facing, under, dealer, rule }
   constructor(spec, inputs) {
     this.cells = new Map();
     this.round = 0;
     this.paid = [];
     this.inputs = inputs.map((h) => h.map((c) => ({ c, src: 'player' })));
     this.inputPos = 0;
-    this.live = 0; // player cards currently on the floor (including held ones)
+    this.live = 0; // player cards on the floor, including ones held by croupiers
     for (const c of spec.cells) {
+      if (c.kind === 'croupier' && !FUNCTIONS[c.fn]) throw new Error(`unknown fn ${c.fn}`);
       const cell = {
         ...c, q: c.at[0], r: c.at[1], slots: [null, null, null, null, null, null],
-        pending: [], facing: c.facing ?? 0, n: c.n ?? 3, pos: 0, held: null,
+        pending: [], facing: c.facing ?? 0, pos: 0, held: null, out: c.out ?? {},
       };
       this.cells.set(key(cell.q, cell.r), cell);
-    }
-    for (const cell of this.cells.values()) {
-      if (cell.kind === 'croupier' && !FUNCTIONS[cell.fn]) throw new Error(`unknown fn ${cell.fn}`);
     }
   }
 
@@ -134,75 +151,58 @@ export class Floor {
 
   step() {
     this.round++;
-    const croupiers = [...this.cells.values()].filter((c) => c.kind === 'croupier');
-    // Phase 1 + 2: read and act.
-    for (const cell of croupiers) {
-      if (cell.pending.length) continue;
-      let start = cell.facing, skip = -1;
-      if (cell.fn === 'gather' && cell.held) { skip = cell.heldDir; start = cell.heldDir + 1; }
+    // Phases 1 and 2: read and act.
+    for (const cell of this.cells.values()) {
+      if (cell.kind !== 'croupier' || cell.pending.length) continue;
       let found = -1;
       for (let i = 0; i < 6; i++) {
-        const d = mod6(start + i);
-        if (d !== skip && cell.slots[d]) { found = d; break; }
+        const d = mod6(cell.facing + i);
+        if (cell.slots[d] && canTake(cell, d)) { found = d; break; }
       }
       if (found < 0) continue;
       const hand = cell.slots[found];
       cell.slots[found] = null;
-      // A gathering croupier keeps facing the hand it is holding.
-      if (skip < 0) cell.facing = found;
-      const st = this.stateFor(cell);
-      const before = playerCards(hand) + playerCards(cell.held || []);
-      const outs = FUNCTIONS[cell.fn](st, hand, found);
-      this.live += outs.reduce((a, [, h]) => a + playerCards(h), 0) + playerCards(cell.held || []) - before;
-      cell.pending = outs.filter(([, h]) => h.length).map(([d, h]) => [mod6(d), h]);
+      cell.facing = found;
+      const before = playerCards(hand) + heldCards(cell);
+      const outs = FUNCTIONS[cell.fn](cell, hand, found);
+      const ports = cell.fn === 'deal' ? cell.out.to : cell.out;
+      for (const [port, h] of outs) {
+        const side = ports[port];
+        if (h.length && side !== undefined) cell.pending.push([side, h]); // else dropped
+      }
+      this.live += cell.pending.reduce((a, [, h]) => a + playerCards(h), 0) + heldCards(cell) - before;
     }
     // Phase 3: deposit.
     for (const cell of this.cells.values()) {
       if (cell.kind === 'shoe' && !cell.pending.length) {
-        cell.pending = [[cell.dir, [{ c: cell.deck[cell.pos++ % cell.deck.length], src: 'house' }]]];
+        if (!cell.once || cell.pos < cell.deck.length) {
+          cell.pending = [[cell.out, [{ c: cell.deck[cell.pos++ % cell.deck.length], src: 'house' }]]];
+        }
       }
       if (cell.kind === 'source' && !cell.pending.length && this.inputPos < this.inputs.length) {
-        cell.pending = [[cell.dir, this.inputs[this.inputPos++]]];
+        cell.pending = [[cell.out, this.inputs[this.inputPos++]]];
       }
       cell.pending = cell.pending.filter(([d, h]) => !this.deposit(cell, d, h));
     }
   }
 
   deposit(from, d, hand) {
+    const fromSource = from.kind === 'source';
     const to = this.neighbour(from, d);
-    if (!to || to.kind === 'source' || to.kind === 'shoe') {
-      // Dropped on the floor: the cards are gone.
-      if (from.kind !== 'source') this.removed(hand);
+    if (!to || to.kind === 'source' || to.kind === 'shoe') { // dropped on the floor
+      if (!fromSource) this.live -= playerCards(hand);
       return true;
     }
     if (to.kind === 'payout') {
-      this.paid.push(hand.map((x) => x.c));
-      if (from.kind === 'source') return true;
-      this.removed(hand);
+      this.paid.push(cardsOf(hand));
+      if (!fromSource) this.live -= playerCards(hand);
       return true;
     }
     const slot = mod6(d + 3);
     if (to.slots[slot]) return false;
     to.slots[slot] = hand;
-    if (from.kind === 'source') this.live += hand.length;
+    if (fromSource) this.live += hand.length;
     return true;
-  }
-
-  removed(hand) {
-    this.live -= playerCards(hand);
-  }
-
-  stateFor(cell) {
-    const flip = !!cell.flip;
-    const floor = this;
-    return Object.assign(cell, {
-      route: (d, h, yes) => [[d + ((yes !== flip) ? 2 : 4), h]],
-      split: (d, a, b) => (flip ? [[d + 4, a], [d + 2, b]] : [[d + 2, a], [d + 4, b]]),
-      isTable: (dir) => {
-        const t = floor.neighbour(cell, dir);
-        return t && (t.kind === 'croupier' || t.kind === 'payout');
-      },
-    });
   }
 
   done() {
@@ -213,10 +213,21 @@ export class Floor {
 
 // Run one test case. `pays(hand, history)` says whether an input hand should
 // be paid out; history is the list of earlier input hands.
-export function runTest(spec, inputs, pays, { maxRounds = 5000 } = {}) {
+export function runTest(spec, inputs, pays, { maxRounds = 5000, grace = 50 } = {}) {
   const floor = new Floor(spec, inputs);
-  while (!floor.done() && floor.round < maxRounds) floor.step();
   const expected = inputs.filter((h, i) => pays(h, inputs.slice(0, i)));
+  // A run ends when every player card has left the floor. Machines with
+  // memory keep copies of player cards circulating forever, so a run also
+  // ends `grace` rounds after the last expected payout (catching any extra
+  // payouts in that window).
+  let settled = null;
+  while (floor.round < maxRounds && !floor.done()) {
+    floor.step();
+    if (floor.inputPos >= inputs.length && floor.paid.length >= expected.length) {
+      settled ??= floor.round;
+      if (floor.round - settled >= grace) break;
+    }
+  }
   const canon = (h) => [...h].sort().join(' ');
   const remaining = expected.map(canon);
   const wrong = [];
@@ -224,9 +235,10 @@ export function runTest(spec, inputs, pays, { maxRounds = 5000 } = {}) {
     const i = remaining.indexOf(canon(h));
     if (i < 0) wrong.push(h); else remaining.splice(i, 1);
   }
-  const ok = floor.done() && !wrong.length && !remaining.length;
+  const finished = floor.done() || settled !== null;
   return {
-    ok, rounds: floor.round, croupiers: floor.croupierCount(),
-    wrong, missing: remaining, timeout: !floor.done(),
+    ok: finished && !wrong.length && !remaining.length,
+    rounds: floor.done() && settled === null ? floor.round : (settled ?? floor.round),
+    croupiers: floor.croupierCount(), wrong, missing: remaining, timeout: !finished,
   };
 }

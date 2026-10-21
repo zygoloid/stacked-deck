@@ -2,153 +2,190 @@
 
 To check the rules, `src/engine.js` simulates a floor and `test/run.js` runs
 each machine in `solutions/` against fixed and random tests (`npm test`).
-Each solution file includes an ASCII map. Map key: `in>` is a card player
-with an arrow showing which way they hand cards, `$$` is the chip desk, `3\` is a shoe dealing 3s, `G3`/`P2` are a gather/pass with
-offset 3/2, and `~` marks a flipped croupier.
+Each solution file includes an ASCII map. A label is the croupier's name plus
+an arrow for its main output side (`>` E, `\` SE, `/` SW, `<` W, `` ` `` NW,
+`'` NE). `in` is a card player, `$$` the chip desk, `K\` a shoe dealing kings,
+`Wh`/`Wt` a high-card/top-card War dealer.
 
-## Rules I had to pin down
+## Current rules
 
-(Update: Scratch has been removed. Cards handed towards a hex with no table
-are dropped on the floor, which is how hands are discarded.)
-
-These are my picks. The simulator implements them, and all of them can be changed.
-
-* **Geometry.** Pointy-top hexes, directions numbered clockwise from east.
-  Each table has one input slot per side. "Output at input+n" means the side
-  n steps clockwise from the side the hand came in on, so `+3` is straight through.
+* **Geometry.** Pointy-top hexes. Every table has one input slot per side and
+  accepts hands from any side, so streams merge freely.
+* **Output ports.** Each croupier has named outputs (Straight: yes/no; Cut:
+  top/bottom; Set: set/rest; War: see below). The player points each one at a
+  side. An unassigned port, or one pointing at a hex with no table, **drops the
+  cards on the floor**; that is how hands are discarded (there is no Scratch).
 * **A round** has three steps. First every free croupier picks up one hand
-  (from the side it faces, otherwise the next filled slot clockwise). Then it
-  acts. Then all outputs are placed at once. A slot emptied this round can
-  be refilled this round. A croupier whose output is blocked holds it and does
-  nothing else until it can place it. Empty hands are never placed. Cards
-  handed to a side with no table are *dropped on the floor* and leave play.
-* **Gather** (your first "Stack") holds the first hand it picks up. It then
-  waits for a hand from a *different* side, puts that hand on top, and outputs
-  at (second side)+n. It keeps facing the first side. So if a shoe feeds it,
-  the shoe card always ends up at the bottom. This matters a lot (see below).
-* **Shoe** (your second "Stack") deals one card per round from a stacked deck
-  that repeats, in a fixed direction. It's a croupier and counts as one.
-* **Straight**: distinct ranks in a row, ace high or low, no wrapping. **Flush**:
-  every card the same suit. A single card counts as both.
-* **Cut**: the top floor(n/2) cards go to +2 and the rest to +4. **Set**: cards of
-  the rank(s) tied for the highest count go to +2 and the rest go to +4.
-* **Checking a run.** A test passes once every player card has left the floor
-  (paid out or dropped on the floor), every paid hand is a winning input hand, and every
-  winning hand was paid. Payout **order is not checked**. A hand counts as the
-  same if it has the same cards, whatever their order.
+  (from the side it faces, otherwise the next filled slot clockwise, and then it
+  faces that side). Then it acts. Then all outputs are placed at once. A slot
+  emptied this round can be refilled this round. A croupier whose output is
+  blocked holds it and stalls until it can place it.
+* **Hands** have a top card (first in the list). Cut's top half is
+  floor(n/2) cards. Sort uses new deck order with A♠ on top.
+* **Gather** takes two hands from different sides and stacks them. The player
+  can pick an `under` side whose hand always goes underneath; otherwise the
+  first hand picked up goes under.
+* **Shoe** deals one card per round from a stacked deck in a fixed direction,
+  repeating (or only once, for seeding memory). It counts as a croupier.
+* **War** takes a *player* hand (any side) and a *dealer* hand (a side the
+  player picks). It compares them by **high card** or by **top card** (two
+  variants), aces high, and **ties go to the house**. It has four ports: the
+  player hand goes to `win` or `lose`, and the dealer hand goes to `dwin` or `dlose`.
+* **Checking a run.** Payouts must be exactly the winning input hands (same
+  cards, any order within a hand, any order between hands). A run ends when
+  every player card has left the floor, or 50 rounds after the last expected
+  payout. The second case is for machines that keep copies of cards in memory.
 
 ## Results
 
-| Puzzle | Rules | Croupiers | Rounds | Status |
+| Puzzle | Rules | Croupiers | Rounds | |
 |---|---|---|---|---|
-| Even card (1-card hands) | core | 14 (19 with one chip desk) | 54 for 26 cards | built, passes |
-| Contains an ace (5-card hands) | core + War | **1** | 10 for 10 hands | built, passes |
-| Contains an ace | core only | ~45 (estimate) | — | design sketch only |
-| Largest set so far | core | far bigger (estimate) | — | analysis only |
+| Even card (1-card hands) | ports | **12** | 51 / 26 cards | built, passes |
+| Contains an ace (5-card hands) | high-card War | **2** | 17 / 10 hands | built, passes |
+| Contains an ace | top-card War | **16** | 40 / 10 hands | built, passes |
+| High card ties or beats every earlier hand | high-card War | **4** | 19 / 10 hands | built, passes |
+| Largest set ties or beats every earlier hand | any | — | — | not buildable yet, see below |
 
-### Even card, core croupiers only (`solutions/even-core.js`)
-
-```
-   3\     .    Cut   $$     .     .     .     .     .
-in>   G3    Str   7\     .    Cut   $$     .     .
-    .     .    Cut~  G3    Str   J\     .    Cut   $$
- .     .     .     .     .    Cut~  G3    Str    .
-```
-
-**Every core test is trivially true for a single card**: one card is a
-straight, a flush and a set. So with one-card hands a machine can't tell cards
-apart on its own. It has to **borrow a reference card** from a shoe. This
-solution chains three stages with references 3, 7 and J:
-
-1. The gather puts the shoe's card R under X, giving `[R, X]`.
-2. Straight: `[R, X]` is a straight exactly when X is next to R. So the three
-   stages catch {2,4}, {6,8} and {10,Q}.
-3. A cut on either branch splits R (top half) away from X (bottom half).
-   R is dropped on the floor, and X goes to the desk or on to the next stage.
-
-Each stage is 4–5 croupiers. A single stage on its own ("pay 2s and 4s")
-is a nice early "aha" level. The whole machine fits in about a 6×9 patch.
-Throughput is 2 rounds per card, because each gather takes two pickups.
-
-Parity is an awkward property for card tests. Any comparison-style croupier
-needs about one test per two values, because even ranks alternate with odd ones. Tests like "face card", "red card" or "higher
-than 8" fit cards much better for early puzzles.
-
-### Contains an ace, with a proposed War dealer (`solutions/ace-war.js`)
+### Contains an ace, high-card War (`solutions/ace-high-war.js`)
 
 ```
-in>   WA    $$
+   K\     .
+in>   Wh    $$
 ```
 
-**War** (Casino War): for each hand, the dealer turns over the next card of a
-stacked house deck and compares it with the hand's high card, ace high.
-Higher goes to +2, lower to +4, and a tie ("push") passes straight through at +3.
-The house card goes to the discard. With a house deck of nothing but aces, a
-push means "this hand contains an ace". Lower hands go out at +4 onto the floor, so the whole machine is 1 croupier.
+A shoe of kings is the dealer. Only a hand holding an ace beats a king,
+since ties go to the house. That's 2 croupiers, as expected.
 
-### Contains an ace with core croupiers only: possible, but about 45 croupiers
+### Contains an ace, top-card War (`solutions/ace-top-war.js`)
 
-This is the most important finding. **No core croupier can send a whole hand
-one way or the other based on part of its contents.** Straight and Flush move
-whole hands but test the whole hand. Set and Cut look at parts, but they
-*split* the hand. My best plan was:
+```
+ .     .     .     .    P\     .
+   $$     .    P>    Wt    G/
+K>    Wt    in>   Del   Wt    P/
+    .    G`    Wt    Wt    G<
+ .     .    P`    G`    P<     .
+```
 
-1. Duplicate H. Gather one copy with 5 reference aces of mixed suits, then Set:
-   the aces group has 5+k cards, where k is the number of aces in H.
-2. Set that group against 6 K♥. With no ace the K♥s win alone and come out as
-   a flush. With an ace they tie or lose, and the result is not a flush. A
-   Flush croupier then gives two signal streams, "ace" and "no ace", and
-   exactly one fires for each hand.
-3. Swap the "ace" signal for a fixed 5-card token, using another Gather + Set
-   against 5 Qs.
-4. Gate the other copy of H. A gather holds H and outputs relative to the
-   side the signal came in on. So "ace" and "no ace" leave in different
-   directions. On the ace side, `[H, token]` is cut 5/5 to get H back.
+Only the top card counts, so the machine has to bring the best card to the
+top. It does this with a **knockout tournament**:
 
-Each reference hand of 5–6 cards needs about 5 shoes and 4 gathers to build,
-because a shoe deals one card at a time. That adds up to about 45 croupiers.
-It shows the core set *can* do it, but a puzzle that sounds this simple
-shouldn't need a machine that big.
+1. Deal the hand into five single cards.
+2. Then four times: play two piles against each other with War, and gather
+   the winner on top of the loser. Each of these "merges" is War + Gather +
+   a Pass that walks the loser round to the gather's `under` side.
+3. The hand is whole again with its highest card on top. A final top-card
+   War against a king decides.
 
-### Largest set so far (tied or beaten)
+That's 16 croupiers in a compact ring around the dealer, so it's still a
+reasonable mid-game puzzle. The tournament is also a reusable pattern
+("top-card War can do high-card War"). I'd keep top-card War: it turns "play
+the house" into a real puzzle rather than one croupier. Possible ways to make
+it cheaper later:
 
-This puzzle needs **memory** (a hand kept circulating in a loop, or held by a
-gather) and **comparing counts**. Set compares counts, but only within one
-hand, and it splits the hand. So this puzzle has the gating problem above
-plus a state machine on top. It's endgame material with the core set. A
-casino-flavoured version that fits better is a "high hand of the hour"
-promotion: pay any hand that ties or beats the best poker hand so far. A
-**Showdown** croupier would make it a reasonable mid-game puzzle. It would
-take two hands; the better hand goes straight on and the worse one is deflected.
+* a **Burn** croupier (send the top card one way and the rest another), which
+  is a real dealer action;
+* a real casino **cut**, where the top part moves to the bottom. That would
+  let a loop rotate through the hand.
 
-## Design issues found
+### Even card (`solutions/even.js`)
 
-1. **One-card hands need reference cards.** That's fine, and maybe even
-   good: "borrow a card from the shoe and compare" is a neat first trick. But
-   it means the shoe and gather have to come right after Pass.
-2. **Gather order must be predictable.** If a gather could pick up either
-   hand first, `[R, X]` vs `[X, R]` would depend on traffic, and cuts would
-   misbehave depending on load. The fix is the "keeps facing the hand it holds" rule.
-3. **Streams can't merge.** Every core croupier sends each input side to a
-   different output side. So two streams of cards can only meet at a sink
-   (the desk) or a gather (which combines them). One six-sided desk
-   makes routing costly. Moving even-core to a single desk added 5
-   runners (14 → 19). Options:
-   * make the cashier cage several hexes long, along a wall;
-   * add a **runner** who always delivers to one fixed table;
-   * accept it as part of the puzzle.
-4. **No croupier routes a whole hand on a partial property** (see the ace
-   puzzle). War fixes the "high card" case. Possible additions with real
-   table equivalents:
-   * **Showdown** for comparing two hands;
-   * a **paytable** attendant ("pair or better?"), like a video poker paytable.
-5. **Wrong order of results.** Parallel paths can deliver results out of
-   input order. I don't check order. Checking it could become an optional
-   extra challenge.
+```
+   3\     .     .     .     .
+in>   G>    Str\  Cut>  G/    7<
+    .    $$    Cut<  Str<  Cut/
+ .     .     .    Str`  G<     .
+    .     .     .     .    J`
+```
 
-## Next steps
+War doesn't help with parity: it only answers "higher than?". So this machine
+uses the straight trick:
 
-Settle the rule choices above (especially Gather order and merging). Then
-write the first 5–6 one-card levels as a progression: Pass → dropping cards →
-Shoe+Gather+Straight ("pay 2s and 4s") → Cut to strip references → a
-multi-stage level such as "Even money".
+* A gather puts a reference card R from a shoe under the card X.
+* `[X, R]` is a straight exactly when X is next to R. Three stages with
+  R = 3, 7, J catch {2,4}, {6,8} and {10,Q}.
+* Because ports can merge, all three "yes" outputs share one cut, which sends
+  X to the desk and drops R.
+
+That brings it to 12 croupiers (it was 14, or 19 with one desk, under the
+rotating rules). A machine built only from War would need 11 thresholds,
+about 22 croupiers.
+
+### High card ties or beats every earlier hand (`solutions/record-high.js`)
+
+```
+   2\    P/     .
+in>   Wh    Dup>  $$
+```
+
+This is a stand-in for the "largest set so far" puzzle, to check that memory
+works. The best hand so far circulates as War's player hand (the
+"champion"), and each new hand is the dealer's.
+
+* If the champion wins, the new hand is dropped and the champion loops round
+  through a pass.
+* If the new hand ties or beats it (ties go to the house), it's duplicated:
+  one copy is paid out and the other becomes the new champion.
+* A shoe that deals a single 2 once seeds the first champion.
+
+That's 4 croupiers, which makes this pattern an easy "remember something" level.
+
+### Largest set ties or beats every earlier hand: still missing a piece
+
+The memory part works the same way as above. What's missing is turning
+"size of the largest set" into something a croupier can branch on:
+
+* **Set** finds the biggest group, but doesn't send the hand anywhere based
+  on its size. For a hand with no pair, everything ties, so the `rest` port
+  stays *empty*. "Nothing came out" isn't a hand, so nothing downstream can
+  react to it.
+* **War** compares ranks, not counts.
+* Every trick I tried for turning a count into a rank broke down. The idea was
+  padding a group with known cards and cutting so that a known card lands on
+  top. But a player hand can contain a card of any rank, so the padding cards
+  can't be told apart from the hand's own.
+
+Two natural croupiers would fix this, and each makes the puzzle a mid-game one:
+
+* **Pair Plus dealer** (a real side bet): sends the whole hand one way if it
+  holds a pair or better, otherwise the other way. Chaining it with Set
+  separates hands with no pair, a pair, three of a kind and four of a kind.
+  Each class then becomes a reference card, compared with the champion as above.
+* **Showdown** (War with full poker hand ranking). This gives the "high hand
+  of the hour" version for free (the champion machine above, about 4
+  croupiers). But poker ranks two pair above one pair, so it doesn't measure
+  "largest set" as stated.
+
+## Design notes
+
+1. **Ports + merging fixed most layout pain.** The even machine dropped from
+   19 to 12 croupiers and from a staircase to a compact blob, mostly because
+   outputs can now merge.
+2. **Two-input War is the cross-stream branch.** It gives three things:
+   * comparing with a constant (a shoe as the dealer);
+   * memory (the champion pattern);
+   * merges for the tournament.
+
+   With ties going to the house, a dealer A always beats anything. With
+   high-card War, a dealer 2 always loses to any multi-card hand. So a stream
+   of 2s and As can switch another stream pure on/off. With top-card War that
+   only works one way, because the hand's own top card might be a 2.
+3. **Gather's `under` side** removed the timing-dependent card order that the
+   rotating rules needed a special case for.
+4. **Seeding memory** needed a shoe that deals once. A pre-placed hand on a
+   table at level start would also work.
+5. **"Nothing came out" is never a signal.** Croupiers that can produce an
+   empty output (Set's rest, Cut on one card) can't drive a decision. This is
+   the root cause of the largest-set problem, and is worth keeping in mind
+   for any future croupier.
+
+## History
+
+The first round used rotation-relative outputs (out at input+n) and a
+Scratch croupier, with no War. Under those rules:
+
+* "even" took 20 croupiers (25 with a single desk);
+* "contains an ace" needed an estimated 45, because nothing could branch one
+  stream on another's data;
+* streams could not merge at all.
+
+That led to the current rules.
