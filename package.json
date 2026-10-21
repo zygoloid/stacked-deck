@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/checker.js && node test/run.js"
+    "test": "node test/engine.js && node test/checker.js && node test/run.js"
   }
 }

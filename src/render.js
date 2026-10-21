@@ -3,7 +3,7 @@
 const ARROWS = ['>', '\\', '/', '<', '`', "'"]; // E SE SW W NW NE
 const NAMES = {
   pass: 'P', duplicate: 'Dup', sort: 'Srt', cut: 'Cut', outshuffle: 'Out', inshuffle: 'In',
-  straight: 'Str', flush: 'Fl', kind: 'K', set: 'Set', deal: 'Del', gather: 'G', war: 'W',
+  straight: 'Str', flush: 'Fl', kind: 'K', suits: 'Su', set: 'Set', deal: 'Del', gather: 'G', war: 'W',
 };
 const MAIN = { duplicate: 'a', cut: 'top', straight: 'yes', flush: 'yes', kind: 'yes', set: 'set', war: 'win' };
 

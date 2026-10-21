@@ -26,7 +26,7 @@
 // the floor.
 
 import {
-  rankOf, highValue, newDeckIndex, isFlush, isStraight, rankCounts, largestSet,
+  rankOf, suitOf, highValue, newDeckIndex, isFlush, isStraight, rankCounts, largestSet,
 } from './cards.js';
 
 export const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
@@ -59,6 +59,20 @@ export const FUNCTIONS = {
   flush: (st, h) => [[isFlush(cardsOf(h)) ? 'yes' : 'no', h]],
   // n of a kind (or better): some rank appears at least n times.
   kind: (st, h) => [[largestSet(cardsOf(h)) >= st.n ? 'yes' : 'no', h]],
+  // Suits: deal each card to the pile for its suit (ports S, H, D, C).
+  // Cards whose suit has no port go to 'misc' if it is assigned, otherwise
+  // they are dropped. Suits sharing a side form one pile, in hand order.
+  suits: (st, h) => {
+    const piles = new Map();
+    for (const x of h) {
+      const port = st.out[suitOf(x.c)] !== undefined ? suitOf(x.c) : 'misc';
+      const side = st.out[port];
+      if (side === undefined) continue;
+      if (!piles.has(side)) piles.set(side, []);
+      piles.get(side).push(x);
+    }
+    return [...piles].map(([side, pile]) => [`@${side}`, pile]);
+  },
   set: (st, h) => {
     const counts = rankCounts(cardsOf(h));
     const max = Math.max(...counts.values());
@@ -169,7 +183,7 @@ export class Floor {
       const outs = FUNCTIONS[cell.fn](cell, hand, found);
       const ports = cell.fn === 'deal' ? cell.out.to : cell.out;
       for (const [port, h] of outs) {
-        const side = ports[port];
+        const side = typeof port === 'string' && port[0] === '@' ? Number(port.slice(1)) : ports[port];
         if (h.length && side !== undefined) cell.pending.push([side, h]); // else dropped
       }
       this.live += cell.pending.reduce((a, [, h]) => a + playerCards(h), 0) + heldCards(cell) - before;
@@ -205,6 +219,22 @@ export class Floor {
     to.slots[slot] = hand;
     if (fromSource) this.live += hand.length;
     return true;
+  }
+
+  // Everything that changes while running, for stepping backwards.
+  snapshot() {
+    const cells = [...this.cells.values()].map((c) => ({
+      slots: c.slots, pending: c.pending, held: c.held, facing: c.facing, pos: c.pos,
+    }));
+    return structuredClone({
+      cells, round: this.round, paid: this.paid, inputPos: this.inputPos, live: this.live,
+    });
+  }
+
+  restore(snap) {
+    const s = structuredClone(snap);
+    [...this.cells.values()].forEach((c, i) => Object.assign(c, s.cells[i]));
+    Object.assign(this, { round: s.round, paid: s.paid, inputPos: s.inputPos, live: s.live });
   }
 
   done() {
