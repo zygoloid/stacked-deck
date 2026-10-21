@@ -2,6 +2,7 @@
 import { h } from './dom.js';
 import { CROUPIERS, PORT_STYLE } from './croupiers.js';
 import { LEVELS, CHAPTERS } from '../levels.js';
+import { RULES_VERSION } from '../engine.js';
 import { isUnlocked } from './model.js';
 
 const SUITS = ['♠', '♥', '♣', '♦'];
@@ -22,7 +23,8 @@ export function levelSelect(root, ctx) {
       h('p', { class: 'tagline' }, 'An esoteric casino. Build machines of croupiers that pay out exactly the right hands.'),
       h('div', { class: 'marquee-meta' },
         h('span', {}, `${solvedCount} / ${LEVELS.length} floors cleared`),
-        h('button', { class: 'btn ghost small', onclick: () => ctx.help() }, '? How to play'))),
+        h('button', { class: 'btn ghost small', onclick: () => ctx.help() }, '? How to play'),
+        h('span', { class: 'rules-version', title: 'Version of the game rules this page is running' }, `rules v${RULES_VERSION}`))),
     [...chapters].map(([ch, list]) => h('section', { class: 'chapter' },
       h('h2', {}, h('span', { class: 'ch-suit' }, SUITS[(ch - 1) % 4]), `Chapter ${ch}`, CHAPTERS[ch] ? h('span', { class: 'ch-name' }, ` · ${CHAPTERS[ch]}`) : ''),
       h('div', { class: 'tiles' }, list.map(([lv, i]) => tile(lv, i)))))));

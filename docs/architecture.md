@@ -95,6 +95,9 @@ scanning on clockwise from the first), so they keep up with a line of passes.
 
 A shoe counts as a croupier for scoring.
 
+Bump `RULES_VERSION` in `src/engine.js` (with a line in the comment above it)
+whenever a rule changes; the level select shows it.
+
 ## Level format (`src/levels.js`)
 
 ```js

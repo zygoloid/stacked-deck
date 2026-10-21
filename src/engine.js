@@ -33,6 +33,14 @@ import {
   rankOf, suitOf, highValue, newDeckIndex, isFlush, isStraight, rankCounts, largestSet,
 } from './cards.js';
 
+// Bump whenever the rules change (shown on the level select, so players can
+// tell which version their browser is running).
+//   3  croupiers turn to face their last output
+//   4  outputs to the same side are stacked
+//   5  cut with both halves to one side completes the cut
+//   6  gather and war take both hands in one round when both are waiting
+export const RULES_VERSION = 6;
+
 export const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
 export const DIR_NAMES = ['E', 'SE', 'SW', 'W', 'NW', 'NE'];
 const key = (q, r) => `${q},${r}`;

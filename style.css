@@ -533,3 +533,4 @@ svg.board.panning { cursor: grabbing; }
 
 /* Which side a croupier faces (placeholder until croupier art). */
 .board .facing { fill: none; stroke: var(--gold-2, #f2c14e); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; pointer-events: none; }
+.rules-version { font-size: 11px; opacity: 0.55; letter-spacing: 0.04em; }
