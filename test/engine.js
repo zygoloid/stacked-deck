@@ -99,3 +99,17 @@ console.log('facing ok');
   assert.deepStrictEqual(floor.paid, [['3S', '4S', '5S', 'AS', '2S']]);
 }
 console.log('stacking ok');
+// War with both hands waiting plays them in the same round: one hand per
+// round through a line of War croupiers, no stall cycles.
+{
+  const floor = new Floor({ cells: [
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, -1], kind: 'shoe', out: 1, deck: ['2C'] },
+    { at: [0, 0], kind: 'croupier', fn: 'war', rule: 'high', dealer: 4, out: { win: 0 } },
+    { at: [1, 0], kind: 'payout' },
+  ] }, [['KS'], ['QS'], ['JS'], ['TS']]);
+  const rounds = [];
+  for (let i = 0; i < 8; i++) { floor.step(); rounds.push(floor.paid.length); }
+  assert.deepStrictEqual(rounds, [0, 1, 2, 3, 4, 4, 4, 4], JSON.stringify(rounds));
+}
+console.log('same-round pickup ok');

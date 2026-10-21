@@ -73,7 +73,9 @@ cut `bottom` (else `top`); set `rest` (else `set`); duplicate `b`; suits and
 deal the pile that got the hand's last card; war the player's hand. Dropped
 outputs (unassigned ports) don't count. So a pass croupier looks for input
 clockwise starting from its output side. Gather and War skip sides they can't
-use while holding their first hand.
+use while holding their first hand. Gather and War pick up both of their
+hands in the same round when both are waiting (the second is found by
+scanning on clockwise from the first), so they keep up with a line of passes.
 
 | fn | ports | params | what it does |
 |---|---|---|---|

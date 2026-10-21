@@ -15,6 +15,7 @@
 //   1. Read: every croupier that is not holding undelivered output picks up
 //      one hand: from the side it faces, otherwise from the next filled slot
 //      clockwise, and then faces that side. With nothing to pick up it stalls.
+//      Gather and War take both of their hands this round if both are waiting.
 //      Having acted, it turns to face the side of its last output (pass: out;
 //      cut: bottom, else top; set: rest, else set; duplicate: b; suits and
 //      deal: the pile that got the last card; war: the player's hand).
@@ -192,8 +193,21 @@ export class Floor {
       const hand = cell.slots[found];
       cell.slots[found] = null;
       cell.facing = found;
-      const before = playerCards(hand) + heldCards(cell);
-      const outs = FUNCTIONS[cell.fn](cell, hand, found);
+      let before = playerCards(hand) + heldCards(cell);
+      let outs = FUNCTIONS[cell.fn](cell, hand, found);
+      // Gather and War need two hands. If the second is already waiting, they
+      // pick it up in the same round (scanning on clockwise from the first).
+      if (cell.held && !outs.length) {
+        for (let i = 1; i < 6; i++) {
+          const d = mod6(found + i);
+          if (!cell.slots[d] || !canTake(cell, d)) continue;
+          const second = cell.slots[d];
+          cell.slots[d] = null;
+          before += playerCards(second);
+          outs = FUNCTIONS[cell.fn](cell, second, d);
+          break;
+        }
+      }
       const ports = cell.fn === 'deal' ? (cell.out.to ?? []) : cell.out;
       let face;
       for (const [port, h] of outs) {
