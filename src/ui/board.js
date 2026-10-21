@@ -251,6 +251,14 @@ export class Board {
     const label = chipLabel(cell);
     chip.append(s('text', { class: `chip-t${label.length > 4 ? ' small' : ''}`, y: 3.3, 'text-anchor': 'middle' }, label));
     g.append(chip);
+    if (cell.kind === 'croupier') {
+      // Placeholder until the croupier art exists: a small chevron showing
+      // which side the croupier faces (it looks there first, then clockwise).
+      const d = (live ? live.cells.get(hexKey(cell.at))?.facing : cell.facing) ?? 0;
+      g.append(s('polyline', {
+        class: 'facing', points: `${CHIP + 2},-4 ${CHIP + 6},0 ${CHIP + 2},4`, transform: `rotate(${d * 60})`,
+      }, s('title', {}, 'Facing: looks for cards on this side first, then clockwise')));
+    }
     if (cell.kind === 'shoe') {
       const deck = cell.deck ?? [];
       const prev = deck.slice(0, 3).map(cardText).join(' ') + (deck.length > 3 ? ' …' : '');

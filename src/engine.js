@@ -15,6 +15,9 @@
 //   1. Read: every croupier that is not holding undelivered output picks up
 //      one hand: from the side it faces, otherwise from the next filled slot
 //      clockwise, and then faces that side. With nothing to pick up it stalls.
+//      Having acted, it turns to face the side of its last output (pass: out;
+//      cut: bottom, else top; set: rest, else set; duplicate: b; suits and
+//      deal: the pile that got the last card; war: the player's hand).
 //   2. Act: croupiers compute their outputs. Empty hands are never placed.
 //   3. Deposit: every undelivered output is placed if the target slot is empty
 //      (slots emptied in phase 1 count as empty). Otherwise the croupier keeps
@@ -64,14 +67,17 @@ export const FUNCTIONS = {
   // they are dropped. Suits sharing a side form one pile, in hand order.
   suits: (st, h) => {
     const piles = new Map();
+    let last;
     for (const x of h) {
       const port = st.out[suitOf(x.c)] !== undefined ? suitOf(x.c) : 'misc';
       const side = st.out[port];
       if (side === undefined) continue;
       if (!piles.has(side)) piles.set(side, []);
       piles.get(side).push(x);
+      last = side;
     }
-    return [...piles].map(([side, pile]) => [`@${side}`, pile]);
+    // The pile that got the last card goes last, so the croupier faces it.
+    return [...piles].sort(([a], [b]) => (a === last) - (b === last)).map(([side, pile]) => [`@${side}`, pile]);
   },
   set: (st, h) => {
     const counts = rankCounts(cardsOf(h));
@@ -84,7 +90,9 @@ export const FUNCTIONS = {
     const piles = (st.out.to ?? []).map(() => []);
     if (!piles.length) return []; // no sides: everything is dropped
     h.forEach((x, i) => piles[i % piles.length].push(x));
-    return piles.map((p, i) => [i, p]);
+    // The pile that got the last card goes last, so the croupier faces it.
+    const last = (h.length - 1) % piles.length;
+    return piles.map((p, i) => [i, p]).sort(([a], [b]) => (a === last) - (b === last));
   },
   // Gather ("stack"): put two hands from different sides together. The hand
   // from side `under` goes underneath; without `under`, the first one picked up does.
@@ -107,7 +115,8 @@ export const FUNCTIONS = {
     const value = (hand) => (st.rule === 'top' ? highValue(hand[0].c)
       : Math.max(...hand.map((x) => highValue(x.c))));
     const won = value(player) > value(dealer);
-    return [[won ? 'win' : 'lose', player], [won ? 'dlose' : 'dwin', dealer]];
+    // Player's hand last: the croupier ends up facing where it went.
+    return [[won ? 'dlose' : 'dwin', dealer], [won ? 'win' : 'lose', player]];
   },
 };
 
@@ -188,6 +197,9 @@ export class Floor {
         if (h.length && side !== undefined) cell.pending.push([side, h]); // else dropped
       }
       this.live += cell.pending.reduce((a, [, h]) => a + playerCards(h), 0) + heldCards(cell) - before;
+      // Having handed cards on, the croupier faces the side of its last output
+      // (dropped hands don't count), so it next looks there and then clockwise.
+      if (cell.pending.length) cell.facing = cell.pending[cell.pending.length - 1][0];
     }
     // Phase 3: deposit.
     for (const cell of this.cells.values()) {

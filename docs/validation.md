@@ -17,7 +17,8 @@ an arrow for its main output side (`>` E, `\` SE, `/` SW, `<` W, `` ` `` NW,
   cards on the floor**; that is how hands are discarded (there is no Scratch).
 * **A round** has three steps. First every free croupier picks up one hand
   (from the side it faces, otherwise the next filled slot clockwise, and then it
-  faces that side). Then it acts. Then all outputs are placed at once. A slot
+  faces that side). Then it acts, and turns to face the side of its last
+  output (see docs/architecture.md). Then all outputs are placed at once. A slot
   emptied this round can be refilled this round. A croupier whose output is
   blocked holds it and stalls until it can place it.
 * **Hands** have a top card (first in the list). Cut's top half is

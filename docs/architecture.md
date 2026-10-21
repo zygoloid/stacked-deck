@@ -58,6 +58,16 @@ coordinates: `0 E [1,0]`, `1 SE [0,1]`, `2 SW [-1,1]`, `3 W [-1,0]`,
 An unassigned port, or a port pointing at a hex with no table, drops cards on
 the floor (they are gone). Every croupier accepts input from any side.
 
+**Which input is picked up.** A croupier faces one side (initially `facing`,
+default east). Each round it takes from the side it faces if that slot has a
+hand, otherwise from the next filled slot clockwise, and turns to face it.
+After acting it turns to face the side of its **last output**: pass `out`;
+cut `bottom` (else `top`); set `rest` (else `set`); duplicate `b`; suits and
+deal the pile that got the hand's last card; war the player's hand. Dropped
+outputs (unassigned ports) don't count. So a pass croupier looks for input
+clockwise starting from its output side. Gather and War skip sides they can't
+use while holding their first hand.
+
 | fn | ports | params | what it does |
 |---|---|---|---|
 | `pass` | `out` | | passes the hand on |
