@@ -2,7 +2,8 @@
 //   node tools/ui-smoke.js [screenshot-dir]
 // Uses the `playwright` package from node_modules or the global npm root, and
 // the browsers in PLAYWRIGHT_BROWSERS_PATH. It serves the repo itself, solves
-// 'opening-night', checks the save and unlock, and checks that a wrong payout
+// 'opening-night', checks the save and unlock, records a second (longer)
+// solution and checks the solutions plot (load, delete), checks that a wrong payout
 // on the first level that drops hands pauses the run and can be stepped back.
 import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -26,14 +27,16 @@ async function loadPlaywright() {
 
 const { chromium } = await loadPlaywright();
 
-// Shortest line of passes from the (single) source to the desk: [[at, outSide], ...].
-function passLine(lv) {
+// Shortest line of passes from the (single) source to the desk: [[at, outSide], ...],
+// avoiding the hexes in `blocked` ("q,r" keys).
+function passLine(lv, blocked = new Set()) {
   const key = ([q, r]) => `${q},${r}`;
   const add = ([q, r], d) => [q + DIRS[d][0], r + DIRS[d][1]];
   const src = lv.fixed.find((c) => c.kind === 'source');
   const desk = lv.fixed.find((c) => c.kind === 'payout');
   const floor = new Set(lv.floor.map(key));
   lv.fixed.forEach((c) => floor.delete(key(c.at)));
+  blocked.forEach((k) => floor.delete(k));
   const start = add(src.at, src.out);
   if (!floor.has(key(start))) return null;
   const prev = new Map([[key(start), null]]);
@@ -69,6 +72,7 @@ try {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('dialog', (d) => d.accept()); // "Clear the whole floor?", "Delete ... solution?"
 
   await page.goto(base);
   await page.evaluate(() => localStorage.clear());
@@ -97,14 +101,18 @@ try {
   // Build the trivial solution: a line of passes from the player to the desk
   // (for 'opening-night': [-1,0] [0,0] [1,0], out -> E), derived from level.fixed.
   const line1 = passLine(LEVELS[0]);
-  await page.click('.pal-item[data-tool="pass"]');
-  for (const [at] of line1) await clickHex(at);
-  await page.keyboard.press('Escape'); // drop the tool
-  for (const [at, d] of line1) {
-    await clickHex(at);                 // select
-    await page.keyboard.press('x');     // port to the floor
-    await clickHex(at, d);              // click the edge: out -> d
-  }
+  const buildLine = async (line) => {
+    await page.click('.pal-item[data-tool="pass"]');
+    for (const [at] of line) await clickHex(at);
+    await page.keyboard.press('Escape'); // drop the tool
+    for (const [at, d] of line) {
+      await clickHex(at);                 // select
+      await page.keyboard.press('x');     // port to the floor
+      await clickHex(at, d);              // click the edge: out -> d
+    }
+  };
+  await buildLine(line1);
+  check(await page.locator('.sol-btn.hidden').count() === 1, 'no Solutions button before the floor is cleared');
   check((await page.textContent('.stats .stat-v')).trim() === String(line1.length), `croupier count shows ${line1.length}`);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')));
   const cells = saved?.levels?.['opening-night']?.cells ?? [];
@@ -135,10 +143,66 @@ try {
   const save = await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')));
   const lv = save.levels['opening-night'];
   check(lv.solved === true && lv.best.croupiers === line1.length && Number.isInteger(lv.best.rounds), `saved solved with best ${JSON.stringify(lv.best)}`);
+  check(lv.solutions?.length === 1 && lv.solutions[0].croupiers === line1.length && lv.solutions[0].rounds === lv.best.rounds &&
+    lv.solutions[0].cells.length === line1.length && Number.isFinite(lv.solutions[0].at), 'the solution is recorded');
+  check(await page.locator('.modal.results .scatter .sc-pt').count() === 1 && await page.locator('.modal.results .sc-pt.fresh.front').count() === 1,
+    'results plot shows the new solution, highlighted');
+  const best1 = lv.best;
+
+  // Clearing again with the same machine doesn't add a duplicate.
+  await page.click('.modal-actions .btn:first-child'); // Keep tinkering
+  await page.click('.tp.main');
+  await page.waitForSelector('.modal.results', { timeout: 20000 });
+  let ls = (await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')))).levels['opening-night'];
+  check(ls.solutions.length === 1 && /already saved/.test(await page.textContent('.modal.results')), 'clearing with the same machine adds no duplicate');
+  await page.click('.modal-actions .btn:first-child');
+
+  // A second, longer solution: the shortest line that avoids the first line's middle hex.
+  const line2 = passLine(LEVELS[0], new Set([line1[Math.floor(line1.length / 2)][0].join()]));
+  check(!!line2 && line2.length > line1.length, `a longer route exists (${line2?.length} passes)`);
+  await page.click('.pal-tools .btn.danger'); // Clear floor (confirm accepted)
+  await buildLine(line2);
+  await page.keyboard.press('Escape');
+  await page.click('.speeds .sp:last-child');
+  await page.waitForSelector('.modal.results', { timeout: 20000 });
+  ls = (await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')))).levels['opening-night'];
+  check(ls.solutions.length === 2 && ls.solutions[1].croupiers === line2.length, `second solution recorded (${ls.solutions.map((s) => `${s.croupiers}/${s.rounds}`).join(', ')})`);
+  check(ls.best.croupiers === best1.croupiers && ls.best.rounds === Math.min(best1.rounds, ls.solutions[1].rounds), `best is kept per axis: ${JSON.stringify(ls.best)}`);
+  check(await page.locator('.modal.results .sc-pt').count() === 2 && await page.locator('.modal.results .sc-pt.fresh[data-index="1"]').count() === 1,
+    'results plot shows both solutions, the new one highlighted');
+  check(await page.locator('.modal.results .sc-front').count() === 1 && await page.locator('.modal.results .sc-par').count() === (LEVELS[0].par ? 1 : 0), 'plot draws the frontier and par');
+  await page.hover('.modal.results .sc-pt[data-index="0"] .sc-hit', { force: true });
+  check(/croupiers? · \d+ rounds/.test(await page.textContent('.modal.results .sc-tip:not(.hidden)')), 'hovering a point shows its score');
+  if (shots) await page.screenshot({ path: join(shots, '4b-results-two-solutions.png') });
+
+  // Clicking the first point loads it into the editor, as an undoable edit.
+  await page.click('.modal.results .sc-pt[data-index="0"] .sc-hit', { force: true });
+  check(await page.locator('.modal.results').count() === 0, 'clicking a point closes the results');
+  check((await page.textContent('.stats .stat-v')).trim() === String(line1.length), `clicking the first point loads it (croupiers ${line2.length} -> ${line1.length})`);
+  await page.keyboard.press('Control+z');
+  check((await page.textContent('.stats .stat-v')).trim() === String(line2.length), 'undo puts the other machine back');
+  await page.keyboard.press('Control+Shift+z');
+  check((await page.textContent('.stats .stat-v')).trim() === String(line1.length), 'redo loads it again');
+
+  // The Solutions panel in the editor: plot and list, delete one.
+  check((await page.textContent('.sol-btn')).trim() === 'Solutions (2)', 'top bar shows Solutions (2)');
+  await page.click('.sol-btn');
+  await page.waitForSelector('.modal.solutions');
+  check(await page.locator('.modal.solutions .sc-pt').count() === 2 && await page.locator('.modal.solutions .sol-row').count() === 2, 'Solutions panel plots and lists both');
+  check(await page.locator('.modal.solutions .sc-pt.current[data-index="0"]').count() === 1, 'the loaded machine is highlighted');
+  if (shots) await page.screenshot({ path: join(shots, '4c-solutions-panel.png') });
+  await page.click('.modal.solutions .sol-row[data-index="1"] .sol-del'); // confirm accepted
+  ls = (await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')))).levels['opening-night'];
+  check(ls.solutions.length === 1 && ls.solutions[0].croupiers === line1.length && ls.solved, 'deleting removes it from the save');
+  check(ls.best.croupiers === best1.croupiers && ls.best.rounds === best1.rounds, `best recomputed: ${JSON.stringify(ls.best)}`);
+  check(await page.locator('.modal.solutions .sc-pt').count() === 1 && await page.locator('.modal.solutions .sol-row').count() === 1 &&
+    (await page.textContent('.sol-btn')).trim() === 'Solutions (1)', 'deleted solution is gone from the plot, list and button');
+  await page.keyboard.press('Escape');
+  check(await page.locator('.modal.solutions').count() === 0, 'Esc closes the Solutions panel');
 
   // Next level is unlocked.
   const next = LEVELS[1];
-  await page.click('.modal-actions .btn.gold');
+  await page.goto(`${base}#/level/${next.id}/story`);
   await page.waitForSelector('.story-card');
   check((await page.textContent('.story-card h1')).includes(next.title), `next level (${next.id}) opens`);
 
@@ -176,6 +240,24 @@ try {
   await page.keyboard.press('?');
   check(await page.locator('.modal.help .help-table tr').count() >= 10, 'help panel lists croupiers');
   await page.keyboard.press('Escape');
+
+  // An old save (no solutions list) still loads; best is kept when solving.
+  {
+    const sol = (await import(join(repo, 'solutions/levels/opening-night.js'))).default;
+    await page.goto(base);
+    await page.evaluate((cells) => {
+      localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: { 'opening-night': { cells, solved: true, best: { croupiers: 2, rounds: 9 } } } }));
+    }, sol.cells);
+    await page.goto(`${base}?old-save#/level/opening-night`); // a fresh load reads the old save
+    await page.waitForSelector('svg.board');
+    check(await page.locator('.sol-btn.hidden').count() === 1, 'old save: loads, no Solutions button');
+    await page.click('.speeds .sp:last-child');
+    await page.waitForSelector('.modal.results', { timeout: 20000 });
+    const ls = (await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')))).levels['opening-night'];
+    check(ls.solutions.length === 1 && ls.best.croupiers === 2 && ls.best.rounds === 9, `old save: solution added, old best kept ${JSON.stringify(ls.best)}`);
+    await page.goto(base);
+    await page.evaluate(() => localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: { 'opening-night': { solved: true } } })));
+  }
 
   // When the watched test passes but another fails, the floor is left paused
   // at the failure. This 'Beat the Dealer' machine plays an 8 instead of a 9,
@@ -224,6 +306,15 @@ try {
     const y = await phone.evaluate(() => window.scrollY);
     check(y === 0, `playing on a phone keeps the page still (scrollY ${y})`);
     if (shots) await phone.screenshot({ path: join(shots, '7-phone-playing.png') });
+    await phone.waitForSelector('.modal.results', { timeout: 60000 });
+    check(await phone.locator('.modal.results .sc-pt').count() === 1, 'phone: results plot shows the solution');
+    if (shots) await phone.screenshot({ path: join(shots, '7b-phone-results.png'), fullPage: true });
+    await phone.click('.modal-actions .btn:first-child');
+    await phone.click('.sol-btn');
+    await phone.waitForSelector('.modal.solutions .sol-row');
+    const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    check(overflow <= 0, `phone: Solutions panel fits the width (overflow ${overflow}px)`);
+    if (shots) await phone.screenshot({ path: join(shots, '7c-phone-solutions.png') });
     await phone.close();
   }
 
@@ -248,7 +339,7 @@ try {
       ]);
       const saved = await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id], lv.id);
       const par = lv.par ? ` (par ${lv.par.croupiers}/${lv.par.rounds})` : '';
-      check(res === 'solved' && saved.solved, `${lv.id}: reference solution ${res}, best ${JSON.stringify(saved.best)}${par}`);
+      check(res === 'solved' && saved.solved && saved.solutions?.length === 1, `${lv.id}: reference solution ${res}, best ${JSON.stringify(saved.best)}${par}`);
     }
   }
 

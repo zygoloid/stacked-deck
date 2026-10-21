@@ -7,8 +7,10 @@ import {
 } from './croupiers.js';
 import {
   hexKey, sanitizeCells, toSpec, countCroupiers, levelSave, warRules,
+  solutionsOf, recordSolution, deleteSolution, findSolution,
 } from './model.js';
 import { Sim } from './sim.js';
+import { scatterPlot, solutionList, scoreText } from './scatter.js';
 
 const ARROW = ['→', '↘', '↙', '←', '↖', '↗'];
 const SIDE_KEYS = { d: 0, c: 1, z: 2, a: 3, q: 4, e: 5 };
@@ -48,6 +50,7 @@ export function openEditor(root, ctx, level, index) {
   const toast = h('div', { class: 'toast hidden' });
   const modal = h('div', { class: 'modal-host' });
   const chapterIdx = ctx.levelNumber(index);
+  const solBtn = h('button', { class: 'btn ghost sol-btn hidden', onclick: () => openSolutions(), title: 'Your saved solutions for this floor' });
 
   const par = level.par;
   root.replaceChildren(h('div', { class: 'editor' },
@@ -61,6 +64,7 @@ export function openEditor(root, ctx, level, index) {
         h('span', { class: 'stat', title: 'Croupiers placed (shoes included)' }, h('span', { class: 'stat-k' }, 'Croupiers'), elCount),
         par ? h('span', { class: 'stat par', title: 'Par from the reference solution' }, h('span', { class: 'stat-k' }, 'Par'),
           h('span', { class: 'stat-v' }, `${par.croupiers ?? '–'} / ${par.rounds ?? '–'}`)) : null),
+      solBtn,
       h('button', { class: 'btn ghost', onclick: () => ctx.go(`#/level/${level.id}/story`), title: 'Read the story again' }, 'Story'),
       h('button', { class: 'btn ghost', onclick: () => ctx.help(), title: 'Help (?)' }, '? Help')),
     palette,
@@ -236,6 +240,7 @@ export function openEditor(root, ctx, level, index) {
   async function checkAll() {
     if (running) return;
     const watched = testIndex;
+    const machine = structuredClone(cells); // the machine being checked
     running = true;
     runResults = [];
     renderAll();
@@ -251,19 +256,16 @@ export function openEditor(root, ctx, level, index) {
     running = false;
     const ok = runResults.every((r) => r.ok);
     if (ok) {
-      const croupiers = countCroupiers(cells);
+      const croupiers = countCroupiers(machine);
       const rounds = Math.round(runResults.reduce((a, r) => a + r.rounds, 0) / runResults.length);
-      const prev = ls.best;
+      solutionsOf(ls);
+      const prev = ls.best ? { ...ls.best } : undefined;
       const wasSolved = !!ls.solved;
-      ls.solved = true;
-      ls.best = {
-        croupiers: Math.min(croupiers, prev?.croupiers ?? Infinity),
-        rounds: Math.min(rounds, prev?.rounds ?? Infinity),
-      };
+      const { index: found, isNew } = recordSolution(ls, machine, { croupiers, rounds });
       ls.last = { croupiers, rounds };
       ctx.persist();
       renderAll();
-      showResults({ croupiers, rounds, prev, wasSolved });
+      showResults({ croupiers, rounds, prev, wasSolved, found, isNew });
     } else {
       // Load the failing test and run it up to the failure, so the floor is
       // left paused at the moment it goes wrong (e.g. the bad payout).
@@ -288,7 +290,7 @@ export function openEditor(root, ctx, level, index) {
   }
 
   // ---------- results ----------
-  function showResults({ croupiers, rounds, prev, wasSolved }) {
+  function showResults({ croupiers, rounds, prev, wasSolved, found, isNew }) {
     const next = ctx.nextLevel(index);
     const row = (label, v, best, parV, prevV) => h('div', { class: 'res-row' },
       h('div', { class: 'res-k' }, label),
@@ -303,11 +305,62 @@ export function openEditor(root, ctx, level, index) {
         h('div', { class: 'res-grid' },
           row('Croupiers', croupiers, ls.best.croupiers, par?.croupiers, prev?.croupiers),
           row('Rounds', rounds, ls.best.rounds, par?.rounds, prev?.rounds)),
+        h('div', { class: 'res-plot' },
+          h('div', { class: 'res-plot-head' },
+            h('span', { class: 'sub-title' }, 'Your solutions'),
+            h('span', { class: 'muted small' }, isNew
+              ? `${ls.solutions.length === 1 ? 'Your first solution' : `Solution ${ls.solutions.length} saved`}. Click a point to load it.`
+              : 'You had already saved this machine. Click a point to load it.')),
+          scatterPlot({
+            solutions: ls.solutions, par, current: findSolution(ls, cells), fresh: found, freshIsNew: isNew,
+            onPick: (i) => { close(); loadSolution(i); }, height: 250,
+          })),
         h('div', { class: 'modal-actions' },
           h('button', { class: 'btn', onclick: close }, 'Keep tinkering'),
           h('button', { class: 'btn', onclick: () => ctx.go('#/') }, 'All floors'),
           next ? h('button', { class: 'btn gold', autofocus: true, onclick: () => ctx.go(`#/level/${next.id}/story`) }, `Next: ${next.title} →`) : null))));
     modal.querySelector('.btn.gold, .btn')?.focus();
+  }
+
+  // ---------- saved solutions ----------
+  function loadSolution(i) {
+    const sol = ls.solutions?.[i];
+    if (!sol || running) return;
+    commit(() => {
+      cells = sanitizeCells(level, sol.cells);
+      selected = null;
+      activePort = null;
+      deckDraft = null;
+    });
+    showToast(`Loaded your ${scoreText(sol)} solution. Ctrl+Z to undo.`, 'good');
+  }
+  function openSolutions() {
+    const close = () => modal.replaceChildren();
+    const draw = () => {
+      const list = solutionsOf(ls);
+      if (!list.length) { close(); renderAll(); return; }
+      const current = findSolution(ls, cells);
+      const pick = (i) => { close(); loadSolution(i); };
+      const del = (i) => {
+        if (!confirm(`Delete your ${scoreText(list[i])} solution? This can't be undone.`)) return;
+        deleteSolution(ls, i);
+        ctx.persist();
+        renderAll();
+        draw();
+      };
+      const b = ls.best;
+      modal.replaceChildren(h('div', { class: 'modal-back', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
+        h('div', { class: 'modal solutions' },
+          h('button', { class: 'modal-x', onclick: close, title: 'Close (Esc)' }, '×'),
+          h('h2', {}, 'Your solutions'),
+          h('p', { class: 'res-sub' }, `${level.title}: ${list.length} machine${list.length === 1 ? '' : 's'} saved`,
+            b ? ` · best ${b.croupiers} croupiers, ${b.rounds} rounds` : '', par ? ` · par ${par.croupiers ?? '–'} / ${par.rounds ?? '–'}` : '',
+            '. Fewer is better on both axes: the gold staircase joins the solutions nothing else beats on both.'),
+          scatterPlot({ solutions: list, par, current, onPick: pick }),
+          solutionList({ solutions: list, current, onPick: pick, onDelete: del }))));
+      modal.querySelector('.modal-x')?.focus();
+    };
+    draw();
   }
 
   // ---------- toast ----------
@@ -320,6 +373,9 @@ export function openEditor(root, ctx, level, index) {
   // ---------- rendering ----------
   function renderAll() {
     elCount.textContent = String(countCroupiers(cells));
+    const nSol = ls.solutions?.length ?? 0;
+    solBtn.textContent = `Solutions (${nSol})`;
+    solBtn.classList.toggle('hidden', !nSol);
     renderPalette(); renderBoard(); renderInspector(); renderTests(); renderTransport();
   }
 

@@ -77,3 +77,84 @@ export function toSpec(level, cells) {
 }
 
 export const countCroupiers = (cells) => cells.filter((c) => c.kind === 'croupier' || c.kind === 'shoe').length;
+
+// ---------- saved solutions ----------
+// levels[id].solutions: [{ cells, croupiers, rounds, at }], one per distinct
+// machine that cleared the floor. `best` is the smallest croupiers and the
+// smallest rounds over all of them (each minimised on its own); `solved`
+// stays true once set.
+
+// Default values that are the same as leaving the field out.
+const DEFAULTS = { facing: 0, once: false, rule: 'high' };
+
+function canonValue(v, key) {
+  if (v === undefined || v === null) return undefined;
+  if (key in DEFAULTS && v === DEFAULTS[key]) return undefined;
+  if (Array.isArray(v)) {
+    const a = v.map((x) => canonValue(x, '')).filter((x) => x !== undefined);
+    return a.length ? a : undefined;
+  }
+  if (typeof v === 'object') {
+    const o = {};
+    for (const k of Object.keys(v).sort()) {
+      const x = canonValue(v[k], k);
+      if (x !== undefined) o[k] = x;
+    }
+    return Object.keys(o).length ? o : undefined;
+  }
+  return v;
+}
+
+// A string that is equal for two machines exactly when they are the same
+// machine up to cosmetics (field order, cell order, empty or default fields).
+// The same machine placed elsewhere on the floor is a different solution.
+export function canonicalCells(cells) {
+  const list = (Array.isArray(cells) ? cells : [])
+    .map((c) => canonValue(c, '') ?? {})
+    .sort((a, b) => (a.at?.[0] ?? 0) - (b.at?.[0] ?? 0) || (a.at?.[1] ?? 0) - (b.at?.[1] ?? 0));
+  return JSON.stringify(list);
+}
+
+// The level's saved solutions (an old save without any starts with an empty
+// list; the best it recorded is kept as `legacyBest` so best never gets worse).
+export function solutionsOf(ls) {
+  if (!Array.isArray(ls.solutions)) {
+    ls.solutions = [];
+    if (ls.best && ls.legacyBest === undefined) ls.legacyBest = { ...ls.best };
+  }
+  return ls.solutions;
+}
+
+export function recomputeBest(ls) {
+  const all = [...solutionsOf(ls), ...(ls.legacyBest ? [ls.legacyBest] : [])];
+  if (!all.length) { delete ls.best; return; }
+  ls.best = {
+    croupiers: Math.min(...all.map((s) => s.croupiers)),
+    rounds: Math.min(...all.map((s) => s.rounds)),
+  };
+}
+
+// Index of the saved solution that is the same machine as `cells`, or -1.
+export function findSolution(ls, cells) {
+  const key = canonicalCells(cells);
+  return solutionsOf(ls).findIndex((s) => canonicalCells(s.cells) === key);
+}
+
+// Record a machine that cleared the floor. Returns { index, isNew }.
+export function recordSolution(ls, cells, { croupiers, rounds }) {
+  const list = solutionsOf(ls);
+  let index = findSolution(ls, cells);
+  const isNew = index < 0;
+  if (isNew) {
+    list.push({ cells: structuredClone(cells), croupiers, rounds, at: Date.now() });
+    index = list.length - 1;
+  }
+  ls.solved = true;
+  recomputeBest(ls);
+  return { index, isNew };
+}
+
+export function deleteSolution(ls, index) {
+  solutionsOf(ls).splice(index, 1);
+  recomputeBest(ls); // `solved` stays true
+}

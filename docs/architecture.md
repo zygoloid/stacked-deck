@@ -113,8 +113,28 @@ unlock in order: a level is available once the previous one is solved.
 ## Save format (localStorage key `stacked-deck-v1`)
 
 ```js
-{ levels: { [id]: { cells: [placed cells], solved: true, best: { croupiers, rounds } } } }
+{ levels: { [id]: {
+  cells: [placed cells],          // the working machine (autosaved)
+  solved: true,                   // set once the floor is first cleared; never unset
+  best: { croupiers, rounds },    // each minimised on its own over all solutions
+  solutions: [{ cells, croupiers, rounds, at }],  // every distinct machine that cleared it
+  legacyBest: { croupiers, rounds },  // only for saves from before `solutions`
+  last: { croupiers, rounds },    // score of the latest clear
+} } }
 ```
 
-`cells` holds only the player's own cells (shoes and croupiers), in the cell
-format above.
+`cells` (both the working machine and each solution's) holds only the
+player's own cells (shoes and croupiers), in the cell format above.
+
+`solutions` grows each time every test passes with a machine not already in
+the list; `at` is `Date.now()` when it was first found. Two machines are the
+same solution when their canonical forms match (`canonicalCells` in
+`src/ui/model.js`: undefined, empty and default fields (`facing: 0`,
+`once: false`, `rule: 'high'`) dropped, keys sorted, cells sorted by
+position). The same machine built elsewhere on the floor is a different
+solution. The player can delete solutions; `best` is then recomputed from
+what is left (and removed when nothing is), while `solved` stays true.
+
+Older saves have no `solutions`: they start with an empty list, and the
+`best` they recorded is kept as `legacyBest` and still counts towards `best`.
+The editor plots the list (`src/ui/scatter.js`, rounds against croupiers).
