@@ -128,6 +128,14 @@ const L23 = [source([0, 0], E), desk([1, -1])];
 const L24 = [source([0, 0], E), desk([1, -1])];
 const L25 = [source([0, 0], NW), desk([-1, -2])];
 
+export const CHAPTERS = {
+  1: 'Opening Night',
+  2: 'Stacking the Deck',
+  3: 'The Regulars',
+  4: 'House Rules',
+  5: 'The House Always Wins',
+};
+
 export const LEVELS = [
   // ===== Chapter 1: Opening Night =====
   {

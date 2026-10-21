@@ -41,3 +41,14 @@ import { Floor } from '../src/engine.js';
   assert.strictEqual(paidAfter(), first);
 }
 console.log('engine ok');
+// A deal with no sides and a shoe with no side drop their cards instead of crashing.
+{
+  const floor = new Floor({ cells: [
+    { at: [0, 0], kind: 'source', out: 0 },
+    { at: [1, 0], kind: 'croupier', fn: 'deal', out: {} },
+    { at: [1, 1], kind: 'shoe', deck: ['AS'] },
+  ] }, [['AS', '2D']]);
+  for (let i = 0; i < 4; i++) floor.step();
+  assert(floor.done());
+}
+console.log('engine edge cases ok');

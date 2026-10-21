@@ -1,0 +1,129 @@
+// Interactive simulation of one test case, with history for stepping back and
+// the same pass/fail rules as runTest in src/engine.js (checked live, so a run
+// can pause at the first wrong payout).
+import { Floor } from '../engine.js';
+
+export const MAX_ROUNDS = 5000;   // as runTest
+export const GRACE = 50;          // as runTest
+export const JAM_ROUNDS = 200;    // no player card moved for this long: jammed
+const KEEP_ALL = 400;             // keep every snapshot for the last N rounds
+const CHECKPOINT = 25;            // older rounds keep one snapshot in N
+
+export const canon = (h) => [...h].sort().join(' ');
+
+export class Sim {
+  constructor(spec, inputs, pays) {
+    this.spec = spec;
+    this.inputs = inputs;
+    this.expected = inputs.filter((h, i) => pays(h, inputs.slice(0, i)));
+    this.reset();
+  }
+
+  reset() {
+    this.floor = new Floor(this.spec, this.inputs);
+    this.snaps = new Map([[0, this.floor.snapshot()]]);
+    this.settled = null;
+    this.lastMove = 0;
+    this.sig = this.signature();
+    this.status = { kind: 'ready' };
+    this.paidNow = null;
+    this.paidWrong = false;
+  }
+
+  get round() { return this.floor.round; }
+  get finished() { return ['passed', 'wrong', 'missing', 'timeout', 'jam'].includes(this.status.kind); }
+
+  // Player-card positions: if this stops changing, nothing is happening.
+  signature() {
+    const f = this.floor;
+    const parts = [f.inputPos, f.paid.length];
+    const pc = (h) => (h ? h.filter((x) => x.src === 'player').map((x) => x.c).join('') : '');
+    for (const c of f.cells.values()) {
+      parts.push(c.slots.map(pc).join('/'), c.pending.map(([d, h]) => d + pc(h)).join('/'));
+      if (c.held) parts.push(JSON.stringify(c.held));
+    }
+    return parts.join('|');
+  }
+
+  // Match paid hands against the expected winners (as card multisets).
+  tally() {
+    const remaining = this.expected.map((h) => ({ h, k: canon(h) }));
+    const paid = this.floor.paid.map((h) => {
+      const i = remaining.findIndex((x) => x.k === canon(h));
+      if (i < 0) return { h, ok: false };
+      remaining.splice(i, 1);
+      return { h, ok: true };
+    });
+    return { paid, missing: remaining.map((x) => x.h) };
+  }
+
+  // Advance one round. Returns the status kind.
+  step() {
+    if (this.finished) return this.status.kind;
+    const f = this.floor;
+    const before = f.paid.length;
+    f.step();
+    this.status = { kind: 'running' };
+    this.paidNow = null;
+    this.paidWrong = false;
+    this.store();
+    const sig = this.signature();
+    if (sig !== this.sig) { this.sig = sig; this.lastMove = f.round; }
+
+    if (f.paid.length > before) {
+      const t = this.tally();
+      this.paidNow = f.paid[f.paid.length - 1];
+      const bad = t.paid.slice(before).find((x) => !x.ok);
+      if (bad) {
+        this.paidWrong = true;
+        this.paidNow = bad.h;
+        const dup = this.expected.some((h) => canon(h) === canon(bad.h));
+        this.status = {
+          kind: 'wrong', hand: bad.h,
+          msg: dup ? 'Paid out a winning hand a second time.' : 'Paid out a hand that should have been dropped.',
+        };
+        return this.status.kind;
+      }
+    }
+    if (f.inputPos >= this.inputs.length && f.paid.length >= this.expected.length) this.settled ??= f.round;
+    const t = () => this.tally();
+    if (f.done() || (this.settled !== null && f.round - this.settled >= GRACE)) {
+      const { missing } = t();
+      this.status = missing.length
+        ? { kind: 'missing', missing, msg: `Every card has left the floor, but ${missing.length} winning hand${missing.length > 1 ? 's were' : ' was'} never paid.` }
+        : { kind: 'passed', rounds: this.settled ?? f.round, msg: `Test passed in ${this.settled ?? f.round} rounds.` };
+    } else if (f.round >= MAX_ROUNDS) {
+      const { missing } = t();
+      this.status = { kind: 'timeout', missing, msg: `Out of time after ${MAX_ROUNDS} rounds.` };
+    } else if (f.round - this.lastMove >= JAM_ROUNDS) {
+      const { missing } = t();
+      this.status = { kind: 'jam', missing, msg: `Jammed: no player card has moved for ${JAM_ROUNDS} rounds.` };
+    }
+    return this.status.kind;
+  }
+
+  store() {
+    const r = this.floor.round;
+    this.snaps.set(r, this.floor.snapshot());
+    const old = r - KEEP_ALL;
+    if (old > 0 && old % CHECKPOINT) this.snaps.delete(old);
+  }
+
+  // Go back one round (restoring the nearest snapshot and replaying if needed).
+  back() {
+    const target = this.floor.round - 1;
+    if (target < 0) return;
+    let from = target;
+    while (!this.snaps.has(from)) from--;
+    this.floor.restore(this.snaps.get(from));
+    while (this.floor.round < target) this.floor.step();
+    for (const k of this.snaps.keys()) if (k > target) this.snaps.delete(k);
+    this.snaps.set(target, this.floor.snapshot());
+    if (this.settled !== null && this.settled > target) this.settled = null;
+    this.lastMove = Math.min(this.lastMove, target);
+    this.sig = this.signature();
+    this.status = { kind: target === 0 ? 'ready' : 'paused' };
+    this.paidNow = null;
+    this.paidWrong = false;
+  }
+}

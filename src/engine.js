@@ -81,7 +81,8 @@ export const FUNCTIONS = {
   },
   // Deal: one card at a time, round-robin, to the sides listed in out.to.
   deal: (st, h) => {
-    const piles = st.out.to.map(() => []);
+    const piles = (st.out.to ?? []).map(() => []);
+    if (!piles.length) return []; // no sides: everything is dropped
     h.forEach((x, i) => piles[i % piles.length].push(x));
     return piles.map((p, i) => [i, p]);
   },
@@ -181,7 +182,7 @@ export class Floor {
       cell.facing = found;
       const before = playerCards(hand) + heldCards(cell);
       const outs = FUNCTIONS[cell.fn](cell, hand, found);
-      const ports = cell.fn === 'deal' ? cell.out.to : cell.out;
+      const ports = cell.fn === 'deal' ? (cell.out.to ?? []) : cell.out;
       for (const [port, h] of outs) {
         const side = typeof port === 'string' && port[0] === '@' ? Number(port.slice(1)) : ports[port];
         if (h.length && side !== undefined) cell.pending.push([side, h]); // else dropped
@@ -190,7 +191,7 @@ export class Floor {
     }
     // Phase 3: deposit.
     for (const cell of this.cells.values()) {
-      if (cell.kind === 'shoe' && !cell.pending.length) {
+      if (cell.kind === 'shoe' && !cell.pending.length && cell.out !== undefined && typeof cell.out === 'number') {
         if (!cell.once || cell.pos < cell.deck.length) {
           cell.pending = [[cell.out, [{ c: cell.deck[cell.pos++ % cell.deck.length], src: 'house' }]]];
         }
