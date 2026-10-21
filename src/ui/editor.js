@@ -1,6 +1,6 @@
 // The level editor: palette, board, inspector, simulation and test runs.
 import { runTest } from '../engine.js';
-import { h, handEl, parseCards, fmtCards } from './dom.js';
+import { h, s, handEl, parseCards, fmtCards } from './dom.js';
 import { Board, R } from './board.js';
 import {
   CROUPIERS, PORT_STYLE, SIDE_NAMES, infoFor, newCell, portsOf, getPort, setPort, chipLabel,
@@ -29,8 +29,8 @@ export function openEditor(root, ctx, level, index) {
   let lastSide = 0;
   const undo = [], redo = [];
   let sim = null, testIndex = 0, playing = false, speed = 1, raf = 0, lastT = 0, acc = 0;
-  let runResults = null;          // results of "Run all tests"
-  let running = false;            // a "Run all tests" is in progress
+  let runResults = null;          // results of checking every test
+  let running = false;            // every test is being checked
   let deckDraft = null;           // { key, text, error }
 
   const cellAt = (key) => cells.find((c) => hexKey(c.at) === key);
@@ -175,6 +175,8 @@ export function openEditor(root, ctx, level, index) {
       reportStatus();
     }
     renderBoard(); renderTests(); renderTransport();
+    // Once the watched test passes, check every test; that's how a floor is cleared.
+    if (sim.finished && sim.status.kind === 'passed') checkAll();
   }
   function back() {
     if (!sim || running) return;
@@ -227,9 +229,9 @@ export function openEditor(root, ctx, level, index) {
     else showToast(st.msg, 'bad');
   }
 
-  async function runAll() {
+  async function checkAll() {
     if (running) return;
-    resetSim();
+    const watched = testIndex;
     running = true;
     runResults = [];
     renderAll();
@@ -261,9 +263,10 @@ export function openEditor(root, ctx, level, index) {
     } else {
       const first = runResults.findIndex((r) => !r.ok);
       testIndex = first;
+      resetSim();
       renderAll();
       const r = runResults[first];
-      showToast(`Test ${first + 1} failed: ${describeFailure(r)} Watch it run to find out why.`, 'bad');
+      showToast(`Test ${watched + 1} passed, but test ${first + 1} fails: ${describeFailure(r)} Press play to watch it.`, 'bad');
     }
   }
   function describeFailure(r) {
@@ -370,7 +373,7 @@ export function openEditor(root, ctx, level, index) {
           h('li', {}, 'Place croupiers from the palette on the felt hexes.'),
           h('li', {}, 'Select one, then click an edge of its hex to point the highlighted port there. Ports left on ', h('b', {}, '✕ floor'), ' drop their cards.'),
           h('li', {}, 'Winning hands must reach the chip desk; everything else must be dropped.'),
-          h('li', {}, 'Run all tests to clear the floor.')),
+          h('li', {}, 'Press play to watch a test. When it passes, every other test is checked; pass them all to clear the floor.')),
         h('p', { class: 'keys' }, h('kbd', {}, 'Space'), ' play  ', h('kbd', {}, '.'), ' step  ', h('kbd', {}, ','), ' back  ', h('kbd', {}, 'Del'), ' remove  ', h('kbd', {}, '?'), ' help'));
       return;
     }
@@ -463,9 +466,7 @@ export function openEditor(root, ctx, level, index) {
     };
     const parts = [
       h('div', { class: 'tests-head' }, h('h3', {}, 'Tests'),
-        h('button', {
-          class: 'btn gold run-all', disabled: running, onclick: runAll, title: 'Run every test at full speed',
-        }, running ? `Running ${runResults?.length ?? 0}/${tests.length}…` : 'Run all tests')),
+        running ? h('span', { class: 'muted small' }, `Checking ${runResults?.length ?? 0}/${tests.length}…`) : null),
       h('div', { class: 'test-chips' }, tests.map((_, i) => chip(i))),
     ];
     const inputs = tests[testIndex] ?? [];
@@ -506,8 +507,15 @@ export function openEditor(root, ctx, level, index) {
       : h('div', { class: 'muted small' }, 'Nothing paid yet. Hands marked $ should be paid.')));
     void expectedSet; void wins;
     testsPanel.replaceChildren(...parts);
-    const next = testsPanel.querySelector('.q-item.next');
-    if (next && playing) next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // Keep the next hand visible by scrolling the queue box only, never the page.
+    const queue = testsPanel.querySelector('.queue');
+    const next = queue?.querySelector('.q-item.next');
+    if (next && playing && queue.scrollHeight > queue.clientHeight) {
+      const top = next.getBoundingClientRect().top - queue.getBoundingClientRect().top + queue.scrollTop;
+      if (top < queue.scrollTop || top + next.offsetHeight > queue.scrollTop + queue.clientHeight) {
+        queue.scrollTop = top - queue.clientHeight / 2;
+      }
+    }
   }
 
   function renderTransport() {
@@ -516,9 +524,9 @@ export function openEditor(root, ctx, level, index) {
     transport.replaceChildren(
       h('div', { class: 'tp-group' },
         h('button', { class: 'tp', title: 'Reset (R)', disabled: !sim || running, onclick: () => { resetSim(); renderAll(); } }, '⟲'),
-        h('button', { class: 'tp', title: 'Step back (,)', disabled: !sim || r === 0 || running, onclick: back }, '⏮'),
+        h('button', { class: 'tp', title: 'Step back (,)', disabled: !sim || r === 0 || running, onclick: back }, icon('back')),
         h('button', { class: `tp main${playing ? ' on' : ''}`, title: 'Play / pause (Space)', disabled: running, onclick: () => (playing ? stop() : play()) }, playing ? '⏸' : '▶'),
-        h('button', { class: 'tp', title: 'Step (.)', disabled: running || fin, onclick: stepOnce }, '⏭')),
+        h('button', { class: 'tp', title: 'Step (.)', disabled: running || fin, onclick: stepOnce }, icon('step'))),
       h('div', { class: 'tp-group speeds', title: 'Speed (F cycles)' },
         SPEEDS.map((sp, i) => h('button', {
           class: `sp${i === speed ? ' on' : ''}`, onclick: () => { speed = i; if (!playing && !running) play(); else renderTransport(); },
@@ -694,4 +702,11 @@ export function openEditor(root, ctx, level, index) {
     document.removeEventListener('pointerup', onUp);
     document.removeEventListener('keydown', onKey);
   };
+}
+
+// Single-step icons: one triangle and a bar (not the double-triangle skip icons).
+function icon(kind) {
+  const path = kind === 'step' ? 'M5 3 L13 9 L5 15 Z M14 3 h2.5 v12 H14 Z' : 'M13 3 L5 9 L13 15 Z M1.5 3 h2.5 v12 H1.5 Z';
+  return s('svg', { class: 'tp-icon', viewBox: '0 0 18 18', width: 16, height: 16, 'aria-hidden': 'true' },
+    s('path', { d: path, fill: 'currentColor' }));
 }

@@ -128,8 +128,7 @@ try {
   await page.waitForSelector('.sim-status.good', { timeout: 10000 });
   check(true, 'test 1 passes when played');
 
-  // Run all tests.
-  await page.click('.run-all');
+  // Passing the watched test checks every test and clears the floor.
   await page.waitForSelector('.modal.results', { timeout: 20000 });
   check((await page.textContent('.modal.results h2')).includes('cleared'), 'results panel shows the floor cleared');
   if (shots) await page.screenshot({ path: join(shots, '4-results.png') });
@@ -178,6 +177,29 @@ try {
   check(await page.locator('.modal.help .help-table tr').count() >= 10, 'help panel lists croupiers');
   await page.keyboard.press('Escape');
 
+  // On a phone-sized screen, playing must not scroll the page away from the floor.
+  {
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    phone.on('pageerror', (e) => errors.push(e.message));
+    await phone.goto(`${base}?unlockall#/level/even-money`);
+    await phone.waitForSelector('svg.board');
+    const sol = (await import(join(repo, 'solutions/levels/even-money.js'))).default;
+    await phone.evaluate((cells) => {
+      const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+      s.levels['even-money'] = { cells };
+      localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+    }, sol.cells);
+    await phone.reload();
+    await phone.waitForSelector('svg.board');
+    await phone.evaluate(() => window.scrollTo(0, 0));
+    await phone.click('.tp.main');
+    await phone.waitForTimeout(3000);
+    const y = await phone.evaluate(() => window.scrollY);
+    check(y === 0, `playing on a phone keeps the page still (scrollY ${y})`);
+    if (shots) await phone.screenshot({ path: join(shots, '7-phone-playing.png') });
+    await phone.close();
+  }
+
   if (all) {
     const { readdirSync } = await import('node:fs');
     const have = new Set(readdirSync(join(repo, 'solutions/levels')).map((f) => f.replace(/\.js$/, '')));
@@ -192,7 +214,7 @@ try {
       }, [lv.id, sol.cells]);
       await page.goto(`${base}?unlockall#/level/${lv.id}`);
       await page.waitForSelector('svg.board');
-      await page.click('.run-all');
+      await page.click('.speeds .sp:last-child');
       const res = await Promise.race([
         page.waitForSelector('.modal.results', { timeout: 120000 }).then(() => 'solved'),
         page.waitForSelector('.toast.bad', { timeout: 120000 }).then(async () => `failed: ${await page.textContent('.toast')}`),
