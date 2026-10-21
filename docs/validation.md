@@ -147,8 +147,9 @@ The memory part works the same way as above. What's missing is turning
 Two natural croupiers would fix this, and each makes the puzzle a mid-game one:
 
 * **Pair Plus dealer** (a real side bet): sends the whole hand one way if it
-  holds a pair or better, otherwise the other way. Chaining it with Set
-  separates hands with no pair, a pair, three of a kind and four of a kind.
+  holds a pair or better, otherwise the other way. Used on the hand, and on
+  Set's output padded with reference cards, it should separate hands with no
+  pair, a pair, three of a kind and four of a kind (not built yet).
   Each class then becomes a reference card, compared with the champion as above.
 * **Showdown** (War with full poker hand ranking). This gives the "high hand
   of the hour" version for free (the champion machine above, about 4
@@ -166,7 +167,7 @@ Two natural croupiers would fix this, and each makes the puzzle a mid-game one:
    * merges for the tournament.
 
    With ties going to the house, a dealer A always beats anything. With
-   high-card War, a dealer 2 always loses to any multi-card hand. So a stream
+   high-card War, a dealer 2 always loses to any 5-card hand. So a stream
    of 2s and As can switch another stream pure on/off. With top-card War that
    only works one way, because the hand's own top card might be a 2.
 3. **Gather's `under` side** removed the timing-dependent card order that the
