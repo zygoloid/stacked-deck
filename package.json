@@ -1,0 +1,8 @@
+{
+  "name": "stacked-deck",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/checker.js && node test/run.js"
+  }
+}
