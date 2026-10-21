@@ -3,7 +3,7 @@
 //   #/level/<id>/story     story
 //   #/level/<id>           editor
 import { LEVELS } from '../levels.js';
-import { loadSave, writeSave, isUnlocked } from './model.js';
+import { loadSave, writeSave, isUnlocked, rescoreStale } from './model.js';
 import { levelSelect, storyScreen, helpPanel } from './screens.js';
 import { openEditor } from './editor.js';
 
@@ -57,3 +57,9 @@ function route() {
 
 window.addEventListener('hashchange', route);
 route();
+
+// Saved solutions scored under older rules are re-run in the background.
+rescoreStale(save, LEVELS, () => {
+  writeSave(save);
+  if (document.body.dataset.screen === 'select') route();
+});

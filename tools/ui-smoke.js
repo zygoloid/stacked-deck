@@ -286,6 +286,49 @@ try {
     check(await page.locator('.p-item.bad').count() === 0 && Number((await page.textContent('.tp-round b')).trim()) === round - 1, 'one step back undoes it');
   }
 
+  // Solutions saved under older rules are re-scored in the background: a stale
+  // score is corrected, a machine that no longer works is marked broken, and
+  // best follows. Re-clearing a saved machine also refreshes its score.
+  {
+    const lv = LEVELS.find((l) => l.id === 'beat-the-dealer');
+    const sol = (await import(join(repo, 'solutions/levels/beat-the-dealer.js'))).default;
+    const broken = sol.cells.map((c) => (c.kind === 'shoe' ? { ...c, deck: ['8S'] } : c));
+    await page.goto(base);
+    await page.evaluate(([id, good, bad]) => {
+      localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: { [id]: {
+        cells: good, solved: true, best: { croupiers: 4, rounds: 99 },
+        solutions: [
+          { cells: good, croupiers: 4, rounds: 99, at: 1 },             // stale score, no rules field
+          { cells: bad, croupiers: 4, rounds: 50, at: 2, rules: 1 },    // no longer works
+        ],
+      } } }));
+    }, [lv.id, sol.cells, broken]);
+    await page.reload();
+    await page.waitForFunction((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].solutions.every((x) => x.rules !== undefined && x.rules > 1), lv.id, { timeout: 20000 });
+    const ls = await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id], lv.id);
+    check(ls.solutions[0].rounds === lv.par.rounds && !ls.solutions[0].broken, `stale score re-scored (99 -> ${ls.solutions[0].rounds})`);
+    check(ls.solutions[1].broken === true, 'machine that no longer clears the floor is marked broken');
+    check(ls.best.rounds === lv.par.rounds, `best follows the re-scored solutions (${JSON.stringify(ls.best)})`);
+    await page.goto(`${base}?unlockall#/level/${lv.id}`);
+    await page.waitForSelector('svg.board');
+    await page.click('.top-solutions, button:has-text("Solutions")');
+    await page.waitForSelector('.sol-list');
+    check(await page.locator('.sc-pt').count() === 1 && await page.locator('.sol-score.broken').count() === 1, 'plot shows the working solution; list marks the broken one');
+    await page.keyboard.press('Escape');
+    // Re-clearing the saved machine refreshes its stored score.
+    await page.evaluate((id) => {
+      const s = JSON.parse(localStorage.getItem('stacked-deck-v1'));
+      s.levels[id].solutions[0].rounds = 77;
+      localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+    }, lv.id);
+    await page.reload();
+    await page.waitForSelector('svg.board');
+    await page.click('.speeds .sp:last-child');
+    await page.waitForSelector('.modal.results', { timeout: 20000 });
+    const after = await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].solutions[0].rounds, lv.id);
+    check(after === lv.par.rounds, `re-clearing a saved machine updates its score (77 -> ${after})`);
+  }
+
   // On a phone-sized screen, playing must not scroll the page away from the floor.
   {
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

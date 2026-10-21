@@ -20,8 +20,10 @@ const M = { l: 48, r: 18, t: 18, b: 42 };
 // Solutions not beaten on both axes by another one (by index).
 export function frontierOf(solutions) {
   const out = new Set();
+  // Solutions that no longer clear the floor (after a rules change) are left out.
   solutions.forEach((a, i) => {
-    const beaten = solutions.some((b) => b.croupiers <= a.croupiers && b.rounds <= a.rounds &&
+    if (a.broken) return;
+    const beaten = solutions.some((b) => !b.broken && b.croupiers <= a.croupiers && b.rounds <= a.rounds &&
       (b.croupiers < a.croupiers || b.rounds < a.rounds));
     if (!beaten) out.add(i);
   });
@@ -64,7 +66,7 @@ export function scatterPlot({
   const W = width ?? (window.innerWidth < 640 ? 360 : 520);
   const H = width || window.innerWidth >= 640 ? height : Math.round(height * 0.85);
   const pw = W - M.l - M.r, ph = H - M.t - M.b;
-  const pts = [...solutions, ...(par?.croupiers != null && par?.rounds != null ? [par] : []), ...others];
+  const pts = [...solutions.filter((p) => !p.broken), ...(par?.croupiers != null && par?.rounds != null ? [par] : []), ...others];
   const xa = axis(pts.length ? pts.map((p) => p.croupiers) : [1], 8, 4);
   const ya = axis(pts.length ? pts.map((p) => p.rounds) : [10], 5, 4);
   const X = (v) => M.l + ((v - xa.lo) / (xa.hi - xa.lo)) * pw;
@@ -121,12 +123,13 @@ export function scatterPlot({
   // points; machines with the same score are spread out side by side
   const groups = new Map();
   solutions.forEach((p, i) => {
+    if (p.broken) return;
     const k = `${p.croupiers},${p.rounds}`;
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(i);
   });
   const colW = pw / (xa.hi - xa.lo);
-  const order = solutions.map((_, i) => i).sort((a, b) => (front.has(a) - front.has(b)) || ((a === current) - (b === current)));
+  const order = solutions.map((_, i) => i).filter((i) => !solutions[i].broken).sort((a, b) => (front.has(a) - front.has(b)) || ((a === current) - (b === current)));
   const layer = s('g', { class: 'sc-points' });
   const pos = new Map();
   for (const idx of groups.values()) {
@@ -206,9 +209,11 @@ export function solutionList({ solutions, current = -1, fresh = -1, onPick, onDe
   return h('ol', { class: 'sol-list' }, idx.map((i) => {
     const p = solutions[i];
     return h('li', { class: `sol-row${i === current ? ' current' : ''}`, 'data-index': i },
-      h('i', { class: `lg-dot ${front.has(i) ? 'front' : 'beaten'}${i === current ? ' ring' : ''}` }),
+      h('i', { class: `lg-dot ${p.broken ? 'broken' : front.has(i) ? 'front' : 'beaten'}${i === current ? ' ring' : ''}` }),
       h('button', { class: 'sol-load', title: 'Load this solution into the editor', onclick: () => onPick(i) },
-        h('span', { class: 'sol-score' }, h('b', {}, String(p.croupiers)), ' croupiers · ', h('b', {}, String(p.rounds)), ' rounds'),
+        p.broken
+          ? h('span', { class: 'sol-score broken' }, `${p.croupiers} croupiers · no longer clears the floor`)
+          : h('span', { class: 'sol-score' }, h('b', {}, String(p.croupiers)), ' croupiers · ', h('b', {}, String(p.rounds)), ' rounds'),
         h('span', { class: 'sol-date' }, dateText(p.at))),
       i === current ? h('span', { class: 'sc-tag cur' }, 'loaded') : null,
       i === fresh ? h('span', { class: 'sc-tag new' }, 'new') : null,

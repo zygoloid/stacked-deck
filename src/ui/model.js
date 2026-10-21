@@ -1,5 +1,5 @@
 // Saves (localStorage) and turning the player's cells into an engine spec.
-import { DIRS } from '../engine.js';
+import { DIRS, RULES_VERSION, runTest } from '../engine.js';
 import { LEVELS } from '../levels.js';
 
 const KEY = 'stacked-deck-v1';
@@ -84,6 +84,10 @@ export const countCroupiers = (cells) => cells.filter((c) => c.kind === 'croupie
 // smallest rounds over all of them (each minimised on its own); `solved`
 // stays true once set.
 
+// Each solution also records `rules` (the RULES_VERSION it was scored under)
+// and `broken` (it no longer clears the floor under the current rules).
+// rescoreStale() re-runs solutions scored under older rules.
+
 // Default values that are the same as leaving the field out.
 const DEFAULTS = { facing: 0, once: false, rule: 'high' };
 
@@ -126,7 +130,7 @@ export function solutionsOf(ls) {
 }
 
 export function recomputeBest(ls) {
-  const all = [...solutionsOf(ls), ...(ls.legacyBest ? [ls.legacyBest] : [])];
+  const all = [...solutionsOf(ls).filter((s) => !s.broken), ...(ls.legacyBest ? [ls.legacyBest] : [])];
   if (!all.length) { delete ls.best; return; }
   ls.best = {
     croupiers: Math.min(...all.map((s) => s.croupiers)),
@@ -146,8 +150,11 @@ export function recordSolution(ls, cells, { croupiers, rounds }) {
   let index = findSolution(ls, cells);
   const isNew = index < 0;
   if (isNew) {
-    list.push({ cells: structuredClone(cells), croupiers, rounds, at: Date.now() });
+    list.push({ cells: structuredClone(cells), croupiers, rounds, at: Date.now(), rules: RULES_VERSION });
     index = list.length - 1;
+  } else {
+    // Re-clearing a saved machine refreshes its score (the rules may have changed).
+    Object.assign(list[index], { croupiers, rounds, rules: RULES_VERSION, broken: false });
   }
   ls.solved = true;
   recomputeBest(ls);
@@ -157,4 +164,41 @@ export function recordSolution(ls, cells, { croupiers, rounds }) {
 export function deleteSolution(ls, index) {
   solutionsOf(ls).splice(index, 1);
   recomputeBest(ls); // `solved` stays true
+}
+
+// Run a machine against every test of a level.
+export function scoreMachine(level, cells) {
+  const spec = toSpec(level, cells);
+  const results = level.tests.map((t) => runTest(spec, t, level.pays));
+  return {
+    ok: results.every((r) => r.ok),
+    croupiers: countCroupiers(cells),
+    rounds: Math.round(results.reduce((a, r) => a + r.rounds, 0) / results.length),
+  };
+}
+
+// Re-score saved solutions that were scored under older rules, a few at a
+// time so the page stays responsive. Old-format bests (legacyBest) can't be
+// re-run, so they are dropped once a level is re-scored. Calls onChange()
+// after anything changed.
+export async function rescoreStale(save, levels, onChange) {
+  let changed = false;
+  for (const level of levels) {
+    const ls = save.levels?.[level.id];
+    if (!ls || !Array.isArray(ls.solutions)) continue;
+    const stale = ls.solutions.filter((s) => s.rules !== RULES_VERSION);
+    if (!stale.length) continue;
+    for (const sol of stale) {
+      await new Promise((r) => setTimeout(r, 0));
+      let res;
+      try { res = scoreMachine(level, sol.cells); } catch { res = { ok: false }; }
+      if (res.ok) Object.assign(sol, { croupiers: res.croupiers, rounds: res.rounds, broken: false });
+      else sol.broken = true;
+      sol.rules = RULES_VERSION;
+    }
+    delete ls.legacyBest;
+    recomputeBest(ls);
+    changed = true;
+  }
+  if (changed) onChange?.();
 }

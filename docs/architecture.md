@@ -129,7 +129,7 @@ unlock in order: a level is available once the previous one is solved.
   cells: [placed cells],          // the working machine (autosaved)
   solved: true,                   // set once the floor is first cleared; never unset
   best: { croupiers, rounds },    // each minimised on its own over all solutions
-  solutions: [{ cells, croupiers, rounds, at }],  // every distinct machine that cleared it
+  solutions: [{ cells, croupiers, rounds, at, rules, broken? }],  // every distinct machine that cleared it
   legacyBest: { croupiers, rounds },  // only for saves from before `solutions`
   last: { croupiers, rounds },    // score of the latest clear
 } } }
@@ -148,5 +148,14 @@ solution. The player can delete solutions; `best` is then recomputed from
 what is left (and removed when nothing is), while `solved` stays true.
 
 Older saves have no `solutions`: they start with an empty list, and the
-`best` they recorded is kept as `legacyBest` and still counts towards `best`.
+`best` they recorded is kept as `legacyBest` and still counts towards `best`
+until the level is next re-scored.
+
+**Rules changes.** Each solution records `rules`, the `RULES_VERSION` it was
+scored under. On startup, solutions scored under older rules are re-run in the
+background (`rescoreStale` in `src/ui/model.js`): working ones get their new
+score, ones that no longer clear the floor get `broken: true` (left off the
+plot and out of `best`, kept in the list so they can be loaded and fixed), and
+`legacyBest` is dropped. Clearing the floor again with a saved machine also
+refreshes its score.
 The editor plots the list (`src/ui/scatter.js`, rounds against croupiers).
