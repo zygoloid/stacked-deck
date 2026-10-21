@@ -58,6 +58,12 @@ coordinates: `0 E [1,0]`, `1 SE [0,1]`, `2 SW [-1,1]`, `3 W [-1,0]`,
 An unassigned port, or a port pointing at a hex with no table, drops cards on
 the floor (they are gone). Every croupier accepts input from any side.
 
+**Outputs to the same side are stacked** into one hand, earlier outputs on
+top: cut top above bottom (so both halves to one side rebuild the hand), set
+`set` above `rest`, duplicate `a` above `b`, deal piles in list order, war the
+winning hand above the losing one. So a War with all four ports on one side
+hands on a single stack with the winner on top.
+
 **Which input is picked up.** A croupier faces one side (initially `facing`,
 default east). Each round it takes from the side it faces if that slot has a
 hand, otherwise from the next filled slot clockwise, and turns to face it.

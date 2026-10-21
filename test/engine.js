@@ -76,3 +76,26 @@ console.log('engine edge cases ok');
   assert.strictEqual(floor.cells.get('0,0').facing, 1, 'cut faces bottom');
 }
 console.log('facing ok');
+// Outputs to the same side are stacked into one hand: War with every port
+// pointing east hands on one hand, the winner on top.
+{
+  const floor = new Floor({ cells: [
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, -1], kind: 'shoe', out: 1, deck: ['9C'] },
+    { at: [0, 0], kind: 'croupier', fn: 'war', rule: 'high', dealer: 4, out: { win: 0, lose: 0, dwin: 0, dlose: 0 } },
+    { at: [1, 0], kind: 'payout' },
+  ] }, [['KS'], ['2S']]);
+  for (let i = 0; i < 8; i++) floor.step();
+  assert.deepStrictEqual(floor.paid, [['KS', '9C'], ['9C', '2S']], JSON.stringify(floor.paid));
+}
+// Cut with both halves to one side gives back the original hand.
+{
+  const floor = new Floor({ cells: [
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, 0], kind: 'croupier', fn: 'cut', out: { top: 0, bottom: 0 } },
+    { at: [1, 0], kind: 'payout' },
+  ] }, [['AS', '2S', '3S', '4S', '5S']]);
+  for (let i = 0; i < 4; i++) floor.step();
+  assert.deepStrictEqual(floor.paid, [['AS', '2S', '3S', '4S', '5S']]);
+}
+console.log('stacking ok');

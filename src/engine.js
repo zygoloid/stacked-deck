@@ -115,8 +115,9 @@ export const FUNCTIONS = {
     const value = (hand) => (st.rule === 'top' ? highValue(hand[0].c)
       : Math.max(...hand.map((x) => highValue(x.c))));
     const won = value(player) > value(dealer);
-    // Player's hand last: the croupier ends up facing where it went.
-    return [[won ? 'dlose' : 'dwin', dealer], [won ? 'win' : 'lose', player]];
+    // Winner first, so if both go to the same side the winner is on top.
+    // (The croupier faces where the player's hand went; see step().)
+    return won ? [['win', player], ['dlose', dealer]] : [['dwin', dealer], ['lose', player]];
   },
 };
 
@@ -192,14 +193,23 @@ export class Floor {
       const before = playerCards(hand) + heldCards(cell);
       const outs = FUNCTIONS[cell.fn](cell, hand, found);
       const ports = cell.fn === 'deal' ? (cell.out.to ?? []) : cell.out;
+      let face;
       for (const [port, h] of outs) {
         const side = typeof port === 'string' && port[0] === '@' ? Number(port.slice(1)) : ports[port];
-        if (h.length && side !== undefined) cell.pending.push([side, h]); // else dropped
+        if (!h.length || side === undefined) continue; // dropped
+        // Outputs to the same side are stacked into one hand, earlier ones on
+        // top (cut: top half above bottom; set: set above rest; war: winner
+        // above loser; duplicate: a above b; deal: piles in list order).
+        const same = cell.pending.find(([d]) => d === side);
+        if (same) same[1] = [...same[1], ...h];
+        else cell.pending.push([side, h]);
+        if (cell.fn !== 'war' || port === 'win' || port === 'lose') face = side;
       }
       this.live += cell.pending.reduce((a, [, h]) => a + playerCards(h), 0) + heldCards(cell) - before;
       // Having handed cards on, the croupier faces the side of its last output
-      // (dropped hands don't count), so it next looks there and then clockwise.
-      if (cell.pending.length) cell.facing = cell.pending[cell.pending.length - 1][0];
+      // (war: the player's hand; dropped hands don't count), so it next looks
+      // there and then clockwise.
+      if (face !== undefined) cell.facing = face;
     }
     // Phase 3: deposit.
     for (const cell of this.cells.values()) {
