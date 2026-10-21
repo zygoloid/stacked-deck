@@ -1,4 +1,6 @@
-import { fullDeck, shuffled, rng, rankOf, largestSet, rankValue, highValue } from './cards.js';
+import {
+  fullDeck, shuffled, rng, rankOf, largestSet, rankValue, highValue, rankCounts,
+} from './cards.js';
 
 const highCard = (h) => Math.max(...h.map(highValue));
 
@@ -42,6 +44,19 @@ export const PUZZLES = {
         'KS 2H 3D 6D 7D', 'QS JS TS 9S 8H', 'KH 9D TD JD 7C', 'AS 9C TC JC QC'],
     ], 6, 4),
   },
+  fullHouse: {
+    title: 'Full house',
+    brief: 'Five-card hands. Pay out every full house (three of a kind plus a pair).',
+    pays: (h) => [...rankCounts(h).values()].sort().join() === '2,3',
+    tests: dealTests(5, 10, [
+      ['2S 2D 2C 3S 3D', 'KS KD KC KH QS', '4S 4D 4C 5S 6D', '7S 7D 8S 8D 9C',
+        'TS TD JS QS KD', 'AS AD AC 9H 9S', '2H 3H 4H 5H 6H', 'JC JD JH QC QD'],
+      // back-to-back trips, to stress machines with more than one hand in flight
+      ['2S 2D 2C 3S 3D', '4S 4D 4C 5S 6D', '7S 7D 7C 8S 8D', '9S 9D 9C TS JD',
+        'QS QD QC KS KD', 'AS AD AC 3C 4C', '5D 5C 5H 6S 6C', 'JS JC JH 8C 9H',
+        'TD TC TH KC KH', '2H 4H 6H 8H TH'],
+    ], 30, 5),
+  },
   record: {
     title: 'House record',
     brief: 'Five-card hands. Pay out every hand whose largest set ties or beats every earlier hand.',
@@ -49,6 +64,8 @@ export const PUZZLES = {
     tests: dealTests(5, 10, [
       ['2S 3S 4S 5S 7S', 'AS AD 3C 4C 5C', '9S 8S 7S 6S 4D', 'KS KD QS QD 2H',
         'TS TD TC 2C 3C', 'JS JD 4H 5H 6H', '8D 8C 8H 9C 9H', 'QC QH 6D 6C 7D'],
-    ], 6, 3),
+      ['3D 4D 5D 6D 8C', 'KS KD KC KH QS', 'AS AD AC 3C 4C', '7S 7D 7C 7H 2D',
+        '9S 9D TS TD JS', 'QD QC QH JD JC'],
+    ], 30, 3),
   },
 };

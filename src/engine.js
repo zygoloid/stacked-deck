@@ -26,7 +26,7 @@
 // the floor.
 
 import {
-  rankOf, highValue, newDeckIndex, isFlush, isStraight, rankCounts,
+  rankOf, highValue, newDeckIndex, isFlush, isStraight, rankCounts, largestSet,
 } from './cards.js';
 
 export const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
@@ -57,6 +57,8 @@ export const FUNCTIONS = {
   inshuffle: (st, h) => [['out', riffle(h, false)]],
   straight: (st, h) => [[isStraight(cardsOf(h)) ? 'yes' : 'no', h]],
   flush: (st, h) => [[isFlush(cardsOf(h)) ? 'yes' : 'no', h]],
+  // n of a kind (or better): some rank appears at least n times.
+  kind: (st, h) => [[largestSet(cardsOf(h)) >= st.n ? 'yes' : 'no', h]],
   set: (st, h) => {
     const counts = rankCounts(cardsOf(h));
     const max = Math.max(...counts.values());

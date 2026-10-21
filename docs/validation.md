@@ -5,7 +5,7 @@ each machine in `solutions/` against fixed and random tests (`npm test`).
 Each solution file includes an ASCII map. A label is the croupier's name plus
 an arrow for its main output side (`>` E, `\` SE, `/` SW, `<` W, `` ` `` NW,
 `'` NE). `in` is a card player, `$$` the chip desk, `K\` a shoe dealing kings,
-`Wh`/`Wt` a high-card/top-card War dealer.
+`Wh`/`Wt` a high-card/top-card War dealer, `K3` a 3-of-a-kind dealer.
 
 ## Current rules
 
@@ -31,6 +31,8 @@ an arrow for its main output side (`>` E, `\` SE, `/` SW, `<` W, `` ` `` NW,
   player picks). It compares them by **high card** or by **top card** (two
   variants), aces high, and **ties go to the house**. It has four ports: the
   player hand goes to `win` or `lose`, and the dealer hand goes to `dwin` or `dlose`.
+* **n of a kind** (`K2`, `K3`, `K4`): like Straight and Flush, it sends the
+  whole hand to `yes` if some rank appears at least n times, otherwise to `no`.
 * **Checking a run.** Payouts must be exactly the winning input hands (same
   cards, any order within a hand, any order between hands). A run ends when
   every player card has left the floor, or 50 rounds after the last expected
@@ -44,7 +46,14 @@ an arrow for its main output side (`>` E, `\` SE, `/` SW, `<` W, `` ` `` NW,
 | Contains an ace (5-card hands) | high-card War | **2** | 17 / 10 hands | built, passes |
 | Contains an ace | top-card War | **16** | 40 / 10 hands | built, passes |
 | High card ties or beats every earlier hand | high-card War | **4** | 19 / 10 hands | built, passes |
-| Largest set ties or beats every earlier hand | any | — | — | not buildable yet, see below |
+| Full house (5-card hands) | + n of a kind | **13** | 49 / 10 hands | built, passes |
+| Largest set ties or beats every earlier hand | + n of a kind | **31** | 115 / 10 hands | built, passes |
+
+The two newest machines were laid out with `src/layout.js`. I place the main
+tables by hand, list the connections, and a breadth-first search lays the pass
+chains. `tools/optimize.js` then hill-climbs the table positions to minimise
+the number of croupiers. Both machines admit only one hand at a time (see the
+door pattern below), so any layout the router accepts behaves the same way.
 
 ### Contains an ace, high-card War (`solutions/ace-high-war.js`)
 
@@ -129,32 +138,86 @@ works. The best hand so far circulates as War's player hand (the
 
 That's 4 croupiers, which makes this pattern an easy "remember something" level.
 
-### Largest set ties or beats every earlier hand: still missing a piece
+### Full house (`solutions/full-house.js`)
 
-The memory part works the same way as above. What's missing is turning
-"size of the largest set" into something a croupier can branch on:
+```
+ .     .    P/    P<    Wh    2<
+   $$    Wh    A>    Wh    K2
+in>   Wh    Dup`  K3    Set    .
+    .    2`     .     .     .
+```
 
-* **Set** finds the biggest group, but doesn't send the hand anywhere based
-  on its size. For a hand with no pair, everything ties, so the `rest` port
-  stays *empty*. "Nothing came out" isn't a hand, so nothing downstream can
-  react to it.
-* **War** compares ranks, not counts.
-* Every trick I tried for turning a count into a rank broke down. The idea was
-  padding a group with known cards and cutting so that a known card lands on
-  top. But a player hand can contain a card of any rank, so the padding cards
-  can't be told apart from the hand's own.
+This is not as easy as it looks. n of a kind tests the whole hand, and every
+hand with three of a kind is also "2 of a kind". The real question is about
+the cards *left over* once the trips are taken out. So the machine has to use
+the general pattern: **test a copy, gate the original**.
 
-Two natural croupiers would fix this, and each makes the puzzle a mid-game one:
+1. Duplicate the hand.
+2. Test the copy: `K3` rejects hands without trips. Set pulls out the trips,
+   and `K2` asks whether the rest is a pair.
+3. The yes and no answers are about the copy, so each plays a War against a
+   shoe just to *release* a verdict card: a 2 for yes, an ace for no.
+4. **Gate:** the original plays high-card War against the verdict. Every
+   5-card hand beats a 2, and no hand beats an ace (ties go to the house).
 
-* **Pair Plus dealer** (a real side bet): sends the whole hand one way if it
-  holds a pair or better, otherwise the other way. Used on the hand, and on
-  Set's output padded with reference cards, it should separate hands with no
-  pair, a pair, three of a kind and four of a kind (not built yet).
-  Each class then becomes a reference card, compared with the champion as above.
-* **Showdown** (War with full poker hand ranking). This gives the "high hand
-  of the hour" version for free (the champion machine above, about 4
-  croupiers). But poker ranks two pair above one pair, so it doesn't measure
-  "largest set" as stated.
+**The door.** The yes and no verdicts merge on the way to the gate. With
+several hands in flight, a later verdict can overtake an earlier one and be
+paired with the wrong hand. A layout with equal-length routes passed the
+normal tests but failed a stress test of back-to-back trips hands.
+
+The fix is a second War at the entrance. It only lets a hand in with a
+*ticket*, and the gate hands each used verdict card back as the next ticket.
+A shoe that deals once supplies the first ticket. That's 2 croupiers plus a
+short return route, and it makes "one hand at a time" a reusable idiom.
+
+If full house should be an early puzzle instead, the natural fix is to let
+the n of a kind dealer also test poker shapes ("three plus a pair", "two
+pairs"). Then full house becomes 1 croupier and two pair becomes buildable.
+At 13 croupiers it makes a good mid-game puzzle that teaches the gate and door
+patterns.
+
+### Largest set ties or beats every earlier hand (`solutions/record-set.js`)
+
+```
+ .     .    3\     .    6\     .     .
+    .     .    P/     .    Wh    K4     .
+2>    Wh    Wh    P<    P<    Wh    P`
+   P\    Wh    3>    Wh    Wh    5`    P`
+ .    P\    A`    K2    4'    K3    P'
+   $$    Wh    Dup<  P>    P'     .     .
+ .     .    Wh    2<     .     .     .
+    .     .    in`    .     .     .     .
+```
+
+This combines the champion pattern from "High roller" with the gate and door
+from full house:
+
+1. **Door and gate** as in full house.
+2. **Classify the copy.** `K2`, `K3` and `K4` in a chain sort it into
+   largest set 1, 2, 3 or 4. Each class plays a War against its own shoe to
+   release a *marker* card: 3, 4, 5 or 6.
+3. **Compare with the record.** The record is a champion card circling
+   through a War, with the marker as the dealer.
+   * If the champion is strictly higher, the hand falls short. The champion
+     keeps circling, and the marker is swapped for an ace.
+   * Otherwise (ties go to the house), the marker becomes the new champion,
+     and the old champion is swapped for a 2.
+   * A shoe that deals a single 3 once seeds the first champion.
+4. **Gate:** the original plays against the 2 or the ace.
+
+That's 24 croupiers that do real work, plus 7 passes. The tests include
+hands with four of a kind and two pair, because random deals rarely produce
+four of a kind. It's endgame-sized, but each part is a pattern players will
+already know from earlier levels:
+* constant comparison;
+* champion loop;
+* release;
+* gate;
+* door.
+
+That feels right for a late puzzle. The obvious way to make it cheaper is a
+Showdown croupier (War by poker hand rank) for a "high hand" variant, which
+needs no classification at all.
 
 ## Design notes
 
@@ -175,9 +238,23 @@ Two natural croupiers would fix this, and each makes the puzzle a mid-game one:
 4. **Seeding memory** needed a shoe that deals once. A pre-placed hand on a
    table at level start would also work.
 5. **"Nothing came out" is never a signal.** Croupiers that can produce an
-   empty output (Set's rest, Cut on one card) can't drive a decision. This is
-   the root cause of the largest-set problem, and is worth keeping in mind
-   for any future croupier.
+   empty output (Set's rest, Cut on one card) can't drive a decision. Whole-hand
+   tests like n of a kind avoid this, which is why they unlocked the
+   largest-set puzzle.
+6. **Test a copy, gate the original** is the general pattern for any decision
+   about part of a hand:
+   * duplicate;
+   * test the copy;
+   * release a 2 or an A;
+   * gate the original with high-card War.
+
+   It costs 5 or more croupiers. Merged verdict streams can reorder under load,
+   so it needs **the door** (one hand at a time) unless a layout can prove
+   otherwise. Add stress tests with many deciding hands back to back to every
+   puzzle where this pattern is likely.
+7. **Releasing a fixed card on an event** is War with a shoe as the dealer,
+   with both dealer ports pointing the same way. It deserves to be taught
+   explicitly. Alternatively, a dedicated croupier could do it.
 
 ## History
 
