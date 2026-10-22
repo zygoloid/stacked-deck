@@ -17,15 +17,9 @@ const ctx = {
   persist: () => writeSave(save),
   go: (hash) => { if (location.hash === hash) route(); else location.hash = hash; },
   help: () => {
-    helpHost.replaceChildren(helpPanel(() => helpHost.replaceChildren()));
+    helpHost.replaceChildren(helpPanel(() => helpHost.replaceChildren(), save));
   },
   helpOpen: () => !!helpHost.firstChild,
-  // "1-2": chapter, then position within the chapter.
-  levelNumber: (i) => {
-    const ch = LEVELS[i].chapter ?? 1;
-    const n = LEVELS.slice(0, i + 1).filter((l) => (l.chapter ?? 1) === ch).length;
-    return `${ch}-${n}`;
-  },
   nextLevel: (i) => LEVELS[i + 1] ?? null,
 };
 

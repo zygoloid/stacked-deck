@@ -134,6 +134,10 @@ whenever a rule changes; the level select shows it.
   fixed: [cells],               // sources and payouts (not editable)
   croupiers: ['pass', 'shoe', ...],  // palette: fn names plus 'shoe'
   warRules: ['high', 'top'],    // War rules allowed (when 'war' is in the palette)
+  card: 'AS',                   // the floor's playing card: 'AS'…'KS' (suit floors), '?' '??' '$' '$$' (finale);
+                                //   default from chapter + position (ch 1–4 ♠ ♥ ♣ ♦ A…K, ch 5 ? ?? $ $$)
+  specialCards: ['?', '??'],    // special cards a shoe may deal here (default none; the UI
+                                //   mentions special cards only once such a floor is open)
   pays: (hand, earlierHands) => boolean,
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays)
   par: { croupiers, rounds },   // from the reference solution (optional)

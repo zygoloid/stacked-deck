@@ -1,6 +1,7 @@
 // Saves (localStorage) and turning the player's cells into an engine spec.
 import { DIRS, RULES_VERSION, runTest } from '../engine.js';
 import { LEVELS } from '../levels.js';
+import { SPECIALS, isCard, isSpecial } from '../cards.js';
 
 const KEY = 'stacked-deck-v1';
 
@@ -36,6 +37,18 @@ export function isUnlocked(save, index) {
 // War rules the player may pick on a level (levels.js: defaults to high only).
 export const warRules = (level) => (Array.isArray(level.warRules) && level.warRules.length ? level.warRules : ['high']);
 
+// Special cards a shoe may deal on a level (levels.js `specialCards`; none
+// by default), in the order ? ?? $ $$.
+export const specialCardsOf = (level) => SPECIALS.filter((c) => Array.isArray(level?.specialCards) && level.specialCards.includes(c));
+
+// Special cards allowed on some open floor: the help explains only these, so
+// they stay a surprise until the first such floor opens.
+export function specialCardsUnlocked(save) {
+  const seen = new Set();
+  LEVELS.forEach((lv, i) => { if (isUnlocked(save, i)) specialCardsOf(lv).forEach((c) => seen.add(c)); });
+  return SPECIALS.filter((c) => seen.has(c));
+}
+
 export const hexKey = ([q, r]) => `${q},${r}`;
 export const addDir = ([q, r], d) => [q + DIRS[d][0], r + DIRS[d][1]];
 
@@ -52,7 +65,13 @@ export function sanitizeCells(level, cells) {
     if (c.kind !== 'croupier' && c.kind !== 'shoe') continue;
     seen.add(hexKey(c.at));
     const cell = structuredClone(c);
-    if (cell.kind === 'shoe' && !(Array.isArray(cell.deck) && cell.deck.length)) cell.deck = ['AS'];
+    if (cell.kind === 'shoe') {
+      // Only real cards, and special cards only where the level allows them.
+      const allowed = specialCardsOf(level);
+      cell.deck = (Array.isArray(cell.deck) ? cell.deck : []).filter((x) => isCard(x) && (!isSpecial(x) || allowed.includes(x)));
+      if (!cell.deck.length) cell.deck = ['AS'];
+    }
+    if (cell.fn === 'hand' && !(Number.isInteger(cell.n) && cell.n >= 1 && cell.n <= 13)) cell.n = 5;
     if (cell.kind === 'croupier') cell.out ??= {};
     if (cell.fn === 'deal') cell.out.to ??= [];
     if (cell.fn === 'war' && !warRules(level).includes(cell.rule)) cell.rule = warRules(level)[0];

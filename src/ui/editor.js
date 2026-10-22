@@ -3,10 +3,11 @@ import { runTest } from '../engine.js';
 import { h, s, handEl, parseCards, fmtCards } from './dom.js';
 import { Board, R } from './board.js';
 import {
-  CROUPIERS, PORT_STYLE, SIDE_NAMES, infoFor, newCell, portsOf, getPort, setPort, chipLabel,
+  CROUPIERS, PORT_STYLE, SIDE_NAMES, infoFor, newCell, portsOf, getPort, setPort, chipLabel, sampleCell,
 } from './croupiers.js';
+import { floorBadge } from './floors.js';
 import {
-  hexKey, sanitizeCells, toSpec, countCroupiers, levelSave, warRules,
+  hexKey, sanitizeCells, toSpec, countCroupiers, levelSave, warRules, specialCardsOf,
   solutionsOf, recordSolution, deleteSolution, findSolution,
 } from './model.js';
 import { Sim } from './sim.js';
@@ -49,7 +50,7 @@ export function openEditor(root, ctx, level, index) {
   const transport = h('div', { class: 'transport' });
   const toast = h('div', { class: 'toast hidden' });
   const modal = h('div', { class: 'modal-host' });
-  const chapterIdx = ctx.levelNumber(index);
+  const specials = specialCardsOf(level);
   const solBtn = h('button', { class: 'btn ghost sol-btn hidden', onclick: () => openSolutions(), title: 'Your saved solutions for this floor' });
 
   const par = level.par;
@@ -57,7 +58,7 @@ export function openEditor(root, ctx, level, index) {
     h('header', { class: 'topbar' },
       h('button', { class: 'btn ghost', onclick: () => ctx.go('#/'), title: 'Level select' }, '← Floors'),
       h('div', { class: 'title' },
-        h('span', { class: 'lvl-no' }, chapterIdx),
+        floorBadge(index, 'lvl-no'),
         h('span', { class: 'lvl-title' }, level.title)),
       h('div', { class: 'brief', title: 'The goal for this floor' }, level.brief ?? ''),
       h('div', { class: 'stats' },
@@ -100,9 +101,10 @@ export function openEditor(root, ctx, level, index) {
   // What a palette entry looks like: War shows its rule when the level allows
   // only one, plain "WAR" when the player can choose.
   function paletteSample(name) {
-    if (name === 'shoe') return { kind: 'shoe' };
+    const cell = sampleCell(name);
     const rules = warRules(level);
-    return { kind: 'croupier', fn: name, n: 2, rule: rules.length === 1 ? rules[0] : undefined };
+    if (name === 'war') cell.rule = rules.length === 1 ? rules[0] : undefined;
+    return cell;
   }
   function place(toolName, at) {
     if (!board.isBuildable(at) || cellAt(hexKey(at))) return;
@@ -460,10 +462,12 @@ export function openEditor(root, ctx, level, index) {
       h('p', { class: 'insp-desc' }, info.desc),
     ];
     // params
-    if (c.fn === 'kind') {
-      parts.push(h('div', { class: 'param' }, h('span', { class: 'param-k' }, 'n of a kind'),
-        h('div', { class: 'seg' }, CROUPIERS.kind.params.n.options.map((n) => h('button', {
-          class: (c.n ?? 2) === n ? 'on' : '', onclick: () => commit(() => { c.n = n; }),
+    if (c.fn === 'kind' || c.fn === 'hand') {
+      const p = CROUPIERS[c.fn].params.n;
+      const opts = p.options;
+      parts.push(h('div', { class: `param${opts.length > 8 ? ' col' : ''}` }, h('span', { class: 'param-k' }, c.fn === 'kind' ? 'n of a kind' : 'Cards per hand (n)'),
+        h('div', { class: `seg${opts.length > 8 ? ' wide' : ''}`, 'data-param': 'n' }, opts.map((n) => h('button', {
+          class: (c.n ?? p.default) === n ? 'on' : '', onclick: () => commit(() => { c.n = n; }),
         }, String(n))))));
     }
     if (c.fn === 'war') {
@@ -479,10 +483,10 @@ export function openEditor(root, ctx, level, index) {
     if (c.kind === 'shoe') {
       const draft = deckDraft?.key === key ? deckDraft : { key, text: fmtCards(c.deck), error: null };
       const input = h('input', {
-        class: `deck-in${draft.error ? ' bad' : ''}`, value: draft.text, spellcheck: false, placeholder: 'AS KH 10C',
+        class: `deck-in${draft.error ? ' bad' : ''}`, value: draft.text, spellcheck: false, placeholder: specials.length ? `AS KH 10C ${specials[0]}` : 'AS KH 10C',
         onkeydown: (e) => { if (e.key === 'Enter') input.blur(); e.stopPropagation(); },
         onchange: () => {
-          const res = parseCards(input.value);
+          const res = parseCards(input.value, specials);
           if (res.error) { deckDraft = { key, text: input.value, error: res.error }; renderInspector(); return; }
           deckDraft = null;
           if (res.cards.join() !== c.deck.join()) commit(() => { c.deck = res.cards; });
@@ -491,6 +495,8 @@ export function openEditor(root, ctx, level, index) {
       });
       parts.push(h('div', { class: 'param col' }, h('span', { class: 'param-k' }, 'Deck (top first)'), input,
         draft.error ? h('div', { class: 'err' }, draft.error) : h('div', { class: 'deck-prev' }, handEl(c.deck)),
+        specials.length ? h('div', { class: 'deck-special muted small' }, 'Special cards on this floor: ', handEl(specials), ' type ',
+          specials.map((x, k) => [k ? ' ' : '', h('kbd', {}, x)])) : null,
         h('label', { class: 'check' }, h('input', {
           type: 'checkbox', checked: !!c.once, onchange: (e) => commit(() => { if (e.target.checked) c.once = true; else delete c.once; }),
         }), ' Deal the deck only once')));

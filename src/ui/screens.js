@@ -1,11 +1,13 @@
 // Level select, story and help screens.
-import { h } from './dom.js';
-import { CROUPIERS, PORT_STYLE } from './croupiers.js';
-import { LEVELS, CHAPTERS } from '../levels.js';
+import { h, handEl, SPECIAL_FACE } from './dom.js';
+import { CROUPIERS, PORT_STYLE, chipLabel, sampleCell } from './croupiers.js';
+import { LEVELS } from '../levels.js';
 import { RULES_VERSION } from '../engine.js';
-import { isUnlocked } from './model.js';
+import { isUnlocked, specialCardsUnlocked } from './model.js';
+import { floorLabel, chapterInfo, floorBadge } from './floors.js';
 
-const SUITS = ['♠', '♥', '♣', '♦'];
+// Tile classes for the four finale cards.
+const SPECIAL_TILE = { '?': 'f-mono', '??': 'f-colour', '$': 'f-front', '$$': 'f-back' };
 
 export function levelSelect(root, ctx) {
   const { save } = ctx;
@@ -26,25 +28,34 @@ export function levelSelect(root, ctx) {
         h('button', { class: 'btn ghost small', onclick: () => ctx.help() }, '? How to play'),
         h('span', { class: 'rules-version', title: 'Version of the game rules this page is running' }, `rules v${RULES_VERSION}`))),
     [...chapters].map(([ch, list]) => h('section', { class: 'chapter' },
-      h('h2', {}, h('span', { class: 'ch-suit' }, SUITS[(ch - 1) % 4]), `Chapter ${ch}`, CHAPTERS[ch] ? h('span', { class: 'ch-name' }, ` · ${CHAPTERS[ch]}`) : ''),
+      chapterHeading(ch),
       h('div', { class: 'tiles' }, list.map(([lv, i]) => tile(lv, i)))))));
+
+  function chapterHeading(ch) {
+    const c = chapterInfo(ch);
+    return h('h2', { 'data-chapter': ch },
+      h('span', { class: `ch-suit${c.red ? ' red' : ''}` }, c.glyph), c.suitName,
+      c.name ? h('span', { class: 'ch-name' }, ` · ${c.name}`) : '');
+  }
 
   function tile(lv, i) {
     const st = save.levels[lv.id] ?? {};
     const open = isUnlocked(save, i);
-    const no = ctx.levelNumber(i);
-    const suit = SUITS[((lv.chapter ?? 1) - 1) % 4];
+    const f = floorLabel(i);
     if (!open) {
-      return h('div', { class: 'tile locked', title: 'Clear the previous floor to unlock' },
+      // A card back. Special floors keep their card hidden until they open.
+      return h('div', { class: 'tile locked', title: 'Clear the previous floors to unlock', 'data-card': f.special ? null : f.card },
         h('div', { class: 'tile-back' }, h('span', { class: 'lock' }, 'Locked')),
-        h('div', { class: 'tile-no' }, no.split('-')[1]));
+        f.special ? null : h('div', { class: `tile-no${f.cls === 'red' ? ' red' : ''}` }, f.text));
     }
-    const red = suit === '♥' || suit === '♦';
+    const kind = f.special ? `special ${SPECIAL_TILE[f.card]}` : f.cls === 'red' ? 'red' : f.cls === 'plain' ? 'plain' : 'black';
+    const corner = (pos) => h('div', { class: `tile-corner ${pos}` }, h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null);
     return h('a', {
-      class: `tile${st.solved ? ' solved' : ''}${red ? ' red' : ''}`, href: `#/level/${lv.id}/story`, 'data-level': lv.id,
+      class: `tile ${kind}${st.solved ? ' solved' : ''}`, href: `#/level/${lv.id}/story`, 'data-level': lv.id, 'data-card': f.card ?? f.text,
+      title: f.special ? `${f.name}` : `Floor ${f.text}`,
     },
-    h('div', { class: 'tile-corner tl' }, h('b', {}, no.split('-')[1]), h('i', {}, suit)),
-    h('div', { class: 'tile-corner br' }, h('b', {}, no.split('-')[1]), h('i', {}, suit)),
+    h('div', { class: 'tile-pip', 'aria-hidden': 'true' }, f.special ? f.rank : f.glyph),
+    corner('tl'), corner('br'),
     h('div', { class: 'tile-title' }, lv.title),
     h('div', { class: 'tile-brief' }, lv.brief ?? ''),
     st.solved
@@ -61,7 +72,7 @@ export function storyScreen(root, ctx, level, index) {
   document.addEventListener('keydown', onKey);
   root.replaceChildren(h('div', { class: 'story' },
     h('article', { class: 'story-card' },
-      h('div', { class: 'story-no' }, `Chapter ${level.chapter ?? 1}${CHAPTERS[level.chapter] ? ` (${CHAPTERS[level.chapter]})` : ''} · Floor ${ctx.levelNumber(index)}`),
+      storyHead(index),
       h('h1', {}, level.title),
       (level.story ?? []).map((p) => h('p', {}, p)),
       h('div', { class: 'story-brief' }, h('span', { class: 'stat-k' }, 'Tonight'), h('div', {}, level.brief ?? '')),
@@ -71,16 +82,26 @@ export function storyScreen(root, ctx, level, index) {
   return () => document.removeEventListener('keydown', onKey);
 }
 
-// Help panel, generated from the croupier table.
-export function helpPanel(close) {
+function storyHead(index) {
+  const c = chapterInfo(LEVELS[index].chapter ?? 1);
+  return h('div', { class: 'story-head' },
+    floorBadge(index, 'big'),
+    h('div', { class: 'story-no' }, h('span', { class: c.red ? 'red' : '' }, c.glyph), ` ${c.suitName}`, c.name ? ` · ${c.name}` : '',
+      h('span', { class: 'story-floor' }, ` · Floor ${floorLabel(index).text}`)));
+}
+
+// Help panel, generated from the croupier table. Special cards are only
+// explained once a floor that allows them is open.
+export function helpPanel(close, save) {
   const portTag = (p) => {
     const st = PORT_STYLE[p];
     return h('span', { class: `port-tag${st.input ? ' input' : ''}`, style: st.input ? { color: st.color, borderColor: st.color } : { background: st.color } }, st.label);
   };
+  const specials = save ? specialCardsUnlocked(save) : [];
   const rows = Object.entries(CROUPIERS).map(([fn, c]) => h('tr', {},
-    h('td', {}, h('span', { class: 'pal-chip', style: { background: c.family } }, h('span', {}, c.abbr === 'K' ? 'K2' : c.abbr))),
+    h('td', {}, h('span', { class: 'pal-chip', style: { background: c.family } }, h('span', {}, chipLabel(sampleCell(fn))))),
     h('td', {}, h('b', {}, c.name), h('div', { class: 'muted small' }, fn)),
-    h('td', {}, c.desc, c.params ? h('div', { class: 'muted small' }, 'Options: ', Object.values(c.params).map((p) => `${p.label} (${p.options.join(' / ')})`).join(', ')) : null),
+    h('td', {}, c.desc, c.params ? h('div', { class: 'muted small' }, 'Options: ', Object.values(c.params).map(optionText).join(', ')) : null),
     h('td', { class: 'ports-cell' }, c.deal ? portTag('to') : null, c.ports.map(portTag), (c.sides ?? []).map(portTag))));
   return h('div', { class: 'modal-back', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
     h('div', { class: 'modal help' },
@@ -94,6 +115,7 @@ export function helpPanel(close) {
         h('li', {}, 'A floor is cleared when every test passes. Scores: croupiers placed (shoes count) and rounds (average over the tests). Fewer is better.')),
       h('h3', {}, 'Croupiers'),
       h('table', { class: 'help-table' }, h('tbody', {}, rows)),
+      specials.length ? specialHelp(specials) : null,
       h('h3', {}, 'Keys'),
       h('div', { class: 'keys-grid' },
         [['Space', 'play / pause'], ['.', 'step'], [',', 'step back'], ['R', 'reset the run'], ['F', 'next speed'],
@@ -101,3 +123,29 @@ export function helpPanel(close) {
           ['X', 'active port to floor'], ['Tab', 'next port'], ['Ctrl+Z', 'undo'], ['Wheel / drag', 'zoom / pan the floor'], ['+ − 0', 'zoom in, out, fit'], ['Esc', 'cancel / deselect'], ['Right-click', 'remove a croupier']]
           .map(([k, v]) => h('div', {}, h('kbd', {}, k), ' ', v)))));
 }
+
+// "n (1–13, default 5)" or "rule (high / top)".
+function optionText(p) {
+  const o = p.options;
+  const numeric = o.every((x, k) => typeof x === 'number' && (k === 0 || x === o[k - 1] + 1));
+  const range = numeric && o.length > 3 ? `${o[0]}–${o[o.length - 1]}` : o.join(' / ');
+  return `${p.label} (${range}${p.default !== undefined && numeric ? `, default ${p.default}` : ''})`;
+}
+
+function specialHelp(cards) {
+  return h('div', { class: 'help-special' },
+    h('h3', {}, 'Special cards'),
+    h('p', { class: 'muted small' }, 'Shoes on some late floors may deal special cards. Type them in a shoe\'s deck as ',
+      cards.map((c, k) => [k ? ', ' : '', h('kbd', {}, c)]), '.'),
+    h('table', { class: 'help-table special' }, h('tbody', {}, cards.map((c) => h('tr', { 'data-card': c },
+      h('td', {}, handEl([c])),
+      h('td', {}, h('b', {}, SPECIAL_FACE[c].name), h('div', { class: 'muted small' }, c)),
+      h('td', {}, SPECIAL_RULES[c]))))));
+}
+
+const SPECIAL_RULES = {
+  '?': 'Wild for value: joins the biggest set (n of a kind, Set) and fills a gap or an end of a straight. Has no suit, so it spoils a flush and Suits sends it to misc. In War it beats everything, aces included.',
+  '??': 'Wild like the monochrome joker, and it counts as every suit: it never spoils a flush, and Suits sends it to the first of ♠ ♥ ♦ ♣ that has a port. Beats everything in War.',
+  '$': 'No value and no suit: never part of a set, a straight or a flush (Set always sends it to rest), and it loses to everything in War. First in new deck order, before A♠.',
+  '$$': 'Like the front advertising card, but last in new deck order, after the jokers.',
+};

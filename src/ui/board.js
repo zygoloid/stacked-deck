@@ -1,5 +1,5 @@
 // SVG rendering of a casino floor: hexes, tables, port arrows and live cards.
-import { s, SUIT_GLYPH, rankText, isRed, cardText } from './dom.js';
+import { s, SUIT_GLYPH, rankText, cardText, cardName, cardClass, isSpecialCard, SPECIAL_FACE } from './dom.js';
 import {
   PORT_STYLE, infoFor, chipLabel, arrowsOf, SIDE_NAMES,
 } from './croupiers.js';
@@ -52,22 +52,44 @@ function handSvg(hand, x, y, cls = '') {
   const n = shown + (cards.length > shown ? 1 : 0);
   const w = CARD_W + (n - 1) * CARD_STEP;
   const g = s('g', { class: `hand ${cls}`, transform: `translate(${(x - w / 2).toFixed(1)},${(y - CARD_H / 2).toFixed(1)})` },
-    s('title', {}, cards.map(cardText).join(' ') + (house.some(Boolean) ? '  (house cards dashed)' : '')));
+    s('title', {}, cards.map(cardName).join(' ') + (house.some(Boolean) ? '  (house cards dashed)' : '')));
   if (cls.includes('pending')) {
     g.append(s('rect', { class: 'hand-glow', x: -3, y: -3, width: w + 6, height: CARD_H + 6, rx: 4 }));
   }
-  for (let i = 0; i < shown; i++) {
-    const c = cards[i];
-    g.append(s('g', { class: `scard ${isRed(c) ? 'red' : 'black'}${house[i] ? ' house' : ''}`, transform: `translate(${i * CARD_STEP},0)` },
-      s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }),
-      s('text', { x: 2, y: 8.6, class: 'rank' }, rankText(c)),
-      s('text', { x: CARD_W - 2, y: CARD_H - 2.2, class: 'suit', 'text-anchor': 'end' }, SUIT_GLYPH[c[1]])));
-  }
+  for (let i = 0; i < shown; i++) g.append(cardSvg(cards[i], i * CARD_STEP, house[i]));
   if (cards.length > shown) {
     g.append(s('g', { class: 'scard more', transform: `translate(${shown * CARD_STEP},0)` },
       s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }),
       s('text', { x: CARD_W / 2, y: 13, 'text-anchor': 'middle' }, `+${cards.length - shown}`)));
   }
+  return g;
+}
+
+const JOKER_COLOURS = ['#d62f4b', '#e9a100', '#1f9d55', '#2f6fd6'];
+
+// One little card at (x, 0). Special cards get a centred face and their own
+// colours (style.css: .scard.sp.joker.mono / .joker.colour / .ad.front / .ad.back).
+function cardSvg(c, x, house) {
+  const g = s('g', { class: `scard ${cardClass(c)}${house ? ' house' : ''}`, transform: `translate(${x},0)` },
+    s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }));
+  if (isSpecialCard(c)) {
+    const f = SPECIAL_FACE[c];
+    if (c === '$$') g.append(s('rect', { class: 'sp-band', x: 1.5, y: 1.5, width: CARD_W - 3, height: CARD_H - 3, rx: 1.4 }));
+    if (c === '?') g.append(s('rect', { class: 'sp-stripe', x: 1.5, y: 1.5, width: CARD_W - 3, height: 2.6 }));
+    if (c === '??') {
+      const w = (CARD_W - 3) / 4;
+      JOKER_COLOURS.forEach((fill, k) => g.append(s('rect', { class: 'sp-stripe', x: 1.5 + k * w, y: 1.5, width: w + 0.05, height: 2.6, style: { fill } })));
+    }
+    if (f.pip) g.append(s('text', { x: 1.8, y: CARD_H - 1.8, class: 'pip' }, f.pip));
+    // Centred on the part a following card doesn't cover.
+    const face = s('text', { x: CARD_STEP / 2 + 1.2, y: 13.2, class: `face${f.face.length > 1 ? ' two' : ''}`, 'text-anchor': 'middle' });
+    if (c === '??') face.append(s('tspan', { style: { fill: JOKER_COLOURS[0] } }, '?'), s('tspan', { style: { fill: JOKER_COLOURS[3] } }, '?'));
+    else face.textContent = f.face;
+    g.append(face);
+    return g;
+  }
+  g.append(s('text', { x: 2, y: 8.6, class: 'rank' }, rankText(c)),
+    s('text', { x: CARD_W - 2, y: CARD_H - 2.2, class: 'suit', 'text-anchor': 'end' }, SUIT_GLYPH[c[1]]));
   return g;
 }
 
@@ -361,6 +383,11 @@ export class Board {
         const { player, dealer } = lc.held;
         if (player) g.append(handSvg(player, 0, 4, 'held'), s('text', { class: 'held-tag', x: 0, y: -8.5, 'text-anchor': 'middle' }, 'player'));
         if (dealer) g.append(handSvg(dealer, 0, 4, 'held dealer'), s('text', { class: 'held-tag', x: 0, y: -8.5, 'text-anchor': 'middle' }, 'dealer'));
+      } else if (lc.fn === 'hand' && lc.held.buffer?.length) {
+        // The cards a Hand croupier is collecting, with how many it needs.
+        const buf = lc.held.buffer, n = lc.n ?? 5;
+        g.append(handSvg(buf, 0, 4, `held hand-buffer${buf.length >= n ? ' full' : ''}`),
+          s('text', { class: 'held-tag', x: 0, y: -8.5, 'text-anchor': 'middle' }, `held ${buf.length}/${n}`));
       }
     }
     return g;

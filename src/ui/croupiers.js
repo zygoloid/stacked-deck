@@ -13,6 +13,7 @@ export const PORT_STYLE = {
   bottom: { label: 'bot', short: 'bot', color: '#c792ea' },
   set: { label: 'set', short: 'set', color: '#5fd38d' },
   rest: { label: 'rest', short: 'rest', color: '#ff6b6b' },
+  burn: { label: 'burn', short: 'burn', color: '#6fb7ff' },
   win: { label: 'win', short: 'win', color: '#5fd38d' },
   lose: { label: 'lose', short: 'lose', color: '#ff6b6b' },
   dwin: { label: 'd-win', short: 'dW', color: '#4fc3f7' },
@@ -79,6 +80,15 @@ export const CROUPIERS = {
     name: 'Suits', abbr: 'SUIT', family: SHAPE, ports: ['S', 'H', 'D', 'C', 'misc'],
     desc: 'Each card goes to its suit\'s pile. Suits without a side go to misc (or the floor). Suits sharing a side form one pile, in hand order.',
   },
+  burn: {
+    name: 'Burn', abbr: 'BURN', family: SHAPE, ports: ['burn', 'rest'],
+    desc: 'Takes the top card off: the top card to burn, the rest to rest. Point both at the same side to move the top card to the bottom.',
+  },
+  hand: {
+    name: 'Hand', abbr: 'HND', family: ROUTE, ports: ['out'],
+    params: { n: { label: 'n', options: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], default: 5 } },
+    desc: 'Collects cards until it holds at least n, then deals the first n as one hand; leftovers start the next hand. While it holds n or more it deals without picking anything up.',
+  },
   deal: {
     name: 'Deal', abbr: 'DEAL', family: ROUTE, ports: [], deal: true,
     desc: 'Deals the hand one card at a time, round-robin, to an ordered list of sides (a side may repeat).',
@@ -101,12 +111,21 @@ export const CROUPIERS = {
 export const SIDE_NAMES = ['E', 'SE', 'SW', 'W', 'NW', 'NE'];
 
 export const infoFor = (cell) => (cell.kind === 'shoe' ? CROUPIERS.shoe : CROUPIERS[cell.fn]);
+// A cell for showing a palette entry or help row: every param at its default.
+export function sampleCell(tool) {
+  if (tool === 'shoe') return { kind: 'shoe' };
+  const cell = { kind: 'croupier', fn: tool };
+  for (const [k, p] of Object.entries(CROUPIERS[tool]?.params ?? {})) cell[k] = p.default;
+  return cell;
+}
+
 export const toolOf = (cell) => (cell.kind === 'shoe' ? 'shoe' : cell.fn);
 
 // Short label drawn on the chip.
 export function chipLabel(cell) {
   if (cell.kind === 'shoe') return 'SHOE';
   if (cell.fn === 'kind') return `K${cell.n ?? 2}`;
+  if (cell.fn === 'hand') return `HND${cell.n ?? 5}`;
   if (cell.fn === 'war') return cell.rule === 'top' ? 'WAR·T' : cell.rule === 'high' ? 'WAR·H' : 'WAR';
   return CROUPIERS[cell.fn]?.abbr ?? cell.fn;
 }
