@@ -1,60 +1,145 @@
-// Reference-solution recipes for chapter 3 (clubs). PLACEHOLDER: the
-// surviving recipes from the 25-level campaign. Regenerate with
+// Reference-solution recipes for chapter 3 (clubs). Regenerate with
 // `node tools/write-solutions.js clubs [--par]`.
 import { E, SE, SW, W, NW, NE, c, pass, war, twar, shoe } from './shared.js';
 
+const all = (side) => ({ win: side, lose: side, dwin: side, dlose: side });
+
 export const SPECS = {
+  'upper-hand': {
+    // The original plays the copy's top two cards; ties go to the house, so
+    // the hands that lose are the ones to pay. (Cutting the hand itself and
+    // playing the halves against each other also works.)
+    cells: [
+      c([-1, 0], 'duplicate', { out: { a: E, b: NE } }),
+      c([0, -1], 'cut', { out: { top: SE } }),
+      war([0, 0], { dealer: NW, out: { lose: E } }), pass([1, 0], E),
+    ],
+  },
   'high-spade': {
-    nodes: {
-      dup: c([-2, 0], 'duplicate'), g: c([-1, -1], 'gather'), s2: shoe([-2, -1], '2S'),
-      su: c([0, -1], 'suits'), gate: war([1, 0]),
-    },
-    links: [['s2', null, 'g', 'under'], ['dup', 'b', 'g'], ['g', 'out', 'su'],
-      ['su', 'S', 'gate', 'dealer'], ['dup', 'a', 'gate'], ['gate', 'lose', 'desk']],
+    // The copy's spades, plus a 2 of spades so the pile is never empty, are
+    // the dealer's hand.
+    cells: [
+      c([-2, 0], 'duplicate', { out: { a: E, b: NE } }),
+      shoe([-2, -1], '2S', { out: E }), c([-1, -1], 'gather', { out: { out: E } }),
+      c([0, -1], 'suits', { out: { S: SW } }),
+      war([-1, 0], { dealer: NE, out: { lose: E } }), pass([0, 0], E),
+    ],
   },
   'top-pair': {
-    nodes: {
-      k2: c([-2, 0], 'kind', { n: 2 }), dup: c([-1, 0], 'duplicate'),
-      set: c([0, -1], 'set'), gate: war([1, 0]),
-    },
-    links: [['k2', 'yes', 'dup'], ['dup', 'b', 'set'], ['set', 'set', 'gate', 'dealer'],
-      ['dup', 'a', 'gate'], ['gate', 'lose', 'desk']],
+    cells: [
+      c([-2, 0], 'kind', { n: 2, out: { yes: E } }),
+      c([-1, 0], 'duplicate', { out: { a: E, b: NE } }),
+      c([0, -1], 'set', { out: { set: SE } }),
+      war([0, 0], { dealer: NW, out: { lose: E } }), pass([1, 0], E),
+    ],
   },
   'new-rules': {
-    nodes: { w: twar([-1, 0]), st: shoe([-1, -1], 'TC') },
-    links: [['st', null, 'w', 'dealer'], ['w', 'win', 'desk']],
+    cells: [
+      shoe([-1, -1], 'TC', { out: SE }), twar([-1, 0], { dealer: NW, out: { win: E } }),
+      pass([0, 0], E), pass([1, 0], E),
+    ],
   },
   'bottom-dealer': {
-    // out, in, in brings the bottom card of five to the top.
-    nodes: {
-      o: c([-2, 0], 'outshuffle'), i1: c([-1, 0], 'inshuffle'), i2: c([0, 0], 'inshuffle'),
-      w: twar([1, 0]), st: shoe([1, -1], 'TC'),
-    },
-    links: [['o', 'out', 'i1'], ['i1', 'out', 'i2'], ['i2', 'out', 'w'],
-      ['st', null, 'w', 'dealer'], ['w', 'win', 'desk']],
+    // On four cards a cut only swaps the halves; two in-shuffles bring the
+    // bottom card to the top (so does an in-shuffle and a completed cut).
+    cells: [
+      c([-2, 0], 'inshuffle', { out: { out: E } }), c([-1, 0], 'inshuffle', { out: { out: E } }),
+      shoe([0, -1], 'TC', { out: SE }), twar([0, 0], { dealer: NW, out: { win: E } }), pass([1, 0], E),
+    ],
   },
-  knockout: { cells: knockout(false) },
-  'low-ball': { cells: knockout(true) },
+  'fourth-street': {
+    // An in-shuffle and a completed cut bring the 4th card up; cuts alone
+    // need four.
+    cells: [
+      c([-2, 0], 'inshuffle', { out: { out: E } }), c([-1, 0], 'cut', { out: { top: E, bottom: E } }),
+      shoe([0, -1], 'TC', { out: SE }), twar([0, 0], { dealer: NW, out: { win: E } }), pass([1, 0], E),
+    ],
+  },
+  'second-fiddle': {
+    // The out-shuffle gives [a d b e c]; cut, and the halves' top cards are
+    // a and b. The winner and the dealer's losing half stack up for the desk.
+    cells: [
+      c([-2, 0], 'outshuffle', { out: { out: E } }), c([-1, 0], 'cut', { out: { top: E, bottom: NE } }),
+      pass([0, -1], SE), twar([0, 0], { dealer: NW, out: { win: E, dlose: E } }),
+    ],
+  },
+  knockout: {
+    // Deal into five single cards round the dealer; each War stacks the
+    // winner on top, so four of them bring the best card to the top.
+    cells: [
+      c([0, 0], 'deal', { out: { to: [SW, SE, E, NE, NW] } }),
+      pass([-1, 1], E),
+      twar([0, 1], { dealer: NW, out: all(NE) }),
+      twar([1, 0], { dealer: W, out: all(NW) }),
+      twar([1, -1], { dealer: SW, out: all(W) }),
+      twar([0, -1], { dealer: SE, out: all(W) }),
+      shoe([-1, -2], 'KC', { out: SE }), twar([-1, -1], { dealer: NW, out: { win: W } }),
+    ],
+  },
+  'low-ball': {
+    // Each card in turn plays a 5. A completed cut brings the next card up
+    // (on five cards it rotates by two, so all five get their turn), and the
+    // 5 the hand just beat goes along as the next dealer.
+    cells: [
+      shoe([-2, -1], '5C', { out: SE }),
+      twar([-2, 0], { dealer: NW, out: { win: NE, dlose: E } }), c([-1, -1], 'cut', { out: { top: SE, bottom: SE } }),
+      twar([-1, 0], { dealer: W, out: { win: SE, dlose: E } }), c([-1, 1], 'cut', { out: { top: NE, bottom: NE } }),
+      twar([0, 0], { dealer: W, out: { win: NE, dlose: E } }), c([1, -1], 'cut', { out: { top: SE, bottom: SE } }),
+      twar([1, 0], { dealer: W, out: { win: SE, dlose: E } }), c([1, 1], 'cut', { out: { top: NE, bottom: NE } }),
+      twar([2, 0], { dealer: W, out: { win: E } }),
+    ],
+  },
+  'every-other': {
+    // Deal the copy's 1st and 3rd cards to the gate and the others onto the
+    // floor (an in-shuffle and a cut also isolate them).
+    cells: [
+      c([-1, 0], 'duplicate', { out: { a: E, b: NE } }),
+      c([0, -1], 'deal', { out: { to: [SE, NE, SE, NE, NE] } }),
+      war([0, 0], { dealer: NW, out: { lose: E } }), pass([1, 0], E),
+    ],
+  },
+  'bottom-pair': {
+    // The copy's bottom two cards meet a pair test; yes releases a 2, no an
+    // ace, and the original plays that card at the gate.
+    cells: [...dupAt([-1, -1], SE), c([-1, 0], 'deal', { out: { to: [W, W, W, E, E] } }),
+      c([0, 0], 'kind', { n: 2, out: { yes: NE, no: E } }), ...verdicts()],
+  },
+  'small-pairs': {
+    // A pair (or two) and nothing bigger; then the copy's set plays a 6.
+    // The 6 it loses to (good) releases a 2, the 6 it beats an ace.
+    cells: [
+      c([-3, -1], 'kind', { n: 2, out: { yes: E } }), c([-2, -1], 'kind', { n: 3, out: { no: E } }),
+      ...dupAt([-1, -1], SE), c([-1, 0], 'set', { out: { set: E } }),
+      shoe([0, 1], '6C', { out: NW }), war([0, 0], { dealer: SE, out: { dwin: NE, dlose: E } }),
+      ...verdicts(),
+    ],
+  },
+  'two-pair': {
+    // Nothing bigger than pairs; the copy's set loses its first card to the
+    // floor, and what's left still holds a pair only if there were two.
+    cells: [
+      c([-2, -1], 'kind', { n: 3, out: { no: E } }),
+      ...dupAt([-1, -1], SE), c([-1, 0], 'set', { out: { set: SE } }),
+      c([-1, 1], 'deal', { out: { to: [W, NE, NE, NE] } }),
+      c([0, 0], 'kind', { n: 2, out: { yes: NE, no: E } }), ...verdicts(),
+    ],
+  },
 };
 
-// The knockout tournament from solutions/ace-top-war.js (source at [-1, 0]
-// facing east, desk at [-2, -1]). Each merge plays two piles with top-card
-// War and stacks the winner on the loser; `low` swaps the ports so the
-// loser goes on top instead, which brings the lowest card up. The final War
-// plays the top card against a king (any ace) or a 5 (lowest beats 5).
-function knockout(low) {
-  const merge = (at, dealer, win, lose) => (low
-    ? twar(at, { dealer, out: { win: lose, dwin: lose, lose: win, dlose: win } })
-    : twar(at, { dealer, out: { win, dwin: win, lose, dlose: lose } }));
-  const gather = (at, under, out) => c(at, 'gather', { under, out: { out } });
+// A duplicate at `at` sending its copy to `copy` and the original along the
+// top row to the gate at [2, -2].
+function dupAt(at, copy) {
+  return [c(at, 'duplicate', { out: { a: NE, b: copy } }), pass([0, -2], E), pass([1, -2], E)];
+}
+
+// The verdict: whatever arrives at [1, -1] releases a 2 and whatever arrives
+// at [1, 0] an ace; both routes are one War and one shared pass long, so
+// verdicts keep their order. The gate pays the original if it beats its
+// verdict card.
+function verdicts() {
   return [
-    c([0, 0], 'deal', { out: { to: [NW, NE, E, SE, SW] } }),
-    pass([0, -1], E),
-    merge([1, -1], W, E, NE), gather([2, -1], NW, SW), pass([2, -2], SE),
-    merge([1, 0], W, SE, E), gather([1, 1], NE, W), pass([2, 0], SW),
-    merge([0, 1], NW, SW, SE), gather([-1, 2], E, NW), pass([0, 2], W),
-    merge([-1, 1], NE, W, SW), gather([-2, 1], SE, NW), pass([-2, 2], NW),
-    shoe([-3, 0], low ? '5S' : 'KS', { out: E }),
-    twar([-2, 0], { dealer: W, out: { win: NW } }),
+    shoe([0, -1], '2C', { out: E }), war([1, -1], { dealer: W, out: { dwin: E, dlose: E } }),
+    shoe([1, 1], 'AC', { out: NW }), war([1, 0], { dealer: SE, out: { dwin: NE, dlose: NE } }),
+    pass([2, -1], NW), war([2, -2], { dealer: SE, out: { win: E } }),
   ];
 }
