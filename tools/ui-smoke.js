@@ -331,6 +331,14 @@ try {
     check(after === lv.par.rounds, `re-clearing a saved machine updates its score (77 -> ${after})`);
   }
 
+  // The palette's War chip shows the rule the level allows.
+  for (const [id, want] of [['beat-the-dealer', 'WAR·H'], ['new-rules', 'WAR·T'], ['hot-streak', 'WAR']]) {
+    await page.goto(`${base}?unlockall#/level/${id}`);
+    await page.waitForSelector('svg.board');
+    const label = (await page.textContent('.pal-item[data-tool="war"] .pal-chip')).trim();
+    check(label === want, `${id}: palette War chip reads ${label}`);
+  }
+
   // On a phone-sized screen, playing must not scroll the page away from the floor.
   {
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

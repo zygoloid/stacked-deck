@@ -97,6 +97,13 @@ export function openEditor(root, ctx, level, index) {
     changed();
   }
 
+  // What a palette entry looks like: War shows its rule when the level allows
+  // only one, plain "WAR" when the player can choose.
+  function paletteSample(name) {
+    if (name === 'shoe') return { kind: 'shoe' };
+    const rules = warRules(level);
+    return { kind: 'croupier', fn: name, n: 2, rule: rules.length === 1 ? rules[0] : undefined };
+  }
   function place(toolName, at) {
     if (!board.isBuildable(at) || cellAt(hexKey(at))) return;
     commit(() => {
@@ -395,7 +402,7 @@ export function openEditor(root, ctx, level, index) {
       ...level.croupiers.map((name, i) => {
         const info = CROUPIERS[name];
         if (!info) return null;
-        const sample = name === 'shoe' ? { kind: 'shoe' } : { kind: 'croupier', fn: name, n: 2, rule: 'high' };
+        const sample = paletteSample(name);
         return h('button', {
           class: `pal-item${tool === name ? ' on' : ''}`, 'data-tool': name,
           title: `${info.name} (${i + 1}): ${info.desc}`,
@@ -670,7 +677,7 @@ export function openEditor(root, ctx, level, index) {
     ghost.className = `drag-ghost${overPalette && drag.kind === 'move' ? ' trash' : ''}`;
     ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
     ghost.replaceChildren(h('span', { class: 'pal-chip', style: { background: info?.family } },
-      h('span', {}, drag.kind === 'new' ? chipLabel(name === 'shoe' ? { kind: 'shoe' } : { kind: 'croupier', fn: name }) : chipLabel(cellAt(drag.key)))),
+      h('span', {}, drag.kind === 'new' ? chipLabel(paletteSample(name)) : chipLabel(cellAt(drag.key)))),
     overPalette && drag.kind === 'move' ? h('span', { class: 'ghost-t' }, 'remove') : null);
     renderBoard();
   }

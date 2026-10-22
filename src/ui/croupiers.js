@@ -107,7 +107,7 @@ export const toolOf = (cell) => (cell.kind === 'shoe' ? 'shoe' : cell.fn);
 export function chipLabel(cell) {
   if (cell.kind === 'shoe') return 'SHOE';
   if (cell.fn === 'kind') return `K${cell.n ?? 2}`;
-  if (cell.fn === 'war') return cell.rule === 'top' ? 'WAR·T' : 'WAR·H';
+  if (cell.fn === 'war') return cell.rule === 'top' ? 'WAR·T' : cell.rule === 'high' ? 'WAR·H' : 'WAR';
   return CROUPIERS[cell.fn]?.abbr ?? cell.fn;
 }
 
