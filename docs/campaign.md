@@ -57,8 +57,9 @@ from 10♣ on. `specialCards`: `[]` everywhere except the finale, where it grows
 
 Difficulty is 1–10. "Ref" means a reference card from a shoe. Every sketch
 describes the reference solution (the recipe in `tools/level-specs/<chapter>.js`)
-and its par as croupiers/rounds from the chapter's `PAR` block. Hands are the
-hand size. "Reused" means the level id survives from the old campaign (saves
+and its par as croupiers/rounds from the chapter's `PAR` block; where a
+cleverer build is known, its croupier count follows (a way to beat par).
+Hands are the hand size. "Reused" means the level id survives from the old campaign (saves
 are keyed by id).
 
 ### Chapter 1 ♥ Opening Night (built)
@@ -74,10 +75,10 @@ are keyed by id).
 | 7♥ | black-tie | Black Tie | | 1 | black cards, two tables, cramped | 7/19 | 4 | yes |
 | 8♥ | back-to-back | Back to Back | straight | 2 | runs from two tables by the door | merge then one straight 9/17, or a straight per table 10/12 | 3 | yes (now two tables) |
 | 9♥ | next-door | Next Door | shoe, gather, cut | 1 | 6s and 8s; corridor | [X, 7] straight, cut off the 7 (7/15) | 4 | yes |
-| 10♥ | lucky-seven | Lucky Seven | two refs | 1 | the 7s | the sandwich: gather 6 and 8 into one ref hand, [X, 6, 8] is a run only for 7 (6/16); chains [X,6] then [X,6,8] cost 7, [X,6] and [X,8] with two cuts 8 | 5 | new |
-| J♥ | penny-ante | Penny Ante | stages share a cut | 1 | A, 2, 3, 4 (ace low) | [X, 2] catches A and 3, strip, [X, 3] catches 2 and 4; both yes ports into one cut; the stages wrap round the first straight so no passes (9/21) | 5 | new |
-| Q♥ | royalty | Royalty | mixed stages | 1 | J, Q, K | [X, Q] catches J and K; the queens left meet [X, J, K]; both 2- and 3-card yes hands lose their refs at one cut (10/20) | 6 | new |
-| K♥ | even-money | Even Money | three stages | 1 | 2 4 6 8 10 Q | refs 3, 7, J (12/28) | 7 | yes |
+| 10♥ | lucky-seven | Lucky Seven | two refs | 1 | the 7s | two neighbour stages, each with its own cut: [X, 6] catches 5 and 7, then [X, 8] keeps the 7 (8/15). Beat par with the chain [X, 6] then [X, 6, 8] (7) or the sandwich, [X, 6, 8] in one straight, a run only for 7 (6) | 5 | new |
+| J♥ | penny-ante | Penny Ante | a second stage | 1 | A, 2, 3, 4 (ace low) | [X, 2] catches A and 3; a cut strips the 2 from the rest, and [X, 3] catches 2 and 4; each stage's yes hands lose their ref at their own cut, and one pass takes both to the desk (10/21). Both stages sharing one cut, wrapped round the first straight: 9 | 5 | new |
+| Q♥ | royalty | Royalty | three stages | 1 | J, Q, K | three single-ref stages, each with its own cut: [X, Q] catches J and K; the rest lose the Q and meet [X, J] (10 or Q); those meet [X, K], which keeps the queens (13/23). The sandwich [X, J, K] as the second stage, with both yes hands sharing one cut: 10 | 6 | new |
+| K♥ | even-money | Even Money | three stages | 1 | 2 4 6 8 10 Q | refs 3, 7, J catch {2, 4}, {6, 8}, {10, Q}; each stage has its own yes cut to the desk (14/28). Shared cuts: 12 | 7 | yes |
 
 ### Chapter 2 ♦ Stacking the Deck (built)
 
@@ -88,14 +89,14 @@ are keyed by id).
 | 3♦ | pair-night | Pair Night | kind | 5 | largest set is a pair | K2 yes → K3 no (3/12) | 3 | yes |
 | 4♦ | inside-seven | Inside Seven | ref position and cut size | 2 | the two cards make a 3-card run with a 7 | gather the 7 *on top*, straight, cut's bottom half is the hand (5/16) | 4 | new |
 | 5♦ | seven-up | Seven Up | kind with a ref stack | 2 | holds a 7 | [a, b, 7, 7] has trips iff a 7 is held; cut top half (6/18); without the stack, split on pairs first (8) | 5 | new |
-| 6♦ | lucky-number | Lucky Number | **a loop beats unrolling** | 5 | exactly one 7 | four 7s on top: K5 yes, K6 no, cut. The 7-stack is built by a loop (two shoes → gather → K4, "no" back to the gather): 8/34. Unrolled (4 shoes, 3 gathers): 11 | 6 | new |
+| 6♦ | lucky-number | Lucky Number | **a loop beats unrolling** | 5 | exactly one 7 | four 7s on top: K5 yes, K6 no, cut. The reference unrolls the 7-stack, four shoes and four gathers (11/16). A loop beats par on croupiers (two shoes → gather → K4, "no" back to the gather): 8/34 | 6 | new |
 | 7♦ | beat-the-dealer | Beat the Dealer | war | 1 | beats a 9 | War vs a 9 shoe (4/14) | 4 | yes |
 | 8♦ | ace-in-the-hole | Ace in the Hole | whole-hand War | 5 | holds an ace | War vs a king (4/10) | 3 | yes |
 | 9♦ | inside-bet | Inside Bet | lose port | 5 | high card 9–Q | beat an 8, then lose to a Q (5/12); or the hand as dealer against a K | 4 | new |
-| 10♦ | top-dog | Top Dog | War on the pieces | 2 | top card beats bottom | cut, War, winner and dealer's loser stack to the desk (4/15; was 6) | 5 | yes |
-| J♦ | top-of-the-heap | Top of the Heap | pieces reassembled by War | 5 | top card beats each other card | cut, cut, gather the other four as dealer, War (5/14) | 5 | new |
+| 10♦ | top-dog | Top Dog | War on the pieces | 2 | top card beats bottom | cut, War; a gather puts the winner and the dealer's losing card back together for the desk (5/16). Stacking the two War outputs on one side instead: 4 | 5 | yes |
+| J♦ | top-of-the-heap | Top of the Heap | pieces reassembled | 5 | top card beats each other card | cut, cut, gather the other four as dealer, War; a gather rebuilds a winning hand (6/15). Stacking the War outputs instead: 5 | 5 | new |
 | Q♦ | royal-flush | Royal Flush | stripping one ref from a big hand | 5 | 10–A suited (the A–5 straight flush is the trap) | flush → beats a K (has an ace) → 9 on top → straight (only 10–A or 4–8) → two cuts and a gather take the 9 off (11/13) | 7 | new |
-| K♦ | acey-deucey | Acey-Deucey | **rig the last War** | 3 | middle card strictly between the ends | split [a][b][c]; War stacks a, c into [hi, lo]; b plays lo; winners go on as [b, lo], losers get an ace from a shoe so the final War (hi vs that pile) must lose; both routes take equal time (11/36) | 8 | new |
+| K♦ | acey-deucey | Acey-Deucey | **rig the last War** | 3 | middle card strictly between the ends | split [a][b][c]; War sorts a and c: hi goes on to the final War, lo is the dealer against b. If b wins, a gather puts [b, lo] together as the final War's dealer; if not, b picks up an ace from a shoe so the final War (hi vs that pile) must lose; both routes take equal time; a gather rebuilds a winning hand (15/27). Stacking War outputs (a, c into [hi, lo]) instead of separate routes and gathers: 11 | 8 | new |
 
 ### Chapter 3 ♣ House Rules (built)
 
@@ -111,8 +112,8 @@ loses his own Tuesday game.
 | 5♣ | bottom-dealer | Bottom Dealer | in/out shuffles | 4 | top | bottom card beats a 10 | on 4 cards a cut only swaps the halves; in, in brings the bottom card up (in, cut too), then War vs a 10 (5/15) | 4 | yes (now 4-card hands) |
 | 6♣ | fourth-street | Fourth Street | shuffles beat cuts | 5 | top | 4th card beats a 10 | in + completed cut brings the 4th card up (cuts alone need four), then War vs a 10 (5/12) | 4 | new |
 | 7♣ | second-fiddle | Second Fiddle | a non-rotation | 5 | top | top card beats the second card | out-shuffle gives [a d b e c]; cut, so the halves' top cards are a and b; top-card War of the halves, winner and dealer's loser stack to the desk (4/16). Rotations never put a and b on different halves' tops | 5 | new |
-| 8♣ | knockout | Knockout | deal | 5 | top | holds an ace | deal to five singles round the dealer; each merge is **one** War with all four ports to one side (winner on top), four of them bring the best card up; final War vs a K (8/23; old par 16) | 6 | yes |
-| 9♣ | low-ball | Low Ball | | 5 | top | every card beats a 5 | a chain of five top-card Wars, each card in turn against a 5: a completed cut between Wars rotates the hand by two (so all five get a turn), and the 5 just beaten goes along as the next dealer (10/18). Pryce loses; the regulation goes | 7 | yes |
+| 8♣ | knockout | Knockout | deal | 5 | top | holds an ace | deal to five singles round the dealer; each merge is a War, a gather and a pass (the winning card goes straight to the gather, the loser round the pass to its under side, so the better top card stays on top); four merges bring the best card up; final War vs a K (17/37). One War with all four ports to one side (winner on top) is a whole merge: 8 | 6 | yes |
+| 9♣ | low-ball | Low Ball | | 5 | top | every card beats a 5 | a chain of five top-card Wars, each card in turn against a 5 from its own shoe: a completed cut between Wars rotates the hand by two, so all five get a turn (14/17). Passing the 5 just beaten along as the next dealer saves the shoes: 10. Pryce loses; the regulation goes | 7 | yes |
 | 10♣ | every-other | Every Other | both rules again | 5 | both | highest card (ties count) is the 1st or 3rd card | duplicate; deal the copy's 1st and 3rd cards to the gate and the rest onto the floor; gate on lose (4/15). An in-shuffle and a cut also isolate them | 5 | new |
 | J♣ | bottom-pair | Bottom Pair | **release a verdict, no door** | 5 | both | the bottom two cards are a pair | duplicate; deal drops the copy's top three cards; K2 on the bottom two: yes releases a 2, no an ace, both routes one War and one shared pass long; gate the original vs the verdict with high-card War (11/13) | 6 | new |
 | Q♣ | small-pairs | Small Pairs | | 5 | both | largest set is a pair (or two pair) and every paired card is 6 or lower | K2 yes, K3 no, duplicate; copy → set → War(set pile vs a 6): the 6 it loses to releases a 2, the 6 it beats an ace; same verdict and gate as Bottom Pair (14/13) | 7 | new |
@@ -132,7 +133,7 @@ Both War rules throughout.
 | 6♠ | the-wheel | The Wheel | burn strips a ref | 5 | ace-to-five straights only | 6 on top → straight (only A–5 or 7–J and the like) → burn → beats a K (6/11) | 5 | new |
 | 7♠ | calling-card | Calling Card | sort | 5 | holds a spade | duplicate; sort the copy so a spade comes to the top; burn isolates the top card; suits turn it into a verdict (2 or A); gate. One decision, equal routes, no door (11/30; old par 14 with a door) | 6 | yes |
 | 8♠ | seven-heaven | Seven Heaven | hand | 5 | three or more 7s | shoe of 7s → Hand(4) → four 7s on top → K7 → cut (5/34); five 7s and K8 also work, slower; compare Lucky Number's loop | 4 | new |
-| 9♠ | after-a-pair | After a Pair | delayed verdict | 5 | pay a hand if the hand before it held a pair or better | no copy: the hand itself goes through K2, yes releases a 2 and no an ace (equal routes) into the gate's dealer line, which a `once` shoe seeds with an ace; each hand meets the verdict on the hand before it (12/14) | 6 | new |
+| 9♠ | after-a-pair | After a Pair | delayed verdict | 5 | pay a hand if the hand before it held a pair or better | duplicate; the copy goes through K2, yes releases a 2 and no an ace (equal routes) into the gate's dealer line, which a `once` shoe seeds with an ace; each original meets the verdict on the hand before it (13/24). Without a copy (the hand itself goes through K2): 12 | 6 | new |
 | 10♠ | bookends | Bookends | carrying a card to the next hand | 2 | top card beats the previous hand's bottom card | duplicate; the copy burns its top card, and its bottom card waits in the gate's dealer line behind a `once` ace; top-card War (5/22) | 5 | new |
 | J♠ | next-in-line | Next in Line | windows with Hand | 1 | a card next in rank to the card before (the first card is compared with the dealer's 7) | duplicate with both ports to one side, a `once` shoe seeds a 7, Hand(2) makes [previous, current] windows, straight, cut's bottom card to the desk (the copy is paid) (5/17) | 6 | new |
 | Q♠ | jacks-or-better | Jacks or Better | everything, no door | 5 | video poker: a pair of jacks or better, or any better hand | straight / flush / K3 pay directly; K2 no drops; pairs: copy → set → burn → K2 (two pair) or the lone pair card vs a 10 (high pair); release; gate. A pass beside the second K2 matches the War vs the 10, so every route from the last decision takes the same time and no door is needed (19/18) | 9 | new |
@@ -211,6 +212,9 @@ instead of a 7, *(sim: 5)*; a spare idea if a finale floor needs replacing.)
   wildly loose with `node tools/optimize-level.js <id>` (only for
   `{ nodes, links }` recipes), but par is simply what the reference achieves;
   players beating it is fine.
+* **Par is the plain build.** One idea per croupier, nothing a first-time
+  player wouldn't reach for. Tricks (shared croupiers, output stacking, loops,
+  sandwiches) are left for players to beat par with.
 * **Trade-offs.** Prefer floors where a cheaper machine is slower (merging
   streams, sharing a croupier, loops) or where several structures compete.
 * **Random tests.** `makeTests` deals from one deck per test, so hands per
@@ -244,16 +248,18 @@ instead of a 7, *(sim: 5)*; a spare idea if a finale floor needs replacing.)
   are only ever necessary on 5♣–7♣; later floors that pick out positions use
   Deal (Every Other, Bottom Pair, Two Pair).
 * **Stacking.** Outputs to one side are stacked: War with all four ports one
-  way stacks winner on top (so a knockout merge is one War, but a "loser on
-  top" merge still needs a gather); Duplicate with both ports one way doubles
+  way stacks winner on top (so a knockout merge can be one War, a way to beat
+  Knockout's par, but a "loser on top" merge still needs a gather); Duplicate with both ports one way doubles
   a hand; completed cut and burn rotate.
 
 ### Patterns the later chapters can build on
 
 * Reference card, stripped by cut: k refs on top of an n-card hand need
   k ∈ {n−1, n}; underneath, k ∈ {n, n+1}. Burn (3♠) strips one ref on top.
-* The sandwich: [X, R−1, R+1] is a run only for R.
-* A reference stack built by a loop (Lucky Number) or by Hand(n) (Seven Heaven).
+* The sandwich: [X, R−1, R+1] is a run only for R (no reference uses it; it
+  beats par on Lucky Seven and Royalty).
+* A reference stack built by Hand(n) (Seven Heaven), or by a loop (beats
+  Lucky Number's unrolled par).
 * Deal as a selector: list a side once per card position to keep, an empty
   side for cards to drop (Every Other, Bottom Pair, Two Pair).
 * Test a copy and gate the original with a *copy-derived dealer* (Upper Hand,
@@ -286,16 +292,25 @@ references came to (par croupiers):
   Top and Bottom (7♣) and 4-card Bookends were dropped; Every Other and Bottom
   Pair use Deal instead of the planned shuffles.
 * Verdict floors, all door-free: Bottom Pair 11, Small Pairs 14 (planned 16),
-  Two Pair 13, Calling Card 11 (14 with a door before), After a Pair 12
-  (planned 16, with a copy), Jacks or Better 19, Red Carpet 12 (the planned "no
+  Two Pair 13, Calling Card 11 (14 with a door before), After a Pair 13 with
+  a copy (12 without; planned 16), Jacks or Better 19, Red Carpet 12 (the planned "no
   black cards" rule, with sort and regrouping, was 9). Each passes back-to-back, alternating and same-verdict
   stress tests; unequal verdict routes fail them.
-* Knockout with one-War merges: 8 (planned ~10, old par 16). Low Ball: a
-  10-croupier cut chain (planned ~16 as a loser-on-top tournament).
+* Knockout: 17 with War + gather + pass merges; one-War merges (all four
+  ports one way) make 8 (planned ~10, old campaign par 16). Low Ball: a cut
+  chain, 14 with a shoe of 5s per War, 10 passing the beaten 5 along (planned
+  ~16 as a loser-on-top tournament).
 * Third Time Lucky 2 (planned 7 with passes). The Wheel 6 (planned 8). Seven
   Heaven 5 with Hand(4) and K7 (planned 8 with Hand(5) and K8). Déjà Vu 6
-  (planned 7). Snap 5 (not built). Acey-Deucey 11. Lucky Number loop 8 vs 11.
+  (planned 7). Snap 5 (not built). Acey-Deucey 15 with separate routes and
+  gathers, 11 with War output stacking. Lucky Number 11 unrolled, 8 with the
+  loop. Top Dog 5 and Top of the Heap 6 with gathers, 4 and 5 with stacking.
+* Hearts stages: Lucky Seven 8 with two stages and two cuts (7 as a chain,
+  6 as the sandwich); Penny Ante 10 with a cut per stage (9 sharing one);
+  Royalty 13 with three single-ref stages (10 with the sandwich and a shared
+  cut).
 * Even Money: the owner reported an 11-croupier loop; I could not find it (a
   single gather/straight/cut loop fed by a cycling 3-7-J shoe jams on the odd
-  cards, which never leave). The reference stays at 12 unrolled; Lucky Number
-  is the designated "loop beats unrolling" floor.
+  cards, which never leave). The reference is 14 unrolled with a cut per
+  stage (12 with shared cuts); Lucky Number is the designated "loop beats
+  unrolling" floor.
