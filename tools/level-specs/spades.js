@@ -97,18 +97,18 @@ export const SPECS = {
     ],
   },
   'after-a-pair': {
-    // No copy: the hand itself is tested and then gated. A pair releases a 2,
-    // anything else an ace, into the gate's dealer line, which a shoe seeds
-    // with an ace for the first hand; so each hand meets the verdict on the
-    // hand before it. Both routes take the same time, and the verdicts reach
-    // the gate no later than the hands do, so nothing queues and overtakes.
+    // Test a copy: a pair releases a 2, anything else an ace, into the
+    // gate's dealer line, which a shoe seeds with an ace for the first hand;
+    // so each original meets the verdict on the hand before it. One decision
+    // and equal routes afterwards, so no door.
     cells: [
-      c([-2, 0], 'kind', { n: 2, out: { yes: NE, no: SE } }),
-      pass([-1, -1], E), pass([0, -1], E), pass([-2, 1], E), pass([-1, 1], E),
-      war([1, -1], { dealer: E, out: { win: SW, dlose: SE } }), shoe([2, -1], '2C', { out: W }),
-      war([0, 1], { dealer: E, out: { lose: NW, dwin: NE } }), shoe([1, 1], 'AC', { out: W }),
-      pass([1, 0], W), shoe([2, 0], 'AD', { out: W, once: true }),
-      war([0, 0], { dealer: E, out: { win: W } }),
+      c([-2, 0], 'duplicate', { out: { a: NE, b: NW } }),
+      c([-2, -1], 'kind', { n: 2, out: { yes: NE, no: NW } }),
+      war([-1, -2], { dealer: E, out: { dwin: NW, dlose: NW } }), shoe([0, -2], '2C', { out: W }),
+      war([-2, -2], { dealer: SW, out: { dwin: NE, dlose: NE } }), shoe([-3, -1], 'AC', { out: NE }),
+      pass([-1, -3], E), pass([0, -3], E), pass([1, -3], SE), pass([1, -2], SW), pass([0, -1], W),
+      shoe([1, -1], 'AD', { out: W, once: true }),
+      war([-1, -1], { dealer: E, out: { win: SE } }),
     ],
   },
   bookends: {

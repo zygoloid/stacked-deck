@@ -41,7 +41,7 @@ export const CROUPIERS = {
   },
   duplicate: {
     name: 'Duplicate', abbr: 'DUP', family: ROUTE, ports: ['a', 'b'],
-    desc: 'Copies the hand: one copy to A, one to B.',
+    desc: 'Copies the hand: one copy to A, one to B. Point both at the same side to hand on the two copies stacked, A on top.',
   },
   sort: {
     name: 'Sort', abbr: 'SORT', family: SHAPE, ports: ['out'],
@@ -74,7 +74,7 @@ export const CROUPIERS = {
   },
   set: {
     name: 'Set', abbr: 'SET', family: SHAPE, ports: ['set', 'rest'],
-    desc: 'Cards of the most common rank(s) go to set, the others to rest (rest may be empty).',
+    desc: 'Cards of the most common rank(s) go to set, the others to rest (rest may be empty). Point both at the same side to restack the hand with the set on top.',
   },
   suits: {
     name: 'Suits', abbr: 'SUIT', family: SHAPE, ports: ['S', 'H', 'D', 'C', 'misc'],
@@ -91,7 +91,7 @@ export const CROUPIERS = {
   },
   deal: {
     name: 'Deal', abbr: 'DEAL', family: ROUTE, ports: [], deal: true,
-    desc: 'Deals the hand one card at a time, round-robin, to an ordered list of sides (a side may repeat).',
+    desc: 'Deals the hand one card at a time, round-robin, to an ordered list of sides (a side may repeat: piles going to the same side are stacked in list order).',
   },
   gather: {
     name: 'Gather', abbr: 'GATH', family: ROUTE, ports: ['out'], sides: ['under'],
@@ -100,7 +100,7 @@ export const CROUPIERS = {
   war: {
     name: 'War', abbr: 'WAR', family: WAR, ports: ['win', 'lose', 'dwin', 'dlose'], sides: ['dealer'],
     params: { rule: { label: 'rule', options: ['high', 'top'], default: 'high' } },
-    desc: 'Plays the player\'s hand (any side but the dealer side) against the dealer\'s hand (from the dealer side). Rule high compares high cards, rule top the top cards; aces high; ties go to the house. The player hand goes to win/lose, the dealer hand to d-win/d-lose.',
+    desc: 'Plays the player\'s hand (any side but the dealer side) against the dealer\'s hand (from the dealer side). Rule high compares high cards, rule top the top cards; aces high; ties go to the house. The player hand goes to win/lose, the dealer hand to d-win/d-lose. Outputs pointed at the same side are stacked, the winning hand on top.',
   },
   shoe: {
     name: 'Shoe', abbr: 'SHOE', family: SHOE, ports: ['out'], shoe: true,

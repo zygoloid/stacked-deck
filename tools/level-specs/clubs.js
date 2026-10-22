@@ -2,7 +2,9 @@
 // `node tools/write-solutions.js clubs [--par]`.
 import { E, SE, SW, W, NW, NE, c, pass, war, twar, shoe } from './shared.js';
 
-const all = (side) => ({ win: side, lose: side, dwin: side, dlose: side });
+// A knockout merge: the winning hand (player's or dealer's) one way, the
+// losing one another.
+const merge = (win, lose) => ({ win, dwin: win, lose, dlose: lose });
 
 export const SPECS = {
   'upper-hand': {
@@ -64,29 +66,38 @@ export const SPECS = {
     ],
   },
   knockout: {
-    // Deal into five single cards round the dealer; each War stacks the
-    // winner on top, so four of them bring the best card to the top.
+    // Deal into five single cards and play a knockout. Each merge is a War
+    // and a gather: the winning card (either hand) goes straight to the
+    // gather, the loser round a pass to its under side, so the better top
+    // card stays on top. After four merges the best card is on top for a
+    // final War against a king.
     cells: [
-      c([0, 0], 'deal', { out: { to: [SW, SE, E, NE, NW] } }),
-      pass([-1, 1], E),
-      twar([0, 1], { dealer: NW, out: all(NE) }),
-      twar([1, 0], { dealer: W, out: all(NW) }),
-      twar([1, -1], { dealer: SW, out: all(W) }),
-      twar([0, -1], { dealer: SE, out: all(W) }),
-      shoe([-1, -2], 'KC', { out: SE }), twar([-1, -1], { dealer: NW, out: { win: W } }),
+      c([0, 0], 'deal', { out: { to: [SE, SW, E, NE, NW] } }),
+      pass([-1, 1], E), twar([0, 1], { dealer: W, out: merge(E, SE) }),
+      pass([0, 2], NE), c([1, 1], 'gather', { under: SW, out: { out: NW } }),
+      twar([1, 0], { dealer: W, out: merge(NE, E) }),
+      pass([2, 0], NW), c([2, -1], 'gather', { under: SE, out: { out: W } }),
+      twar([1, -1], { dealer: SW, out: merge(NW, NE) }),
+      pass([2, -2], W), c([1, -2], 'gather', { under: E, out: { out: W } }),
+      pass([0, -1], NW), twar([0, -2], { dealer: SE, out: merge(W, NW) }),
+      pass([0, -3], SW), c([-1, -2], 'gather', { under: NE, out: { out: SE } }),
+      shoe([-2, 0], 'KC', { out: NE }), twar([-1, -1], { dealer: SW, out: { win: W } }),
     ],
   },
   'low-ball': {
-    // Each card in turn plays a 5. A completed cut brings the next card up
-    // (on five cards it rotates by two, so all five get their turn), and the
-    // 5 the hand just beat goes along as the next dealer.
+    // Each card in turn plays a 5 from its own shoe. A completed cut between
+    // the Wars brings the next card up (on five cards it rotates by two, so
+    // all five get their turn).
     cells: [
-      shoe([-2, -1], '5C', { out: SE }),
-      twar([-2, 0], { dealer: NW, out: { win: NE, dlose: E } }), c([-1, -1], 'cut', { out: { top: SE, bottom: SE } }),
-      twar([-1, 0], { dealer: W, out: { win: SE, dlose: E } }), c([-1, 1], 'cut', { out: { top: NE, bottom: NE } }),
-      twar([0, 0], { dealer: W, out: { win: NE, dlose: E } }), c([1, -1], 'cut', { out: { top: SE, bottom: SE } }),
-      twar([1, 0], { dealer: W, out: { win: SE, dlose: E } }), c([1, 1], 'cut', { out: { top: NE, bottom: NE } }),
-      twar([2, 0], { dealer: W, out: { win: E } }),
+      shoe([-2, -1], '5C', { out: SE }), twar([-2, 0], { dealer: NW, out: { win: NE } }),
+      c([-1, -1], 'cut', { out: { top: SE, bottom: SE } }),
+      shoe([-2, 1], '5C', { out: NE }), twar([-1, 0], { dealer: SW, out: { win: SE } }),
+      c([-1, 1], 'cut', { out: { top: NE, bottom: NE } }),
+      shoe([0, -1], '5C', { out: SE }), twar([0, 0], { dealer: NW, out: { win: NE } }),
+      c([1, -1], 'cut', { out: { top: SE, bottom: SE } }),
+      shoe([0, 1], '5C', { out: NE }), twar([1, 0], { dealer: SW, out: { win: SE } }),
+      c([1, 1], 'cut', { out: { top: NE, bottom: NE } }),
+      shoe([2, 1], '5C', { out: NW }), twar([2, 0], { dealer: SE, out: { win: E } }),
     ],
   },
   'every-other': {
