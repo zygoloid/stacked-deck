@@ -87,13 +87,35 @@ scanning on clockwise from the first), so they keep up with a line of passes.
 | `straight` | `yes`, `no` | | consecutive distinct ranks (A high or low); 1 card = yes |
 | `flush` | `yes`, `no` | | all one suit |
 | `kind` | `yes`, `no` | `n` (2–8) | some rank appears ≥ n times |
-| `set` | `set`, `rest` | | cards of the most common rank(s) / the rest |
+| `set` | `set`, `rest` | | cards of the most common rank(s) (jokers join them) / the rest (ad cards always) |
 | `suits` | `S`,`H`,`D`,`C`,`misc` | | each card to its suit's pile; unassigned suits go to misc (or the floor); suits sharing a side form one pile |
 | `deal` | `out: {to: [sides…]}` | | one card at a time, round-robin |
 | `gather` | `out` | `under?` (side) | stacks two hands from different sides; the hand from `under` goes underneath (else the first picked up does) |
+| `burn` | `burn`, `rest` | | top card / the rest; both to one side moves the top card to the bottom |
+| `hand` | `out` | `n` (1–13) | collects cards until it holds ≥ n, deals the first n as a hand; leftovers start the next; holding ≥ n it deals without picking up |
 | `war` | `win`,`lose` (player hand), `dwin`,`dlose` (dealer hand) | `dealer` (side), `rule: 'high'|'top'` | player hand (any other side) vs dealer hand; aces high; ties go to the house |
 
 A shoe counts as a croupier for scoring.
+
+### Special cards (late game; dealt only by shoes)
+
+| card | name | value | suit | new deck order |
+|---|---|---|---|---|
+| `?` | monochrome joker | wild | none | after the hearts |
+| `??` | colour joker | wild | every suit | after `?` |
+| `$` | front advertising card | none | none | first (before A♠) |
+| `$$` | back advertising card | none | none | last |
+
+* **Jokers** are wild for value: they join the biggest set (n of a kind, Set)
+  and fill gaps or ends of a straight. In War a joker beats everything,
+  including an ace.
+* **Advertising cards** have no value. They are never part of a set (Set
+  sends them to `rest` even when they're all there is), a straight or a flush,
+  and they lose to everything in War.
+* **Flush and Suits:** the colour joker matches any suit, so it never spoils a
+  flush, and Suits sends it to the first of ♠ ♥ ♦ ♣ that has a port. The
+  monochrome joker and ad cards spoil a flush and go to `misc` in Suits.
+* `isCard`, `isJoker`, `isAd` and `suitsOf` in `src/cards.js` encode this.
 
 Bump `RULES_VERSION` in `src/engine.js` (with a line in the comment above it)
 whenever a rule changes; the level select shows it.

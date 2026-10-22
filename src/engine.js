@@ -30,7 +30,7 @@
 // the floor.
 
 import {
-  rankOf, suitOf, highValue, newDeckIndex, isFlush, isStraight, rankCounts, largestSet,
+  rankOf, suitsOf, isJoker, isAd, highValue, newDeckIndex, isFlush, isStraight, rankCounts, largestSet,
 } from './cards.js';
 
 // Bump whenever the rules change (shown on the level select, so players can
@@ -39,7 +39,8 @@ import {
 //   4  outputs to the same side are stacked
 //   5  cut with both halves to one side completes the cut
 //   6  gather and war take both hands in one round when both are waiting
-export const RULES_VERSION = 6;
+//   7  burn and hand croupiers; jokers and advertising cards
+export const RULES_VERSION = 7;
 
 export const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
 export const DIR_NAMES = ['E', 'SE', 'SW', 'W', 'NW', 'NE'];
@@ -80,7 +81,10 @@ export const FUNCTIONS = {
     const piles = new Map();
     let last;
     for (const x of h) {
-      const port = st.out[suitOf(x.c)] !== undefined ? suitOf(x.c) : 'misc';
+      // The colour joker goes to the first suit (S, H, D, C) that has a port;
+      // the monochrome joker and advertising cards have no suit.
+      const own = suitsOf(x.c).find((u) => st.out[u] !== undefined);
+      const port = own ?? 'misc';
       const side = st.out[port];
       if (side === undefined) continue;
       if (!piles.has(side)) piles.set(side, []);
@@ -90,11 +94,26 @@ export const FUNCTIONS = {
     // The pile that got the last card goes last, so the croupier faces it.
     return [...piles].sort(([a], [b]) => (a === last) - (b === last)).map(([side, pile]) => [`@${side}`, pile]);
   },
+  // Set: the most common rank(s) to `set`, the rest to `rest`. Jokers join the
+  // set; advertising cards always go to `rest`.
   set: (st, h) => {
     const counts = rankCounts(cardsOf(h));
-    const max = Math.max(...counts.values());
-    return [['set', h.filter((x) => counts.get(rankOf(x.c)) === max)],
-      ['rest', h.filter((x) => counts.get(rankOf(x.c)) !== max)]];
+    const max = Math.max(0, ...counts.values());
+    const inSet = (x) => isJoker(x.c) || (!isAd(x.c) && counts.get(rankOf(x.c)) === max);
+    return [['set', h.filter(inSet)], ['rest', h.filter((x) => !inSet(x))]];
+  },
+  // Burn: the top card to `burn`, the rest to `rest`. Rest is handed on first,
+  // so with both on one side the burned card ends up at the bottom.
+  burn: (st, h) => [['rest', h.slice(1)], ['burn', h.slice(0, 1)]],
+  // Hand: collect cards until there are at least n, then deal the first n as a
+  // hand; leftovers start the next hand. With n or more already held it deals
+  // without picking anything up (h is null then).
+  hand: (st, h) => {
+    const buffer = [...(st.held?.buffer ?? []), ...(h ?? [])];
+    const n = st.n ?? 5;
+    const out = buffer.length >= n ? buffer.splice(0, n) : null;
+    st.held = buffer.length ? { buffer } : null;
+    return out ? [['out', out]] : [];
   },
   // Deal: one card at a time, round-robin, to the sides listed in out.to.
   deal: (st, h) => {
@@ -131,6 +150,9 @@ export const FUNCTIONS = {
     return won ? [['win', player], ['dlose', dealer]] : [['dwin', dealer], ['lose', player]];
   },
 };
+
+// Output whose side a croupier turns to face, when it has more than one.
+const PREFER_FACING = { cut: 'bottom', burn: 'rest' };
 
 // Which sides a waiting croupier may pick up from next.
 function canTake(cell, d) {
@@ -192,6 +214,10 @@ export class Floor {
     // Phases 1 and 2: read and act.
     for (const cell of this.cells.values()) {
       if (cell.kind !== 'croupier' || cell.pending.length) continue;
+      if (cell.fn === 'hand' && (cell.held?.buffer.length ?? 0) >= (cell.n ?? 5)) {
+        this.act(cell, null, -1);
+        continue;
+      }
       let found = -1;
       for (let i = 0; i < 6; i++) {
         const d = mod6(cell.facing + i);
@@ -201,42 +227,7 @@ export class Floor {
       const hand = cell.slots[found];
       cell.slots[found] = null;
       cell.facing = found;
-      let before = playerCards(hand) + heldCards(cell);
-      let outs = FUNCTIONS[cell.fn](cell, hand, found);
-      // Gather and War need two hands. If the second is already waiting, they
-      // pick it up in the same round (scanning on clockwise from the first).
-      if (cell.held && !outs.length) {
-        for (let i = 1; i < 6; i++) {
-          const d = mod6(found + i);
-          if (!cell.slots[d] || !canTake(cell, d)) continue;
-          const second = cell.slots[d];
-          cell.slots[d] = null;
-          before += playerCards(second);
-          outs = FUNCTIONS[cell.fn](cell, second, d);
-          break;
-        }
-      }
-      const ports = cell.fn === 'deal' ? (cell.out.to ?? []) : cell.out;
-      let face;
-      for (const [port, h] of outs) {
-        const side = typeof port === 'string' && port[0] === '@' ? Number(port.slice(1)) : ports[port];
-        if (!h.length || side === undefined) continue; // dropped
-        // Outputs to the same side are stacked into one hand, earlier ones on
-        // top (cut: bottom half above top, completing the cut; set: set above rest; war: winner
-        // above loser; duplicate: a above b; deal: piles in list order).
-        const same = cell.pending.find(([d]) => d === side);
-        if (same) same[1] = [...same[1], ...h];
-        else cell.pending.push([side, h]);
-        // Facing: war faces its player's hand, cut its bottom half (else the
-        // top), everything else its last output.
-        if (cell.fn === 'war' ? port === 'win' || port === 'lose'
-          : cell.fn !== 'cut' || port === 'bottom' || face === undefined) face = side;
-      }
-      this.live += cell.pending.reduce((a, [, h]) => a + playerCards(h), 0) + heldCards(cell) - before;
-      // Having handed cards on, the croupier faces the side of its last output
-      // (war: the player's hand; dropped hands don't count), so it next looks
-      // there and then clockwise.
-      if (face !== undefined) cell.facing = face;
+      this.act(cell, hand, found);
     }
     // Phase 3: deposit.
     for (const cell of this.cells.values()) {
@@ -250,6 +241,48 @@ export class Floor {
       }
       cell.pending = cell.pending.filter(([d, h]) => !this.deposit(cell, d, h));
     }
+  }
+
+  // Act on a hand just picked up (or, for Hand dealing from what it holds,
+  // on nothing) and queue the outputs.
+  act(cell, hand, found) {
+    let before = (hand ? playerCards(hand) : 0) + heldCards(cell);
+    let outs = FUNCTIONS[cell.fn](cell, hand, found);
+    // Gather and War need two hands. If the second is already waiting, they
+    // pick it up in the same round (scanning on clockwise from the first).
+    if ((cell.fn === 'gather' || cell.fn === 'war') && cell.held && !outs.length) {
+      for (let i = 1; i < 6; i++) {
+        const d = mod6(found + i);
+        if (!cell.slots[d] || !canTake(cell, d)) continue;
+        const second = cell.slots[d];
+        cell.slots[d] = null;
+        before += playerCards(second);
+        outs = FUNCTIONS[cell.fn](cell, second, d);
+        break;
+      }
+    }
+    const ports = cell.fn === 'deal' ? (cell.out.to ?? []) : cell.out;
+    let face;
+    for (const [port, h] of outs) {
+      const side = typeof port === 'string' && port[0] === '@' ? Number(port.slice(1)) : ports[port];
+      if (!h.length || side === undefined) continue; // dropped
+      // Outputs to the same side are stacked into one hand, earlier ones on
+      // top (cut: bottom half above top, completing the cut; set: set above rest; war: winner
+      // above loser; duplicate: a above b; deal: piles in list order).
+      const same = cell.pending.find(([d]) => d === side);
+      if (same) same[1] = [...same[1], ...h];
+      else cell.pending.push([side, h]);
+      // Facing: war faces its player's hand, cut its bottom half and burn
+      // its rest (else the other output), everything else its last output.
+      const prefer = PREFER_FACING[cell.fn];
+      if (cell.fn === 'war' ? port === 'win' || port === 'lose'
+        : !prefer || port === prefer || face === undefined) face = side;
+    }
+    this.live += cell.pending.reduce((a, [, h]) => a + playerCards(h), 0) + heldCards(cell) - before;
+    // Having handed cards on, the croupier faces the side of its last output
+    // (war: the player's hand; dropped hands don't count), so it next looks
+    // there and then clockwise.
+    if (face !== undefined) cell.facing = face;
   }
 
   deposit(from, d, hand) {

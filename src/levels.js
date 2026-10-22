@@ -574,7 +574,7 @@ export const LEVELS = [
     title: 'Hot Streak',
     story: [
       'The rival casino closed last week; its owner now deals for you on Tuesdays. The Owner\'s note says only: "The house remembers." The regulation is gone; both kinds of War are allowed again.',
-      'Single cards. A card wins if it beats the card before it. The first card has nothing to beat, so it never wins. A shoe can be set to deal its deck once and stop.',
+      'Single cards. A card wins if it beats the card before it. The first card has nothing to beat, so it never wins.',
     ],
     brief: 'Pay out every card that beats the card played just before it.',
     handSize: 1,

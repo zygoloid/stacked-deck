@@ -113,3 +113,73 @@ console.log('stacking ok');
   assert.deepStrictEqual(rounds, [0, 1, 2, 3, 4, 4, 4, 4], JSON.stringify(rounds));
 }
 console.log('same-round pickup ok');
+// --- rules v7: burn, hand, jokers, advertising cards ---
+const runFloor = (cells, inputs, rounds = 12) => {
+  const f = new Floor({ cells }, inputs);
+  for (let i = 0; i < rounds; i++) f.step();
+  return f;
+};
+// Burn: top card one way, rest the other; both to one side moves the top card to the bottom.
+{
+  const f = runFloor([
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, 0], kind: 'croupier', fn: 'burn', out: { burn: 1, rest: 0 } },
+    { at: [1, 0], kind: 'payout' }, { at: [0, 1], kind: 'payout' },
+  ], [['AS', '2S', '3S']]);
+  assert.deepStrictEqual(f.paid, [['2S', '3S'], ['AS']].sort((a, b) => b.length - a.length));
+  const g = runFloor([
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, 0], kind: 'croupier', fn: 'burn', out: { burn: 0, rest: 0 } },
+    { at: [1, 0], kind: 'payout' },
+  ], [['AS', '2S', '3S']]);
+  assert.deepStrictEqual(g.paid, [['2S', '3S', 'AS']]);
+}
+// Hand: regroups cards into hands of n; leftovers start the next hand, and a
+// big input is dealt out over several rounds without new pickups.
+{
+  const f = runFloor([
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, 0], kind: 'croupier', fn: 'hand', n: 2, out: { out: 0 } },
+    { at: [1, 0], kind: 'payout' },
+  ], [['AS'], ['2S', '3S', '4S', '5S', '6S'], ['7S']], 15);
+  assert.deepStrictEqual(f.paid, [['AS', '2S'], ['3S', '4S'], ['5S', '6S']]);
+  assert.strictEqual(f.cells.get('0,0').held.buffer.map((x) => x.c).join(), '7S');
+  assert(!f.done(), 'a leftover card is still held');
+}
+// Jokers are wild in Set and n of a kind; ad cards never join a set.
+{
+  const f = runFloor([
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, 0], kind: 'croupier', fn: 'set', out: { set: 0, rest: 1 } },
+    { at: [1, 0], kind: 'payout' }, { at: [0, 1], kind: 'payout' },
+  ], [['5S', '5H', '9C', '?', '$']]);
+  assert.deepStrictEqual(f.paid, [['5S', '5H', '?'], ['9C', '$']]);
+  const g = runFloor([
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, 0], kind: 'croupier', fn: 'set', out: { set: 0, rest: 1 } },
+    { at: [1, 0], kind: 'payout' }, { at: [0, 1], kind: 'payout' },
+  ], [['$', '$$']]);
+  assert.deepStrictEqual(g.paid, [['$', '$$']], 'ad cards alone are all rest');
+}
+// Suits: the colour joker goes to the first suit with a port (S, H, D, C);
+// the monochrome joker and ad cards go to misc.
+{
+  const f = runFloor([
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, 0], kind: 'croupier', fn: 'suits', out: { H: 0, D: 1, misc: 5 } },
+    { at: [1, 0], kind: 'payout' }, { at: [0, 1], kind: 'payout' }, { at: [1, -1], kind: 'payout' },
+  ], [['??', '2D', '?', '$', '3H']]);
+  const byLen = f.paid.map((h) => h.join(' ')).sort();
+  assert.deepStrictEqual(byLen, ['2D', '? $', '?? 3H']);
+}
+// War: jokers beat aces, ad cards lose to everything.
+{
+  const f = runFloor([
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, -1], kind: 'shoe', out: 1, deck: ['AS'] },
+    { at: [0, 0], kind: 'croupier', fn: 'war', rule: 'high', dealer: 4, out: { win: 0 } },
+    { at: [1, 0], kind: 'payout' },
+  ], [['?'], ['$'], ['??']]);
+  assert.deepStrictEqual(f.paid, [['?'], ['??']]);
+}
+console.log('rules v7 ok');
