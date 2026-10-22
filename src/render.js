@@ -4,16 +4,18 @@ const ARROWS = ['>', '\\', '/', '<', '`', "'"]; // E SE SW W NW NE
 const NAMES = {
   pass: 'P', duplicate: 'Dup', sort: 'Srt', cut: 'Cut', outshuffle: 'Out', inshuffle: 'In',
   straight: 'Str', flush: 'Fl', kind: 'K', suits: 'Su', set: 'Set', deal: 'Del', gather: 'G', war: 'W',
+  burn: 'Bu', hand: 'H',
 };
-const MAIN = { duplicate: 'a', cut: 'top', straight: 'yes', flush: 'yes', kind: 'yes', set: 'set', war: 'win' };
+const MAIN = { duplicate: 'a', cut: 'top', straight: 'yes', flush: 'yes', kind: 'yes', set: 'set', war: 'win', burn: 'rest' };
 
 export function label(c) {
   if (c.label) return c.label;
   if (c.kind === 'source') return `in${ARROWS[c.out]}`;
   if (c.kind === 'payout') return '$$';
-  if (c.kind === 'shoe') return `${c.deck[0][0]}${ARROWS[c.out]}`;
+  if (c.kind === 'shoe') return `${/^[?$]/.test(c.deck[0]) ? c.deck[0] : c.deck[0][0]}${ARROWS[c.out]}`;
   if (c.fn === 'war') return `W${c.rule === 'top' ? 't' : 'h'}`;
   if (c.fn === 'kind') return `K${c.n}`;
+  if (c.fn === 'hand') return `H${c.n ?? 5}`;
   const side = c.fn === 'deal' ? undefined : c.out?.[MAIN[c.fn] ?? 'out'];
   return NAMES[c.fn] + (side === undefined ? '' : ARROWS[side]);
 }

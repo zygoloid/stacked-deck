@@ -1,160 +1,109 @@
-// Verifies the campaign in src/levels.js against the reference solutions in
-// solutions/levels/<id>.js.
+// Verifies the campaign in src/levels.js (chapters in src/levels/) against
+// the reference solutions in solutions/levels/<id>.js.
 //
 // For every level:
 //  * the level is well formed (fields, floor, fixed cells, palette, tests);
-//  * its reference solution only uses the level's floor and palette, places
-//    only shoes and croupiers, and doesn't overlap the fixed cells;
+//  * its card fits the campaign: unique, and the next card of its chapter
+//    (A..K in the chapter's suit, or ? ?? $ $$ in the finale);
+//  * the palette only grows; special cards only appear in the finale, only
+//    grow, and are not mentioned before a floor allows them;
+//  * its reference solution only uses the level's floor, palette, War rules
+//    and special cards, places only shoes and croupiers, and doesn't overlap
+//    the fixed cells;
 //  * the solution passes every test;
 //  * par matches the solution exactly: croupiers, and rounds (the average over
 //    all tests, rounded). The engine is deterministic, so any change in rounds
 //    means the solution or the tests changed; regenerate the PAR table with
-//    `node tools/write-solutions.js`.
+//    `node tools/write-solutions.js <chapter> --par`.
 //  * the tests discriminate: "pay everything" and "drop everything" machines
-//    fail wherever that would be wrong; plausible wrong rules (mutants) are
-//    told apart from the real rule by some test hand; removing any one
-//    croupier from the reference solution breaks it; and the levels that teach
-//    the door fail without one.
+//    fail wherever that would be wrong; plausible wrong rules (mutants, in
+//    test/mutants/<chapter>.js) are told apart from the real rule by some test
+//    hand; removing any one croupier from the reference solution breaks it;
+//    and the levels that teach the door fail without one.
 //
-//   node test/levels.js [id]
+//   node test/levels.js [id | chapter]      (chapter: 1-5 or hearts, diamonds, ...)
 import assert from 'node:assert';
-import { LEVELS } from '../src/levels.js';
+import { LEVELS, CHAPTERS, CHAPTER_FILES, CHAPTER_SUITS, FINALE_CARDS } from '../src/levels.js';
 import { runTest, FUNCTIONS, DIRS } from '../src/engine.js';
-import {
-  RANKS, SUITS, rankOf, suitOf, highValue, rankValue, largestSet, isFlush, isStraight,
-} from '../src/cards.js';
+import { RANKS, SUITS, SPECIALS } from '../src/cards.js';
 
-const only = process.argv[2];
+const MUTANTS = {}, DOOR = [];
+for (const name of Object.values(CHAPTER_FILES)) {
+  const m = await import(`./mutants/${name}.js`);
+  Object.assign(MUTANTS, m.MUTANTS);
+  DOOR.push(...m.DOOR);
+}
+
+const arg = process.argv[2];
+const byName = Object.fromEntries(Object.entries(CHAPTER_FILES).map(([n, f]) => [f, Number(n)]));
+const onlyChapter = arg && (/^[1-5]$/.test(arg) ? Number(arg) : byName[arg]);
+const selected = (level) => !arg || level.id === arg || level.chapter === onlyChapter;
 const key = ([q, r]) => `${q},${r}`;
 const step = (at, d) => [at[0] + DIRS[d][0], at[1] + DIRS[d][1]];
-const hv = highValue;
-const high = (h) => Math.max(...h.map(hv));
-const low = (h) => Math.min(...h.map(hv));
-const isRed = (c) => 'HD'.includes(suitOf(c));
-const last = (before) => before[before.length - 1];
-
-// Plausible wrong rules a test suite must tell apart from the real one.
-const MUTANTS = {
-  'hearts-only': { red: (h) => isRed(h[0]), diamonds: (h) => suitOf(h[0]) === 'D' },
-  'seeing-red': { hearts: (h) => suitOf(h[0]) === 'H', diamonds: (h) => suitOf(h[0]) === 'D' },
-  'black-tie': { spades: (h) => suitOf(h[0]) === 'S', clubs: (h) => suitOf(h[0]) === 'C' },
-  'back-to-back': {
-    'pairs too': (h) => isStraight(h) || rankOf(h[0]) === rankOf(h[1]),
-    'ace low only': (h) => Math.abs(rankValue(h[0]) - rankValue(h[1])) === 1,
-    'ace high only': (h) => Math.abs(hv(h[0]) - hv(h[1])) === 1,
-    'wraps K-2': (h) => isStraight(h) || ['K2', '2K'].includes(rankOf(h[0]) + rankOf(h[1])),
-  },
-  'next-door': {
-    '6 only': (h) => rankOf(h[0]) === '6', '8 only': (h) => rankOf(h[0]) === '8',
-    '6 to 8': (h) => '678'.includes(rankOf(h[0])),
-  },
-  'red-flush': {
-    'any flush': (h) => isFlush(h), 'all red': (h) => h.every(isRed),
-    'hearts only': (h) => isFlush(h) && suitOf(h[0]) === 'H',
-  },
-  'even-money': {
-    'ace counts 14': (h) => hv(h[0]) % 2 === 0, 'no queen': (h) => '2468T'.includes(rankOf(h[0])),
-    'odd': (h) => rankValue(h[0]) % 2 === 1,
-  },
-  'pair-night': {
-    'pair or better': (h) => largestSet(h) >= 2,
-    'one pair only': (h) => countsOf(h) === '1,1,1,2',
-    'no full house rule': (h) => largestSet(h) === 2 || countsOf(h) === '2,3',
-  },
-  'beat-the-dealer': { 'ties pay': (h) => hv(h[0]) >= 9, 'aces low': (h) => rankValue(h[0]) > 9 },
-  'ace-in-the-hole': { 'king or better': (h) => high(h) >= 13, 'top card ace': (h) => rankOf(h[0]) === 'A' },
-  'top-dog': {
-    'ties pay': (h) => hv(h[0]) >= hv(h[1]), 'aces low': (h) => rankValue(h[0]) > rankValue(h[1]),
-    'bottom beats top': (h) => hv(h[1]) > hv(h[0]),
-  },
-  'high-spade': {
-    'any spade': (h) => h.some((c) => suitOf(c) === 'S'),
-    'strictly highest': (h) => { const s = h.filter((c) => suitOf(c) === 'S'); return s.length > 0 && high(s) > high(h.filter((c) => suitOf(c) !== 'S')); },
-    'aces low': (h) => { const s = h.filter((c) => suitOf(c) === 'S'); return s.length > 0 && Math.max(...s.map(rankValue)) >= Math.max(...h.map(rankValue)); },
-  },
-  'top-pair': {
-    'any pair': (h) => largestSet(h) >= 2,
-    'highest card paired': (h) => h.filter((c) => hv(c) === high(h)).length >= 2,
-    'no pair counts': (h) => { const s = setOf(h); return high(s) === high(h); },
-  },
-  'new-rules': { 'high card': (h) => high(h) > 10, 'ties pay': (h) => hv(h[0]) >= 10 },
-  'bottom-dealer': {
-    'top card': (h) => hv(h[0]) > 10, 'high card': (h) => high(h) > 10, 'ties pay': (h) => hv(h[4]) >= 10,
-    'second from bottom': (h) => hv(h[3]) > 10,
-  },
-  knockout: { 'top card ace': (h) => rankOf(h[0]) === 'A', 'king or better': (h) => high(h) >= 13 },
-  'low-ball': {
-    'ties pay': (h) => low(h) >= 5, 'aces low': (h) => Math.min(...h.map(rankValue)) > 5,
-    'top card': (h) => hv(h[0]) > 5, 'high card': (h) => high(h) > 5,
-  },
-  'hot-streak': {
-    'ties pay': (h, b) => b.length > 0 && hv(h[0]) >= hv(last(b)[0]),
-    'first card pays': (h, b) => b.length === 0 || hv(h[0]) > hv(last(b)[0]),
-    'beats all earlier': (h, b) => b.length > 0 && b.every((x) => hv(h[0]) > hv(x[0])),
-    'aces low': (h, b) => b.length > 0 && rankValue(h[0]) > rankValue(last(b)[0]),
-  },
-  'high-roller': {
-    'strictly beats': (h, b) => b.every((x) => high(h) > high(x)),
-    'beats previous only': (h, b) => b.length === 0 || high(h) >= high(last(b)),
-  },
-  'full-house': {
-    'trips or better': (h) => largestSet(h) >= 3,
-    'trips and a pair, or quads': (h) => countsOf(h) === '2,3' || largestSet(h) === 4,
-    'two pair': (h) => countsOf(h) === '1,2,2',
-  },
-  'calling-card': {
-    'top card spade': (h) => suitOf(h[0]) === 'S', 'spade flush': (h) => h.every((c) => suitOf(c) === 'S'),
-    'black card': (h) => h.some((c) => !isRed(c)),
-  },
-  'house-record': {
-    'strictly beats': (h, b) => b.every((x) => largestSet(h) > largestSet(x)),
-    'beats previous only': (h, b) => b.length === 0 || largestSet(h) >= largestSet(last(b)),
-    'high card record': (h, b) => b.every((x) => high(h) >= high(x)),
-  },
-};
-function countsOf(h) {
-  const m = new Map();
-  for (const c of h) m.set(rankOf(c), (m.get(rankOf(c)) || 0) + 1);
-  return [...m.values()].sort().join();
-}
-function setOf(h) {
-  const m = new Map();
-  for (const c of h) m.set(rankOf(c), (m.get(rankOf(c)) || 0) + 1);
-  const max = Math.max(...m.values());
-  return h.filter((c) => m.get(rankOf(c)) === max);
-}
-
-// Levels whose reference solution uses the door (a War at the source that
-// admits one hand at a time) and must fail without it.
-const DOOR = ['full-house', 'calling-card', 'house-record'];
 
 const PALETTE = new Set([...Object.keys(FUNCTIONS), 'shoe']);
 const CARDS = new Set(RANKS.flatMap((r) => SUITS.map((s) => r + s)));
+const SPECIAL_WORDS = /joker|advertis|wild card/i;
 let failures = 0;
 const check = (cond, msg) => { if (!cond) { failures++; console.log(`   FAIL ${msg}`); } };
 
 // Run every test; a machine "fails the level" if any test is not ok.
 const runAll = (level, cells, opts) => level.tests.map((t) => runTest({ cells }, t, level.pays, opts));
 
-const ids = new Set();
-let prevChapter = 0;
-let prevPalette = [];
+// --- Campaign-wide checks (always on the whole campaign) ---
+const ids = new Set(), cards = new Set();
+let prevChapter = 1, prevPalette = [], prevSpecials = [], specialsSeen = false;
+const perChapter = new Map();
 for (const level of LEVELS) {
-  if (only && level.id !== only) continue;
-  console.log(`== ${level.id} (chapter ${level.chapter}): ${level.title}`);
+  const where = `${level.id}:`;
+  check(!ids.has(level.id), `${where} duplicate id`); ids.add(level.id);
+  check(Number.isInteger(level.chapter) && CHAPTERS[level.chapter], `${where} chapter ${level.chapter} is one of ${Object.keys(CHAPTERS)}`);
+  check(level.chapter >= prevChapter, `${where} chapters are in order`); prevChapter = level.chapter;
+  // Cards: the n-th floor of a suit chapter is RANKS[n] of its suit; the
+  // finale's floors are ? ?? $ $$ in order.
+  const n = perChapter.get(level.chapter) ?? 0;
+  perChapter.set(level.chapter, n + 1);
+  const suit = CHAPTER_SUITS[level.chapter];
+  const want = suit ? (n < 13 ? RANKS[n] + suit : null) : (FINALE_CARDS[n] ?? null);
+  check(want !== null, `${where} chapter ${level.chapter} has at most ${suit ? 13 : FINALE_CARDS.length} floors`);
+  check(level.card === want, `${where} card ${level.card} should be ${want}`);
+  check(!cards.has(level.card), `${where} card ${level.card} is unique`); cards.add(level.card);
+  // The palette only grows.
+  check(prevPalette.every((c) => level.croupiers.includes(c)), `${where} palette only grows (lost ${prevPalette.filter((c) => !level.croupiers.includes(c))})`);
+  prevPalette = level.croupiers;
+  // Special cards: finale only, only grow, never mentioned before they're allowed.
+  const specials = level.specialCards ?? [];
+  check(Array.isArray(specials) && specials.every((c) => SPECIALS.includes(c)), `${where} specialCards ${specials} are special cards`);
+  check(!specials.length || level.chapter === 5, `${where} special cards only in the finale`);
+  check(prevSpecials.every((c) => specials.includes(c)), `${where} specialCards only grow`);
+  prevSpecials = specials;
+  specialsSeen ||= specials.length > 0;
+  if (!specialsSeen) {
+    const text = [level.title, level.brief, ...(level.story ?? [])].join(' ');
+    check(!SPECIAL_WORDS.test(text), `${where} doesn't mention special cards before they're introduced`);
+  }
+}
+for (const [ch, name] of Object.entries(CHAPTER_FILES)) {
+  const have = perChapter.get(Number(ch)) ?? 0, full = CHAPTER_SUITS[ch] ? 13 : FINALE_CARDS.length;
+  if (have < full) console.log(`(chapter ${ch}, ${name}: ${have} of ${full} floors so far)`);
+}
+
+// --- Per-level checks ---
+let checked = 0;
+for (const level of LEVELS) {
+  if (!selected(level)) continue;
+  checked++;
+  console.log(`== ${level.card} ${level.id} (chapter ${level.chapter}): ${level.title}`);
 
   // --- Level shape ---
-  check(!ids.has(level.id), 'duplicate id'); ids.add(level.id);
   check(/^[a-z0-9-]+$/.test(level.id), 'id is lowercase-kebab');
   for (const f of ['title', 'brief']) check(typeof level[f] === 'string' && level[f].length, `has ${f}`);
   check(Array.isArray(level.story) && level.story.length >= 1 && level.story.length <= 3, 'story has 1-3 paragraphs');
-  check(level.chapter >= prevChapter, 'chapters are in order'); prevChapter = level.chapter;
   check(Number.isInteger(level.handSize) && level.handSize >= 1, 'handSize');
   check(level.croupiers.every((c) => PALETTE.has(c)), `palette names ${level.croupiers}`);
-  if (!only) check(prevPalette.every((c) => level.croupiers.includes(c)), 'palette only grows');
-  prevPalette = level.croupiers;
   const warRules = level.warRules ?? ['high'];
   check(warRules.length && warRules.every((r) => r === 'high' || r === 'top'), 'warRules');
+  const specials = level.specialCards ?? [];
   const floor = new Set(level.floor.map(key));
   check(floor.size === level.floor.length, 'floor has no repeated hexes');
   const fixedAt = new Set(level.fixed.map((c) => key(c.at)));
@@ -169,7 +118,8 @@ for (const level of LEVELS) {
   for (const t of level.tests) {
     check(t.length >= 1, 'test has hands');
     // Fixed tests may reuse cards between hands (the house plays from a
-    // multi-deck shoe), but a hand never holds the same card twice.
+    // multi-deck shoe), but a hand never holds the same card twice. Players
+    // only ever hold natural cards.
     for (const h of t) {
       check(h.length === level.handSize, `hand ${h} has ${level.handSize} cards`);
       check(new Set(h).size === h.length, `hand ${h} repeats a card`);
@@ -196,7 +146,11 @@ for (const level of LEVELS) {
     check(level.croupiers.includes(name), `cell ${c.at}: ${name} is in the palette`);
     if (c.fn === 'war') check(warRules.includes(c.rule ?? 'high'), `cell ${c.at}: war rule ${c.rule} allowed`);
     if (c.fn === 'kind') check(Number.isInteger(c.n) && c.n >= 2 && c.n <= 8, `cell ${c.at}: kind n`);
-    if (c.kind === 'shoe') check(c.deck.length && c.deck.every((x) => CARDS.has(x)), `cell ${c.at}: shoe deck`);
+    if (c.fn === 'hand') check(Number.isInteger(c.n) && c.n >= 1 && c.n <= 13, `cell ${c.at}: hand n`);
+    if (c.kind === 'shoe') {
+      check(c.deck.length && c.deck.every((x) => CARDS.has(x) || specials.includes(x)),
+        `cell ${c.at}: shoe deck ${c.deck} uses natural cards${specials.length ? ` and ${specials}` : ''}`);
+    }
   }
   const all = [...level.fixed, ...cells];
   const results = runAll(level, all);
@@ -215,7 +169,6 @@ for (const level of LEVELS) {
   const dropAll = [src, { at: [1, 0], kind: 'croupier', fn: 'pass' }];
   if (anyUnpaid) check(!runAll(level, payAll).every((r) => r.ok), '"pay everything" fails');
   check(!runAll(level, dropAll).every((r) => r.ok), '"drop everything" fails');
-  // Each test with a decision in it should matter: fixed tests are listed first.
   for (const [name, wrong] of Object.entries(MUTANTS[level.id] ?? {})) {
     const differs = level.tests.some((t) => t.some((h, i) => wrong(h, t.slice(0, i)) !== level.pays(h, t.slice(0, i))));
     check(differs, `tests tell "${name}" apart from the real rule`);
@@ -245,9 +198,9 @@ for (const level of LEVELS) {
   }
 }
 
-assert(only || ids.size === LEVELS.length);
+assert(checked > 0, `no level matches ${arg}`);
 if (failures) {
   console.log(`\n${failures} level check(s) failed`);
   process.exit(1);
 }
-console.log(`\nlevels ok (${ids.size} levels)`);
+console.log(`\nlevels ok (${checked} of ${LEVELS.length} levels checked)`);

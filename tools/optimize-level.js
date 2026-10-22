@@ -1,4 +1,4 @@
-// Hill-climb the hand-placed tables of a level recipe (tools/level-specs.js)
+// Hill-climb the hand-placed tables of a level recipe (tools/level-specs/<chapter>.js)
 // to reduce the croupier count, keeping the level's floor as walls.
 //   node tools/optimize-level.js <id> [iterations] [seed] [--nowalls]
 // Prints the best node positions found; paste them back into the recipe.
@@ -13,6 +13,7 @@ const walls = !args.includes('--nowalls');
 const [id, iters = '5000', seed = '1'] = args.filter((a) => !a.startsWith('--'));
 const level = LEVELS.find((l) => l.id === id);
 const spec = SPECS[id];
+if (!level || !spec?.nodes) { console.error(`${id}: no level, or its recipe is hand-written cells (only { nodes, links } recipes can be optimized)`); process.exit(1); }
 const rand = rng(Number(seed));
 const names = Object.keys(spec.nodes);
 const floor = new Set(level.floor.map((h) => h.join(',')));

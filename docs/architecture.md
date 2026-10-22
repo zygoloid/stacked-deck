@@ -7,11 +7,16 @@ build step: plain ES modules served as static files.
 index.html, style.css      page shell
 src/cards.js               cards, deck order, hand predicates, PRNG
 src/engine.js              floor simulator (Floor, runTest, FUNCTIONS)
-src/levels.js              level list (LEVELS) + helpers (hexRange, makeTests)
+src/levels.js              the campaign: LEVELS, CHAPTERS, CHAPTER_FILES, helpers
+src/levels/<chapter>.js    one module per chapter (hearts, diamonds, clubs,
+                           spades, finale): its levels and PAR table
+src/levels/shared.js       level helpers (hexRange, makeTests, paletteThrough, ...)
 src/layout.js              router for writing reference solutions (dev only)
 src/ui/*.js                the game UI
 solutions/levels/<id>.js   a verified reference solution for every level
-test/*.js                  node tests (npm test)
+test/*.js                  node tests (npm test); test/mutants/<chapter>.js
+tools/level-specs/<chapter>.js  reference-solution recipes per chapter
+tools/write-solutions.js   freezes recipes into solutions/ (per chapter, --par)
 tools/serve.js             zero-dependency static server (npm run serve)
 ```
 
@@ -20,8 +25,10 @@ Ownership while the game is being built:
   without coordinating, because every saved solution and reference solution
   depends on them.
 * The UI owns `index.html`, `style.css`, `src/ui/`, `tools/serve.js`.
-* Content owns `src/levels.js`, `solutions/levels/`, `test/levels.js`,
-  `docs/story.md`.
+* Content owns `src/levels.js`, `src/levels/`, `solutions/levels/`,
+  `tools/level-specs/`, `test/levels.js`, `test/mutants/`, `docs/story.md`,
+  `docs/campaign.md`. Each chapter's files can be worked on independently;
+  see docs/campaign.md for the plan and the conventions.
 
 ## Engine contract (`src/engine.js`)
 
@@ -120,7 +127,7 @@ A shoe counts as a croupier for scoring.
 Bump `RULES_VERSION` in `src/engine.js` (with a line in the comment above it)
 whenever a rule changes; the level select shows it.
 
-## Level format (`src/levels.js`)
+## Level format (`src/levels/<chapter>.js`)
 
 ```js
 {
