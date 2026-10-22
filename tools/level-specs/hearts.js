@@ -40,50 +40,59 @@ export const SPECS = {
     links: [['s7', null, 'g', 'under'], ['g', 'out', 'st'], ['st', 'yes', 'cut'], ['cut', 'top', 'desk']],
   },
   'lucky-seven': {
-    // The sandwich: [X, 6, 8] is a run only when X is a 7. (Two stages,
-    // [X, 6] then [X, 6, 8], also work, for one more croupier.)
-    nodes: {
-      g1: c([-2, 1], 'gather'), s6: shoe([-3, 1], '6C'), s8: shoe([-2, 2], '8C'),
-      g: c([-2, 0], 'gather'), st: c([-1, 0], 'straight'), cut: c([0, 0], 'cut'),
-    },
-    links: [['s6', null, 'g1'], ['s8', null, 'g1', 'under'], ['g1', 'out', 'g', 'under'], ['g', 'out', 'st'],
-      ['st', 'yes', 'cut'], ['cut', 'top', 'desk']],
+    // Two neighbour tests in a row, each with its own reference and cut:
+    // [X, 6] catches 5 and 7, then [X, 8] keeps the 7. (The sandwich, [X, 6, 8]
+    // in one straight, is cheaper.)
+    cells: [
+      shoe([-2, 1], '6C', { out: NW }), c([-2, 0], 'gather', { under: SE, out: { out: NE } }),
+      c([-1, -1], 'straight', { out: { yes: NE } }), c([0, -2], 'cut', { out: { top: E } }),
+      shoe([0, -1], '8C', { out: NE }), c([1, -2], 'gather', { under: SW, out: { out: SE } }),
+      c([1, -1], 'straight', { out: { yes: SW } }), c([0, 0], 'cut', { out: { top: E } }),
+    ],
   },
   'penny-ante': {
-    // [X, 2] catches A and 3; what's left goes on to [X, 3] for 2 and 4. The
-    // stages wrap round the first straight so both share the last cut.
+    // [X, 2] catches A and 3; what's left loses its 2 and goes on to [X, 3]
+    // for 2 and 4. Each stage strips its reference with its own cut.
     cells: [
       shoe([-2, -1], '2C', { out: SE }), c([-2, 0], 'gather', { under: NW, out: { out: E } }),
-      c([-1, 0], 'straight', { out: { yes: SE, no: NW } }),
-      c([-1, -1], 'cut', { out: { top: E } }),
-      shoe([1, -2], '3C', { out: SW }), c([0, -1], 'gather', { under: NE, out: { out: SE } }),
-      c([0, 0], 'straight', { out: { yes: SW } }),
+      c([-1, 0], 'straight', { out: { yes: SE, no: NE } }),
       c([-1, 1], 'cut', { out: { top: E } }),
+      c([0, -1], 'cut', { out: { top: NE } }),
+      shoe([0, -2], '3C', { out: E }), c([1, -2], 'gather', { under: W, out: { out: SE } }),
+      c([1, -1], 'straight', { out: { yes: SW } }),
+      c([0, 0], 'cut', { out: { top: SE } }),
       pass([0, 1], E),
     ],
   },
   'royalty': {
-    // [X, Q] catches J and K; the queens are left, and [X, J, K] catches them.
+    // Three neighbour tests: [X, Q] catches J and K; the rest lose the Q and
+    // meet [X, J] (10 and Q), and those meet [X, K], which keeps the queens.
+    // Every stage strips its reference with its own cut.
     cells: [
       shoe([-3, -1], 'QC', { out: SE }), c([-3, 0], 'gather', { under: NW, out: { out: E } }),
-      c([-2, 0], 'straight', { out: { yes: SE, no: NW } }),
-      c([-2, -1], 'cut', { out: { top: E } }),
-      c([-1, -1], 'gather', { under: NE, out: { out: SE } }),
-      c([0, -2], 'gather', { out: { out: SW } }), shoe([0, -3], 'JC', { out: SE }), shoe([1, -3], 'KC', { out: SW }),
-      c([-1, 0], 'straight', { out: { yes: SW } }),
+      c([-2, 0], 'straight', { out: { yes: SE, no: NE } }),
       c([-2, 1], 'cut', { out: { top: E } }),
+      c([-1, -1], 'cut', { out: { top: E } }),
+      shoe([0, -2], 'JC', { out: SE }), c([0, -1], 'gather', { under: NW, out: { out: E } }),
+      c([1, -1], 'straight', { out: { yes: SE } }),
+      c([1, 0], 'cut', { out: { top: SE } }),
+      shoe([0, 2], 'KC', { out: NE }), c([1, 1], 'gather', { under: SW, out: { out: W } }),
+      c([0, 1], 'straight', { out: { yes: SW } }),
+      c([-1, 2], 'cut', { out: { top: NW } }),
     ],
   },
   'even-money': {
-    // From solutions/even.js: references 3, 7, J catch {2,4}, {6,8}, {10,Q}.
+    // References 3, 7, J catch {2,4}, {6,8}, {10,Q}: three neighbour tests in
+    // a row, each with its own cut to the desk.
     cells: [
-      shoe([-1, -2], '3C', { out: SE }), c([-1, -1], 'gather', { under: NW, out: { out: E } }),
-      c([0, -1], 'straight', { out: { yes: SE, no: E } }), c([1, -1], 'cut', { out: { top: E } }),
-      shoe([3, -1], '7C', { out: W }), c([2, -1], 'gather', { under: E, out: { out: SW } }),
-      c([1, 0], 'straight', { out: { yes: W, no: E } }), c([2, 0], 'cut', { out: { top: SW } }),
-      shoe([1, 2], 'JC', { out: NW }), c([1, 1], 'gather', { under: SE, out: { out: W } }),
-      c([0, 1], 'straight', { out: { yes: NW } }),
-      c([0, 0], 'cut', { out: { top: W } }),
+      shoe([-1, -2], '3C', { out: SE }), c([-1, -1], 'gather', { under: NW, out: { out: NE } }),
+      c([0, -2], 'straight', { out: { yes: SE, no: E } }), c([0, -1], 'cut', { out: { top: SW } }),
+      c([1, -2], 'cut', { out: { top: SE } }),
+      shoe([2, -2], '7C', { out: SW }), c([1, -1], 'gather', { under: NE, out: { out: SE } }),
+      c([1, 0], 'straight', { out: { yes: W, no: SE } }), c([0, 0], 'cut', { out: { top: W } }),
+      c([1, 1], 'cut', { out: { top: W } }),
+      shoe([0, 2], 'JC', { out: NW }), c([0, 1], 'gather', { under: SE, out: { out: W } }),
+      c([-1, 1], 'straight', { out: { yes: W } }), c([-2, 1], 'cut', { out: { top: NE } }),
     ],
   },
 };

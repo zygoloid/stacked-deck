@@ -328,14 +328,14 @@ const PAR = {
   'pair-night': { croupiers: 3, rounds: 12 },
   'inside-seven': { croupiers: 5, rounds: 16 },
   'seven-up': { croupiers: 6, rounds: 18 },
-  'lucky-number': { croupiers: 8, rounds: 34 },
+  'lucky-number': { croupiers: 11, rounds: 16 },
   'beat-the-dealer': { croupiers: 4, rounds: 14 },
   'ace-in-the-hole': { croupiers: 4, rounds: 10 },
   'inside-bet': { croupiers: 5, rounds: 12 },
-  'top-dog': { croupiers: 4, rounds: 15 },
-  'top-of-the-heap': { croupiers: 5, rounds: 14 },
+  'top-dog': { croupiers: 5, rounds: 16 },
+  'top-of-the-heap': { croupiers: 6, rounds: 15 },
   'royal-flush': { croupiers: 11, rounds: 13 },
-  'acey-deucey': { croupiers: 11, rounds: 36 },
+  'acey-deucey': { croupiers: 15, rounds: 27 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

@@ -303,10 +303,10 @@ const PAR = {
   'black-tie': { croupiers: 7, rounds: 19 },
   'back-to-back': { croupiers: 9, rounds: 17 },
   'next-door': { croupiers: 7, rounds: 15 },
-  'lucky-seven': { croupiers: 6, rounds: 16 },
-  'penny-ante': { croupiers: 9, rounds: 21 },
-  'royalty': { croupiers: 10, rounds: 20 },
-  'even-money': { croupiers: 12, rounds: 28 },
+  'lucky-seven': { croupiers: 8, rounds: 15 },
+  'penny-ante': { croupiers: 10, rounds: 21 },
+  'royalty': { croupiers: 13, rounds: 23 },
+  'even-money': { croupiers: 14, rounds: 28 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

@@ -37,15 +37,15 @@ export const SPECS = {
   },
   'lucky-number': {
     // Four sevens on top of the hand: five of a kind means at least one 7 in
-    // the hand, six means two. The stack of sevens is built by a loop: two
-    // shoes start a pile, and 4 of a kind sends it on, otherwise round again
-    // for another seven. (Four shoes and three gathers also build it.)
+    // the hand, six means two. The sevens are added one at a time, four shoes
+    // and four gathers. (A loop that builds the stack of sevens is cheaper.)
     cells: [
-      shoe([-2, -2], '7C', { out: SE }), shoe([-1, -2], '7D', { out: SW }),
-      c([-2, -1], 'gather', { out: { out: W } }), c([-3, -1], 'kind', { n: 4, out: { yes: SE, no: E } }),
-      c([-3, 0], 'gather', { under: W, out: { out: E } }),
-      c([-2, 0], 'kind', { n: 5, out: { yes: E } }), c([-1, 0], 'kind', { n: 6, out: { no: SE } }),
-      c([-1, 1], 'cut', { out: { bottom: E } }),
+      shoe([-3, -1], '7C', { out: SE }), c([-3, 0], 'gather', { under: W, out: { out: NE } }),
+      shoe([-2, -2], '7D', { out: SE }), c([-2, -1], 'gather', { under: SW, out: { out: E } }),
+      shoe([-1, -2], '7H', { out: SE }), c([-1, -1], 'gather', { under: W, out: { out: E } }),
+      shoe([0, -2], '7S', { out: SE }), c([0, -1], 'gather', { under: W, out: { out: SW } }),
+      c([-1, 0], 'kind', { n: 5, out: { yes: SE } }), c([-1, 1], 'kind', { n: 6, out: { no: SE } }),
+      c([-1, 2], 'cut', { out: { bottom: NE } }),
     ],
   },
   'beat-the-dealer': {
@@ -65,20 +65,22 @@ export const SPECS = {
     ],
   },
   'top-dog': {
-    // Top card against bottom card; the winner and the dealer's losing card
-    // stack up on their way to the desk.
+    // Top card against bottom card; a gather puts the winner and the dealer's
+    // losing card back together for the desk.
     cells: [
       c([-1, 0], 'cut', { out: { top: E, bottom: NE } }), pass([0, -1], SE),
-      war([0, 0], { dealer: NW, out: { win: E, dlose: E } }), pass([1, 0], E),
+      war([0, 0], { dealer: NW, out: { win: E, dlose: SE } }), pass([0, 1], NE),
+      c([1, 0], 'gather', { out: { out: E } }),
     ],
   },
   'top-of-the-heap': {
     // Two cuts split off the top card; the other four are gathered as the
-    // dealer's hand.
+    // dealer's hand, and a gather puts a winning hand back together.
     cells: [
       c([-2, 0], 'cut', { out: { top: NE, bottom: E } }), c([-1, -1], 'cut', { out: { top: E, bottom: SE } }),
-      c([-1, 0], 'gather', { out: { out: E } }), pass([0, -1], SE),
-      war([0, 0], { dealer: W, out: { win: E, dlose: E } }),
+      c([-1, 0], 'gather', { out: { out: NE } }),
+      war([0, -1], { dealer: SW, out: { win: E, dlose: SE } }), pass([0, 0], NE),
+      c([1, -1], 'gather', { out: { out: SE } }),
     ],
   },
   'royal-flush': {
@@ -93,19 +95,25 @@ export const SPECS = {
       ['st', 'yes', 'c1'], ['c1', 'top', 'c2'], ['c1', 'bottom', 'g2'], ['c2', 'bottom', 'g2'], ['g2', 'out', 'desk']],
   },
   'acey-deucey': {
-    // Split [a | b | c]; War sorts a and c into [hi, lo]; b plays lo. If b
-    // wins, [b, lo] is the dealer's hand against hi; if not, an ace joins
-    // [lo, b] so that last War is lost. Both routes take the same time, so
-    // the pieces of one hand never meet another's.
-    cells: [
-      c([-3, 0], 'cut', { out: { top: E, bottom: SE } }),
-      c([-3, 1], 'cut', { out: { top: E, bottom: NE } }),
-      war([-2, 0], { dealer: SW, out: { win: E, dlose: E, lose: E, dwin: E } }),
-      c([-1, 0], 'cut', { out: { top: E, bottom: SW } }),
-      war([-2, 1], { dealer: NE, out: { win: E, dlose: E, lose: SE, dwin: SE } }),
-      pass([-1, 1], SE), c([-2, 2], 'gather', { out: { out: E } }), shoe([-3, 2], 'AC', { out: E }),
-      pass([-1, 2], NE), pass([0, 1], NW),
-      war([0, 0], { dealer: SE, out: { win: E, dlose: E } }),
+    // Split [a | b | c]. War sorts a and c: the higher card goes on to the
+    // last War, the lower one is the dealer against b. If b wins, a gather
+    // puts b and the low card together as the last War's dealer; if not, b
+    // picks up an ace from a shoe, so the last War is lost. Both routes take
+    // the same time, so the pieces of one hand never meet another's. A
+    // winning last War is gathered back into one hand for the desk.
+    nodes: {
+      cut1: c([-3, 0], 'cut'), cut2: c([-2, -1], 'cut'), w1: war([-2, 0]), w2: war([-1, -1]),
+      gW: c([0, -1], 'gather'), x: pass([-1, 0]), gA: c([0, -2], 'gather'), sA: shoe([-1, -2], 'AC'),
+      m: pass([1, -2]), f: war([1, -1]), gF: c([2, -1], 'gather'), x2: pass([2, -2]),
+    },
+    links: [
+      ['cut1', 'bottom', 'cut2'], ['cut2', 'bottom', 'w1', 'dealer'], ['cut1', 'top', 'w1'],
+      ['w1', ['lose', 'dlose'], 'w2', 'dealer'], ['cut2', 'top', 'w2'],
+      ['w2', 'win', 'gW'], ['w2', 'dlose', 'x'], ['x', 'out', 'gW'],
+      ['w2', 'lose', 'gA'], ['sA', null, 'gA'],
+      ['gW', 'out', 'm'], ['gA', 'out', 'm'], ['m', 'out', 'f', 'dealer'],
+      ['w1', ['win', 'dwin'], 'f'],
+      ['f', 'win', 'gF'], ['f', 'dlose', 'x2'], ['x2', 'out', 'gF'], ['gF', 'out', 'desk'],
     ],
   },
 };
