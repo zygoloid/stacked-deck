@@ -1,10 +1,11 @@
-// Reference-solution recipes for chapter 4 (spades). PLACEHOLDER: the
-// surviving recipes from the 25-level campaign. Regenerate with
+// Reference-solution recipes for chapter 4 (spades). Regenerate with
 // `node tools/write-solutions.js spades [--par]`.
-import { E, SE, SW, W, NW, NE, c, pass, war, shoe } from './shared.js';
+import { E, SE, SW, W, NW, NE, c, pass, war, twar, shoe } from './shared.js';
 
 export const SPECS = {
   'hot-streak': {
+    // The previous card is kept as the dealer: a copy of each card waits for
+    // the next one, and a shoe dealing one ace once makes the first card lose.
     cells: [
       c([-1, 0], 'duplicate', { out: { a: E, b: SE } }),
       pass([-1, 1], NE),
@@ -19,6 +20,21 @@ export const SPECS = {
       war([1, 0], { dealer: W, out: { win: NE, dwin: E } }),
       pass([2, -1], SW),
       c([2, 0], 'duplicate', { out: { a: E, b: W } }),
+    ],
+  },
+  'burn-card': {
+    // Burn with both ports to one side moves the top card to the bottom, so
+    // the second card is on top for a top-card War against a 10.
+    cells: [
+      c([-1, 0], 'burn', { out: { burn: E, rest: E } }),
+      twar([0, 0], { dealer: NW, out: { win: E } }), shoe([0, -1], 'TC', { out: SE }),
+    ],
+  },
+  'third-time-lucky': {
+    // The shoe deals its deck in order, one card per hand: two aces (no hand
+    // beats one) and a 2 (every five-card hand beats it).
+    cells: [
+      war([-1, 0], { dealer: NW, out: { win: E } }), shoe([-1, -1], ['AC', 'AD', '2C'], { out: SE }),
     ],
   },
   'full-house': {
@@ -45,28 +61,95 @@ export const SPECS = {
       ['gate', 'win', 'desk'], ['gate', ['dwin', 'dlose'], 'door'],
     ],
   },
+  'the-wheel': {
+    // With a 6 on top, a five-card hand is a run only for A-5 or 7-J (or
+    // 2-5 with a 7, and so on); burn takes the 6 off, and of those only the
+    // wheel beats a king.
+    cells: [
+      c([-2, 0], 'gather', { under: W, out: { out: E } }), shoe([-2, -1], '6C', { out: SE }),
+      c([-1, 0], 'straight', { out: { yes: E } }),
+      c([0, 0], 'burn', { out: { rest: E } }),
+      war([1, 0], { dealer: NW, out: { win: E } }), shoe([1, -1], 'KC', { out: SE }),
+    ],
+  },
   'calling-card': {
-    // Sort brings a spade to the top if there is one; two cuts take the top
-    // card off a copy, and the suit splitter turns it into a verdict.
-    nodes: {
-      door: war([1, 0], { dealer: W }), ticket: shoe([1, 1], '2D', { once: true }),
-      dup: c([2, 0], 'duplicate'),
-      gate: war([2, -1]),
-      sort: c([3, 0], 'sort'), cut1: c([4, 0], 'cut'), cut2: c([5, -1], 'cut'),
-      su: c([5, -2], 'suits'),
-      yes: war([4, -3]), yesShoe: shoe([5, -4], '2C'),
-      no: war([4, -2]), noShoe: shoe([4, -1], 'AC'),
-      verdict: c([3, -2], 'pass'),
-    },
-    links: [
-      ['ticket', null, 'door'],
-      ['yesShoe', null, 'yes', 'dealer'], ['noShoe', null, 'no', 'dealer'],
-      ['door', ['dwin', 'dlose'], 'dup'], ['dup', 'a', 'gate'], ['dup', 'b', 'sort'],
-      ['sort', 'out', 'cut1'], ['cut1', 'top', 'cut2'], ['cut2', 'top', 'su'],
-      ['su', 'S', 'yes'], ['su', 'misc', 'no'],
-      ['yes', ['dwin', 'dlose'], 'verdict'], ['no', ['dwin', 'dlose'], 'verdict'],
-      ['verdict', 'out', 'gate', 'dealer'],
-      ['gate', 'win', 'desk'], ['gate', ['dwin', 'dlose'], 'door'],
+    // Sort brings a spade to the top if there is one; burn takes the top card
+    // off a copy, and the suit splitter turns it into a verdict. There is one
+    // decision and both verdict routes take the same time, so no door.
+    cells: [
+      c([2, 0], 'duplicate', { out: { a: NW, b: E } }), pass([3, 0], NE),
+      c([4, -1], 'sort', { out: { out: NW } }), c([4, -2], 'burn', { out: { burn: NW } }),
+      c([4, -3], 'suits', { out: { S: SW, misc: W } }),
+      war([3, -2], { dealer: SE, out: { dwin: W, dlose: W } }), shoe([3, -1], '2C', { out: NW }),
+      war([3, -3], { dealer: W, out: { dwin: SW, dlose: SW } }), shoe([2, -3], 'AC', { out: E }),
+      pass([2, -2], SE), war([2, -1], { dealer: NW, out: { win: W } }),
+    ],
+  },
+  'seven-heaven': {
+    // Hand(4) turns a shoe of sevens into a stack of four; on top of the
+    // hand, seven of a kind means three sevens in the hand, and the cut takes
+    // the four off again. (Five sevens and eight of a kind work too, slower.)
+    cells: [
+      shoe([-1, -2], '7C', { out: SW }), c([-2, -1], 'hand', { n: 4, out: { out: SE } }),
+      c([-2, 0], 'gather', { under: W, out: { out: E } }),
+      c([-1, 0], 'kind', { n: 7, out: { yes: E } }),
+      c([0, 0], 'cut', { out: { bottom: E } }),
+    ],
+  },
+  'after-a-pair': {
+    // No copy: the hand itself is tested and then gated. A pair releases a 2,
+    // anything else an ace, into the gate's dealer line, which a shoe seeds
+    // with an ace for the first hand; so each hand meets the verdict on the
+    // hand before it. Both routes take the same time, and the verdicts reach
+    // the gate no later than the hands do, so nothing queues and overtakes.
+    cells: [
+      c([-2, 0], 'kind', { n: 2, out: { yes: NE, no: SE } }),
+      pass([-1, -1], E), pass([0, -1], E), pass([-2, 1], E), pass([-1, 1], E),
+      war([1, -1], { dealer: E, out: { win: SW, dlose: SE } }), shoe([2, -1], '2C', { out: W }),
+      war([0, 1], { dealer: E, out: { lose: NW, dwin: NE } }), shoe([1, 1], 'AC', { out: W }),
+      pass([1, 0], W), shoe([2, 0], 'AD', { out: W, once: true }),
+      war([0, 0], { dealer: E, out: { win: W } }),
+    ],
+  },
+  bookends: {
+    // A copy of each hand loses its top card; its bottom card waits in the
+    // gate's dealer line for the next hand, behind an ace for the first.
+    cells: [
+      c([-2, 0], 'duplicate', { out: { a: E, b: SE } }),
+      c([-2, 1], 'burn', { out: { rest: E } }), pass([-1, 1], NW), shoe([-1, 2], 'AC', { out: NW, once: true }),
+      twar([-1, 0], { dealer: SE, out: { win: E } }),
+    ],
+  },
+  'next-in-line': {
+    // Windows: each card doubled, a 7 in front, and Hand(2) deals [previous,
+    // current] pairs. The cut's bottom half is the current card (a copy).
+    cells: [
+      c([-2, 0], 'duplicate', { out: { a: E, b: E } }),
+      shoe([-1, -1], '7C', { out: SE, once: true }), c([-1, 0], 'hand', { n: 2, out: { out: E } }),
+      c([0, 0], 'straight', { out: { yes: E } }),
+      c([1, 0], 'cut', { out: { bottom: E } }),
+    ],
+  },
+  'jacks-or-better': {
+    // Straights, flushes and trips (or better) pay at once. A pair or two
+    // pair is copied: Set and burn leave a pair only for two pair, and a lone
+    // pair card must beat a 10. That releases a 2 (pay) or an ace into the
+    // gate. Every route from the copy's last decision to the gate takes the
+    // same time (the pass beside the second Kind matches the War against the
+    // 10), so verdicts can't overtake each other and no door is needed.
+    cells: [
+      c([-3, 0], 'straight', { out: { yes: E, no: SE } }),
+      c([-3, 1], 'flush', { out: { yes: NE, no: E } }),
+      c([-2, 1], 'kind', { n: 3, out: { yes: NW, no: E } }),
+      c([-1, 1], 'kind', { n: 2, out: { yes: NE } }),
+      c([0, 0], 'duplicate', { out: { a: W, b: SE } }),
+      c([0, 1], 'set', { out: { set: E } }), c([1, 1], 'burn', { out: { rest: NE } }),
+      c([2, 0], 'kind', { n: 2, out: { yes: W, no: NW } }), pass([1, 0], NW),
+      war([2, -1], { dealer: E, out: { win: W, lose: NW } }), shoe([3, -1], 'TC', { out: W }),
+      war([1, -1], { dealer: W, out: { dwin: NW, dlose: NW } }), shoe([0, -1], '2C', { out: E }),
+      war([2, -2], { dealer: E, out: { dwin: W, dlose: W } }), shoe([3, -2], 'AC', { out: W }),
+      pass([1, -2], W), pass([0, -2], SW),
+      pass([-1, 0], NW), war([-1, -1], { dealer: NE, out: { win: SW } }),
     ],
   },
   'house-record': {

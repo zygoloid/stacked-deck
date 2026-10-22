@@ -92,73 +92,81 @@ two blocks away a rival casino switches on its neon.
 
 ## Chapter 3 ♣ House Rules (duplicate, set, top-card War, shuffles, deal)
 
-The rival casino opens and the regulars waver; the Owner answers with ever
-more generous house games, and you learn to copy a hand and let the copy
-decide. Commissioner Pryce takes an envelope and leaves a regulation: War by
-the top card only (4♣ to 9♣). The Kesslers' bottom dealer gets his own games,
-so you learn the riffles; the knockout brings the best card to the top; and
-Pryce's Tuesday game, Low Ball, turns it upside down. Pryce loses his own game
-and the regulation quietly disappears. The chapter ends with verdict cards:
-copies of a hand decide, a released card carries the verdict, and the
-original is paid or not at a gate.
+The rival casino opens with a brass band and free shrimp, and the regulars
+waver; the Owner answers with ever more generous house games, and you learn
+to copy a hand and let the copy decide. Commissioner Pryce takes an envelope
+and leaves a regulation: War by the top card only (4♣ to 9♣). The Kesslers'
+bottom dealer and his cousin get their own games, so you learn the riffles,
+and the string quartet's second violin gets his. The knockout brings the best
+card to the top; Pryce's Tuesday game, Low Ball, turns it upside down, and
+Pryce loses it. The next day the regulation is withdrawn "pending review".
+The chapter ends with verdict cards: a copy of the hand decides, a released
+card carries the verdict, and the original is paid or not at a gate. Old
+Thursday comes back from the rival's, and the rival throws its last big night.
 
 | Floor | Level | Beat |
 |---|---|---|
-| A♣ | Upper Hand | the rival opens; duplicate |
-| 2♣ | High Spade | the Owner's birthday |
-| 3♣ | Top Pair | the Owner's answer to the rival; set |
+| A♣ | Upper Hand | the rival opens; "Be generous"; duplicate |
+| 2♣ | High Spade | the Owner's birthday; the regulars drift back |
+| 3♣ | Top Pair | the rival pays pairs; the Owner's answer; set |
 | 4♣ | New Rules | Pryce's regulation: top-card War only |
 | 5♣ | Bottom Dealer | the Kesslers' bottom dealer; riffles |
-| 6♣ | Fourth Street | |
-| 7♣ | Top and Bottom | |
+| 6♣ | Fourth Street | the bottom dealer's cousin |
+| 7♣ | Second Fiddle | the string quartet's second violin |
 | 8♣ | Knockout | the Kesslers still want their aces; deal |
-| 9♣ | Low Ball | Pryce's Tuesday game; he loses it |
-| 10♣ | Every Other | the regulation is gone |
-| J♣ | Small Pairs | verdict cards |
-| Q♣ | Bottom Pair | the bottom dealer again |
+| 9♣ | Low Ball | Pryce's Tuesday game; somebody tells him |
+| 10♣ | Every Other | the regulation is withdrawn; both War rules |
+| J♣ | Bottom Pair | the bottom dealer again; verdict cards |
+| Q♣ | Small Pairs | Old Thursday is back from the rival's |
 | K♣ | Two Pair | the rival casino's last big night |
 
-## Chapter 4 ♠ The House Always Wins (memory, the door, burn, sort, hand)
+## Chapter 4 ♠ The House Always Wins (memory, burn, the door, sort, hand)
 
-The rival casino folds and its owner now deals for you. "The house
-remembers": a shoe that deals once seeds a memory, and a champion loops
-through a War. The council meets in the back room; the Vellanis and the
-Kesslers both start wearing spades in their hatbands. Bigger decisions need
-the full pattern: test a copy, release a verdict card, gate the original, and
-let in one hand at a time through a ticket door. The final game is a record
-table with the whole city sitting at it. Afterwards an envelope with your name
-on it waits under the cash tray, sealed with an ace of spades.
+The rival casino's neon goes dark and its owner now deals for you on
+Tuesdays, bringing his habit of burning a card and, later, a video poker
+machine. "The house remembers": the mayor's records and superstitions need
+memory, a shoe that deals once, and shoe decks that run in order. The council
+meets in the back room over a full house, admitted through the ticket door.
+Old Thursday wants the wheel; the Vellanis and the Kesslers stop fighting and
+both wear spades in their hatbands. Dmitri's streak theory and the doormen's
+game across hands carry verdicts from one hand to the next, and the mayor's
+napkin grows a column for neighbours. The final game is a record table with
+the whole city at it; afterwards an envelope with your name on it waits
+under the cash tray, sealed with an ace of spades.
 
 | Floor | Level | Beat |
 |---|---|---|
-| A♠ | Hot Streak | the rival folds; "the house remembers" |
+| A♠ | Hot Streak | the rival folds, its owner deals for you; "the house remembers" |
 | 2♠ | High Roller | the mayor's records |
-| 3♠ | Burn Card | burn |
-| 4♠ | Third Time Lucky | |
+| 3♠ | Burn Card | the rival's old owner burns a card; burn |
+| 4♠ | Third Time Lucky | the mayor's superstition about threes |
 | 5♠ | Full House | the council in the back room; the door |
-| 6♠ | The Wheel | |
+| 6♠ | The Wheel | Old Thursday's favourite straight |
 | 7♠ | Calling Card | spades in every hatband; sort |
-| 8♠ | Seven Heaven | hand |
-| 9♠ | After a Pair | |
-| 10♠ | Bookends | |
-| J♠ | Next in Line | |
-| Q♠ | Jacks or Better | |
+| 8♠ | Seven Heaven | the Owner's three sevens; hand |
+| 9♠ | After a Pair | Dmitri's theory of streaks |
+| 10♠ | Bookends | the doormen's game, hand against hand |
+| J♠ | Next in Line | the mayor's napkin grows a column |
+| Q♠ | Jacks or Better | the rival's video poker machine, replaced by a croupier |
 | K♠ | House Record | the whole city at one table; the envelope |
 
 ## Chapter 5 The Envelope (special cards)
 
-The envelope holds the deeds, a key to the cash tray and a note in your own
-handwriting, or near enough: you are the Owner now. The printers send the new
-house deck, and it has extras nobody ordered: two jokers (one plain, one in
-every colour) and two advertising cards. They can only be stacked in shoes.
-Each finale floor introduces one of them; the last is a game the whole city
-has been playing all along without knowing it.
+The envelope holds the deeds, the key to the cash tray and a note in
+handwriting very like your own: you are the Owner now. The printers send the
+new house deck, and it has extras nobody ordered: two jokers (one plain, one
+in every colour) and two advertising cards. Only shoes deal them. Jokers are
+wild reference cards; advertising cards are worth nothing, so they mark and
+seed without ever making a pair. Each finale floor introduces one of them.
+The last card in the box carries the last note, sealed with the ace of spades
+and signed by you, describing a game the whole city has been playing since
+opening night.
 
 | Floor | Level | Beat |
 |---|---|---|
 | ? | Mind the Gap | the deeds; the monochrome joker |
-| ?? | One Card Short | the colour joker |
-| $ | Red Carpet | the front advertising card |
+| ?? | One Card Short | the colour joker; Sal's uncle's last game |
+| $ | Red Carpet | the front advertising card; the Vellanis' party |
 | $$ | Déjà Vu | the back advertising card; the last note is signed by you |
 
 ## Notes for writers
