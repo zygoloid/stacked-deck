@@ -20,9 +20,17 @@ export const levelSave = (save, id) => (save.levels[id] ??= {});
 
 export const unlockAll = () => /[?&]unlockall\b/.test(location.search);
 
+// Up to this many unsolved floors are open at once, so a stuck player can
+// skip ahead a little.
+export const OPEN_UNSOLVED = 3;
+
+// A floor is open if fewer than OPEN_UNSOLVED floors before it are unsolved
+// (solved floors always stay open).
 export function isUnlocked(save, index) {
   if (index <= 0 || unlockAll()) return true;
-  return !!save.levels[LEVELS[index - 1].id]?.solved;
+  if (save.levels[LEVELS[index].id]?.solved) return true;
+  const unsolvedBefore = LEVELS.slice(0, index).filter((l) => !save.levels[l.id]?.solved).length;
+  return unsolvedBefore < OPEN_UNSOLVED;
 }
 
 // War rules the player may pick on a level (levels.js: defaults to high only).

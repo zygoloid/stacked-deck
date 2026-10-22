@@ -120,7 +120,9 @@ whenever a rule changes; the level select shows it.
 
 A level is solved when `runTest` passes on every test. Scores are croupiers
 (shoes included) and rounds (the average over all tests, rounded). Levels
-unlock in order: a level is available once the previous one is solved.
+unlock in order, with some slack: a level is open when fewer than three levels
+before it are unsolved (`OPEN_UNSOLVED` in `src/ui/model.js`), so up to three
+unsolved levels are open at once.
 
 ## Save format (localStorage key `stacked-deck-v1`)
 

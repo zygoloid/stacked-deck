@@ -79,7 +79,8 @@ try {
   await page.reload();
   await page.waitForSelector('.tile');
   check(await page.locator('a.tile[data-level="opening-night"]').count() === 1, 'level select lists opening-night');
-  check(await page.locator(`a.tile[data-level="${LEVELS[1].id}"]`).count() === 0, 'second level is locked');
+  check(await page.locator(`a.tile[data-level="${LEVELS[2].id}"]`).count() === 1, 'first three levels are open');
+  check(await page.locator(`a.tile[data-level="${LEVELS[3].id}"]`).count() === 0, 'fourth level is locked');
   if (shots) await page.screenshot({ path: join(shots, '1-level-select.png') });
 
   await page.click('a.tile[data-level="opening-night"]');
@@ -233,7 +234,8 @@ try {
   await page.goto(base);
   await page.waitForSelector('.tile');
   check(await page.locator('a.tile.solved[data-level="opening-night"]').count() === 1, 'level select marks opening-night solved');
-  check(await page.locator(`a.tile[data-level="${LEVELS[1].id}"]`).count() === 1, `${LEVELS[1].id} unlocked`);
+  check(await page.locator(`a.tile[data-level="${LEVELS[3].id}"]`).count() === 1, `clearing a floor opens ${LEVELS[3].id}`);
+  check(await page.locator(`a.tile[data-level="${LEVELS[4].id}"]`).count() === 0, `${LEVELS[4].id} still locked`);
   if (shots) await page.screenshot({ path: join(shots, '6-level-select-after.png') });
 
   // Help panel.
