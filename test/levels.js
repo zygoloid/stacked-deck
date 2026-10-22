@@ -195,7 +195,7 @@ for (const level of LEVELS) {
     const name = c.kind === 'shoe' ? 'shoe' : c.fn;
     check(level.croupiers.includes(name), `cell ${c.at}: ${name} is in the palette`);
     if (c.fn === 'war') check(warRules.includes(c.rule ?? 'high'), `cell ${c.at}: war rule ${c.rule} allowed`);
-    if (c.fn === 'kind') check([2, 3, 4].includes(c.n), `cell ${c.at}: kind n`);
+    if (c.fn === 'kind') check(Number.isInteger(c.n) && c.n >= 2 && c.n <= 8, `cell ${c.at}: kind n`);
     if (c.kind === 'shoe') check(c.deck.length && c.deck.every((x) => CARDS.has(x)), `cell ${c.at}: shoe deck`);
   }
   const all = [...level.fixed, ...cells];

@@ -68,8 +68,8 @@ export const CROUPIERS = {
   },
   kind: {
     name: 'N of a kind', abbr: 'K', family: TEST, ports: ['yes', 'no'],
-    params: { n: { label: 'n', options: [2, 3, 4], default: 2 } },
-    desc: 'Does some rank appear at least n times? (n = 2, 3 or 4.)',
+    params: { n: { label: 'n', options: [2, 3, 4, 5, 6, 7, 8], default: 2 } },
+    desc: 'Does some rank appear at least n times? (n from 2 to 8; reference cards from a shoe can push a hand past four of a kind.)',
   },
   set: {
     name: 'Set', abbr: 'SET', family: SHAPE, ports: ['set', 'rest'],

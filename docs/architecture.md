@@ -86,7 +86,7 @@ scanning on clockwise from the first), so they keep up with a line of passes.
 | `outshuffle`, `inshuffle` | `out` | | perfect riffle |
 | `straight` | `yes`, `no` | | consecutive distinct ranks (A high or low); 1 card = yes |
 | `flush` | `yes`, `no` | | all one suit |
-| `kind` | `yes`, `no` | `n` (2–4) | some rank appears ≥ n times |
+| `kind` | `yes`, `no` | `n` (2–8) | some rank appears ≥ n times |
 | `set` | `set`, `rest` | | cards of the most common rank(s) / the rest |
 | `suits` | `S`,`H`,`D`,`C`,`misc` | | each card to its suit's pile; unassigned suits go to misc (or the floor); suits sharing a side form one pile |
 | `deal` | `out: {to: [sides…]}` | | one card at a time, round-robin |

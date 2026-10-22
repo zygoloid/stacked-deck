@@ -455,7 +455,7 @@ export function openEditor(root, ctx, level, index) {
     // params
     if (c.fn === 'kind') {
       parts.push(h('div', { class: 'param' }, h('span', { class: 'param-k' }, 'n of a kind'),
-        h('div', { class: 'seg' }, [2, 3, 4].map((n) => h('button', {
+        h('div', { class: 'seg' }, CROUPIERS.kind.params.n.options.map((n) => h('button', {
           class: (c.n ?? 2) === n ? 'on' : '', onclick: () => commit(() => { c.n = n; }),
         }, String(n))))));
     }
