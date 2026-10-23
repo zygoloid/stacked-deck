@@ -2,7 +2,12 @@
 // (`card`: 'AS'…'KS' for the 52 suit floors, '?', '??', '$', '$$' for the
 // finale); without one it is derived from the chapter and the position in it
 // (chapters 1–4 are ♠ ♥ ♣ ♦, A to K; chapter 5's floors are ? ?? $ $$).
-import { LEVELS, CHAPTERS } from '../levels.js';
+//
+// Bonus floors (catalog.js BONUS) have their own `card` labels in the bonus
+// deck: a playing card or special card is drawn as one, any other string is
+// shown as it is, and without one they are numbered B1, B2, ...
+import { CHAPTERS } from '../levels.js';
+import { CAMPAIGN as LEVELS, BONUS } from './catalog.js';
 import { h, SUIT_GLYPH, SUIT_NAME, isSpecialCard, rankText, cardClass, SPECIAL_FACE } from './dom.js';
 import { RANKS } from '../cards.js';
 
@@ -28,19 +33,36 @@ export function floorCardOf(i) {
   return n <= FINALE.length ? FINALE[n - 1] : null;
 }
 
-// { card, text, rank, glyph, cls, special } for LEVELS[i]. `text` is the
-// short label ("A♠", "10♥", "?"); without a card it is "chapter-position".
-export function floorLabel(i) {
-  const card = floorCardOf(i);
-  if (!card) {
-    const text = `${chapterOf(LEVELS[i])}-${position(i)}`;
-    return { card: null, text, rank: text, glyph: '', cls: 'plain', special: false };
-  }
+// Campaign index of a floor given as an index or a level (-1: not in the campaign).
+const indexOf = (x) => (typeof x === 'number' ? x : LEVELS.indexOf(x));
+
+function bonusLabel(lv) {
+  const card = lv.card;
+  if (isSuitCard(card) || isSpecialCard(card)) return { ...cardLabel(card), bonus: true };
+  const text = typeof card === 'string' && card ? card : `B${BONUS.indexOf(lv) + 1}`;
+  return { card: null, text, rank: text, glyph: '', cls: 'plain', special: false, bonus: true };
+}
+
+function cardLabel(card) {
   if (isSpecialCard(card)) {
     const f = SPECIAL_FACE[card];
     return { card, text: card, rank: f.face, glyph: f.pip, cls: cardClass(card), special: true, name: f.name };
   }
   return { card, text: rankText(card) + SUIT_GLYPH[card[1]], rank: rankText(card), glyph: SUIT_GLYPH[card[1]], cls: cardClass(card), special: false, suit: card[1] };
+}
+
+// { card, text, rank, glyph, cls, special, bonus? } for a floor (a campaign
+// index, or any level object). `text` is the short label ("A♠", "10♥", "?");
+// a campaign floor without a card is "chapter-position".
+export function floorLabel(x) {
+  const i = indexOf(x);
+  if (i < 0) return bonusLabel(x);
+  const card = floorCardOf(i);
+  if (!card) {
+    const text = `${chapterOf(LEVELS[i])}-${position(i)}`;
+    return { card: null, text, rank: text, glyph: '', cls: 'plain', special: false };
+  }
+  return cardLabel(card);
 }
 
 // The suit a chapter is played in (from its floors' cards), or null.
@@ -63,9 +85,10 @@ export function chapterInfo(ch) {
   };
 }
 
-// The floor's card as a small inline badge (editor top bar, story screen).
-export function floorBadge(i, cls = '') {
-  const f = floorLabel(i);
-  return h('span', { class: `floor-badge ${f.cls} ${cls}`, title: f.special ? f.name : `Floor ${f.text}` },
+// The floor's card as a small inline badge (editor top bar, story screen);
+// `x` is a campaign index or a level.
+export function floorBadge(x, cls = '') {
+  const f = floorLabel(x);
+  return h('span', { class: `floor-badge ${f.cls}${f.bonus ? ' bonus' : ''} ${cls}`, title: f.special ? f.name : `${f.bonus ? 'Bonus floor' : 'Floor'} ${f.text}` },
     h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null);
 }

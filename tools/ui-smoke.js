@@ -7,16 +7,22 @@
 // on the first level that drops hands pauses the run and can be stepped back,
 // checks floor numbering (playing-card labels), special card faces, the shoe
 // deck parser's special-card rules, and placing Burn and Hand croupiers (with
-// a Hand's held cards drawn on the board).
+// a Hand's held cards drawn on the board). With `?testlevels` the page adds the
+// fixture floors of test/ui-levels.js to the bonus deck; those cover an
+// `expected` floor (expected-payouts list, clearing), an `ordered` floor
+// (a wrong card order is rejected) and bonus unlocking, saves and Next.
+// --all also solves every bonus floor that has a reference solution.
 import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LEVELS } from '../src/levels.js';
+import * as L from '../src/levels.js';
 import { DIRS } from '../src/engine.js';
 import { floorLabel } from '../src/ui/floors.js';
 
+const { LEVELS } = L;
+const BONUS_LEVELS = Array.isArray(L.BONUS) ? L.BONUS : [];
 const repo = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
 const all = args.includes('--all');          // also solve every level with its reference solution
@@ -214,7 +220,7 @@ try {
   // Wrong payout: on the first level that drops some hand, a plain pass line
   // from the player to the desk pays everything.
   const wrongLevel = LEVELS.find((lv) => lv.croupiers.includes('pass') && lv.fixed.filter((c) => c.kind === 'source').length === 1 &&
-    lv.tests[0].some((hand, i) => !lv.pays(hand, lv.tests[0].slice(0, i))) && passLine(lv));
+    typeof lv.pays === 'function' && lv.tests[0].some((hand, i) => !lv.pays(hand, lv.tests[0].slice(0, i))) && passLine(lv));
   if (wrongLevel) {
     await page.goto(`${base}?unlockall#/level/${wrongLevel.id}`);
     await page.waitForSelector('svg.board');
@@ -380,7 +386,7 @@ try {
   {
     await page.goto(`${base}?unlockall`);
     await page.waitForSelector('.tile');
-    const tiles = await page.$$eval('a.tile', (els) => els.map((e) => ({
+    const tiles = await page.$$eval('.chapter:not(.bonus) a.tile', (els) => els.map((e) => ({
       id: e.dataset.level, card: e.dataset.card, corner: e.querySelector('.tile-corner.tl').textContent,
     })));
     const bad = tiles.filter((t) => {
@@ -395,7 +401,7 @@ try {
     if (shots) await page.screenshot({ path: join(shots, '8-level-select-cards.png'), fullPage: true });
     await page.goto(base);
     await page.waitForSelector('.tile');
-    const locked = await page.$$eval('.tile.locked .tile-no', (els) => els.map((e) => e.textContent));
+    const locked = await page.$$eval('.chapter:not(.bonus) .tile.locked .tile-no', (els) => els.map((e) => e.textContent));
     const want = LEVELS.map((_, i) => floorLabel(i)).filter((f) => !f.special);
     check(locked.length > 0 && locked.every((t) => want.some((f) => f.text === t)), `locked tiles are card backs labelled by card (${locked.slice(0, 3).join(' ')} …)`);
     const fin = LEVELS.findIndex((_, i) => floorLabel(i).special);
@@ -575,10 +581,98 @@ try {
     }, lv.id);
   }
 
+  // Test-only floors (?testlevels adds test/ui-levels.js to the bonus deck).
+  {
+    const { BONUS: TB, SOLUTIONS } = await import(join(repo, 'test/ui-levels.js'));
+    const T = `${base}?testlevels`;
+    const nBonus = BONUS_LEVELS.length + TB.length;
+    const setSave = (levels) => page.evaluate((l) => localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: l })), levels);
+    const getSave = () => page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels);
+    const twice = TB.find((l) => l.id === 'test-pay-twice');
+    const sorted = TB.find((l) => l.id === 'test-sorted');
+    await page.goto(T);
+    await setSave({});
+    await page.reload();
+    await page.waitForSelector('.chapter.bonus');
+    check(await page.locator('.tile.locked.bonus[data-bonus="test-pay-twice"]').count() === 1 &&
+      await page.locator('a.tile[data-level="test-pay-twice"]').count() === 0, 'bonus floor is locked before its unlockAfter floor is solved');
+    const lockText = await page.textContent('.tile.locked.bonus[data-bonus="test-pay-twice"]');
+    check(lockText.includes(`After ${floorLabel(0).text}`), `locked bonus tile names the floor that opens it ("${lockText.trim()}")`);
+    check((await page.textContent('.marquee-meta')).includes(`0 / ${nBonus} bonus`), `header counts bonus floors (0 / ${nBonus})`);
+    await page.goto(`${T}#/level/test-pay-twice`);
+    await page.waitForSelector('.tile');
+    check(await page.locator('svg.board').count() === 0, 'a locked bonus floor cannot be opened by URL');
+    if (shots) await page.locator('.chapter.bonus').screenshot({ path: join(shots, '12-bonus-deck-locked.png') });
+
+    await setSave({ 'opening-night': { solved: true } });
+    await page.goto(T);
+    await page.reload();
+    await page.waitForSelector('.chapter.bonus');
+    check(await page.locator('.chapter.bonus a.tile.bonus[data-level="test-pay-twice"]').count() === 1 &&
+      await page.locator('.chapter.bonus a.tile.bonus[data-level="test-sorted"]').count() === 1 &&
+      await page.locator('.tile.locked.bonus[data-bonus="test-locked"]').count() === 1, 'solving opening-night opens its bonus floors only');
+    check((await page.textContent('a.tile[data-level="test-pay-twice"] .tile-corner.tl')) === 'A♠' &&
+      (await page.textContent('.tile.locked.bonus[data-bonus="test-locked"] .tile-no')).startsWith('B'), 'bonus tiles are labelled by their bonus card (A♠; B… without one)');
+    check(await page.locator(`a.tile[data-level="${LEVELS[4].id}"]`).count() === 0, 'open bonus floors leave the campaign window alone');
+    if (shots) await page.screenshot({ path: join(shots, '12b-bonus-deck.png'), fullPage: true });
+
+    await page.click('a.tile[data-level="test-pay-twice"]');
+    await page.waitForSelector('.story-card');
+    check(/Bonus deck/.test(await page.textContent('.story-head')) && (await page.textContent('.story-head .floor-badge')) === 'A♠', 'story screen shows the bonus floor');
+    await setSave({ 'opening-night': { solved: true }, 'test-pay-twice': { cells: SOLUTIONS['test-pay-twice'] } });
+    await page.goto(`${T}#/level/test-pay-twice`);
+    await page.reload();
+    await page.waitForSelector('svg.board');
+    check((await page.textContent('.topbar .floor-badge')) === 'A♠', 'editor top bar shows the bonus card');
+    const nExp = twice.expected(twice.tests[0]).length;
+    check(await page.locator('.paid.expected .e-item').count() === nExp, `expected floor lists its ${nExp} expected payouts before running`);
+    check(await page.locator('.queue .q-mark').count() === 0 && await page.locator('.order-tag').count() === 0, 'expected floor: input hands are not marked $, no order tag');
+    for (let i = 0; i < 3; i++) await page.keyboard.press('.');
+    const ticked = await page.locator('.paid.expected .e-item.ok').count();
+    check(ticked > 0 && ticked < nExp, `expected payouts are ticked off as they are paid (${ticked}/${nExp})`);
+    if (shots) {
+      await page.screenshot({ path: join(shots, '13-expected-payouts.png') });
+      await page.locator('.panel.tests').screenshot({ path: join(shots, '13b-expected-panel.png') });
+    }
+    await page.click('.speeds .sp:last-child');
+    await page.waitForSelector('.modal.results', { timeout: 20000 });
+    let ls = (await getSave())['test-pay-twice'];
+    check(ls.solved && ls.solutions?.length === 1 && ls.best.croupiers === 2, `expected floor clears; solution saved under its id (${JSON.stringify(ls.best)})`);
+    const nextBtn = await page.textContent('.modal-actions .btn.gold').catch(() => '');
+    check(nextBtn.includes(sorted.title), `Next on a bonus floor goes to the next open bonus floor ("${nextBtn}")`);
+    await page.click('.modal-actions .btn:first-child');
+    check(await page.locator('.paid.expected .e-item.ok').count() === nExp, 'every expected payout is ticked after the run');
+
+    // Ordered floor: the right cards in the wrong order are rejected.
+    await setSave({ ...(await getSave()), 'test-sorted': { cells: SOLUTIONS['test-sorted-wrong'] } });
+    await page.goto(`${T}#/level/test-sorted`);
+    await page.reload();
+    await page.waitForSelector('svg.board');
+    check((await page.textContent('.order-tag').catch(() => '')) === 'card order matters', 'ordered floor says card order matters');
+    for (let i = 0; i < 30 && !(await page.locator('.toast.bad').count()); i++) await page.keyboard.press('.');
+    const toast = await page.textContent('.toast');
+    check(/wrong order/.test(toast || '') && await page.locator('.paid.expected .p-item.bad').count() === 1, `ordered floor rejects a wrong order: "${(toast || '').slice(0, 70)}..."`);
+    if (shots) await page.locator('.panel.tests').screenshot({ path: join(shots, '14-ordered-wrong.png') });
+    await setSave({ ...(await getSave()), 'test-sorted': { cells: SOLUTIONS['test-sorted'] } });
+    await page.reload();
+    await page.waitForSelector('svg.board');
+    await page.click('.speeds .sp:last-child');
+    await page.waitForSelector('.modal.results', { timeout: 20000 });
+    ls = (await getSave())['test-sorted'];
+    check(ls.solved && ls.solutions?.length === 1, 'ordered floor clears with the sorting machine');
+    check(await page.locator('.modal-actions .btn.gold').count() === 0, 'no Next when no other bonus floor is open');
+    await page.goto(T);
+    await page.waitForSelector('.chapter.bonus');
+    check((await page.textContent('.marquee-meta')).includes(`1 / ${LEVELS.length} floors cleared · 2 / ${nBonus} bonus`), 'header: 1 campaign floor and 2 bonus floors cleared');
+    check(await page.locator('.chapter.bonus a.tile.solved').count() === 2, 'bonus tiles marked solved');
+    if (shots) await page.locator('.chapter.bonus').screenshot({ path: join(shots, '12c-bonus-deck-solved.png') });
+    await setSave({});
+  }
+
   if (all) {
     const { readdirSync } = await import('node:fs');
     const have = new Set(readdirSync(join(repo, 'solutions/levels')).map((f) => f.replace(/\.js$/, '')));
-    for (const lv of LEVELS) {
+    for (const lv of [...LEVELS, ...BONUS_LEVELS]) {
       if (!have.has(lv.id)) { console.log(`skip ${lv.id}: no reference solution`); continue; }
       const sol = (await import(join(repo, 'solutions/levels', `${lv.id}.js`))).default;
       await page.goto(base);

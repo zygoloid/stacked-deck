@@ -203,6 +203,32 @@ a.tile > :not(.tile-pip):not(.tile-corner) { position: relative; }
   box-shadow: inset 0 0 0 6px #fdf8ec, inset 0 0 0 7px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.35);
   opacity: 0.75;
 }
+/* the bonus deck: navy card backs and a navy frame */
+.chapter.bonus { margin-top: 40px; padding-top: 22px; border-top: 1px dashed rgba(143, 176, 230, 0.35); }
+.chapter.bonus h2 { color: #a9c3f0; }
+.chapter.bonus h2::after { background: linear-gradient(90deg, rgba(143, 176, 230, 0.45), transparent); }
+.ch-suit.bonus { color: #f2c14e; }
+.bonus-note { margin: -6px 0 14px; color: var(--ink-2); font: italic 14px/1.4 var(--serif); }
+.tile.bonus {
+  box-shadow: inset 0 0 0 5px var(--card), inset 0 0 0 7px #1f3b70, 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+.tile.bonus::before {
+  content: 'BONUS'; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font: 800 9.5px/1.6 var(--sans); letter-spacing: 0.14em;
+  color: #fdf8ec; background: #1f3b70; padding: 0 8px; border-radius: 3px; box-shadow: 0 0 0 2px var(--card);
+}
+.tile.locked.bonus::before { display: none; }
+.tile.bonus.solved::before { background: #1f7a45; }
+.tile.bonus.plain .tile-corner { color: #1f3b70; }
+.tile.locked.bonus .tile-back {
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.09) 0 2px, transparent 2px 9px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.09) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, #24427a, #142a52);
+}
+.floor-badge.bonus { box-shadow: inset 0 0 0 1.5px #1f3b70; }
+.floor-badge.bonus.plain { color: #1f3b70; }
+.meta-bonus { color: #a9c3f0; }
+.bonus-star { color: #b38b22; }
 .lock { background: rgba(0, 0, 0, 0.45); padding: 4px 12px; border-radius: 999px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
 .tile.locked .tile-no { position: absolute; top: 14px; left: 16px; font: 700 15px var(--serif); color: #fdf8ec; padding: 1px 6px; border-radius: 4px; background: rgba(0, 0, 0, 0.35); }
 
@@ -404,6 +430,16 @@ svg.board.placing { cursor: copy; }
 .p-item.ok .p-mark { color: var(--good); }
 .p-item.bad { background: rgba(255, 80, 80, 0.14); }
 .p-item.bad .p-mark { color: var(--bad); }
+.queue.short { max-height: 22vh; }
+.paid.expected { max-height: 32vh; }
+.e-item:not(.ok) .p-mark { color: var(--muted); font-weight: 600; }
+.e-item.ok { background: rgba(95, 211, 141, 0.1); }
+.p-item.bad .p-n { color: var(--bad); font-weight: 800; }
+.p-item.bad .p-mark { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.order-note { display: flex; align-items: center; gap: 6px; margin: 2px 0 4px; flex-wrap: wrap; }
+.order-tag { font: 700 10px/1.6 var(--sans); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--gold-2); border: 1px solid var(--gold-soft); border-radius: 999px; padding: 0 7px; white-space: nowrap;
+}
 .queue .card, .paid .card { min-width: 22px; height: 19px; font-size: 11px; line-height: 19px; }
 
 /* drag ghost */

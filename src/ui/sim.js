@@ -1,7 +1,7 @@
 // Interactive simulation of one test case, with history for stepping back and
 // the same pass/fail rules as runTest in src/engine.js (checked live, so a run
 // can pause at the first wrong payout).
-import { Floor } from '../engine.js';
+import { Floor, expectedPayouts, handKey } from '../engine.js';
 
 export const MAX_ROUNDS = 5000;   // as runTest
 export const GRACE = 50;          // as runTest
@@ -9,15 +9,22 @@ export const JAM_ROUNDS = 200;    // no player card moved for this long: jammed
 const KEEP_ALL = 400;             // keep every snapshot for the last N rounds
 const CHECKPOINT = 25;            // older rounds keep one snapshot in N
 
-export const canon = (h) => [...h].sort().join(' ');
+export const canon = (h) => handKey(h);
 
+// `rule` is the level (a `pays` level or an `expected` one, optionally
+// `ordered`) or a bare `pays` function, as for runTest.
 export class Sim {
-  constructor(spec, inputs, pays) {
+  constructor(spec, inputs, rule) {
     this.spec = spec;
     this.inputs = inputs;
-    this.expected = inputs.filter((h, i) => pays(h, inputs.slice(0, i)));
+    this.expected = expectedPayouts(rule, inputs);
+    this.ordered = typeof rule === 'object' && !!rule?.ordered;
+    // `expected` levels list their payouts; `pays` levels pay input hands.
+    this.listed = typeof rule === 'object' && typeof rule?.expected === 'function';
     this.reset();
   }
+
+  key(h) { return handKey(h, this.ordered); }
 
   reset() {
     this.floor = new Floor(this.spec, this.inputs);
@@ -45,16 +52,30 @@ export class Sim {
     return parts.join('|');
   }
 
-  // Match paid hands against the expected winners (as card multisets).
+  // Match paid hands against the expected payouts (as card multisets, or
+  // card sequences when the level is ordered), as runTest does. `matched[i]`
+  // is the number (1-based) of the payout that matched expected[i], or 0.
   tally() {
-    const remaining = this.expected.map((h) => ({ h, k: canon(h) }));
-    const paid = this.floor.paid.map((h) => {
-      const i = remaining.findIndex((x) => x.k === canon(h));
-      if (i < 0) return { h, ok: false };
-      remaining.splice(i, 1);
+    const remaining = this.expected.map((h, i) => ({ h, i, k: this.key(h) }));
+    const matched = this.expected.map(() => 0);
+    const paid = this.floor.paid.map((h, n) => {
+      const j = remaining.findIndex((x) => x.k === this.key(h));
+      if (j < 0) return { h, ok: false };
+      matched[remaining[j].i] = n + 1;
+      remaining.splice(j, 1);
       return { h, ok: true };
     });
-    return { paid, missing: remaining.map((x) => x.h) };
+    return { paid, matched, missing: remaining.map((x) => x.h) };
+  }
+
+  // Why a paid hand matched nothing.
+  wrongReason(hand) {
+    const k = this.key(hand);
+    const dup = this.expected.some((x) => this.key(x) === k);
+    if (!this.listed) return dup ? 'Paid out a winning hand a second time.' : 'Paid out a hand that should have been dropped.';
+    if (dup) return 'Paid out that hand more times than expected.';
+    if (this.ordered && this.expected.some((x) => canon(x) === canon(hand))) return 'Paid out a hand with its cards in the wrong order (card order matters here).';
+    return 'Paid out a hand that isn\'t one of the expected payouts.';
   }
 
   // Advance one round. Returns the status kind.
@@ -77,11 +98,7 @@ export class Sim {
       if (bad) {
         this.paidWrong = true;
         this.paidNow = bad.h;
-        const dup = this.expected.some((h) => canon(h) === canon(bad.h));
-        this.status = {
-          kind: 'wrong', hand: bad.h,
-          msg: dup ? 'Paid out a winning hand a second time.' : 'Paid out a hand that should have been dropped.',
-        };
+        this.status = { kind: 'wrong', hand: bad.h, msg: this.wrongReason(bad.h) };
         return this.status.kind;
       }
     }
@@ -90,7 +107,7 @@ export class Sim {
     if (f.done() || (this.settled !== null && f.round - this.settled >= GRACE)) {
       const { missing } = t();
       this.status = missing.length
-        ? { kind: 'missing', missing, msg: `Every card has left the floor, but ${missing.length} winning hand${missing.length > 1 ? 's were' : ' was'} never paid.` }
+        ? { kind: 'missing', missing, msg: `Every card has left the floor, but ${missing.length} ${this.listed ? 'expected payout' : 'winning hand'}${missing.length > 1 ? 's were' : ' was'} never paid.` }
         : { kind: 'passed', rounds: this.settled ?? f.round, msg: `Test passed in ${this.settled ?? f.round} rounds.` };
     } else if (f.round >= MAX_ROUNDS) {
       const { missing } = t();

@@ -175,7 +175,10 @@ A level is solved when `runTest` passes on every test. Scores are croupiers
 (shoes included) and rounds (the average over all tests, rounded). Levels
 unlock in order, with some slack: a level is open when fewer than three levels
 before it are unsolved (`OPEN_UNSOLVED` in `src/ui/model.js`), so up to three
-unsolved levels are open at once.
+unsolved levels are open at once. The UI reads both lists through
+`src/ui/catalog.js`; with `?testlevels` in the URL it also appends the
+test-only fixture floors of `test/ui-levels.js` to the bonus deck (used by
+`tools/ui-smoke.js`).
 
 ## Save format (localStorage key `stacked-deck-v1`)
 

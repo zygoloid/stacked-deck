@@ -2,8 +2,9 @@
 //   #/                     level select
 //   #/level/<id>/story     story
 //   #/level/<id>           editor
-import { LEVELS } from '../levels.js';
-import { loadSave, writeSave, isUnlocked, rescoreStale } from './model.js';
+//   ?unlockall             every floor open; ?testlevels adds test fixtures (catalog.js)
+import { CAMPAIGN, BONUS, ALL_LEVELS, findLevel } from './catalog.js';
+import { loadSave, writeSave, isOpen, rescoreStale } from './model.js';
 import { levelSelect, storyScreen, helpPanel } from './screens.js';
 import { openEditor } from './editor.js';
 
@@ -20,8 +21,19 @@ const ctx = {
     helpHost.replaceChildren(helpPanel(() => helpHost.replaceChildren(), save));
   },
   helpOpen: () => !!helpHost.firstChild,
-  nextLevel: (i) => LEVELS[i + 1] ?? null,
+  nextLevel,
 };
+
+// The floor to offer after clearing `level`: the next campaign floor; for a
+// bonus floor, the next open bonus floor (after it, else an earlier unsolved
+// one), or null (back to the floors list).
+function nextLevel(level) {
+  const i = CAMPAIGN.indexOf(level);
+  if (i >= 0) return CAMPAIGN[i + 1] ?? null;
+  const b = BONUS.indexOf(level);
+  const open = (l) => l !== level && isOpen(save, l);
+  return BONUS.slice(b + 1).find(open) ?? BONUS.slice(0, b).find((l) => open(l) && !save.levels[l.id]?.solved) ?? null;
+}
 
 document.addEventListener('keydown', (e) => {
   if (e.target.closest?.('input, textarea, select')) return;
@@ -35,12 +47,11 @@ function route() {
   window.scrollTo(0, 0);
   const m = /^#\/level\/([^/]+)(\/story)?$/.exec(location.hash);
   if (m) {
-    const index = LEVELS.findIndex((l) => l.id === decodeURIComponent(m[1]));
-    if (index >= 0 && isUnlocked(save, index)) {
-      const level = LEVELS[index];
+    const level = findLevel(decodeURIComponent(m[1]));
+    if (level && isOpen(save, level)) {
       document.title = `${level.title} · Stacked Deck`;
       document.body.dataset.screen = m[2] ? 'story' : 'editor';
-      cleanup = m[2] ? storyScreen(root, ctx, level, index) : openEditor(root, ctx, level, index);
+      cleanup = m[2] ? storyScreen(root, ctx, level) : openEditor(root, ctx, level);
       return;
     }
   }
@@ -53,7 +64,7 @@ window.addEventListener('hashchange', route);
 route();
 
 // Saved solutions scored under older rules are re-run in the background.
-rescoreStale(save, LEVELS, () => {
+rescoreStale(save, ALL_LEVELS, () => {
   writeSave(save);
   if (document.body.dataset.screen === 'select') route();
 });

@@ -1,6 +1,6 @@
 // Saves (localStorage) and turning the player's cells into an engine spec.
 import { DIRS, RULES_VERSION, runTest } from '../engine.js';
-import { LEVELS } from '../levels.js';
+import { CAMPAIGN as LEVELS, BONUS, ALL_LEVELS, campaignIndex } from './catalog.js';
 import { SPECIALS, isCard, isSpecial } from '../cards.js';
 
 const KEY = 'stacked-deck-v1';
@@ -34,6 +34,21 @@ export function isUnlocked(save, index) {
   return unsolvedBefore < OPEN_UNSOLVED;
 }
 
+// A bonus floor opens once its `unlockAfter` campaign floor is solved (one
+// without unlockAfter is open from the start); it never counts towards the
+// campaign's OPEN_UNSOLVED window. Solved floors always stay open.
+export function isBonusOpen(save, level) {
+  if (unlockAll() || save.levels[level.id]?.solved) return true;
+  return !level.unlockAfter || !!save.levels[level.unlockAfter]?.solved;
+}
+
+// Whether any floor (campaign or bonus) is open.
+export function isOpen(save, level) {
+  const i = campaignIndex(level);
+  if (i >= 0) return isUnlocked(save, i);
+  return BONUS.includes(level) && isBonusOpen(save, level);
+}
+
 // War rules the player may pick on a level (levels.js: defaults to high only).
 export const warRules = (level) => (Array.isArray(level.warRules) && level.warRules.length ? level.warRules : ['high']);
 
@@ -45,7 +60,7 @@ export const specialCardsOf = (level) => SPECIALS.filter((c) => Array.isArray(le
 // they stay a surprise until the first such floor opens.
 export function specialCardsUnlocked(save) {
   const seen = new Set();
-  LEVELS.forEach((lv, i) => { if (isUnlocked(save, i)) specialCardsOf(lv).forEach((c) => seen.add(c)); });
+  ALL_LEVELS.forEach((lv) => { if (isOpen(save, lv)) specialCardsOf(lv).forEach((c) => seen.add(c)); });
   return SPECIALS.filter((c) => seen.has(c));
 }
 
@@ -196,7 +211,7 @@ export function deleteSolution(ls, index) {
 // Run a machine against every test of a level.
 export function scoreMachine(level, cells) {
   const spec = toSpec(level, cells);
-  const results = level.tests.map((t) => runTest(spec, t, level.pays));
+  const results = level.tests.map((t) => runTest(spec, t, level));
   return {
     ok: results.every((r) => r.ok),
     croupiers: countCroupiers(cells),

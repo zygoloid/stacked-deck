@@ -1,5 +1,5 @@
 // The level editor: palette, board, inspector, simulation and test runs.
-import { runTest } from '../engine.js';
+import { runTest, expectedPayouts } from '../engine.js';
 import { h, s, handEl, parseCards, fmtCards } from './dom.js';
 import { Board, R } from './board.js';
 import {
@@ -20,7 +20,7 @@ const SPEEDS = [
   { label: '64×', rate: 120 }, { label: 'Max', rate: Infinity },
 ];
 
-export function openEditor(root, ctx, level, index) {
+export function openEditor(root, ctx, level) {
   const { save } = ctx;
   const ls = levelSave(save, level.id);
   let cells = sanitizeCells(level, ls.cells);
@@ -54,11 +54,14 @@ export function openEditor(root, ctx, level, index) {
   const solBtn = h('button', { class: 'btn ghost sol-btn hidden', onclick: () => openSolutions(), title: 'Your saved solutions for this floor' });
 
   const par = level.par;
+  // `expected` levels list the exact payouts (which may repeat, regroup or
+  // reorder cards); `pays` levels pay out some of the input hands.
+  const listed = typeof level.expected === 'function';
   root.replaceChildren(h('div', { class: 'editor' },
     h('header', { class: 'topbar' },
       h('button', { class: 'btn ghost', onclick: () => ctx.go('#/'), title: 'Level select' }, '← Floors'),
       h('div', { class: 'title' },
-        floorBadge(index, 'lvl-no'),
+        floorBadge(level, 'lvl-no'),
         h('span', { class: 'lvl-title' }, level.title)),
       h('div', { class: 'brief', title: 'The goal for this floor' }, level.brief ?? ''),
       h('div', { class: 'stats' },
@@ -163,7 +166,7 @@ export function openEditor(root, ctx, level, index) {
   // ---------- simulation ----------
   function makeSim() {
     try {
-      sim = new Sim(toSpec(level, cells), level.tests[testIndex], level.pays);
+      sim = new Sim(toSpec(level, cells), level.tests[testIndex], level);
     } catch (e) {
       sim = null;
       showToast(`Can't run this floor: ${e.message}`, 'bad');
@@ -258,7 +261,7 @@ export function openEditor(root, ctx, level, index) {
     for (let i = 0; i < level.tests.length; i++) {
       await new Promise((r) => setTimeout(r, 0));
       let res;
-      try { res = runTest(spec, level.tests[i], level.pays); } catch (e) { res = { ok: false, error: e.message, rounds: 0, wrong: [], missing: [] }; }
+      try { res = runTest(spec, level.tests[i], level); } catch (e) { res = { ok: false, error: e.message, rounds: 0, wrong: [], missing: [] }; }
       runResults.push(res);
       renderTests();
     }
@@ -292,15 +295,15 @@ export function openEditor(root, ctx, level, index) {
   }
   function describeFailure(r) {
     if (r.error) return r.error;
-    if (r.wrong?.length) return `paid ${fmtCards(r.wrong[0])}, which should have been dropped.`;
+    if (r.wrong?.length) return `paid ${fmtCards(r.wrong[0])}, which ${listed ? 'isn\'t one of the expected payouts' : 'should have been dropped'}.`;
     if (r.timeout) return `still running after ${r.rounds} rounds (${r.missing.length} hand${r.missing.length === 1 ? '' : 's'} never paid).`;
-    if (r.missing?.length) return `${r.missing.length} winning hand${r.missing.length === 1 ? '' : 's'} never paid.`;
+    if (r.missing?.length) return `${r.missing.length} ${listed ? 'expected payout' : 'winning hand'}${r.missing.length === 1 ? '' : 's'} never paid.`;
     return 'failed.';
   }
 
   // ---------- results ----------
   function showResults({ croupiers, rounds, prev, wasSolved, found, isNew }) {
-    const next = ctx.nextLevel(index);
+    const next = ctx.nextLevel(level);
     const row = (label, v, best, parV, prevV) => h('div', { class: 'res-row' },
       h('div', { class: 'res-k' }, label),
       h('div', { class: 'res-v' }, String(v), prevV !== undefined && v < prevV ? h('span', { class: 'res-new' }, 'new best') : null),
@@ -533,6 +536,17 @@ export function openEditor(root, ctx, level, index) {
     inspector.replaceChildren(...parts);
   }
 
+  // Expected payouts for a test before any run (cached per test).
+  const expectedCache = new Map();
+  function expectedOf(inputs) {
+    if (!expectedCache.has(inputs)) {
+      let e;
+      try { e = expectedPayouts(level, inputs); } catch { e = []; }
+      expectedCache.set(inputs, e);
+    }
+    return expectedCache.get(inputs);
+  }
+
   function renderTests() {
     const tests = level.tests;
     const chip = (i) => {
@@ -567,24 +581,41 @@ export function openEditor(root, ctx, level, index) {
       parts.push(h('div', { class: 'sim-detail' }, 'Never paid: ', st.missing.slice(0, 6).map((m) => handEl(m)), st.missing.length > 6 ? ` +${st.missing.length - 6}` : ''));
     }
     // queue
-    const expectedSet = new Set();
-    const wins = sim ? sim.expected : [];
     parts.push(h('div', { class: 'sub-title' }, 'Player\'s hands', h('span', { class: 'muted' }, ` ${Math.max(0, inputs.length - pos)} to come`)));
     const winIdx = new Set();
-    inputs.forEach((hand, i) => { if (level.pays(hand, inputs.slice(0, i))) winIdx.add(i); });
-    parts.push(h('div', { class: 'queue' }, inputs.map((hand, i) => h('div', {
+    if (!listed) inputs.forEach((hand, i) => { if (level.pays(hand, inputs.slice(0, i))) winIdx.add(i); });
+    parts.push(h('div', { class: `queue${listed ? ' short' : ''}` }, inputs.map((hand, i) => h('div', {
       class: `q-item${i < pos ? ' dealt' : ''}${i === pos ? ' next' : ''}${winIdx.has(i) ? ' win' : ''}`,
-      title: winIdx.has(i) ? 'Should be paid' : 'Should be dropped',
-    }, h('span', { class: 'q-n' }, String(i + 1)), handEl(hand), h('span', { class: 'q-mark' }, winIdx.has(i) ? '$' : '')))));
-    // payouts
+      title: listed ? null : winIdx.has(i) ? 'Should be paid' : 'Should be dropped',
+    }, h('span', { class: 'q-n' }, String(i + 1)), handEl(hand), listed ? null : h('span', { class: 'q-mark' }, winIdx.has(i) ? '$' : '')))));
     const paidRows = t ? t.paid : [];
-    const nWins = winIdx.size;
-    const matched = t ? nWins - t.missing.length : 0;
-    parts.push(h('div', { class: 'sub-title' }, 'Chip desk', h('span', { class: 'muted' }, ` ${matched}/${nWins} winners paid`)));
-    parts.push(h('div', { class: 'paid' }, paidRows.length
-      ? paidRows.map((p, i) => h('div', { class: `p-item ${p.ok ? 'ok' : 'bad'}` }, h('span', { class: 'p-n' }, String(i + 1)), handEl(p.h), h('span', { class: 'p-mark' }, p.ok ? '✓' : '✗')))
-      : h('div', { class: 'muted small' }, 'Nothing paid yet. Hands marked $ should be paid.')));
-    void expectedSet; void wins;
+    if (listed) {
+      // The hands the chip desk should receive, ticked off as they are paid;
+      // payouts that match none of them are listed after, flagged.
+      const expected = sim ? sim.expected : expectedOf(inputs);
+      const matched = t ? t.matched : expected.map(() => 0);
+      const wrong = paidRows.map((p, i) => [p, i]).filter(([p]) => !p.ok);
+      const done = matched.filter(Boolean).length;
+      parts.push(h('div', { class: 'sub-title' }, 'Expected payouts',
+        h('span', { class: 'muted' }, ` ${done}/${expected.length} paid${wrong.length ? `, ${wrong.length} wrong` : ''}`)));
+      if (level.ordered) {
+        parts.push(h('div', { class: 'order-note' }, h('span', { class: 'order-tag' }, 'card order matters'),
+          h('span', { class: 'muted small' }, 'each payout must match card for card, top card first')));
+      }
+      parts.push(h('div', { class: 'paid expected' },
+        expected.map((hand, i) => h('div', { class: `p-item e-item${matched[i] ? ' ok' : ''}`, title: matched[i] ? `Paid (payout ${matched[i]})` : 'Not paid yet' },
+          h('span', { class: 'p-n' }, String(i + 1)), handEl(hand), h('span', { class: 'p-mark' }, matched[i] ? '✓' : '$'))),
+        wrong.map(([p, i]) => h('div', { class: 'p-item bad', title: `Payout ${i + 1} is not an expected payout` },
+          h('span', { class: 'p-n' }, '✗'), handEl(p.h), h('span', { class: 'p-mark' }, 'wrong'))),
+        expected.length ? null : h('div', { class: 'muted small' }, 'Nothing should be paid in this test.')));
+    } else {
+      const nWins = winIdx.size;
+      const matched = t ? nWins - t.missing.length : 0;
+      parts.push(h('div', { class: 'sub-title' }, 'Chip desk', h('span', { class: 'muted' }, ` ${matched}/${nWins} winners paid`)));
+      parts.push(h('div', { class: 'paid' }, paidRows.length
+        ? paidRows.map((p, i) => h('div', { class: `p-item ${p.ok ? 'ok' : 'bad'}` }, h('span', { class: 'p-n' }, String(i + 1)), handEl(p.h), h('span', { class: 'p-mark' }, p.ok ? '✓' : '✗')))
+        : h('div', { class: 'muted small' }, 'Nothing paid yet. Hands marked $ should be paid.')));
+    }
     testsPanel.replaceChildren(...parts);
     // Keep the next hand visible by scrolling the queue box only, never the page.
     const queue = testsPanel.querySelector('.queue');

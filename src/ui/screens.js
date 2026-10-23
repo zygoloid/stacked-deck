@@ -1,9 +1,9 @@
 // Level select, story and help screens.
 import { h, handEl, SPECIAL_FACE } from './dom.js';
 import { CROUPIERS, PORT_STYLE, chipLabel, sampleCell } from './croupiers.js';
-import { LEVELS } from '../levels.js';
+import { CAMPAIGN as LEVELS, BONUS, findLevel } from './catalog.js';
 import { RULES_VERSION } from '../engine.js';
-import { isUnlocked, specialCardsUnlocked } from './model.js';
+import { isUnlocked, isBonusOpen, specialCardsUnlocked } from './model.js';
 import { floorLabel, chapterInfo, floorBadge } from './floors.js';
 
 // Tile classes for the four finale cards.
@@ -18,19 +18,46 @@ export function levelSelect(root, ctx) {
     chapters.get(ch).push([lv, i]);
   });
   const solvedCount = LEVELS.filter((l) => save.levels[l.id]?.solved).length;
+  const bonusSolved = BONUS.filter((l) => save.levels[l.id]?.solved).length;
   root.replaceChildren(h('div', { class: 'select' },
     h('header', { class: 'marquee' },
       h('div', { class: 'marquee-suits' }, '♠ ♥ ♣ ♦'),
       h('h1', {}, 'Stacked Deck'),
       h('p', { class: 'tagline' }, 'An esoteric casino. Build machines of croupiers that pay out exactly the right hands.'),
       h('div', { class: 'marquee-meta' },
-        h('span', {}, `${solvedCount} / ${LEVELS.length} floors cleared`),
+        h('span', { class: 'meta-count' }, `${solvedCount} / ${LEVELS.length} floors cleared`,
+          BONUS.length ? h('span', { class: 'meta-bonus' }, ` · ${bonusSolved} / ${BONUS.length} bonus`) : null),
         h('button', { class: 'btn ghost small', onclick: () => ctx.help() }, '? How to play'),
         h('span', { class: 'rules-version', title: 'Version of the game rules this page is running' }, `rules v${RULES_VERSION}`))),
     [...chapters].map(([ch, list]) => h('section', { class: 'chapter' },
       chapterHeading(ch),
-      h('div', { class: 'tiles' }, list.map(([lv, i]) => tile(lv, i)))))));
+      h('div', { class: 'tiles' }, list.map(([lv, i]) => tile(lv, i))))),
+    BONUS.length ? bonusDeck() : null));
 
+  // The bonus deck: extra floors outside the campaign, each opened by
+  // clearing a campaign floor (shown on its card back).
+  function bonusDeck() {
+    return h('section', { class: 'chapter bonus' },
+      h('h2', { 'data-chapter': 'bonus' }, h('span', { class: 'ch-suit bonus' }, '★'), 'Bonus deck',
+        h('span', { class: 'ch-name' }, ' · Off the books')),
+      h('p', { class: 'bonus-note' }, 'Extra floors outside the campaign. Each one opens when you clear the floor named on its back.'),
+      h('div', { class: 'tiles' }, BONUS.map((lv) => bonusTile(lv))));
+  }
+
+  function bonusTile(lv) {
+    const f = floorLabel(lv);
+    if (!isBonusOpen(save, lv)) {
+      const after = findLevel(lv.unlockAfter);
+      const need = after ? floorLabel(after).text : lv.unlockAfter;
+      return h('div', {
+        class: 'tile locked bonus', 'data-bonus': lv.id, 'data-card': f.card ?? f.text,
+        title: after ? `Clear ${after.title} (${need}) to open` : 'Locked',
+      },
+      h('div', { class: 'tile-back' }, h('span', { class: 'lock' }, after ? `After ${need}` : 'Locked')),
+      h('div', { class: `tile-no${f.cls === 'red' ? ' red' : ''}` }, f.text));
+    }
+    return tile(lv, -1, f);
+  }
   function chapterHeading(ch) {
     const c = chapterInfo(ch);
     return h('h2', { 'data-chapter': ch },
@@ -38,10 +65,10 @@ export function levelSelect(root, ctx) {
       c.name ? h('span', { class: 'ch-name' }, ` · ${c.name}`) : '');
   }
 
-  function tile(lv, i) {
+  function tile(lv, i, label) {
     const st = save.levels[lv.id] ?? {};
-    const open = isUnlocked(save, i);
-    const f = floorLabel(i);
+    const open = i < 0 || isUnlocked(save, i);
+    const f = label ?? floorLabel(i);
     if (!open) {
       // A card back. Special floors keep their card hidden until they open.
       return h('div', { class: 'tile locked', title: 'Clear the previous floors to unlock', 'data-card': f.special ? null : f.card },
@@ -51,8 +78,8 @@ export function levelSelect(root, ctx) {
     const kind = f.special ? `special ${SPECIAL_TILE[f.card]}` : f.cls === 'red' ? 'red' : f.cls === 'plain' ? 'plain' : 'black';
     const corner = (pos) => h('div', { class: `tile-corner ${pos}` }, h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null);
     return h('a', {
-      class: `tile ${kind}${st.solved ? ' solved' : ''}`, href: `#/level/${lv.id}/story`, 'data-level': lv.id, 'data-card': f.card ?? f.text,
-      title: f.special ? `${f.name}` : `Floor ${f.text}`,
+      class: `tile ${kind}${f.bonus ? ' bonus' : ''}${st.solved ? ' solved' : ''}`, href: `#/level/${lv.id}/story`, 'data-level': lv.id, 'data-card': f.card ?? f.text,
+      title: f.special ? `${f.name}` : `${f.bonus ? 'Bonus floor' : 'Floor'} ${f.text}`,
     },
     h('div', { class: 'tile-pip', 'aria-hidden': 'true' }, f.special ? f.rank : f.glyph),
     corner('tl'), corner('br'),
@@ -66,13 +93,13 @@ export function levelSelect(root, ctx) {
   }
 }
 
-export function storyScreen(root, ctx, level, index) {
+export function storyScreen(root, ctx, level) {
   const go = () => ctx.go(`#/level/${level.id}`);
   const onKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } if (e.key === 'Escape') ctx.go('#/'); };
   document.addEventListener('keydown', onKey);
   root.replaceChildren(h('div', { class: 'story' },
     h('article', { class: 'story-card' },
-      storyHead(index),
+      storyHead(level),
       h('h1', {}, level.title),
       (level.story ?? []).map((p) => h('p', {}, p)),
       h('div', { class: 'story-brief' }, h('span', { class: 'stat-k' }, 'Tonight'), h('div', {}, level.brief ?? '')),
@@ -82,12 +109,19 @@ export function storyScreen(root, ctx, level, index) {
   return () => document.removeEventListener('keydown', onKey);
 }
 
-function storyHead(index) {
-  const c = chapterInfo(LEVELS[index].chapter ?? 1);
+function storyHead(level) {
+  const f = floorLabel(level);
+  if (f.bonus) {
+    return h('div', { class: 'story-head' },
+      floorBadge(level, 'big'),
+      h('div', { class: 'story-no' }, h('span', { class: 'bonus-star' }, '★'), ' Bonus deck',
+        h('span', { class: 'story-floor' }, ` · Floor ${f.text}`)));
+  }
+  const c = chapterInfo(level.chapter ?? 1);
   return h('div', { class: 'story-head' },
-    floorBadge(index, 'big'),
+    floorBadge(level, 'big'),
     h('div', { class: 'story-no' }, h('span', { class: c.red ? 'red' : '' }, c.glyph), ` ${c.suitName}`, c.name ? ` · ${c.name}` : '',
-      h('span', { class: 'story-floor' }, ` · Floor ${floorLabel(index).text}`)));
+      h('span', { class: 'story-floor' }, ` · Floor ${f.text}`)));
 }
 
 // Help panel, generated from the croupier table. Special cards are only
