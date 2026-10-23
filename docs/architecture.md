@@ -163,6 +163,13 @@ multisets of cards unless `ordered: true`. `expectedPayouts(rule, inputs)` and
 `runTest(spec, inputs, rule)` in `src/engine.js` accept either a `pays`
 function or the level object.
 
+**Don't break saved solutions.** Once a floor has shipped, its fixed cells
+(players and chip desks: position and direction) must not move, its buildable
+floor may only grow, and its id must stay. `test/compat.js` checks this
+against `test/compat.json`; new floors are recorded with
+`node test/compat.js --update`, which is also the (deliberate) way to accept a
+breaking change.
+
 **Bonus deck.** `src/levels.js` also exports `BONUS`: extra floors outside the
 56-card campaign (cut floors moved out of the campaign, and new extras), with
 the same format plus `unlockAfter: '<campaign level id>'` (open once that

@@ -96,34 +96,31 @@ export const SPECS = {
   },
   'acey-deucey': {
     // The plain build: two cuts split [a | b | c]; War sorts the ends into
-    // hi and lo; b plays lo, then hi plays b. Each of those two Wars sends a
-    // card to one of two gathers by its result, where it picks up an
-    // indicator from a shoe: a 2 if b is inside on that side, an ace if not.
-    // A cut takes the indicator off again. The three cards are gathered back
-    // into the hand and the two indicators into a pile, and the hand is paid
-    // if it beats the pile (only two 2s). The first indicator has the longer
-    // way round the gate; it starts two rounds earlier, so they meet in step.
+    // hi and lo. b plays lo, and the two go on together, to one of two
+    // gathers by the result, where they pick up an indicator on top: a 2 if
+    // b won, an ace if not. hi plays that stack (its high card is b when b
+    // won; an ace makes hi lose anyway), and the stack picks up a second
+    // indicator the same way, a 2 only if hi won, with hi gathered
+    // underneath: [i, i, b, lo, hi]. A cut takes the two indicators off the
+    // top, and the hand is paid if it beats them (only two 2s). The two
+    // routes out of each War are the same length, and hi waits for its stack
+    // at the last gather, so no piece meets another hand's.
     cells: [
-      c([-4, 0], 'cut', { out: { top: E, bottom: SE } }), c([-4, 1], 'cut', { out: { top: E, bottom: NE } }),
-      war([-3, 0], { dealer: SW, out: { win: NE, dwin: NE, lose: SE, dlose: SE } }), // a vs c: hi NE, lo SE
-      // b plays lo: lo picks up a 2 (b won) or an ace
-      war([-3, 1], { dealer: NW, out: { win: NE, lose: NE, dlose: SE, dwin: SW } }),
-      c([-3, 2], 'gather', { under: NE, out: { out: SE } }), shoe([-2, 1], '2C', { out: SW }),
-      pass([-4, 2], SE), c([-4, 3], 'gather', { under: SE, out: { out: E } }), shoe([-4, 4], 'AC', { out: NW }),
-      c([-3, 3], 'cut', { out: { top: NE, bottom: E } }), // lo NE, its indicator E
-      // hi plays b: hi picks up a 2 (hi won) or an ace
-      pass([-2, -1], E), pass([-2, 0], NE),
-      war([-1, -1], { dealer: SW, out: { win: NE, lose: E, dwin: SE, dlose: SE } }),
-      c([0, -2], 'gather', { under: W, out: { out: E } }), shoe([-1, -2], '2C', { out: E }),
-      c([0, -1], 'gather', { under: SE, out: { out: NE } }), shoe([0, 0], 'AC', { out: NW }),
-      c([1, -2], 'cut', { out: { top: SE, bottom: E } }), // hi SE, its indicator E
-      // the hand back together: [lo, b], then hi
-      pass([-1, 0], SE), pass([-2, 2], NE), c([-1, 1], 'gather', { out: { out: E } }),
-      pass([1, -1], SE), pass([1, 0], SW), c([0, 1], 'gather', { out: { out: E } }),
-      // the indicators: the first goes round the south of the gate
-      pass([-2, 3], E), pass([-1, 3], E), pass([0, 3], NE), pass([1, 2], NE), pass([2, 1], NW),
-      pass([2, -2], SE), pass([2, -1], SE), c([2, 0], 'gather', { out: { out: SW } }),
-      war([1, 1], { dealer: NE, out: { win: SW } }), // the hand beats two 2s, never an ace
+      c([-3, 0], 'cut', { out: { top: SE, bottom: SW } }), c([-4, 1], 'cut', { out: { top: SE, bottom: E } }),
+      war([-3, 1], { dealer: W, out: { win: E, dwin: E, lose: SW, dlose: SW } }), // a vs c: hi E, lo SW
+      // b plays lo: [2, b, lo] if b won, [A, lo, b] if not
+      war([-4, 2], { dealer: NE, out: { win: E, dlose: E, dwin: SE, lose: SE } }),
+      c([-3, 2], 'gather', { under: W, out: { out: SE } }), shoe([-2, 2], '2C', { out: W }),
+      c([-4, 3], 'gather', { under: NW, out: { out: E } }), shoe([-4, 4], 'AC', { out: NW }),
+      pass([-3, 3], E), pass([-2, 3], NE), // the stack on to deal against hi
+      pass([-2, 1], E), pass([-1, 1], SE), // hi
+      // hi plays the stack: the stack picks up a 2 (hi won) or an ace
+      war([-1, 2], { dealer: SW, out: { win: E, lose: E, dlose: SE, dwin: NE } }),
+      c([-1, 3], 'gather', { under: NW, out: { out: NE } }), shoe([0, 3], '2C', { out: W }),
+      c([0, 1], 'gather', { under: SW, out: { out: SE } }), shoe([0, 0], 'AC', { out: SE }),
+      c([0, 2], 'gather', { under: W, out: { out: E } }), // hi underneath
+      c([1, 2], 'cut', { out: { top: NE, bottom: NW } }), pass([2, 1], W), // indicators round to the dealer side
+      war([1, 1], { dealer: E, out: { win: NW } }), // the hand beats two 2s, never an ace
     ],
   },
 };

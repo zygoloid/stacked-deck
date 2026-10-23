@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/engine.js && node test/checker.js && node test/run.js && node test/levels.js",
+    "test": "node test/compat.js && node test/engine.js && node test/checker.js && node test/run.js && node test/levels.js",
     "serve": "node tools/serve.js"
   }
 }

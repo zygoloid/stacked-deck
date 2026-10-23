@@ -19,7 +19,7 @@ const F9 = [source([-3, 0], E), desk([1, 0])];
 const F10 = [source([-2, 0], E), desk([2, 0])];
 const F11 = [source([-3, 0], E), desk([1, 0])];
 const F12 = [source([-4, 0], E), desk([4, 0])];
-const F13 = [source([-5, 0], E), desk([0, 2])];
+const F13 = [source([-4, 0], E), desk([1, 0])];
 
 const suited = (h) => isFlush(h);
 const connected = (h) => isStraight(h);
@@ -341,7 +341,7 @@ const PAR = {
   'top-dog': { croupiers: 5, rounds: 16 },
   'top-of-the-heap': { croupiers: 6, rounds: 15 },
   'royal-flush': { croupiers: 11, rounds: 13 },
-  'acey-deucey': { croupiers: 33, rounds: 31 },
+  'acey-deucey': { croupiers: 21, rounds: 31 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);
