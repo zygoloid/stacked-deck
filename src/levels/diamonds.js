@@ -19,7 +19,7 @@ const F9 = [source([-3, 0], E), desk([1, 0])];
 const F10 = [source([-2, 0], E), desk([2, 0])];
 const F11 = [source([-3, 0], E), desk([1, 0])];
 const F12 = [source([-4, 0], E), desk([4, 0])];
-const F13 = [source([-4, 0], E), desk([1, 0])];
+const F13 = [source([-5, 0], E), desk([0, 2])];
 
 const suited = (h) => isFlush(h);
 const connected = (h) => isStraight(h);
@@ -298,7 +298,7 @@ export const LEVELS = [
     ],
     brief: 'Three-card hands. Pay out every hand whose middle card is strictly between its top and bottom cards.',
     handSize: 3,
-    floor: floorOf(hexRect(-2, 2, -7, 4), F13),
+    floor: floorOf(hexRect(-4, 4, -9, 9), F13),
     fixed: F13,
     croupiers: paletteThrough('war'),
     pays: between,
@@ -311,6 +311,12 @@ export const LEVELS = [
         // one hand meeting pieces of another
         ['2S 5D 9C', '3S 6D TC', '4S 7D JC', '5S 8D QC', '6S 9D KC', '7S TD AC', '8S 9D TC', '9S TD JC',
           '2H 2D 9H', '3H 3D TH', '4H 4D JH', '5H 5D QH', '6H 6D KH', '7H 7D AH', '8H 9C 9H', 'TH JS JH'],
+        // winners alternating with hands that fail at either end
+        ['2S 5D 9C', '5S 2D 9C', '9S 5D 2C', '5H 9D 2H', '3S 3D 8C', '8S 8D 3C', '4S 7D JC', 'JS 7H 4C',
+          '6S 2H TC', '7S 2C 3H', 'QS KD 5C', '5H AD QH', 'TS JD QC', 'KS 3D 9C', '2D AC KH', '6D 9S AS'],
+        // runs: middle too high, winners, middle too low, winners
+        ['2S KD 9C', '3S QD 8C', '4S JD 7C', '9H AD 9C', 'TS TD 5C', '5S 8D JC', 'QH 7D 3C', '2H 3D 4C',
+          '9S 2D QC', 'KH 4D 6C', '8H 8D JC', '7H 7D 7C', 'AS 2C AD', 'AH KH 2S', '3H 6S TH', 'JH 9S 8C'],
       ],
       nRandom: 4, seed: 138,
     }),
@@ -335,7 +341,7 @@ const PAR = {
   'top-dog': { croupiers: 5, rounds: 16 },
   'top-of-the-heap': { croupiers: 6, rounds: 15 },
   'royal-flush': { croupiers: 11, rounds: 13 },
-  'acey-deucey': { croupiers: 15, rounds: 27 },
+  'acey-deucey': { croupiers: 33, rounds: 31 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

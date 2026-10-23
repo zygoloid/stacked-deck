@@ -103,7 +103,7 @@ are keyed by id).
 | 10♦ | top-dog | Top Dog | War on the pieces | 2 | top card beats bottom | cut, War; a gather puts the winner and the dealer's losing card back together for the desk (5/16). Stacking the two War outputs on one side instead: 4 | 5 | yes |
 | J♦ | top-of-the-heap | Top of the Heap | pieces reassembled | 5 | top card beats each other card | cut, cut, gather the other four as dealer, War; a gather rebuilds a winning hand (6/15). Stacking the War outputs instead: 5 | 5 | new |
 | Q♦ | royal-flush | Royal Flush | stripping one ref from a big hand | 5 | 10–A suited (the A–5 straight flush is the trap) | flush → beats a K (has an ace) → 9 on top → straight (only 10–A or 4–8) → two cuts and a gather take the 9 off (11/13) | 7 | new |
-| K♦ | acey-deucey | Acey-Deucey | **rig the last War** | 3 | middle card strictly between the ends | split [a][b][c]; War sorts a and c: hi goes on to the final War, lo is the dealer against b. If b wins, a gather puts [b, lo] together as the final War's dealer; if not, b picks up an ace from a shoe so the final War (hi vs that pile) must lose; both routes take equal time; a gather rebuilds a winning hand (15/27). Stacking War outputs (a, c into [hi, lo]) instead of separate routes and gathers: 11 | 8 | new |
+| K♦ | acey-deucey | Acey-Deucey | **indicator cards on the pieces** | 3 | middle card strictly between the ends | split [a][b][c]; War sorts the ends into hi and lo; b plays lo, then hi plays b. Each of those Wars sends a card to one of two gathers by its result, where it picks up an indicator from a shoe (2: b is inside on that side; ace: it isn't), and a cut takes the indicator off again; gathers rebuild the hand and pile up the two indicators, and the hand is paid if it beats the pile (two 2s; never an ace). The first indicator goes the long way round the gate, which its two-round head start pays for (33/31). Beat par by rigging the last War (b collects an ace only when it loses, so the final War, hi against [b, lo] or [b, ace], is the gate; equal routes; a gather rebuilds a winner): 15/28 (the old reference); stacking War outputs as well: 11 | 8 | new |
 
 ### Chapter 3 ♣ House Rules (built)
 
@@ -336,8 +336,14 @@ the same idea).
 * Test a copy and gate the original with a *copy-derived dealer* (Upper Hand,
   High Spade, Top Pair, bonus Every Other): no verdict needed when "the highest card
   is (not) in this pile" is the question.
-* Rig the last War (Acey-Deucey): when a hand is tested in pieces, every
-  piece goes on; failing pieces collect an ace so the final War loses.
+* Indicator cards on the pieces (Acey-Deucey): with no copy to test, the
+  pieces themselves go on; a gather with a shoe hands each piece a 2 or an
+  ace by the route it took, a cut takes it off again, and the hand is gated
+  against the pile of indicators. Rigging the last War (failing pieces
+  collect an ace so the final War loses) does the same with fewer croupiers.
+  Two routes merging into one croupier must never back up there, or a later
+  hand's piece is picked up first: keep every meeting point downstream in
+  step to within a round.
 * Release a verdict (Bottom Pair onwards): War against a shoe with both
   dealer ports one way; yes releases a 2, no an ace, and the original plays
   it at a high-card gate.
@@ -381,9 +387,9 @@ references came to (par croupiers):
   ~16 as a loser-on-top tournament).
 * Third Time Lucky 2 (planned 7 with passes). The Wheel 6 (planned 8). Seven
   Heaven 5 with Hand(4) and K7 (planned 8 with Hand(5) and K8). Déjà Vu 6
-  (planned 7). Snap 5 (not built). Acey-Deucey 15 with separate routes and
-  gathers, 11 with War output stacking. Lucky Number 11 unrolled, 8 with the
-  loop. Top Dog 5 and Top of the Heap 6 with gathers, 4 and 5 with stacking.
+  (planned 7). Snap 5 (not built). Acey-Deucey: see the last note. Lucky
+  Number 11 unrolled, 8 with the loop. Top Dog 5 and Top of the Heap 6 with
+  gathers, 4 and 5 with stacking.
 * Hearts stages: Lucky Seven 8 with two stages and two cuts (7 as a chain,
   6 as the sandwich); Penny Ante 10 with a cut per stage (9 sharing one);
   Royalty 13 with three single-ref stages (10 with the sandwich and a shared
@@ -402,3 +408,24 @@ references came to (par croupiers):
   cards, which never leave). The reference is 14 unrolled with a cut per
   stage (12 with shared cuts); Lucky Number is the designated "loop beats
   unrolling" floor.
+* Acey-Deucey: the owner asked for room for the straightforward design
+  (compare the top two cards into an A or 2, the bottom two into an A or 2,
+  compare the two indicators, and pass the hand on or not), so the floor
+  grew from 29 hexes (rows -2..2) to 84 (rows -4..4, about two rings more;
+  the source moved one hex west, the desk inside). That design as stated
+  can't be built: two yes/no comparisons can't get the ties right (whichever
+  side each tie falls on, some tie shares an outcome with a paying hand),
+  and even with pairs dropped first (Kind 2), "both the same way" is an
+  equality of two indicators, which no single War tells (ties go to the
+  house, so only one of the four indicator pairs wins). Sorting the ends
+  first makes it an AND of two strict comparisons (b beats lo, hi beats b),
+  and a gate against the pile of both indicators is the AND: that is the
+  reference (33/31: 19 working croupiers and 14 passes, more than the
+  usual quarter, because the indicators have to go round the hand to meet
+  it at the gate). With no duplicate
+  the pieces must carry on, so each comparison's result is a gather with a
+  2 or an ace and a cut; War releases (player ports one way, dealer ports
+  another) can't be laid out, since the card and the indicator would each
+  need its own merge and the three routes between the two release Wars
+  enclose one of them. The old reference (rig the last War, 15/28) and
+  output stacking (11) beat par.
