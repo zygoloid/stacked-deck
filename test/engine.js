@@ -202,3 +202,23 @@ console.log('rules v7 ok');
   assert(runTest(passPay, [['AS', 'KS']], sorted).ok);
 }
 console.log('expected payouts ok');
+// A house card still on its way to the desk after the last player card has
+// gone is not cut off: the run waits (up to the grace period) for it.
+{
+  const { runTest } = await import('../src/engine.js');
+  const level = { expected: (inputs) => inputs.map(() => ['AH']) };
+  // The player's card is dropped at once; the shoe's A♥ walks three hexes.
+  const spec = { cells: [
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, 0], kind: 'croupier', fn: 'war', rule: 'high', dealer: 4, out: { dwin: 0, dlose: 0 } },
+    { at: [0, -1], kind: 'shoe', out: 1, deck: ['AH'] },
+    { at: [1, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } },
+    { at: [2, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } },
+    { at: [3, 0], kind: 'payout' },
+  ] };
+  const r = runTest(spec, [['2S']], level);
+  assert(r.ok, `house card in flight: ${JSON.stringify(r)}`);
+  const bad = runTest(spec, [['2S'], ['3S']], { expected: (inputs) => inputs.map(() => ['AH']).concat([['KH']]) });
+  assert(!bad.ok && bad.missing.length === 1, 'a payout that never comes still fails');
+}
+console.log('house cards in flight ok');

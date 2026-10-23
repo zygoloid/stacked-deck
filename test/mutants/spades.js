@@ -1,6 +1,6 @@
 // Mutants and door levels for chapter 4 (spades). See test/mutants/shared.js.
 import { rankOf, suitOf, rankValue, largestSet, isFlush, isStraight } from '../../src/cards.js';
-import { hv, high, isRed, last, has, count, countsOf, setOf } from './shared.js';
+import { hv, high, isRed, last, has, count, countsOf, setOf, chunks, groupBy } from './shared.js';
 
 const wheel = (h) => 'A2345'.split('').every((r) => count(h, r) === 1);
 const pairRank = (h) => hv(setOf(h)[0]);
@@ -47,22 +47,20 @@ export const MUTANTS = {
     'two or more sevens': (h) => count(h, '7') >= 2, 'exactly three': (h) => count(h, '7') === 3,
     'any three of a kind': (h) => largestSet(h) >= 3, 'any seven': (h) => has(h, '7'),
   },
-  'after-a-pair': {
-    'holds a pair itself': (h) => largestSet(h) >= 2,
-    'first hand pays': (h, b) => b.length === 0 || largestSet(last(b)) >= 2,
-    'after no pair': (h, b) => b.length > 0 && largestSet(last(b)) < 2,
-    'after one pair only': (h, b) => b.length > 0 && countsOf(last(b)) === '1,1,1,2',
-    'after any earlier pair': (h, b) => b.some((x) => largestSet(x) >= 2),
-    'two before': (h, b) => b.length > 1 && largestSet(b[b.length - 2]) >= 2,
+  // Expected-payout floors: mutants are (inputs) => payouts.
+  'suit-yourself': {
+    'flushes as dealt': (t) => t.filter((h) => isFlush(h)),
+    'every suit pile of each hand': (t) => t.flatMap((h) => 'SHDC'.split('').map((s) => h.filter((c) => suitOf(c) === s)).filter((p) => p.length)),
+    'hands of five in order': (t) => chunks(t.flat(), 5),
+    'last five of a suit': (t) => groupBy(t.flat(), suitOf).flatMap((p) => p.length >= 5 ? [p.slice(-5)] : []),
+    'one flush per suit': (t) => groupBy(t.flat(), suitOf).flatMap((p) => p.length >= 5 ? [p.slice(0, 5)] : []),
   },
-  bookends: {
-    'own bottom card': (h) => hv(h[0]) > hv(h[1]),
-    'ties pay': (h, b) => b.length > 0 && hv(h[0]) >= hv(last(b)[1]),
-    'high card': (h, b) => b.length > 0 && high(h) > hv(last(b)[1]),
-    'previous top card': (h, b) => b.length > 0 && hv(h[0]) > hv(last(b)[0]),
-    'previous high card': (h, b) => b.length > 0 && hv(h[0]) > high(last(b)),
-    'first hand pays': (h, b) => b.length === 0 || hv(h[0]) > hv(last(b)[1]),
-    'aces low': (h, b) => b.length > 0 && rankValue(h[0]) > rankValue(last(b)[1]),
+  'change-of-heart': {
+    'pay the spades': (t) => t.filter(([c]) => suitOf(c) === 'S'),
+    'hearts for hearts': (t) => t.filter(([c]) => suitOf(c) === 'H').map(([c]) => [c]),
+    'next heart up': (t) => t.filter(([c]) => suitOf(c) === 'S' && rankOf(c) !== 'K').map(([c]) => ['A23456789TJQK'['A23456789TJQK'.indexOf(rankOf(c)) + 1] + 'H']),
+    'every card for its heart': (t) => t.map(([c]) => [rankOf(c) + 'H']),
+    'spade and heart together': (t) => t.filter(([c]) => suitOf(c) === 'S').map(([c]) => [c, rankOf(c) + 'H']),
   },
   'next-in-line': {
     'first card never pays': (h, b) => b.length > 0 && isStraight([h[0], last(b)[0]]),

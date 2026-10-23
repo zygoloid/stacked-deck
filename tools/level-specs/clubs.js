@@ -49,12 +49,12 @@ export const SPECS = {
       shoe([0, -1], 'TC', { out: SE }), twar([0, 0], { dealer: NW, out: { win: E } }), pass([1, 0], E),
     ],
   },
-  'fourth-street': {
-    // An in-shuffle and a completed cut bring the 4th card up; cuts alone
-    // need four.
+  'upside-down': {
+    // A completed cut, an in-shuffle and an out-shuffle reverse five cards.
+    // (Cutting into halves, reversing each and stacking them also works.)
     cells: [
-      c([-2, 0], 'inshuffle', { out: { out: E } }), c([-1, 0], 'cut', { out: { top: E, bottom: E } }),
-      shoe([0, -1], 'TC', { out: SE }), twar([0, 0], { dealer: NW, out: { win: E } }), pass([1, 0], E),
+      c([-2, 0], 'cut', { out: { top: E, bottom: E } }), c([-1, 0], 'inshuffle', { out: { out: E } }),
+      c([0, 0], 'outshuffle', { out: { out: E } }),
     ],
   },
   'second-fiddle': {
@@ -100,13 +100,22 @@ export const SPECS = {
       shoe([2, 1], '5C', { out: NW }), twar([2, 0], { dealer: SE, out: { win: E } }),
     ],
   },
-  'every-other': {
-    // Deal the copy's 1st and 3rd cards to the gate and the others onto the
-    // floor (an in-shuffle and a cut also isolate them).
-    cells: [
-      c([-1, 0], 'duplicate', { out: { a: E, b: NE } }),
-      c([0, -1], 'deal', { out: { to: [SE, NE, SE, NE, NE] } }),
-      war([0, 0], { dealer: NW, out: { lose: E } }), pass([1, 0], E),
+  'ace-count': {
+    // Test each card in turn: a copy of the hand plays a king by its top
+    // card (only an ace wins) and pays on a win, while the hand itself is
+    // cut (on three cards a completed cut brings the next card up).
+    nodes: {
+      dup1: c([-2, 0], 'duplicate'), war1: twar([-2, -1]), s1: shoe([-3, -1], 'KC'),
+      cut1: c([-1, 0], 'cut'),
+      dup2: c([0, 0], 'duplicate'), war2: twar([0, -1]), s2: shoe([-1, -1], 'KC'),
+      cut2: c([1, 0], 'cut'),
+      war3: twar([2, -1]), s3: shoe([3, -1], 'KC'),
+    },
+    links: [
+      ['s1', null, 'war1', 'dealer'], ['s2', null, 'war2', 'dealer'], ['s3', null, 'war3', 'dealer'],
+      ['dup1', 'a', 'war1'], ['dup1', 'b', 'cut1'], ['cut1', ['top', 'bottom'], 'dup2'],
+      ['dup2', 'a', 'war2'], ['dup2', 'b', 'cut2'], ['cut2', ['top', 'bottom'], 'war3'],
+      ['war1', 'win', 'desk'], ['war2', 'win', 'desk'], ['war3', 'win', 'desk'],
     ],
   },
   'bottom-pair': {

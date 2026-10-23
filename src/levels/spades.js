@@ -1,12 +1,12 @@
 // Chapter 4 (spades): The House Always Wins. Memory (a shoe that deals once,
 // the champion loop), shoe decks as sequences, the ticket door, burn, sort
-// and hand, delayed verdicts and windows, then the big machines: Jacks or
-// Better and the house record. See docs/campaign.md for the plan.
+// and hand, flushes regrouped across hands and house hearts paid for spades,
+// windows, then the big machines: Jacks or Better and the house record. See docs/campaign.md for the plan.
 import {
   hexRange, hexRect, makeTests, floorOf, source, desk, E, NW, NE,
   hv, high, one, spadesOf, countOf, paletteThrough, finishChapter,
 } from './shared.js';
-import { rankOf, largestSet, rankCounts, isFlush, isStraight } from '../cards.js';
+import { rankOf, suitOf, largestSet, rankCounts, isFlush, isStraight } from '../cards.js';
 
 const L1 = [source([-2, 0], E), desk([1, 0])];
 const L2 = [source([0, 0], E), desk([3, 0])];
@@ -16,8 +16,8 @@ const L5 = [source([0, 0], E), desk([1, -1])];
 const L6 = [source([-3, 0], E), desk([2, 0])];
 const L7 = [source([1, 1], NE), desk([1, -1])];
 const L8 = [source([-3, 0], E), desk([1, 0])];
-const L9 = [source([-3, 0], E), desk([-1, 0])];
-const L10 = [source([-3, 0], E), desk([0, 0])];
+const L9 = [source([-3, 0], E), desk([0, -1])];
+const L10 = [source([-3, 0], E), desk([1, 0])];
 const L11 = [source([-3, 0], E), desk([2, 0])];
 const L12 = [source([-4, 0], E), desk([-2, 0])];
 const L13 = [source([0, 0], NW), desk([-1, -2])];
@@ -26,6 +26,17 @@ const ALL = ['high', 'top'];
 const last = (before) => before[before.length - 1];
 const shape = (h) => [...rankCounts(h).values()].sort().join();
 const wheel = (h) => 'A2345'.split('').every((r) => countOf(h, r) === 1);
+// Every five cards of one suit, in the order played (top card first), as
+// one hand; leftovers are never paid.
+function flushesOf(inputs) {
+  const piles = {}, out = [];
+  for (const c of inputs.flat()) {
+    const pile = (piles[suitOf(c)] ??= []);
+    pile.push(c);
+    if (pile.length === 5) out.push(pile.splice(0));
+  }
+  return out;
+}
 const jacksOrBetter = (h) => isStraight(h) || isFlush(h) || largestSet(h) >= 3 || shape(h) === '1,2,2' ||
   (shape(h) === '1,1,1,2' && h.some((c) => countOf(h, rankOf(c)) === 2 && hv(c) >= 11));
 
@@ -237,60 +248,59 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'after-a-pair',
+    id: 'suit-yourself',
     chapter: 4,
     card: '9S',
-    title: 'After a Pair',
+    title: 'Suit Yourself',
     story: [
-      'Dmitri has a theory about streaks. A pair, he says, warms the table, so the hand after any hand holding a pair or better should win, whatever it holds itself.',
-      'Two pair, three of a kind and the rest all count as a pair or better. The first hand of the night follows nothing and never wins. Dmitri has a spreadsheet for this as well.',
+      'Dmitri has a new spreadsheet, with one column for each suit. Every card played tonight goes into its suit\'s column, in the order it was played, top card first, and every time a column reaches five cards, those five are a flush and the house pays them out as one hand, however many hands they came from.',
+      'Then the column starts again. Cards left in a column at closing time stay with the house. Dmitri calls this fair; the Owner calls it accounting.',
     ],
-    brief: 'Five-card hands. Pay out every hand that comes straight after a hand holding a pair or better.',
+    brief: 'Five-card hands. Every time five cards of one suit have been played (since that suit last paid), pay out those five as one hand. Cards count in the order played, top card first.',
     handSize: 5,
     floor: floorOf(hexRect(-3, 3, -7, 5), L9),
     fixed: L9,
     croupiers: paletteThrough('hand'),
     warRules: ALL,
-    pays: (h, before) => before.length > 0 && largestSet(last(before)) >= 2,
+    expected: flushesOf,
     tests: makeTests({
       handSize: 5, handsPerTest: 10,
       fixed: [
-        ['2S 2D 5C 9H KS', 'AS KD QC JH 9S', '3S 3D 3C 7H JS', 'KS KD QS QD 2H', '2H 4H 6H 8H TH',
-          '4S 5D 6C 7H 8S', '9S 9D 4C 4H 9C', 'AH 3S 5D 7C JD', '6S 6D 6C 6H 2S', 'TS JD QC KH AS'],
-        // pairs back to back, then no pairs back to back
-        ['2S 2D 5C 9H KS', '3S 3D 6C TH QS', '4S 4D 7C JH KD', '5S 5D 8C QH AS', '6S 6D 9C KH AD',
-          'AH KD QC JH 9S', '2H 4D 6C 8S TD', '3H 5D 7C 9S JD', '4H 6D 8C TS QD', '5H 7D 9C JS KD'],
-        // alternating
-        ['AH KD QC JH 9S', '2S 2D 5C 9H KS', '2H 4D 6C 8S TD', '3S 3D 6C TH QS', '3H 5D 7C 9S JD',
-          '4S 4D 7C JH KD', '4H 6D 8C TS QD', '5S 5D 8C QH AS', '5H 7D 9C JS KD', '6S 6D 9C KH AD'],
+        // flushes as dealt, and flushes that take several hands to build
+        ['2S 3S 4S 5S 6S', 'AH 2D 3C 4H 5D', '7H 8H 9H TH 6D', 'JS QS KS AS 7D', '8D 9D 2C 3C 4C',
+          'TD 5C 6C 7C 8C', 'AC TS JD QD KD', '9C 2H 3H 4D 5H'],
+        // one suit only, then nothing completes
+        ['AS 2S 3S 4S 5S', '6S 7S 8S 9S TS', 'JS QS KS AH 2H', '3H 4D 5C 6H 7D'],
+        ['AH KD QC JS 2H'],
       ],
-      nRandom: 4, seed: 145,
+      nRandom: 4, seed: 155,
     }),
   },
   {
-    id: 'bookends',
+    id: 'change-of-heart',
     chapter: 4,
     card: 'TS',
-    title: 'Bookends',
+    title: 'Change of Heart',
     story: [
-      'The doormen\'s game has outlived the doormen\'s break. Two-card hands again, but now each hand is played against the one before it: a hand wins if its top card beats the bottom card of the previous hand.',
-      'Aces are high and a tie loses, as ever. The first hand of the night has nothing to lean on and never wins. The Kesslers\' bottom dealer says he has always known the bottom card was the important one.',
+      'It is Old Thursday\'s birthday, and the families have had a whip-round. Every spade played tonight is changed at the chip desk for the heart of the same rank, out of the house\'s own cards: a 7 of hearts for the 7 of spades, an ace for an ace. The hearts all go to Thursday.',
+      'The spades stay with the house, and every other card is just a card. Thursday says it is the best birthday he has had in forty years of betting on hearts.',
     ],
-    brief: 'Two-card hands. Pay out every hand whose top card beats the bottom card of the hand before it.',
-    handSize: 2,
-    floor: floorOf(hexRect(-2, 2, -7, 3), L10, [[-2, -1]]),
+    brief: 'Single cards. For every spade played, pay out the heart of the same rank (a house card). Nothing else is paid.',
+    handSize: 1,
+    floor: floorOf(hexRect(-3, 2, -7, 5), L10),
     fixed: L10,
     croupiers: paletteThrough('hand'),
     warRules: ALL,
-    pays: (h, before) => before.length > 0 && hv(h[0]) > hv(last(before)[1]),
+    expected: (inputs) => inputs.filter((h) => suitOf(h[0]) === 'S').map((h) => [`${rankOf(h[0])}H`]),
     tests: makeTests({
-      handSize: 2, handsPerTest: 20,
+      handSize: 1, handsPerTest: 26,
       fixed: [
-        ['KS 2D', '3C KH', 'AS 2H', '2D AC', 'AH 7S', '7D 9C', '9H 9S', 'TD 4C', '5S QD', '4H 3S', 'KD KC', 'AD 2S'],
-        // the top card, not the higher card, must beat the bottom card before
-        ['2S AD', 'AS 2D', '3C KH', 'KS 3D', 'QH QC', 'JS 5H', '6D JD', '5C 4D', '4S TH'],
+        one('AS KS 7S 2H 7H 2S QD TS 3C'),
+        one('AH 2D 3C 4H 5D'),
+        one('KS QS JS TS 9S 8S 7S 6S 5S 4S 3S 2S AS'),
+        one('7S 7S 7D 7S'),
       ],
-      nRandom: 4, seed: 146,
+      nRandom: 4, seed: 156,
     }),
   },
   {
@@ -395,8 +405,8 @@ const PAR = {
   'the-wheel': { croupiers: 6, rounds: 11 },
   'calling-card': { croupiers: 11, rounds: 30 },
   'seven-heaven': { croupiers: 5, rounds: 34 },
-  'after-a-pair': { croupiers: 13, rounds: 24 },
-  'bookends': { croupiers: 5, rounds: 22 },
+  'suit-yourself': { croupiers: 9, rounds: 9 },
+  'change-of-heart': { croupiers: 6, rounds: 87 },
   'next-in-line': { croupiers: 5, rounds: 17 },
   'jacks-or-better': { croupiers: 19, rounds: 18 },
   'house-record': { croupiers: 31, rounds: 105 },

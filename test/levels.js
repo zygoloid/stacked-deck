@@ -1,5 +1,6 @@
-// Verifies the campaign in src/levels.js (chapters in src/levels/) against
-// the reference solutions in solutions/levels/<id>.js.
+// Verifies the campaign in src/levels.js (chapters in src/levels/) and the
+// bonus deck (src/levels/bonus.js) against the reference solutions in
+// solutions/levels/<id>.js.
 //
 // For every level:
 //  * the level is well formed (fields, floor, fixed cells, palette, tests);
@@ -7,6 +8,11 @@
 //    (A..K in the chapter's suit, or ? ?? $ $$ in the finale);
 //  * the palette only grows; special cards only appear in the finale, only
 //    grow, and are not mentioned before a floor allows them;
+//  * bonus floors: ids unique across the campaign and the bonus deck; each
+//    opens after a campaign floor (`unlockAfter`), in campaign order, with
+//    cards A..K of BONUS_SUIT in list order; its palette, War rules and
+//    special cards are all available by its unlockAfter floor;
+//  * a level has either `pays(hand, earlierHands)` or `expected(inputs)`;
 //  * its reference solution only uses the level's floor, palette, War rules
 //    and special cards, places only shoes and croupiers, and doesn't overlap
 //    the fixed cells;
@@ -21,14 +27,16 @@
 //    hand; removing any one croupier from the reference solution breaks it;
 //    and the levels that teach the door fail without one.
 //
-//   node test/levels.js [id | chapter]      (chapter: 1-5 or hearts, diamonds, ...)
+//   node test/levels.js [id | chapter]      (chapter: 1-5 or hearts, diamonds, ..., bonus)
 import assert from 'node:assert';
-import { LEVELS, CHAPTERS, CHAPTER_FILES, CHAPTER_SUITS, FINALE_CARDS } from '../src/levels.js';
-import { runTest, FUNCTIONS, DIRS } from '../src/engine.js';
+import {
+  LEVELS, BONUS, CHAPTERS, CHAPTER_FILES, CHAPTER_SUITS, FINALE_CARDS, BONUS_FILE, BONUS_SUIT,
+} from '../src/levels.js';
+import { runTest, expectedPayouts, handKey, FUNCTIONS, DIRS } from '../src/engine.js';
 import { RANKS, SUITS, SPECIALS } from '../src/cards.js';
 
 const MUTANTS = {}, DOOR = [];
-for (const name of Object.values(CHAPTER_FILES)) {
+for (const name of [...Object.values(CHAPTER_FILES), BONUS_FILE]) {
   const m = await import(`./mutants/${name}.js`);
   Object.assign(MUTANTS, m.MUTANTS);
   DOOR.push(...m.DOOR);
@@ -37,7 +45,8 @@ for (const name of Object.values(CHAPTER_FILES)) {
 const arg = process.argv[2];
 const byName = Object.fromEntries(Object.entries(CHAPTER_FILES).map(([n, f]) => [f, Number(n)]));
 const onlyChapter = arg && (/^[1-5]$/.test(arg) ? Number(arg) : byName[arg]);
-const selected = (level) => !arg || level.id === arg || level.chapter === onlyChapter;
+const selected = (level) => !arg || level.id === arg ||
+  (arg === BONUS_FILE ? BONUS.includes(level) : !BONUS.includes(level) && level.chapter === onlyChapter);
 const key = ([q, r]) => `${q},${r}`;
 const step = (at, d) => [at[0] + DIRS[d][0], at[1] + DIRS[d][1]];
 
@@ -48,14 +57,20 @@ let failures = 0;
 const check = (cond, msg) => { if (!cond) { failures++; console.log(`   FAIL ${msg}`); } };
 
 // Run every test; a machine "fails the level" if any test is not ok.
-const runAll = (level, cells, opts) => level.tests.map((t) => runTest({ cells }, t, level.pays, opts));
+const runAll = (level, cells, opts) => level.tests.map((t) => runTest({ cells }, t, level, opts));
+// A test's payouts as a sorted list of hand keys (compared like runTest does).
+const payoutKeys = (level, hands) => hands.map((h) => handKey(h, !!level.ordered)).sort().join(' | ');
 
 // --- Campaign-wide checks (always on the whole campaign) ---
 const ids = new Set(), cards = new Set();
 let prevChapter = 1, prevPalette = [], prevSpecials = [], specialsSeen = false;
 const perChapter = new Map();
+// What the campaign has made available by each floor (for the bonus deck).
+const availableBy = new Map();
+const rulesSeen = new Set();
 for (const level of LEVELS) {
   const where = `${level.id}:`;
+  (level.warRules ?? ['high']).forEach((r) => rulesSeen.add(r));
   check(!ids.has(level.id), `${where} duplicate id`); ids.add(level.id);
   check(Number.isInteger(level.chapter) && CHAPTERS[level.chapter], `${where} chapter ${level.chapter} is one of ${Object.keys(CHAPTERS)}`);
   check(level.chapter >= prevChapter, `${where} chapters are in order`); prevChapter = level.chapter;
@@ -82,7 +97,33 @@ for (const level of LEVELS) {
     const text = [level.title, level.brief, ...(level.story ?? [])].join(' ');
     check(!SPECIAL_WORDS.test(text), `${where} doesn't mention special cards before they're introduced`);
   }
+  availableBy.set(level.id, {
+    index: availableBy.size, palette: level.croupiers, rules: [...rulesSeen], specials, specialsSeen,
+  });
 }
+// The bonus deck.
+let prevUnlock = -1;
+BONUS.forEach((level, i) => {
+  const where = `${level.id} (bonus):`;
+  check(!ids.has(level.id), `${where} id is unique across the campaign and the bonus deck`); ids.add(level.id);
+  check(level.chapter === undefined, `${where} has no chapter`);
+  const want = i < 13 ? RANKS[i] + BONUS_SUIT : null;
+  check(level.card === want, `${where} card ${level.card} should be ${want} (at most 13 bonus floors)`);
+  const after = availableBy.get(level.unlockAfter);
+  check(after, `${where} unlockAfter ${level.unlockAfter} is a campaign floor`);
+  if (!after) return;
+  check(after.index >= prevUnlock, `${where} bonus floors are in the order they unlock`); prevUnlock = after.index;
+  const lost = level.croupiers.filter((c) => !after.palette.includes(c));
+  check(!lost.length, `${where} palette is available by ${level.unlockAfter} (not yet: ${lost})`);
+  const rules = level.warRules ?? ['high'];
+  check(rules.every((r) => after.rules.includes(r)), `${where} War rules ${rules} are available by ${level.unlockAfter}`);
+  const specials = level.specialCards ?? [];
+  check(specials.every((c) => after.specials.includes(c)), `${where} specialCards ${specials} are available by ${level.unlockAfter}`);
+  if (!after.specialsSeen) {
+    const text = [level.title, level.brief, ...(level.story ?? [])].join(' ');
+    check(!SPECIAL_WORDS.test(text), `${where} doesn't mention special cards before they're introduced`);
+  }
+});
 for (const [ch, name] of Object.entries(CHAPTER_FILES)) {
   const have = perChapter.get(Number(ch)) ?? 0, full = CHAPTER_SUITS[ch] ? 13 : FINALE_CARDS.length;
   if (have < full) console.log(`(chapter ${ch}, ${name}: ${have} of ${full} floors so far)`);
@@ -90,16 +131,21 @@ for (const [ch, name] of Object.entries(CHAPTER_FILES)) {
 
 // --- Per-level checks ---
 let checked = 0;
-for (const level of LEVELS) {
+for (const level of [...LEVELS, ...BONUS]) {
   if (!selected(level)) continue;
   checked++;
-  console.log(`== ${level.card} ${level.id} (chapter ${level.chapter}): ${level.title}`);
+  const isBonus = BONUS.includes(level);
+  console.log(`== ${level.card} ${level.id} (${isBonus ? `bonus, after ${level.unlockAfter}` : `chapter ${level.chapter}`}): ${level.title}`);
 
   // --- Level shape ---
   check(/^[a-z0-9-]+$/.test(level.id), 'id is lowercase-kebab');
   for (const f of ['title', 'brief']) check(typeof level[f] === 'string' && level[f].length, `has ${f}`);
   check(Array.isArray(level.story) && level.story.length >= 1 && level.story.length <= 3, 'story has 1-3 paragraphs');
   check(Number.isInteger(level.handSize) && level.handSize >= 1, 'handSize');
+  const hasPays = typeof level.pays === 'function', hasExpected = typeof level.expected === 'function';
+  check(hasPays !== hasExpected, 'has exactly one of pays(hand, earlierHands) and expected(inputs)');
+  check(level.ordered === undefined || typeof level.ordered === 'boolean', 'ordered is a boolean');
+  check(!level.ordered || hasExpected, 'ordered only on an expected level');
   check(level.croupiers.every((c) => PALETTE.has(c)), `palette names ${level.croupiers}`);
   const warRules = level.warRules ?? ['high'];
   check(warRules.length && warRules.every((r) => r === 'high' || r === 'top'), 'warRules');
@@ -160,9 +206,11 @@ for (const level of LEVELS) {
   check(level.par && level.par.rounds === rounds, `par rounds ${level.par?.rounds} = ${rounds}`);
 
   // --- The tests discriminate ---
-  const expected = level.tests.map((t) => t.map((h, i) => level.pays(h, t.slice(0, i))));
-  const anyPaid = expected.some((e) => e.some(Boolean));
-  const anyUnpaid = expected.some((e) => e.some((x) => !x));
+  const payouts = level.tests.map((t) => expectedPayouts(level, t));
+  check(payouts.every((p) => Array.isArray(p) && p.every((h) => Array.isArray(h) && h.length)), 'payouts are non-empty hands');
+  const anyPaid = payouts.some((p) => p.length);
+  // "Pay everything" is right only where the payouts are exactly the inputs.
+  const anyUnpaid = level.tests.some((t, i) => payoutKeys(level, t) !== payoutKeys(level, payouts[i]));
   check(anyPaid, 'some hand is paid');
   const src = { at: [0, 0], kind: 'source', out: 0 };
   const payAll = [src, { at: [1, 0], kind: 'payout' }];
@@ -170,7 +218,9 @@ for (const level of LEVELS) {
   if (anyUnpaid) check(!runAll(level, payAll).every((r) => r.ok), '"pay everything" fails');
   check(!runAll(level, dropAll).every((r) => r.ok), '"drop everything" fails');
   for (const [name, wrong] of Object.entries(MUTANTS[level.id] ?? {})) {
-    const differs = level.tests.some((t) => t.some((h, i) => wrong(h, t.slice(0, i)) !== level.pays(h, t.slice(0, i))));
+    const differs = hasExpected
+      ? level.tests.some((t, i) => payoutKeys(level, wrong(t)) !== payoutKeys(level, payouts[i]))
+      : level.tests.some((t) => t.some((h, i) => wrong(h, t.slice(0, i)) !== level.pays(h, t.slice(0, i))));
     check(differs, `tests tell "${name}" apart from the real rule`);
   }
   // Every croupier in the reference solution is needed.
@@ -203,4 +253,4 @@ if (failures) {
   console.log(`\n${failures} level check(s) failed`);
   process.exit(1);
 }
-console.log(`\nlevels ok (${checked} of ${LEVELS.length} levels checked)`);
+console.log(`\nlevels ok (${checked} of ${LEVELS.length} campaign and ${BONUS.length} bonus levels checked)`);

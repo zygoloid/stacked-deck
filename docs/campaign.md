@@ -3,7 +3,8 @@
 One floor per playing card. Four suit chapters of 13 floors, A to K, then a
 finale of four floors, one per special card. This document describes the
 campaign as built: the floor table, when each croupier and card arrives, the
-conventions every chapter follows, and the notes from building it. All five
+conventions every chapter follows, and the notes from building it. Floors
+outside the 56 live in the bonus deck (see "The bonus deck" below). All five
 chapters are built; where the builders departed from the original plan, the
 tables below follow the code (`src/levels/*.js`, `tools/level-specs/*.js`).
 
@@ -11,8 +12,8 @@ tables below follow the code (`src/levels/*.js`, `tools/level-specs/*.js`).
 |---|---|---|---|---|---|
 | 1 | ♥ | Opening Night | `hearts` | Opening night, the Owner's notes, Old Thursday, the twins, Sal; the house learns to stack the deck. Ends with Dmitri's Even Money. | **built** |
 | 2 | ♦ | Stacking the Deck | `diamonds` | The Vellanis' games: flushes, sets, the Owner's sevens, then War. Ends with the Vellani family game; a rival casino lights up two blocks away. | **built** |
-| 3 | ♣ | House Rules | `clubs` | The rival casino opens; copies of a hand. Commissioner Pryce's top-card regulation (4♣ to 9♣); the Kesslers' bottom dealer and the riffles; Pryce loses Low Ball. Ends with verdict cards and the rival's last big night. | **built** |
-| 4 | ♠ | The House Always Wins | `spades` | The rival folds and its owner deals for you. Memory, burn, the ticket door, sort, hand. The council, the mayor's records, the house record. Ends with the envelope under the cash tray. | **built** |
+| 3 | ♣ | House Rules | `clubs` | The rival casino opens; copies of a hand. Commissioner Pryce's top-card regulation (4♣ to 9♣); the Kesslers' bottom dealer and the riffles; the first floors that pay something other than the hands dealt (a hand upside down, a hand once per ace); Pryce loses Low Ball. Ends with verdict cards and the rival's last big night. | **built** |
+| 4 | ♠ | The House Always Wins | `spades` | The rival folds and its owner deals for you. Memory, burn, the ticket door, sort, hand; flushes regrouped across hands, house hearts paid for spades. The council, the mayor's records, the house record. Ends with the envelope under the cash tray. | **built** |
 | 5 | | The Envelope | `finale` | You are the Owner now. The new printing of the house deck has extras: jokers and advertising cards. | **built** |
 
 The chapter name for the finale is deliberately neutral: special cards are an
@@ -37,13 +38,16 @@ Palettes grow in one fixed order (`paletteThrough(newest)` in
 | 4♣ | top-card War (regulation: top only, 4♣–9♣) | New Rules |
 | 5♣ | inshuffle, outshuffle | Bottom Dealer |
 | 8♣ | deal | Knockout |
-| 10♣ | both War rules again (regulation lifted) | Every Other |
+| 6♣ | expected payouts, `ordered` (the payouts are not the input hands) | Upside Down |
+| 10♣ | both War rules again (regulation lifted); a hand paid more than once | Ace Count |
 | J♣ | releasing a verdict card (technique, no new croupier) | Bottom Pair |
 | A♠ | shoe `once` (memory; technique) | Hot Streak |
 | 3♠ | burn | Burn Card |
 | 5♠ | the ticket door (technique) | Full House |
 | 7♠ | sort | Calling Card |
 | 8♠ | hand (n 1–13) | Seven Heaven |
+| 9♠ | payouts regrouped from several input hands | Suit Yourself |
+| 10♠ | payouts made of house cards | Change of Heart |
 | `?` | monochrome joker (`specialCards: ['?']`) | Mind the Gap |
 | `??` | colour joker | One Card Short |
 | `$` | front advertising card | Red Carpet |
@@ -55,7 +59,10 @@ from 10♣ on. `specialCards`: `[]` everywhere except the finale, where it grows
 
 ## The floors
 
-Difficulty is 1–10. "Ref" means a reference card from a shoe. Every sketch
+Difficulty is 1–10. "Ref" means a reference card from a shoe. Floors marked
+**expected** pay something other than a subset of the input hands (their
+level has `expected(inputs)` instead of `pays`; see docs/architecture.md,
+"Payouts"). Every sketch
 describes the reference solution (the recipe in `tools/level-specs/<chapter>.js`)
 and its par as croupiers/rounds from the chapter's `PAR` block; where a
 cleverer build is known, its croupier count follows (a way to beat par).
@@ -110,11 +117,11 @@ loses his own Tuesday game.
 | 3♣ | top-pair | Top Pair | set | 5 | high | pair or better, highest card in the largest set | K2 yes, duplicate, the copy's set pile is the gate's dealer, pay on lose (5/12) | 6 | yes |
 | 4♣ | new-rules | New Rules | top-card War | 5 | top | top card beats a 10 | top-card War vs a 10 shoe (4/11) | 3 | yes |
 | 5♣ | bottom-dealer | Bottom Dealer | in/out shuffles | 4 | top | bottom card beats a 10 | on 4 cards a cut only swaps the halves; in, in brings the bottom card up (in, cut too), then War vs a 10 (5/15) | 4 | yes (now 4-card hands) |
-| 6♣ | fourth-street | Fourth Street | shuffles beat cuts | 5 | top | 4th card beats a 10 | in + completed cut brings the 4th card up (cuts alone need four), then War vs a 10 (5/12) | 4 | new |
+| 6♣ | upside-down | Upside Down | **expected**, `ordered` | 5 | top | pay every hand in reverse order (card order checked) | completed cut, in, out reverses five cards (3/13); cutting into halves, reversing each (completed cut on 2, out + completed cut on 3) and stacking them also works (5) | 4 | new (replaces Fourth Street) |
 | 7♣ | second-fiddle | Second Fiddle | a non-rotation | 5 | top | top card beats the second card | out-shuffle gives [a d b e c]; cut, so the halves' top cards are a and b; top-card War of the halves, winner and dealer's loser stack to the desk (4/16). Rotations never put a and b on different halves' tops | 5 | new |
 | 8♣ | knockout | Knockout | deal | 5 | top | holds an ace | deal to five singles round the dealer; each merge is a War, a gather and a pass (the winning card goes straight to the gather, the loser round the pass to its under side, so the better top card stays on top); four merges bring the best card up; final War vs a K (17/37). One War with all four ports to one side (winner on top) is a whole merge: 8 | 6 | yes |
 | 9♣ | low-ball | Low Ball | | 5 | top | every card beats a 5 | a chain of five top-card Wars, each card in turn against a 5 from its own shoe: a completed cut between Wars rotates the hand by two, so all five get a turn (14/17). Passing the 5 just beaten along as the next dealer saves the shoes: 10. Pryce loses; the regulation goes | 7 | yes |
-| 10♣ | every-other | Every Other | both rules again | 5 | both | highest card (ties count) is the 1st or 3rd card | duplicate; deal the copy's 1st and 3rd cards to the gate and the rest onto the floor; gate on lose (4/15). An in-shuffle and a cut also isolate them | 5 | new |
+| 10♣ | ace-count | Ace Count | both rules again; **expected** (a hand paid several times) | 3 | both | pay each hand once per ace it holds | three stages: a copy plays a K by its top card (only an ace wins) and pays on a win; the hand is cut (on 3 cards a completed cut brings the next card up) (13/19, 3 passes). Passing the K just played on as the next War's dealer saves shoes | 5 | new (replaces Every Other, now in the bonus deck) |
 | J♣ | bottom-pair | Bottom Pair | **release a verdict, no door** | 5 | both | the bottom two cards are a pair | duplicate; deal drops the copy's top three cards; K2 on the bottom two: yes releases a 2, no an ace, both routes one War and one shared pass long; gate the original vs the verdict with high-card War (11/13) | 6 | new |
 | Q♣ | small-pairs | Small Pairs | | 5 | both | largest set is a pair (or two pair) and every paired card is 6 or lower | K2 yes, K3 no, duplicate; copy → set → War(set pile vs a 6): the 6 it loses to releases a 2, the 6 it beats an ace; same verdict and gate as Bottom Pair (14/13) | 7 | new |
 | K♣ | two-pair | Two Pair | finale | 5 | both | exactly two pair (trips, full houses and quads don't count) | K3 no; duplicate; copy → set → deal drops one paired card, so what's left still holds a pair only if there were two → K2; release; gate (13/15) | 7 | new |
@@ -133,8 +140,8 @@ Both War rules throughout.
 | 6♠ | the-wheel | The Wheel | burn strips a ref | 5 | ace-to-five straights only | 6 on top → straight (only A–5 or 7–J and the like) → burn → beats a K (6/11) | 5 | new |
 | 7♠ | calling-card | Calling Card | sort | 5 | holds a spade | duplicate; sort the copy so a spade comes to the top; burn isolates the top card; suits turn it into a verdict (2 or A); gate. One decision, equal routes, no door (11/30; old par 14 with a door) | 6 | yes |
 | 8♠ | seven-heaven | Seven Heaven | hand | 5 | three or more 7s | shoe of 7s → Hand(4) → four 7s on top → K7 → cut (5/34); five 7s and K8 also work, slower; compare Lucky Number's loop | 4 | new |
-| 9♠ | after-a-pair | After a Pair | delayed verdict | 5 | pay a hand if the hand before it held a pair or better | duplicate; the copy goes through K2, yes releases a 2 and no an ace (equal routes) into the gate's dealer line, which a `once` shoe seeds with an ace; each original meets the verdict on the hand before it (13/24). Without a copy (the hand itself goes through K2): 12 | 6 | new |
-| 10♠ | bookends | Bookends | carrying a card to the next hand | 2 | top card beats the previous hand's bottom card | duplicate; the copy burns its top card, and its bottom card waits in the gate's dealer line behind a `once` ace; top-card War (5/22) | 5 | new |
+| 9♠ | suit-yourself | Suit Yourself | **expected**: regrouping | 5 | every five cards of one suit played (in play order, top card first) are paid as one hand; leftovers never | Suits to four sides, a Hand(5) per suit, passes to the desk (9/9) | 4 | new (replaces After a Pair, now in the bonus deck) |
+| 10♠ | change-of-heart | Change of Heart | **expected**: house cards | 1 | for every spade, pay the heart of the same rank | a shoe stacked A♥..K♥ into Hand(13) makes a whole suit; gather a spade on top, Set pulls out [spade, heart], burn drops the spade by the desk (6/87). A suit kept circulating (duplicate, a `once` build) is much faster | 6 | new (replaces Bookends, now in the bonus deck) |
 | J♠ | next-in-line | Next in Line | windows with Hand | 1 | a card next in rank to the card before (the first card is compared with the dealer's 7) | duplicate with both ports to one side, a `once` shoe seeds a 7, Hand(2) makes [previous, current] windows, straight, cut's bottom card to the desk (the copy is paid) (5/17) | 6 | new |
 | Q♠ | jacks-or-better | Jacks or Better | everything, no door | 5 | video poker: a pair of jacks or better, or any better hand | straight / flush / K3 pay directly; K2 no drops; pairs: copy → set → burn → K2 (two pair) or the lone pair card vs a 10 (high pair); release; gate. A pass beside the second K2 matches the War vs the 10, so every route from the last decision takes the same time and no door is needed (19/18) | 9 | new |
 | K♠ | house-record | House Record | finale | 5 | largest set ties or beats every earlier hand's | copy → K2/K3/K4 release a marker card for the set size → champion loop of markers → release a 2 or an ace; gate; door (31/105) | 10 | yes |
@@ -151,6 +158,46 @@ Both War rules throughout.
 (Snap — "pay a card of the same rank as the card before; the first card
 never wins" — is the same window machine as Next in Line with a `$` seed
 instead of a 7, *(sim: 5)*; a spare idea if a finale floor needs replacing.)
+
+## The bonus deck (built)
+
+`BONUS` in `src/levels.js` (module `src/levels/bonus.js`, recipes in
+`tools/level-specs/bonus.js`, mutants in `test/mutants/bonus.js`): floors
+outside the 56-card campaign. Cut floors move here rather than being deleted
+(their ids, saves and solutions are unchanged), and the deck holds extra
+floors. Each bonus floor opens once its `unlockAfter` campaign floor is
+solved and doesn't count towards the campaign's unlock window.
+
+**Cards.** The bonus deck is a second deck, and so far uses its spades: the
+n-th bonus floor is the n-th card A♠, 2♠, ... K♠, and BONUS is kept in the
+order the floors unlock (by their unlockAfter floor's place in the
+campaign), so the cards read in unlock order. Adding a floor in the middle
+renumbers the later ones (cards are labels only; saves are keyed by id).
+After K♠ the deck would continue with a second suit.
+
+**Palette.** A bonus floor's palette, War rules and special cards must all be
+available at its unlockAfter floor (test/levels.js checks this; the
+campaign's "palette only grows" rule doesn't apply to the bonus deck).
+
+| Card | id | Title | After | Hand | Puzzle | Reference (par) | Diff | Origin |
+|---|---|---|---|---|---|---|---|---|
+| A♠ | small-change | Small Change | 7♦ beat-the-dealer | 1 | **expected**, house cards: for every K pay the A♠ | War vs a Q (win), War vs a K (lose: kings only), War against an A♠ shoe, dealer's win to the desk (6/19) | 2 | new |
+| 2♠ | split-pot | Split Pot | 3♣ top-pair | 5 | **expected**: for every hand with a pair or better, pay its largest set and the rest as two hands | K2, Set with the two piles to the desk by different sides (same side would stack them) (3/11) | 2 | new |
+| 3♠ | every-other | Every Other | 10♣ ace-count | 5 | highest card (ties count) is the 1st or 3rd card | duplicate; deal the copy's 1st and 3rd cards to the gate and the rest onto the floor; gate on lose (4/15) | 5 | cut from 10♣ (it repeated Upper Hand) |
+| 4♠ | after-a-pair | After a Pair | 9♠ suit-yourself | 5 | pay a hand if the hand before it held a pair or better | duplicate; the copy's K2 releases a 2 or an ace into the gate's dealer line, seeded with a `once` ace (13/24); 12 without a copy | 6 | cut from 9♠ |
+| 5♠ | bookends | Bookends | 10♠ change-of-heart | 2 | top card beats the previous hand's bottom card | duplicate; the copy's bottom card waits in the gate's dealer line behind a `once` ace; top-card War (5/22) | 5 | cut from 10♠ (it repeated Hot Streak's carried card) |
+| 6♠ | four-of-a-kind | Four of a Kind | `$$` deja-vu | 1 | **expected**, regrouped: every time the fourth unpaid card of a rank is played, pay those four as one hand | Déjà Vu's memory seeded with `$$`: gather, K4, Set (set to the desk, rest back to the memory) (6/67) | 6 | new |
+
+Fourth Street (6♣, "the 4th card beats a 10") was replaced outright by Upside
+Down: it was Bottom Dealer's floor again with one more card, and Burn Card
+(3♠) asks the same question with the next croupier.
+
+Ideas not built: "for each spade, pay the next higher spade" (Set can look
+up a card of the same rank, as in Change of Heart, but nothing on the
+palette picks out the *next* rank without a long search loop; Change of
+Heart is the same-rank variant); "pay the ace of the same suit for every
+king" (Small Change with a suit splitter and four ace Wars, 13 croupiers of
+the same idea).
 
 ## Conventions for chapter builders
 
@@ -169,6 +216,7 @@ instead of a 7, *(sim: 5)*; a spare idea if a finale floor needs replacing.)
 * Workflow: `node tools/write-solutions.js <chapter> --par` (writes that
   chapter's solutions and PAR table only), then `node test/levels.js <chapter>`,
   then `npm test`. Remove `solutions/levels/<id>.js` for any id you drop.
+  The bonus deck works the same way with `bonus` as the chapter name.
 * Shared files (`src/levels.js`, `src/levels/shared.js`, `test/levels.js`,
   `tools/*.js`) belong to the coordinator: ask rather than edit. Never touch
   `src/engine.js`, `src/cards.js`, `index.html`, `style.css`, `src/ui/**`.
@@ -181,7 +229,13 @@ instead of a 7, *(sim: 5)*; a spare idea if a finale floor needs replacing.)
 
 * Cards: the n-th floor of a chapter is the n-th card (A..K of the chapter's
   suit; `?`, `??`, `$`, `$$` in the finale); unique. Add floors in card order.
+* A level has exactly one of `pays(hand, earlierHands)` and
+  `expected(inputs)`; `ordered: true` only with `expected`.
 * The palette only grows across the whole campaign (use `paletteThrough`).
+* The bonus deck: ids unique across `LEVELS` and `BONUS`; no `chapter`;
+  `unlockAfter` names a campaign floor, and BONUS is in unlock order; cards
+  A♠, 2♠, ... in list order; palette, War rules and special cards all
+  available at the unlockAfter floor (no special-card words before then).
 * `specialCards` only in the finale, only growing; no floor before the first
   special floor mentions "joker", "advertis…" or "wild card" in its title,
   brief or story.
@@ -189,8 +243,12 @@ instead of a 7, *(sim: 5)*; a spare idea if a finale floor needs replacing.)
   only natural cards plus the level's `specialCards`; every test passes; par
   exact; removing any one croupier breaks it; door levels fail without the door.
 * Tests: ≥ 3; every hand has `handSize` distinct natural cards (fixed tests
-  may reuse cards between hands); "pay all" and "drop all" fail; every mutant
-  differs from the real rule on some test hand.
+  may reuse cards between hands); "pay all" (wherever the payouts aren't
+  just the inputs) and "drop all" fail; every mutant differs from the real
+  rule on some test hand. For an `expected` floor a mutant is
+  `(inputs) => payouts` and must give different payouts on some test
+  (paying the input hand untransformed, the right cards grouped wrongly,
+  once instead of per ace, ...).
 
 ### Design rules
 
@@ -201,10 +259,22 @@ instead of a 7, *(sim: 5)*; a spare idea if a finale floor needs replacing.)
   player could guess wrong.
 * **Rules are causal.** `pays(hand, earlierHands)` sees only earlier hands, so
   "the best of its group" style rules are impossible; "the 5th card of its
-  group" is fine.
-* **Payouts are input hands.** Any order within a hand; a duplicate's copy
-  counts as the card (so a copy may be paid and the original dropped); house
-  cards never. Regrouping can only be internal.
+  group" is fine. `expected(inputs)` sees the whole test, but every payout
+  must depend only on cards already played (Suit Yourself pays five of a
+  suit as soon as the fifth is played; leftovers at the end are never paid).
+* **Payouts.** On a `pays` floor the payouts are input hands: any order
+  within a hand; a duplicate's copy counts as the card (so a copy may be paid
+  and the original dropped); house cards never. An `expected` floor lists the
+  exact payouts instead: a hand may be paid several times (Ace Count),
+  rebuilt from several inputs (Suit Yourself, Four of a Kind), reordered
+  (`ordered: true`, Upside Down), split (Split Pot) or made of house cards
+  (Change of Heart, Small Change). Card order within a payout doesn't matter
+  unless the floor is `ordered`, and the order of the payouts never does.
+  Define every edge case in the brief (leftovers, empty results, ties).
+* **House cards in flight.** A test normally ends once every player card has
+  left the floor; if payouts are still owed then (house cards on their way to
+  the desk), it runs on for up to 50 rounds before failing. So house-card
+  floors needn't time the player's card to leave with the house card.
 * **Floor sizing.** The working croupiers should dominate: place the desk so
   the reference needs few passes (≤ about a quarter of par), and leave 1.5–3×
   the reference's footprint so other designs fit. Pillars are for making
@@ -246,7 +316,8 @@ instead of a 7, *(sim: 5)*; a spare idea if a finale floor needs replacing.)
   than the rotation by cuts). From 8♣ on, Deal with repeated sides makes any
   order-preserving subset of a hand (unlisted sides drop cards), so shuffles
   are only ever necessary on 5♣–7♣; later floors that pick out positions use
-  Deal (Every Other, Bottom Pair, Two Pair).
+  Deal (Bottom Pair, Two Pair; Every Other in the bonus deck). Upside Down
+  (6♣) is a non-rotation too: completed cut, in, out reverses five cards.
 * **Stacking.** Outputs to one side are stacked: War with all four ports one
   way stacks winner on top (so a knockout merge can be one War, a way to beat
   Knockout's par, but a "loser on top" merge still needs a gather); Duplicate with both ports one way doubles
@@ -261,9 +332,9 @@ instead of a 7, *(sim: 5)*; a spare idea if a finale floor needs replacing.)
 * A reference stack built by Hand(n) (Seven Heaven), or by a loop (beats
   Lucky Number's unrolled par).
 * Deal as a selector: list a side once per card position to keep, an empty
-  side for cards to drop (Every Other, Bottom Pair, Two Pair).
+  side for cards to drop (Bottom Pair, Two Pair, bonus Every Other).
 * Test a copy and gate the original with a *copy-derived dealer* (Upper Hand,
-  High Spade, Top Pair, Every Other): no verdict needed when "the highest card
+  High Spade, Top Pair, bonus Every Other): no verdict needed when "the highest card
   is (not) in this pile" is the question.
 * Rig the last War (Acey-Deucey): when a hand is tested in pieces, every
   piece goes on; failing pieces collect an ace so the final War loses.
@@ -271,15 +342,22 @@ instead of a 7, *(sim: 5)*; a spare idea if a finale floor needs replacing.)
   dealer ports one way; yes releases a 2, no an ace, and the original plays
   it at a high-card gate.
 * A shoe deck as a sequence (Third Time Lucky): shoes deal in order, one card
-  per free slot.
+  per free slot. With Hand(13) a shoe stacked with a suit deals whole suits
+  (Change of Heart).
+* Set as a lookup (Change of Heart): put a card on top of a whole suit and
+  Set pulls out the pair, its own card and the house card of the same rank.
+* Rotate and test (Ace Count): copy, test the top card, rotate the hand
+  (completed cut on 3 or 5 cards, burn with both ports one way), repeat.
+* A Hand(n) per pile regroups cards across hands (Suit Yourself).
 * Carry a card to the next hand: put it in the gate's dealer line behind a
-  `once` seed for the first hand (Hot Streak, After a Pair's verdicts,
-  Bookends' bottom cards).
+  `once` seed for the first hand (Hot Streak; in the bonus deck, After a
+  Pair's verdicts and Bookends' bottom cards).
 * Windows: Duplicate (both ports one way) + a seed + Hand(2) gives
   [previous, current] pairs.
 * Advertising cards as fillers and seeds: a `$` keeps a pile from being
   empty without ever pairing (Red Carpet); a `$$` seeds a memory (Déjà Vu).
-* Memory of player cards (Déjà Vu): the cards themselves circulate.
+* Memory of player cards (Déjà Vu): the cards themselves circulate (and in
+  the bonus deck's Four of a Kind, Set pays a completed rank out of it).
 
 ## Feasibility notes
 
@@ -287,7 +365,8 @@ Machines checked in the simulator while planning, and what the built
 references came to (par croupiers):
 
 * Shuffles: Bottom Dealer (4-card) in,in (in,cut also works); Fourth Street
-  in,cut vs four cuts; Second Fiddle out,cut (no rotation puts the 1st and 2nd
+  (cut from the campaign: it repeated Bottom Dealer's idea) in,cut vs four
+  cuts; Upside Down cut,in,out (no shorter chain of cuts and riffles reverses five cards); Second Fiddle out,cut (no rotation puts the 1st and 2nd
   cards on top of different halves); Burn Card a single burn. The planned
   Top and Bottom (7♣) and 4-card Bookends were dropped; Every Other and Bottom
   Pair use Deal instead of the planned shuffles.
@@ -309,6 +388,15 @@ references came to (par croupiers):
   6 as the sandwich); Penny Ante 10 with a cut per stage (9 sharing one);
   Royalty 13 with three single-ref stages (10 with the sandwich and a shared
   cut).
+* Expected floors: Upside Down 3 (cut, in, out; 5 splitting the halves);
+  Ace Count 13 with three copy-test-cut stages on 3-card hands (5-card hands
+  would need five stages, 18 plus passes); Suit Yourself 9 (four Hand(5)
+  croupiers, four passes: a desk can't be next to more than two of the
+  splitter's neighbours); Change of Heart 6 but slow (a new suit takes 13
+  rounds to collect); Small Change 6; Split Pot 3; Four of a Kind 6. On
+  house-card floors a machine that drops the player's card a round before the
+  house card reaches the desk fails on the last card of a test (see "The
+  night ends with the last player card").
 * Even Money: the owner reported an 11-croupier loop; I could not find it (a
   single gather/straight/cut loop fed by a cycling 3-7-J shoe jams on the odd
   cards, which never leave). The reference is 14 unrolled with a cut per

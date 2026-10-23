@@ -3,7 +3,7 @@
 //   node tools/optimize-level.js <id> [iterations] [seed] [--nowalls]
 // Prints the best node positions found; paste them back into the recipe.
 import { rng } from '../src/cards.js';
-import { LEVELS } from '../src/levels.js';
+import { LEVELS, BONUS } from '../src/levels.js';
 import { runTest } from '../src/engine.js';
 import { SPECS } from './level-specs.js';
 import { buildLevel } from './level-build.js';
@@ -11,7 +11,7 @@ import { buildLevel } from './level-build.js';
 const args = process.argv.slice(2);
 const walls = !args.includes('--nowalls');
 const [id, iters = '5000', seed = '1'] = args.filter((a) => !a.startsWith('--'));
-const level = LEVELS.find((l) => l.id === id);
+const level = [...LEVELS, ...BONUS].find((l) => l.id === id);
 const spec = SPECS[id];
 if (!level || !spec?.nodes) { console.error(`${id}: no level, or its recipe is hand-written cells (only { nodes, links } recipes can be optimized)`); process.exit(1); }
 const rand = rng(Number(seed));
@@ -24,7 +24,7 @@ const score = (nodes, check = false) => {
     if (walls && cells.some((c) => !floor.has(c.at.join(',')))) return Infinity;
     if (check) {
       const all = [...level.fixed, ...cells];
-      if (!level.tests.every((t) => runTest({ cells: all }, t, level.pays).ok)) return Infinity;
+      if (!level.tests.every((t) => runTest({ cells: all }, t, level).ok)) return Infinity;
     }
     return cells.length;
   } catch { return Infinity; }

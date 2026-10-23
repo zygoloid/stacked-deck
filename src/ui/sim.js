@@ -30,6 +30,7 @@ export class Sim {
     this.floor = new Floor(this.spec, this.inputs);
     this.snaps = new Map([[0, this.floor.snapshot()]]);
     this.settled = null;
+    this.drained = null;
     this.lastMove = 0;
     this.sig = this.signature();
     this.status = { kind: 'ready' };
@@ -102,9 +103,14 @@ export class Sim {
         return this.status.kind;
       }
     }
-    if (f.inputPos >= this.inputs.length && f.paid.length >= this.expected.length) this.settled ??= f.round;
+    const allPaid = f.inputPos >= this.inputs.length && f.paid.length >= this.expected.length;
+    if (allPaid) this.settled ??= f.round;
+    // Player cards all gone but payouts still owed: house cards may still be
+    // on their way to the desk, so allow GRACE rounds (as runTest does).
+    if (f.done() && !allPaid) this.drained ??= f.round;
     const t = () => this.tally();
-    if (f.done() || (this.settled !== null && f.round - this.settled >= GRACE)) {
+    if ((f.done() && (allPaid || f.round - this.drained >= GRACE)) ||
+        (!f.done() && this.settled !== null && f.round - this.settled >= GRACE)) {
       const { missing } = t();
       this.status = missing.length
         ? { kind: 'missing', missing, msg: `Every card has left the floor, but ${missing.length} ${this.listed ? 'expected payout' : 'winning hand'}${missing.length > 1 ? 's were' : ' was'} never paid.` }
@@ -137,6 +143,7 @@ export class Sim {
     for (const k of this.snaps.keys()) if (k > target) this.snaps.delete(k);
     this.snaps.set(target, this.floor.snapshot());
     if (this.settled !== null && this.settled > target) this.settled = null;
+    if (this.drained !== null && this.drained > target) this.drained = null;
     this.lastMove = Math.min(this.lastMove, target);
     this.sig = this.signature();
     this.status = { kind: target === 0 ? 'ready' : 'paused' };

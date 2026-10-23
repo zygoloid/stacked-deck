@@ -1,6 +1,7 @@
 // Chapter 3 (clubs): House Rules. Copies of a hand (duplicate), sets,
 // Commissioner Pryce's top-card regulation (4♣ to 9♣) with the riffles and
-// the deal it calls for, and finally verdict cards: a copy decides, a
+// the deal it calls for, the first floors that pay something other than the
+// hands dealt (Upside Down, Ace Count), and finally verdict cards: a copy decides, a
 // released card carries the verdict, the original is paid at a gate.
 // See docs/campaign.md for the plan.
 import {
@@ -14,11 +15,11 @@ const F2 = [source([-3, 0], E), desk([1, 0])];
 const F3 = [source([-3, 0], E), desk([2, 0])];
 const F4 = [source([-2, 0], E), desk([2, 0])];
 const F5 = [source([-3, 0], E), desk([2, 0])];
-const F6 = [source([-3, 0], E), desk([2, 0])];
+const F6 = [source([-3, 0], E), desk([1, 0])];
 const F7 = [source([-3, 0], E), desk([1, 0])];
 const F8 = [source([-1, 0], E), desk([-2, -1])];
 const F9 = [source([-3, 0], E), desk([3, 0])];
-const F10 = [source([-2, 0], E), desk([2, 0])];
+const F10 = [source([-3, 0], E), desk([1, -2])];
 const F11 = [source([-2, -1], E), desk([3, -2])];
 const F12 = [source([-4, -1], E), desk([3, -2])];
 const F13 = [source([-3, -1], E), desk([3, -2])];
@@ -159,25 +160,26 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'fourth-street',
+    id: 'upside-down',
     chapter: 3,
     card: '6C',
-    title: 'Fourth Street',
+    title: 'Upside Down',
     story: [
-      'The bottom dealer has a cousin. In the cousin\'s game the fourth card from the top is the one that counts; the Kesslers call it fourth street, and they bet on it heavily.',
-      'A five-card hand wins if its fourth card beats a 10. The cousin also deals from the bottom, but only on Sundays.',
+      'The bottom dealer has a cousin, who also deals from the bottom, but only on Sundays. Today is Sunday. He would like every hand handed to him upside down, so that the card he deals first is the one that came last.',
+      'The Owner likes a family business. Tonight the chip desk pays every five-card hand, but upside down: bottom card on top, top card at the bottom. The cashier checks the order of every card.',
     ],
-    brief: 'Five-card hands. Pay out every hand whose fourth card (counting from the top) beats a 10. (Top-card War only.)',
+    brief: 'Five-card hands. Pay out every hand upside down: its cards in reverse order, the bottom card on top. (Order counts.)',
     handSize: 5,
     floor: floorOf(hexRect(-2, 2, -7, 5), F6),
     fixed: F6,
     croupiers: paletteThrough('inshuffle'),
     warRules: ['top'],
-    pays: (h) => hv(h[3]) > 10,
+    expected: (inputs) => inputs.map((h) => [...h].reverse()),
+    ordered: true,
     tests: makeTests({
       handSize: 5, handsPerTest: 10,
-      fixed: [['2S 3D 4C JH 5S', '2S 3D 4C TH 5S', 'AS KD QC 2H JS', '2S 3D 4C 5H AS', '2S 3D AC 5H 6S',
-        '2S AD 3C 4H 5S', '2S 3D 4C KH 5S', 'QS QD QC QH 2S', '9S 8D 7C AH 6S', 'TS JD QC 9H KS']],
+      fixed: [['2S 3D 4C 5H 6S', 'AS KD QC JH TS', '7S 7D 7C 7H 2S', 'AH 2H 3H 4H 5H', 'KS 2D KC 3H KD',
+        '9S 8D 7C 6H 5S', 'JS 2D 3C 4H JD', 'QS QD 2C 3H 4S']],
       nRandom: 4, seed: 144,
     }),
   },
@@ -266,29 +268,29 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'every-other',
+    id: 'ace-count',
     chapter: 3,
     card: 'TC',
-    title: 'Every Other',
+    title: 'Ace Count',
     story: [
       'Commissioner Pryce lost his own game on Tuesday. On Wednesday his regulation was withdrawn "pending review", and nobody expects the review. War croupiers may play by the high card or by the top card again, whichever you ask for.',
-      'To celebrate, a house game: a five-card hand wins if its highest card is its first or its third card. If the highest rank turns up twice, one of them in either place is enough.',
+      'The Kesslers have stopped asking whether the house hides aces and started counting them. So tonight the house pays by the ace: a three-card hand is paid out once for every ace in it. Two aces, two payouts of the same hand; no aces, nothing.',
     ],
-    brief: 'Five-card hands. Pay out every hand whose highest card is its 1st or 3rd card (ties count).',
-    handSize: 5,
-    floor: floorOf(hexRange(2), F10),
+    brief: 'Three-card hands. Pay out every hand once for each ace it holds (a hand with two aces is paid out twice).',
+    handSize: 3,
+    floor: floorOf(hexRect(-3, 2, -8, 6), F10),
     fixed: F10,
     croupiers: paletteThrough('deal'),
     warRules: ['high', 'top'],
-    pays: (h) => Math.max(hv(h[0]), hv(h[2])) >= high(h),
+    expected: (inputs) => inputs.flatMap((h) => h.filter((c) => rankOf(c) === 'A').map(() => h)),
     tests: makeTests({
-      handSize: 5, handsPerTest: 10,
+      handSize: 3, handsPerTest: 17,
       fixed: [
-        ['AS 2D 3C 4H 5S', '2S AD 3C 4H 5S', '2S 3D AC 4H 5S', '2S 3D 4C AH 5S', '2S 3D 4C 5H AS',
-          'KS 2D 3C KH 4S', '2S KD 3C 4H KS', '2S 3D KC 4H KH', 'QS KD 2C 3H 4S', 'KS 2D 3C AH 4S'],
-        // winners back to back, then losers back to back
-        ['AS 2D 3C 4H 5S', '2S 3D AC 4H 5S', 'KS QD 2C 3H 4S', '7S 2D 7C 3H 4S', '9S TD JC 2H 3S',
-          '2S AD 3C 4H 5S', '2S 3D 4C KH 5S', '2S 3D 4C 5H QS', 'JS QD 2C 3H 4S', '4S 5D 3C 6H 2S'],
+        ['AS 2D 3C', '2D AS 3C', '2D 3C AS', 'AS AD 5C', '5C AS AD', 'AH 5C AD', 'AS AD AC', 'KS QD JC',
+          'KH AH 2S', '9S 9D 9C'],
+        // aces back to back, then none, then alternating
+        ['AS AD AC', 'AH 2S 3S', 'AC AD 4S', '5S AS 6D', '7S 8D AH', 'KS QD JC', '2S 3D 4C', '9H TH JH',
+          'AS 2D AC', '6S 7D 8C', '3H AH 4H', 'QS KD 5C'],
       ],
       nRandom: 4, seed: 146,
     }),
@@ -399,11 +401,11 @@ const PAR = {
   'top-pair': { croupiers: 5, rounds: 12 },
   'new-rules': { croupiers: 4, rounds: 11 },
   'bottom-dealer': { croupiers: 5, rounds: 15 },
-  'fourth-street': { croupiers: 5, rounds: 12 },
+  'upside-down': { croupiers: 3, rounds: 13 },
   'second-fiddle': { croupiers: 4, rounds: 16 },
   'knockout': { croupiers: 17, rounds: 37 },
   'low-ball': { croupiers: 14, rounds: 17 },
-  'every-other': { croupiers: 4, rounds: 15 },
+  'ace-count': { croupiers: 13, rounds: 19 },
   'bottom-pair': { croupiers: 11, rounds: 13 },
   'small-pairs': { croupiers: 14, rounds: 13 },
   'two-pair': { croupiers: 13, rounds: 15 },

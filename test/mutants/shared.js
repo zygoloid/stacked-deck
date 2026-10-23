@@ -4,6 +4,9 @@
 //   MUTANTS: { [levelId]: { [name]: (hand, earlierHands) => boolean } }
 //     plausible wrong rules that some test hand must tell apart from the
 //     level's real rule (a player who guessed the rule wrong must fail);
+//     for a level with `expected(inputs)` a mutant is instead
+//     (inputs) => payouts, and some test's payouts must differ (as
+//     multisets of hands, compared like runTest does);
 //   DOOR: [levelId, ...]
 //     levels whose reference solution admits one hand at a time through a
 //     ticket door (a War on the hex the source feeds) and must fail without it.
@@ -29,4 +32,12 @@ export function setOf(h) {
   for (const c of h) m.set(rankOf(c), (m.get(rankOf(c)) || 0) + 1);
   const max = Math.max(...m.values());
   return h.filter((c) => m.get(rankOf(c)) === max);
+}
+
+// Cards in runs of n (leftovers dropped), and cards grouped by a key, in order.
+export const chunks = (cards, n) => Array.from({ length: Math.floor(cards.length / n) }, (_, i) => cards.slice(i * n, i * n + n));
+export function groupBy(cards, key) {
+  const m = new Map();
+  for (const c of cards) { if (!m.has(key(c))) m.set(key(c), []); m.get(key(c)).push(c); }
+  return [...m.values()];
 }

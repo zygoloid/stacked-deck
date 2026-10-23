@@ -97,9 +97,13 @@ waver; the Owner answers with ever more generous house games, and you learn
 to copy a hand and let the copy decide. Commissioner Pryce takes an envelope
 and leaves a regulation: War by the top card only (4♣ to 9♣). The Kesslers'
 bottom dealer and his cousin get their own games, so you learn the riffles,
-and the string quartet's second violin gets his. The knockout brings the best
-card to the top; Pryce's Tuesday game, Low Ball, turns it upside down, and
-Pryce loses it. The next day the regulation is withdrawn "pending review".
+and the string quartet's second violin gets his; the bottom dealer's cousin
+wants his hands upside down, the first night the desk pays something other
+than the hands as dealt. The knockout brings the best card to the top;
+Pryce's Tuesday game, Low Ball, turns it upside down, and Pryce loses it. The
+next day the regulation is withdrawn "pending review", and the Kesslers,
+who have stopped asking about aces and started counting them, are paid once
+per ace.
 The chapter ends with verdict cards: a copy of the hand decides, a released
 card carries the verdict, and the original is paid or not at a gate. Old
 Thursday comes back from the rival's, and the rival throws its last big night.
@@ -111,11 +115,11 @@ Thursday comes back from the rival's, and the rival throws its last big night.
 | 3♣ | Top Pair | the rival pays pairs; the Owner's answer; set |
 | 4♣ | New Rules | Pryce's regulation: top-card War only |
 | 5♣ | Bottom Dealer | the Kesslers' bottom dealer; riffles |
-| 6♣ | Fourth Street | the bottom dealer's cousin |
+| 6♣ | Upside Down | the bottom dealer's cousin; the desk pays hands reversed |
 | 7♣ | Second Fiddle | the string quartet's second violin |
 | 8♣ | Knockout | the Kesslers still want their aces; deal |
 | 9♣ | Low Ball | Pryce's Tuesday game; somebody tells him |
-| 10♣ | Every Other | the regulation is withdrawn; both War rules |
+| 10♣ | Ace Count | the regulation is withdrawn; both War rules; the Kesslers count aces |
 | J♣ | Bottom Pair | the bottom dealer again; verdict cards |
 | Q♣ | Small Pairs | Old Thursday is back from the rival's |
 | K♣ | Two Pair | the rival casino's last big night |
@@ -128,9 +132,10 @@ machine. "The house remembers": the mayor's records and superstitions need
 memory, a shoe that deals once, and shoe decks that run in order. The council
 meets in the back room over a full house, admitted through the ticket door.
 Old Thursday wants the wheel; the Vellanis and the Kesslers stop fighting and
-both wear spades in their hatbands. Dmitri's streak theory and the doormen's
-game across hands carry verdicts from one hand to the next, and the mayor's
-napkin grows a column for neighbours. The final game is a record table with
+both wear spades in their hatbands. Dmitri's spreadsheet gets a column per
+suit, and the house pays flushes built across many hands; for Old
+Thursday's birthday every spade played is changed at the desk for the heart
+of the same rank. The mayor's napkin grows a column for neighbours. The final game is a record table with
 the whole city at it; afterwards an envelope with your name on it waits
 under the cash tray, sealed with an ace of spades.
 
@@ -144,8 +149,8 @@ under the cash tray, sealed with an ace of spades.
 | 6♠ | The Wheel | Old Thursday's favourite straight |
 | 7♠ | Calling Card | spades in every hatband; sort |
 | 8♠ | Seven Heaven | the Owner's three sevens; hand |
-| 9♠ | After a Pair | Dmitri's theory of streaks |
-| 10♠ | Bookends | the doormen's game, hand against hand |
+| 9♠ | Suit Yourself | Dmitri's spreadsheet of suits |
+| 10♠ | Change of Heart | Old Thursday's birthday: hearts for spades |
 | J♠ | Next in Line | the mayor's napkin grows a column |
 | Q♠ | Jacks or Better | the rival's video poker machine, replaced by a croupier |
 | K♠ | House Record | the whole city at one table; the envelope |
@@ -169,12 +174,35 @@ opening night.
 | $ | Red Carpet | the front advertising card; the Vellanis' party |
 | $$ | Déjà Vu | the back advertising card; the last note is signed by you |
 
+## The bonus deck
+
+Extra floors outside the campaign, each opened by a campaign floor
+(docs/campaign.md). Their stories stand on their own: they may lean on the
+cast and the moment they unlock (Sal's kings after Beat the Dealer, the
+rival's split pots after Top Pair, the city asking for one more game after
+Déjà Vu), but they never move the plot, so the campaign reads the same
+without them. Floors cut from the campaign keep their stories, reworded
+where a beat moved elsewhere (Every Other no longer withdraws the
+regulation; Ace Count does).
+
+| Card | Level | After | Beat |
+|---|---|---|---|
+| A♠ | Small Change | Beat the Dealer | Sal changes kings for the ace of spades |
+| 2♠ | Split Pot | Top Pair | the rival splits its pots; so does the house |
+| 3♠ | Every Other | Ace Count | the string quartet's game for the bar |
+| 4♠ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
+| 5♠ | Bookends | Change of Heart | the doormen's game, hand against hand |
+| 6♠ | Four of a Kind | Déjà Vu | the city asks for one more game |
+
 ## Notes for writers
 
 * Keep each floor's story to one to three short paragraphs. New croupiers and
   cards are introduced in a sentence, in the story of the floor that unlocks
   them. Special cards are a reveal: no floor before `?` mentions jokers or
   advertising cards (test/levels.js checks the words).
+* Floors that pay something other than the hands dealt say exactly what is
+  paid, including the edge cases (leftover cards, hands with nothing to pay,
+  whether card order counts).
 * The brief is the precise rule. The story can be playful, but it must never
   contradict the brief or explain the solution. Edge cases (aces high or low,
   ties go to the house, two pair versus trips, the ace-to-five straight)

@@ -30,9 +30,12 @@ export const MUTANTS = {
     'top card': (h) => hv(h[0]) > 10, 'high card': (h) => high(h) > 10, 'ties pay': (h) => hv(h[3]) >= 10,
     'second from bottom': (h) => hv(h[2]) > 10, 'second card': (h) => hv(h[1]) > 10,
   },
-  'fourth-street': {
-    'bottom card': (h) => hv(h[4]) > 10, 'third card': (h) => hv(h[2]) > 10, 'second card': (h) => hv(h[1]) > 10,
-    'top card': (h) => hv(h[0]) > 10, 'ties pay': (h) => hv(h[3]) >= 10, 'high card': (h) => high(h) > 10,
+  // Expected-payout floors: mutants are (inputs) => payouts.
+  'upside-down': {
+    'unchanged': (t) => t,
+    'bottom card to the top': (t) => t.map((h) => [h[4], ...h.slice(0, 4)]),
+    'top card to the bottom': (t) => t.map((h) => [...h.slice(1), h[0]]),
+    'ends swapped': (t) => t.map((h) => [h[4], ...h.slice(1, 4), h[0]]),
   },
   'second-fiddle': {
     'beats the bottom card': (h) => hv(h[0]) > hv(h[4]), 'ties pay': (h) => hv(h[0]) >= hv(h[1]),
@@ -48,11 +51,12 @@ export const MUTANTS = {
     'top card': (h) => hv(h[0]) > 5, 'high card': (h) => high(h) > 5,
     'four of five': (h) => h.filter((c) => hv(c) > 5).length >= 4,
   },
-  'every-other': {
-    'top two': (h) => highIn(h, [0, 1]) >= high(h), '1st, 3rd or 5th': (h) => highIn(h, [0, 2, 4]) >= high(h),
-    'strictly highest': (h) => highIn(h, [0, 2]) > highIn(h, [1, 3, 4]),
-    'aces low': (h) => Math.max(rv(h[0]), rv(h[2])) >= Math.max(...h.map(rv)), 'top card only': (h) => hv(h[0]) >= high(h),
-    '2nd or 4th': (h) => highIn(h, [1, 3]) >= high(h),
+  'ace-count': {
+    'once per hand with an ace': (t) => t.filter((h) => has(h, 'A')),
+    'the aces themselves': (t) => t.filter((h) => has(h, 'A')).map((h) => h.filter((c) => rankOf(c) === 'A')),
+    'each ace on its own': (t) => t.flatMap((h) => h.filter((c) => rankOf(c) === 'A').map((c) => [c])),
+    'top card ace only': (t) => t.filter((h) => rankOf(h[0]) === 'A'),
+    'kings count too': (t) => t.flatMap((h) => h.filter((c) => 'AK'.includes(rankOf(c))).map(() => h)),
   },
   'bottom-pair': {
     'top pair': (h) => rankOf(h[0]) === rankOf(h[1]), 'any pair': (h) => largestSet(h) >= 2,

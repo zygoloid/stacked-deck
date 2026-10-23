@@ -349,14 +349,19 @@ export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {
   // A run ends when every player card has left the floor. Machines with
   // memory keep copies of player cards circulating forever, so a run also
   // ends `grace` rounds after the last expected payout (catching any extra
-  // payouts in that window).
-  let settled = null;
-  while (floor.round < maxRounds && !floor.done()) {
+  // payouts in that window). If the player cards are gone but payouts are
+  // still owed (house cards on their way to the desk), it runs on for up to
+  // `grace` rounds before giving up.
+  let settled = null, drained = null;
+  while (floor.round < maxRounds) {
     floor.step();
-    if (floor.inputPos >= inputs.length && floor.paid.length >= expected.length) {
-      settled ??= floor.round;
-      if (floor.round - settled >= grace) break;
-    }
+    const allPaid = floor.inputPos >= inputs.length && floor.paid.length >= expected.length;
+    if (allPaid) settled ??= floor.round;
+    if (floor.done()) {
+      if (allPaid) break;
+      drained ??= floor.round;
+      if (floor.round - drained >= grace) break;
+    } else if (settled !== null && floor.round - settled >= grace) break;
   }
   const remaining = expected.map((h) => handKey(h, ordered));
   const wrong = [];
@@ -367,7 +372,7 @@ export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {
   const finished = floor.done() || settled !== null;
   return {
     ok: finished && !wrong.length && !remaining.length,
-    rounds: floor.done() && settled === null ? floor.round : (settled ?? floor.round),
+    rounds: settled ?? floor.round,
     croupiers: floor.croupierCount(), wrong, missing: remaining, timeout: !finished,
   };
 }

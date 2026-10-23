@@ -96,28 +96,32 @@ export const SPECS = {
       c([0, 0], 'cut', { out: { bottom: E } }),
     ],
   },
-  'after-a-pair': {
-    // Test a copy: a pair releases a 2, anything else an ace, into the
-    // gate's dealer line, which a shoe seeds with an ace for the first hand;
-    // so each original meets the verdict on the hand before it. One decision
-    // and equal routes afterwards, so no door.
-    cells: [
-      c([-2, 0], 'duplicate', { out: { a: NE, b: NW } }),
-      c([-2, -1], 'kind', { n: 2, out: { yes: NE, no: NW } }),
-      war([-1, -2], { dealer: E, out: { dwin: NW, dlose: NW } }), shoe([0, -2], '2C', { out: W }),
-      war([-2, -2], { dealer: SW, out: { dwin: NE, dlose: NE } }), shoe([-3, -1], 'AC', { out: NE }),
-      pass([-1, -3], E), pass([0, -3], E), pass([1, -3], SE), pass([1, -2], SW), pass([0, -1], W),
-      shoe([1, -1], 'AD', { out: W, once: true }),
-      war([-1, -1], { dealer: E, out: { win: SE } }),
+  'suit-yourself': {
+    // Split the cards by suit, and collect each suit in its own Hand(5).
+    nodes: {
+      suits: c([-2, 0], 'suits'),
+      hs: c([-1, 0], 'hand', { n: 5 }), hh: c([-1, -1], 'hand', { n: 5 }),
+      hd: c([-2, -1], 'hand', { n: 5 }), hc: c([-2, 1], 'hand', { n: 5 }),
+    },
+    links: [
+      ['suits', 'S', 'hs'], ['suits', 'H', 'hh'], ['suits', 'D', 'hd'], ['suits', 'C', 'hc'],
+      ['hs', 'out', 'desk'], ['hh', 'out', 'desk'], ['hd', 'out', 'desk'], ['hc', 'out', 'desk'],
     ],
   },
-  bookends: {
-    // A copy of each hand loses its top card; its bottom card waits in the
-    // gate's dealer line for the next hand, behind an ace for the first.
-    cells: [
-      c([-2, 0], 'duplicate', { out: { a: E, b: SE } }),
-      c([-2, 1], 'burn', { out: { rest: E } }), pass([-1, 1], NW), shoe([-1, 2], 'AC', { out: NW, once: true }),
-      twar([-1, 0], { dealer: SE, out: { win: E } }),
+  'change-of-heart': {
+    // Hand(13) turns a shoe stacked with the hearts into a whole suit; a
+    // spade on top of it makes a pair with its heart, which Set pulls out,
+    // and burn drops the spade. (Burn sits by the desk: the night is over
+    // as soon as the last player's card leaves the floor.)
+    nodes: {
+      suits: c([-2, 0], 'suits'),
+      hearts: shoe([-2, -1], ['AH', '2H', '3H', '4H', '5H', '6H', '7H', '8H', '9H', 'TH', 'JH', 'QH', 'KH']),
+      hand: c([-1, -1], 'hand', { n: 13 }),
+      gather: c([-1, 0], 'gather'), set: c([0, 0], 'set'), burn: c([0, 1], 'burn'),
+    },
+    links: [
+      ['hearts', null, 'hand'], ['hand', 'out', 'gather', 'under'],
+      ['suits', 'S', 'gather'], ['gather', 'out', 'set'], ['set', 'set', 'burn'], ['burn', 'rest', 'desk'],
     ],
   },
   'next-in-line': {
