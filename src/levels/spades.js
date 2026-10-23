@@ -201,7 +201,7 @@ export const LEVELS = [
     title: 'Calling Card',
     story: [
       'The Vellanis and the Kesslers have stopped fighting each other. Both now work for the house, and both carry a spade in their hatband. Pay any hand that holds a spade.',
-      'A new croupier sorts a hand into new deck order: spades first, ace to king, then diamonds, clubs and hearts.',
+      'A new croupier sorts a hand into new deck order, the way a fresh pack comes out of the box: spades ace to king, then diamonds ace to king, then clubs and hearts from king down to ace.',
     ],
     brief: 'Five-card hands. Pay out every hand that holds at least one spade.',
     handSize: 5,
