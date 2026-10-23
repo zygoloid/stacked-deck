@@ -183,3 +183,22 @@ const runFloor = (cells, inputs, rounds = 12) => {
   assert.deepStrictEqual(f.paid, [['?'], ['??']]);
 }
 console.log('rules v7 ok');
+// Expected payouts: a level can ask for hands that aren't just a subset of
+// the inputs, e.g. one payout per ace (repeats allowed), and optionally
+// compare card order.
+{
+  const { runTest } = await import('../src/engine.js');
+  const perAce = { expected: (inputs) => inputs.flatMap((h) => h.filter((c) => c[0] === 'A').map(() => h)) };
+  const dupPay = { cells: [
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, 0], kind: 'croupier', fn: 'duplicate', out: { a: 0, b: 1 } },
+    { at: [1, 0], kind: 'payout' }, { at: [0, 1], kind: 'payout' },
+  ] };
+  assert(runTest(dupPay, [['AS', 'AD', '3C']], perAce).ok, 'a two-ace hand paid twice');
+  assert(!runTest(dupPay, [['AS', '2D', '3C']], perAce).ok, 'a one-ace hand paid twice is wrong');
+  const sorted = { expected: (inputs) => inputs.map((h) => [...h].sort()), ordered: true };
+  const passPay = { cells: [{ at: [-1, 0], kind: 'source', out: 0 }, { at: [0, 0], kind: 'payout' }] };
+  assert(!runTest(passPay, [['KS', 'AS']], sorted).ok, 'ordered: KS AS is not AS KS');
+  assert(runTest(passPay, [['AS', 'KS']], sorted).ok);
+}
+console.log('expected payouts ok');

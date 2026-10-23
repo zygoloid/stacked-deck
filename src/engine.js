@@ -326,11 +326,26 @@ export class Floor {
   }
 }
 
-// Run one test case. `pays(hand, history)` says whether an input hand should
-// be paid out; history is the list of earlier input hands.
-export function runTest(spec, inputs, pays, { maxRounds = 5000, grace = 50 } = {}) {
+// What the chip desk should receive for one test. `rule` is either a
+// `pays(hand, earlierHands)` function (pay out a subset of the input hands)
+// or a level-like object with `expected(inputs)` returning the list of hands
+// to pay, which may repeat hands, regroup cards or use house cards; a `pays`
+// field works too.
+export function expectedPayouts(rule, inputs) {
+  const pays = typeof rule === 'function' ? rule : rule.pays;
+  if (typeof rule === 'object' && typeof rule.expected === 'function') return rule.expected(inputs);
+  return inputs.filter((h, i) => pays(h, inputs.slice(0, i)));
+}
+
+// Hands are compared as multisets of cards unless the level says `ordered`.
+export const handKey = (hand, ordered = false) => (ordered ? [...hand] : [...hand].sort()).join(' ');
+
+// Run one test case against `rule` (see expectedPayouts). Payouts may arrive
+// in any order; each must match a distinct expected hand.
+export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {}) {
   const floor = new Floor(spec, inputs);
-  const expected = inputs.filter((h, i) => pays(h, inputs.slice(0, i)));
+  const expected = expectedPayouts(rule, inputs);
+  const ordered = typeof rule === 'object' && !!rule.ordered;
   // A run ends when every player card has left the floor. Machines with
   // memory keep copies of player cards circulating forever, so a run also
   // ends `grace` rounds after the last expected payout (catching any extra
@@ -343,11 +358,10 @@ export function runTest(spec, inputs, pays, { maxRounds = 5000, grace = 50 } = {
       if (floor.round - settled >= grace) break;
     }
   }
-  const canon = (h) => [...h].sort().join(' ');
-  const remaining = expected.map(canon);
+  const remaining = expected.map((h) => handKey(h, ordered));
   const wrong = [];
   for (const h of floor.paid) {
-    const i = remaining.indexOf(canon(h));
+    const i = remaining.indexOf(handKey(h, ordered));
     if (i < 0) wrong.push(h); else remaining.splice(i, 1);
   }
   const finished = floor.done() || settled !== null;

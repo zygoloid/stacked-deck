@@ -145,11 +145,31 @@ whenever a rule changes; the level select shows it.
                                 //   default from chapter + position (ch 1–4 ♠ ♥ ♣ ♦ A…K, ch 5 ? ?? $ $$)
   specialCards: ['?', '??'],    // special cards a shoe may deal here (default none; the UI
                                 //   mentions special cards only once such a floor is open)
-  pays: (hand, earlierHands) => boolean,
+  pays: (hand, earlierHands) => boolean,   // either this…
+  expected: (inputs) => [hand, ...],       // …or this: the exact payouts (see below)
+  ordered: false,                          // compare card order within payouts
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays)
   par: { croupiers, rounds },   // from the reference solution (optional)
 }
 ```
+
+**Payouts.** A `pays` level pays out a subset of the input hands unchanged. An
+`expected` level lists the hands the chip desk should receive for a test's
+inputs: hands may repeat (pay a hand once per ace), be regrouped from cards of
+several inputs (each four of a kind across all cards played), or be made of
+house cards from shoes (pay the next higher spade). Payouts may arrive in any
+order, and each must match a distinct expected hand; hands are compared as
+multisets of cards unless `ordered: true`. `expectedPayouts(rule, inputs)` and
+`runTest(spec, inputs, rule)` in `src/engine.js` accept either a `pays`
+function or the level object.
+
+**Bonus deck.** `src/levels.js` also exports `BONUS`: extra floors outside the
+56-card campaign (cut floors moved out of the campaign, and new extras), with
+the same format plus `unlockAfter: '<campaign level id>'` (open once that
+floor is solved) and their own `card` labels in the bonus deck. They don't
+count towards the campaign's unlock window, and their palette is whatever the
+level lists. Ids are unique across `LEVELS` and `BONUS`, since saves are keyed
+by id.
 
 A level is solved when `runTest` passes on every test. Scores are croupiers
 (shoes included) and rounds (the average over all tests, rounded). Levels
