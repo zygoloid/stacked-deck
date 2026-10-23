@@ -405,7 +405,7 @@ const PAR = {
   'the-wheel': { croupiers: 6, rounds: 11 },
   'calling-card': { croupiers: 11, rounds: 30 },
   'seven-heaven': { croupiers: 5, rounds: 34 },
-  'suit-yourself': { croupiers: 9, rounds: 9 },
+  'suit-yourself': { croupiers: 9, rounds: 10 },
   'change-of-heart': { croupiers: 6, rounds: 87 },
   'next-in-line': { croupiers: 5, rounds: 17 },
   'jacks-or-better': { croupiers: 19, rounds: 18 },
