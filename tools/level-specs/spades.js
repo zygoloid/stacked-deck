@@ -129,13 +129,18 @@ export const SPECS = {
     ],
   },
   'next-in-line': {
-    // Windows: each card doubled, a 7 in front, and Hand(2) deals [previous,
-    // current] pairs. The cut's bottom half is the current card (a copy).
+    // Each card is duplicated: one copy goes straight to a gather, the other
+    // round a pass to the gather's under side, where it waits to be the
+    // previous card for the next one (a shoe that deals once seeds a 7).
+    // [current, previous] goes through Straight, and the cut's top half, the
+    // current card, is paid. (Duplicate with both copies one way into
+    // Hand(2) makes the same windows in 5.)
     cells: [
-      c([-2, 0], 'duplicate', { out: { a: E, b: E } }),
-      shoe([-1, -1], '7C', { out: SE, once: true }), c([-1, 0], 'hand', { n: 2, out: { out: E } }),
+      c([-2, 0], 'duplicate', { out: { a: E, b: SE } }),
+      c([-2, 1], 'pass', { out: { out: NE } }), shoe([-3, 2], '7C', { out: NE, once: true }),
+      c([-1, 0], 'gather', { under: SW, out: { out: E } }),
       c([0, 0], 'straight', { out: { yes: E } }),
-      c([1, 0], 'cut', { out: { bottom: E } }),
+      c([1, 0], 'cut', { out: { top: E } }),
     ],
   },
   'jacks-or-better': {
