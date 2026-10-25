@@ -91,7 +91,7 @@ export const CROUPIERS = {
   },
   deal: {
     name: 'Deal', abbr: 'DEAL', family: ROUTE, ports: [], deal: true,
-    desc: 'Deals the hand one card at a time, round-robin, to an ordered list of sides (a side may repeat: piles going to the same side are stacked in list order).',
+    desc: 'Deals the hand one card at a time, round-robin, to an ordered list of sides, each card on top of its side\'s pile, so every pile comes out in reverse order. A side may repeat: it still gets one pile.',
   },
   gather: {
     name: 'Gather', abbr: 'GATH', family: ROUTE, ports: ['out'], sides: ['under'],

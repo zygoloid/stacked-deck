@@ -68,7 +68,7 @@ the floor (they are gone). Every croupier accepts input from any side.
 **Outputs to the same side are stacked** into one hand, earlier outputs on
 top: cut bottom half above top (so both halves to one side complete the cut,
 as at a real table), set
-`set` above `rest`, duplicate `a` above `b`, deal piles in list order, war the
+`set` above `rest`, duplicate `a` above `b`, war the
 winning hand above the losing one. So a War with all four ports on one side
 hands on a single stack with the winner on top.
 
@@ -96,7 +96,7 @@ scanning on clockwise from the first), so they keep up with a line of passes.
 | `kind` | `yes`, `no` | `n` (2–8) | some rank appears ≥ n times |
 | `set` | `set`, `rest` | | cards of the most common rank(s) (jokers join them) / the rest (ad cards always) |
 | `suits` | `S`,`H`,`D`,`C`,`misc` | | each card to its suit's pile; unassigned suits go to misc (or the floor); suits sharing a side form one pile |
-| `deal` | `out: {to: [sides…]}` | | one card at a time, round-robin |
+| `deal` | `out: {to: [sides…]}` | | one card at a time, round-robin, each onto the top of its side's pile (one pile per side, even if listed twice), so piles come out in reverse deal order |
 | `gather` | `out` | `under?` (side) | stacks two hands from different sides; the hand from `under` goes underneath (else the first picked up does) |
 | `burn` | `burn`, `rest` | | top card / the rest; both to one side moves the top card to the bottom |
 | `hand` | `out` | `n` (1–13) | collects cards until it holds ≥ n, deals the first n as a hand; leftovers start the next; holding ≥ n it deals without picking up |

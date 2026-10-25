@@ -313,8 +313,8 @@ the same idea).
   cut/in/out reach 20 of the 120 orders; on 4 cards cut gives 2 orders,
   cut/in/out 8 (the 1st and 4th cards always land in different halves), and
   burn adds the rest. Shuffle floors must need a non-rotation (or be cheaper
-  than the rotation by cuts). From 8♣ on, Deal with repeated sides makes any
-  order-preserving subset of a hand (unlisted sides drop cards), so shuffles
+  than the rotation by cuts). From 8♣ on, Deal with repeated sides picks any
+  subset of a hand's positions, reversed (unlisted sides drop cards), so shuffles
   are only ever necessary on 5♣–7♣; later floors that pick out positions use
   Deal (Bottom Pair, Two Pair; Every Other in the bonus deck). Upside Down
   (6♣) is a non-rotation too: completed cut, in, out reverses five cards.

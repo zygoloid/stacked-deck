@@ -40,7 +40,8 @@ import {
 //   5  cut with both halves to one side completes the cut
 //   6  gather and war take both hands in one round when both are waiting
 //   7  burn and hand croupiers; jokers and advertising cards
-export const RULES_VERSION = 7;
+//   8  deal builds one pile per side, each card on top (piles reverse order)
+export const RULES_VERSION = 8;
 
 export const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
 export const DIR_NAMES = ['E', 'SE', 'SW', 'W', 'NW', 'NE'];
@@ -117,12 +118,22 @@ export const FUNCTIONS = {
   },
   // Deal: one card at a time, round-robin, to the sides listed in out.to.
   deal: (st, h) => {
-    const piles = (st.out.to ?? []).map(() => []);
-    if (!piles.length) return []; // no sides: everything is dropped
-    h.forEach((x, i) => piles[i % piles.length].push(x));
+    // Cards are dealt one at a time onto one pile per side, each new card on
+    // top, so a pile holds its cards in reverse deal order (a side listed
+    // more than once still has just one pile).
+    const sides = st.out.to ?? [];
+    if (!sides.length) return []; // no sides: everything is dropped
+    const piles = new Map();
+    let last;
+    h.forEach((x, i) => {
+      const side = sides[i % sides.length];
+      if (side === undefined || side === null) return; // dropped
+      if (!piles.has(side)) piles.set(side, []);
+      piles.get(side).unshift(x);
+      last = side;
+    });
     // The pile that got the last card goes last, so the croupier faces it.
-    const last = (h.length - 1) % piles.length;
-    return piles.map((p, i) => [i, p]).sort(([a], [b]) => (a === last) - (b === last));
+    return [...piles].sort(([a], [b]) => (a === last) - (b === last)).map(([side, pile]) => [`@${side}`, pile]);
   },
   // Gather ("stack"): put two hands from different sides together. The hand
   // from side `under` goes underneath; without `under`, the first one picked up does.
@@ -268,7 +279,7 @@ export class Floor {
       if (!h.length || side === undefined) continue; // dropped
       // Outputs to the same side are stacked into one hand, earlier ones on
       // top (cut: bottom half above top, completing the cut; set: set above rest; war: winner
-      // above loser; duplicate: a above b; deal: piles in list order).
+      // above loser; duplicate: a above b; deal builds its own piles).
       const same = cell.pending.find(([d]) => d === side);
       if (same) same[1] = [...same[1], ...h];
       else cell.pending.push([side, h]);

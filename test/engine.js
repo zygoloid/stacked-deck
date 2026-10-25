@@ -222,3 +222,21 @@ console.log('expected payouts ok');
   assert(!bad.ok && bad.missing.length === 1, 'a payout that never comes still fails');
 }
 console.log('house cards in flight ok');
+// Deal: one pile per side, each card dealt on top, so piles come out in
+// reverse deal order; a side listed twice is still one pile.
+{
+  const run = (to, hand) => {
+    const f = new Floor({ cells: [
+      { at: [-1, 0], kind: 'source', out: 0 },
+      { at: [0, 0], kind: 'croupier', fn: 'deal', out: { to } },
+      { at: [1, 0], kind: 'payout' }, { at: [0, 1], kind: 'payout' },
+    ] }, [hand]);
+    for (let i = 0; i < 4; i++) f.step();
+    return f.paid.map((h) => h.join(' ')).sort();
+  };
+  assert.deepStrictEqual(run([0, 0], ['AS', '2S', '3S', '4S']), ['4S 3S 2S AS'], 'repeated side reverses the hand');
+  assert.deepStrictEqual(run([0], ['AS', '2S', '3S']), ['3S 2S AS'], 'one side reverses the hand');
+  assert.deepStrictEqual(run([0, 1], ['AS', '2S', '3S', '4S', '5S']), ['4S 2S', '5S 3S AS']);
+  assert.deepStrictEqual(run([0, 3], ['AS', '2S', '3S']), ['3S AS'], 'a side with no table drops its pile');
+}
+console.log('deal piles ok');
