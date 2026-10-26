@@ -3,13 +3,13 @@
     ".read": false,
     ".write": false,
     "config": {
-      ".read": "auth != null"
+      ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com'"
     },
     "limits": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
+        ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && auth.uid === $uid",
         "submit": {
-          ".write": "auth != null && auth.uid === $uid && newData.exists()",
+          ".write": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && auth.uid === $uid && newData.exists()",
           ".validate": "newData.hasChildren(['level', 'hash', 'at']) && (!data.exists() || now - data.child('at').val() >= 1000)",
           "level": { ".validate": "newData.isString() && newData.val().matches(/^(LEVEL_IDS)$/)" },
           "hash": { ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{32}$/)" },
@@ -20,11 +20,11 @@
     },
     "solutions": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
+        ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && auth.uid === $uid",
         "$level": {
           ".validate": "$level.matches(/^(LEVEL_IDS)$/)",
           "$hash": {
-            ".write": "auth != null && auth.uid === $uid && !data.exists() && newData.exists()",
+            ".write": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && auth.uid === $uid && !data.exists() && newData.exists()",
             ".validate": "newData.hasChildren(['cells', 'at', 'rules']) && newData.parent().parent().parent().parent().child('limits').child($uid).child('submit').child('level').val() === $level && newData.parent().parent().parent().parent().child('limits').child($uid).child('submit').child('hash').val() === $hash && newData.parent().parent().parent().parent().child('limits').child($uid).child('submit').child('at').val() === now",
             "cells": { ".validate": "newData.isString() && newData.val().length <= 10000" },
             "at": { ".validate": "newData.isNumber()" },
@@ -37,19 +37,19 @@
     "scores": {
       "$v": {
         "$uid": {
-          ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())"
+          ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())"
         }
       }
     },
     "stats": {
       "$v": {
-        ".read": "auth != null"
+        ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com'"
       }
     },
     "saves": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid && auth.token.firebase.sign_in_provider === 'google.com'",
+        ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && auth.uid === $uid",
+        ".write": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && auth.uid === $uid",
         ".validate": "newData.hasChildren()",
         "$level": {
           ".validate": "$level.matches(/^(LEVEL_IDS)$/) && newData.hasChildren()",
@@ -70,8 +70,8 @@
     },
     "profiles": {
       "$uid": {
-        ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())",
-        ".write": "auth != null && auth.uid === $uid && auth.token.firebase.sign_in_provider === 'google.com'",
+        ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())",
+        ".write": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && auth.uid === $uid",
         ".validate": "newData.hasChildren(['name'])",
         "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
         "$other": { ".validate": false }
@@ -79,7 +79,7 @@
     },
     "friends": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid"
+        ".read": "auth != null && auth.token.firebase.sign_in_provider === 'google.com' && auth.uid === $uid"
       }
     }
   }

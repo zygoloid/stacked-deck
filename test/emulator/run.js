@@ -57,7 +57,7 @@ const BOMB = [
 // ---------- rules ----------
 const env = await initializeTestEnvironment({ projectId: 'demo-stacked-deck', database: { host, port: Number(port) } });
 const ctx = (uid, provider) => (uid ? env.authenticatedContext(uid, { firebase: { sign_in_provider: provider } }) : env.unauthenticatedContext());
-const as = (uid, provider = 'anonymous') => ctx(uid, provider).database(url('rules-tests'));
+const as = (uid, provider = 'google.com') => ctx(uid, provider).database(url('rules-tests'));
 const anonDb = as(null);
 const submission = (uid, { level = LEVEL, hash = HASH, cells = JSON.stringify(CELLS), rules = RULES_VERSION, limitLevel = level, limitHash = hash, extra = {} } = {}) => ({
   [`limits/${uid}/submit`]: { level: limitLevel, hash: limitHash, at: TS },
@@ -73,15 +73,23 @@ const fresh = () => `u${++n}`; // a new user, so the one-a-second limit never in
   await assertFails(anonDb.ref(`stats/v${RULES_VERSION}`).get());
   await assertSucceeds(as(u).ref(`stats/v${RULES_VERSION}/${LEVEL}`).get());
   await assertFails(as(u).ref('/').get());
+  // Signing in with Google is the opt-in: other kinds of account get nothing.
+  for (const provider of ['anonymous', 'password', 'custom']) {
+    await assertFails(as(u, provider).ref('config').get());
+    await assertFails(as(u, provider).ref(`stats/v${RULES_VERSION}/${LEVEL}`).get());
+  }
   await assertFails(as(u).ref('anything').set(1));
   await assertFails(as(u).ref('config/rulesVersion').set(RULES_VERSION + 1));
 }
 console.log('rules: config and stats ok');
 
 {
-  // A valid submission, by an anonymous player.
+  // A valid submission, by a player signed in with Google, and the same
+  // write by an anonymous account (refused).
   const u = fresh();
+  await assertFails(as(u, 'anonymous').ref().update(submission(u)));
   await assertSucceeds(as(u).ref().update(submission(u)));
+  await assertFails(as(u, 'anonymous').ref(`solutions/${u}`).get());
   await assertSucceeds(as(u).ref(`solutions/${u}`).get());
   await assertFails(as(fresh()).ref(`solutions/${u}`).get());
   // Never changed or deleted afterwards.
@@ -134,6 +142,8 @@ console.log('rules: solutions ok');
   await owner('rules-tests', `profiles/${a}`, 'PUT', { name: 'Ann' });
   await owner('rules-tests', `friends/${a}/${b}`, 'PUT', true);
   await assertSucceeds(as(a).ref(`scores/v${RULES_VERSION}/${a}`).get());
+  await assertFails(as(b, 'anonymous').ref(`scores/v${RULES_VERSION}/${a}`).get());
+  await assertFails(as(a, 'anonymous').ref(`friends/${a}`).get());
   await assertSucceeds(as(b).ref(`scores/v${RULES_VERSION}/${a}`).get());
   await assertSucceeds(as(b).ref(`profiles/${a}`).get());
   await assertFails(as(c).ref(`scores/v${RULES_VERSION}/${a}`).get());
@@ -150,12 +160,12 @@ console.log('rules: scores, stats, profiles and friends ok');
 
 {
   const g = fresh();
-  const google = (uid) => as(uid, 'google.com');
+  const google = (uid) => as(uid);
   const save = `saves/${g}/${LEVEL}`;
   await assertSucceeds(google(g).ref(save).set({ work: { cells: '[]', at: TS }, solved: true }));
   await assertSucceeds(google(g).ref(`${save}/work`).set({ cells: JSON.stringify(CELLS), at: TS }));
   await assertSucceeds(google(g).ref(`saves/${g}`).get());
-  await assertFails(as(g).ref(`${save}/solved`).set(true)); // the same uid, but anonymous
+  await assertFails(as(g, 'anonymous').ref(`${save}/solved`).set(true)); // the same uid, but anonymous
   await assertFails(as(g, 'password').ref(`${save}/solved`).set(true)); // only Google
   await assertFails(google(fresh()).ref(`saves/${g}`).get());
   await assertFails(google(fresh()).ref(`${save}/solved`).set(true));
@@ -173,7 +183,7 @@ console.log('rules: scores, stats, profiles and friends ok');
   await assertSucceeds(google(g).ref(`saves/${g}`).remove());
   // Profiles.
   await assertSucceeds(google(g).ref(`profiles/${g}`).set({ name: 'Gina' }));
-  await assertFails(as(g).ref(`profiles/${g}`).set({ name: 'Anon' }));
+  await assertFails(as(g, 'anonymous').ref(`profiles/${g}`).set({ name: 'Anon' }));
   await assertFails(google(g).ref(`profiles/${g}`).set({ name: 'x'.repeat(41) }));
   await assertFails(google(g).ref(`profiles/${g}`).set({ name: '' }));
   await assertFails(google(g).ref(`profiles/${g}`).set({ name: 'Gina', email: 'g@example.com' }));
@@ -268,7 +278,7 @@ console.log('processSolution and addPoint ok');
 // ---------- end to end: the trigger scores a real submission ----------
 {
   const env2 = await initializeTestEnvironment({ projectId: 'demo-stacked-deck', database: { host, port: Number(port) } });
-  const player = env2.authenticatedContext('e2e', { firebase: { sign_in_provider: 'anonymous' } }).database(url('zygoloid-stacked-deck'));
+  const player = env2.authenticatedContext('e2e', { firebase: { sign_in_provider: 'google.com' } }).database(url('zygoloid-stacked-deck'));
   await assertSucceeds(player.ref().update({
     'limits/e2e/submit': { level: LEVEL, hash: HASH, at: TS },
     [`solutions/e2e/${LEVEL}/${HASH}`]: { cells: JSON.stringify(CELLS), at: Date.now(), rules: RULES_VERSION },
@@ -328,7 +338,7 @@ console.log('end to end ok');
   }
   // Players are now refused, even for what they could read before.
   const env3 = await initializeTestEnvironment({ projectId: 'demo-stacked-deck', database: { host, port: Number(port) } });
-  await assertFails(env3.authenticatedContext('e2e', { firebase: { sign_in_provider: 'anonymous' } }).database(url('zygoloid-stacked-deck')).ref('config').get());
+  await assertFails(env3.authenticatedContext('e2e', { firebase: { sign_in_provider: 'google.com' } }).database(url('zygoloid-stacked-deck')).ref('config').get());
   await env3.cleanup();
   // Listing failing still locks the known instances.
   const failing = async () => ({ ok: false, status: 403, text: async () => 'denied' });

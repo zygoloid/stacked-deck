@@ -6,12 +6,14 @@ kill switch. Nothing is deployed yet.
 
 Two connected features:
 
-* **Cloud save** of the working machine and solved floors, for players signed
-  in with Google.
+* **Cloud save** of the working machine and solved floors.
 * **Score comparison** on each floor's plot: a heatmap of everyone's results
   with the overall frontier, plus the frontiers of the player's friends.
-  Everyone who opts in counts towards the heatmap, signed in or not. Friends
-  see each other's scores and chosen names, never their machines.
+  Friends see each other's scores and chosen names, never their machines.
+
+Both are for players signed in with Google, and **signing in is the opt-in**:
+a player who never signs in stores nothing online and loads nothing from
+Firebase. There are no anonymous accounts.
 
 The game stays a static site on GitHub Pages (`zygoloid.github.io`) with no
 build step and no dependencies. Everything online is optional: `localStorage`
@@ -26,9 +28,9 @@ In priority order, the things this design must prevent:
    Attacks may instead cause an outage.
 2. **Hosting illegal content.** Nothing a stranger can read may hold free-form
    data, and what a player can store is capped.
-3. **Breaking privacy law** (UK GDPR / PECR). Online features are opt-in,
-   names are chosen rather than copied from Google, and a player can delete
-   everything.
+3. **Breaking privacy law** (UK GDPR / PECR). Online features are opt-in
+   (signing in, after being told what is stored), names are chosen rather
+   than copied from Google, and a player can delete everything.
 
 Lower priority, accepted where noted: denial of service, cheating (fake
 players, valid but unrepresentative scores), and anything that only affects
@@ -41,7 +43,7 @@ more valuable.
 | Piece | What it is |
 |---|---|
 | Firebase project | A **shared Blaze project for games hosted on `zygoloid.github.io`**, used for nothing else. Each game has its own database instance and its own functions codebase. |
-| Firebase Auth | Plain Firebase Auth (no Identity Platform upgrade), shared by the games: anonymous accounts for players who opt in, Google sign-in (linked to the anonymous account) for cloud save and friends. Never phone sign-in. |
+| Firebase Auth | Plain Firebase Auth (no Identity Platform upgrade), shared by the games: Google sign-in only. Never anonymous or phone sign-in. |
 | Realtime Database | This game's own instance (e.g. `zygoloid-stacked-deck`), read and written directly by the browser under security rules deployed from this repo. Instance names are global and can't move between projects. |
 | Cloud Functions | Node functions in `functions/` (the `stacked-deck` codebase) that verify solutions with the game's own engine and maintain scores and stats; later also friends and account deletion. |
 | `src/score.js` | Scoring and validation code shared by the game and the functions. |
@@ -80,9 +82,11 @@ depends on them being in place before launch.
 * **App Check** enforced on every database instance and callable function from
   launch (reCAPTCHA Enterprise provider; check its current free allowance and
   set a long token lifetime so each session needs few assessments).
-* **Auth settings.** Anonymous and Google providers only; authorized domain
-  `zygoloid.github.io` (and `localhost` for development). Do not upgrade to
-  Identity Platform, which bills anonymous accounts as monthly active users.
+* **Auth settings.** The Google provider only (Anonymous disabled);
+  authorized domain `zygoloid.github.io` (and `localhost` for development).
+  Do not upgrade to Identity Platform, which bills by monthly active users.
+  The rules check for a Google sign-in themselves, so another game enabling
+  another provider in the shared project grants nothing here.
 
 ## Data layout
 
@@ -102,13 +106,16 @@ depends on them being in place before launch.
 
 | Path | Written by | Read by |
 |---|---|---|
-| `config` | the deploy workflow | any signed-in player |
+| `config` | the deploy workflow | any player signed in with Google |
 | `limits` | the player | the player |
 | `solutions` | the player, once per machine; functions add `score` or replace it with a tombstone | the player |
 | `scores` | functions | the player and anyone they list as a friend |
-| `stats` | functions | any signed-in player |
-| `saves` | the player, Google accounts only | the player |
-| `profiles` | the player, Google accounts only | the player and their friends |
+| `stats` | functions | any player signed in with Google |
+| `saves` | the player | the player |
+| `profiles` | the player | the player and their friends |
+
+"The player" always means someone signed in with Google: every rule that
+admits a player checks `sign_in_provider === 'google.com'`.
 | `friends`, `invites`, `inviteOf` | functions | `friends/$uid`: the player; the rest: functions only |
 
 Conventions:
@@ -197,9 +204,10 @@ What the rules guarantee:
   `.validate` rules on children can't be skipped by writing a primitive.
 * **`deleted` can only name solutions the player has uploaded**, so it can't
   grow without bound.
-* **Google, not "not anonymous".** Cloud save and profiles require
-  `sign_in_provider === 'google.com'`, so enabling another provider later
-  doesn't silently grant them.
+* **Google only.** Every rule that admits a player requires
+  `sign_in_provider === 'google.com'`, not just `auth != null`, so enabling
+  another provider later (perhaps for another game in the shared project)
+  grants nothing here.
 * **Revoking a friend.** Read access to someone's `scores` and `profiles`
   comes from *their* `friends` list, so `removeFriend` takes effect at once.
 
@@ -219,7 +227,8 @@ Every function:
   the Compute Engine default account;
 * has `maxInstances` (2), `concurrency` 1, a short timeout and retries off,
   which caps the worst-case compute bill at a few dollars a month;
-* enforces App Check (callables) and checks `request.auth` itself.
+* enforces App Check (callables) and checks `request.auth` itself, including
+  that the caller signed in with Google.
 
 ### `scoreSolution` (built)
 
@@ -254,19 +263,19 @@ the work is `processSolution` and `addPoint` in `functions/solutions.js`).
 
 ### Friends and accounts (callables)
 
-* **`createInvite()`** (Google accounts): generates a 12-character code with
+* **`createInvite()`**: generates a 12-character code with
   `crypto.randomInt`, stores `invites/$code = {from, expires: now + 7 days}`,
   deletes the caller's previous invite (`inviteOf/$uid`), so each player has at
   most one live invite.
 * **`previewInvite(code)`**: returns the inviter's profile name, for the
   confirmation screen.
-* **`acceptInvite(code)`** (Google accounts): checks `code` against
+* **`acceptInvite(code)`**: checks `code` against
   `/^[A-Za-z0-9]{12}$/` before building any path; claims the invite with a
   transaction on `/invites/$code` that deletes it only if it exists, is
   unexpired and isn't the caller's own; only after that commits, writes
   `friends/a/b` and `friends/b/a`.
 * **`removeFriend(uid)`**: deletes both directions.
-* **`deleteMyData()`** (any account): removes the caller's points from the
+* **`deleteMyData()`**: removes the caller's points from the
   current `stats` (the inverse of adding a point), then deletes their
   `solutions`, `scores`, `saves`, `profiles`, `limits`, invite and both
   directions of every friendship. The client then calls `user.delete()`.
@@ -331,8 +340,8 @@ submitted.
 
 A new `src/ui/cloud.js` owns everything online. Firebase's modular SDK is
 imported from `https://www.gstatic.com/firebasejs/<version>/…` (an exact
-version) as ES modules, **lazily**: nothing loads until the player opts in or
-opens the account menu. Every call is best-effort; failures leave the local
+version) as ES modules, **lazily**: nothing loads until the player signs in,
+or until a previously signed-in player starts the game. Every call is best-effort; failures leave the local
 save as it is and are retried later. The Firebase config lives in
 `src/firebase-config.js`.
 
@@ -341,25 +350,18 @@ from the site and the Firebase and reCAPTCHA hosts, and connections only to
 the Firebase endpoints. (Pages can't send headers, so `frame-ancestors` isn't
 available.)
 
-### Opting in
+### Signing in (the opt-in)
 
-The first time a floor's plot is shown after solving it, the game asks once:
-"Compare with other players? Your scores (not your machines) are shared
-anonymously." Yes signs in anonymously, submits, and shows the stats. No is
-remembered, and the account menu offers it again later. Signing in with
-Google counts as opting in. The help screen says what is stored and how to
-delete it.
-
-### Signing in
-
-* **Anonymous**: `signInAnonymously` on opting in. Firebase keeps the account
-  in the browser, so one browser stays one player.
-* **Google**: from the account menu. `linkWithPopup` on the anonymous account
-  keeps its uid, so its results carry over; then `getIdToken(true)` so the
-  token reports the Google provider to the rules. If the Google account
-  already exists (`credential-already-in-use`), sign in to it instead. Always
-  popup, never redirect: on github.io the auth domain is a different site and
-  browsers' storage partitioning breaks the redirect flow.
+* A **Sign in** button (on the floor select and next to each floor's plot)
+  first explains what signing in does: your scores join the heatmap, your
+  machines and progress are saved to your account, friends you invite see
+  your scores and nickname, and you can delete it all. Only then does it open
+  Google's sign-in popup (always a popup, never a redirect: on github.io the
+  auth domain is a different site and browsers' storage partitioning breaks
+  the redirect flow).
+* On first sign-in the player picks a nickname, and their solutions so far are
+  uploaded (below). The help screen repeats what is stored and how to delete
+  it.
 * The local save records the uid it belongs to. Signing in to a different
   Google account on a browser whose save belongs to someone else asks before
   merging anything.
@@ -377,7 +379,7 @@ delete it.
   the client re-reads `rulesVersion` and retries later, or gives up for good
   on a solution that fails validation.
 
-### Cloud save (Google accounts)
+### Cloud save
 
 The local save gains, per level, `workAt` (when the working machine last
 changed, server time once synced) and `deleted` (hashes of solutions the
@@ -403,10 +405,11 @@ player deleted). Merging a local level with `saves/$uid/$level`:
 
 ### Comparison on the plot
 
-When a floor's plot is shown (and the player has opted in), read
+When a floor's plot is shown to a signed-in player, read
 `/stats/v{RULES_VERSION}/{level}` once, cached for the session, and pass it to
 `scatterPlot` as `others` (the hook is already there): faint markers sized by
-count, plus a line for the overall frontier. For a Google account, also read
+count, plus a line for the overall frontier. Signed-out players see their own
+solutions only, with a line inviting them to sign in to compare. Also read
 `/friends/$uid`, then each friend's `/profiles/$friend` and
 `/scores/v{RULES_VERSION}/$friend` (all floors at once; cached for the
 session), and draw each friend's frontier as a labelled staircase. If a
@@ -418,8 +421,8 @@ control characters stripped.
 
 ### Friends and names
 
-* On first Google sign-in the player picks a **nickname** for
-  `profiles/$uid/name`. It is never filled in from the Google account.
+* On first sign-in the player picks a **nickname** for `profiles/$uid/name`.
+  It is never filled in from the Google account.
 * **Invite**: `createInvite` and show `…/#invite=$code` to send by any means.
 * **Accept**: opening an invite link removes the code from the URL
   (`history.replaceState`), prompts Google sign-in if needed, shows "Accept
@@ -472,13 +475,12 @@ Hardening:
 * **Shared project.** Database admin roles are project-wide, so a bug or
   compromise in one game's functions could touch another game's data, and the
   kill switch takes every game down at once.
-* **Fake players.** Scripted accounts can inflate the heatmap's counts with
-  valid machines (reference solutions are public). App Check raises the cost;
-  `rescore.js` can remove an account's results.
-* **Duplicate players.** Clearing site data or using a second browser without
-  signing in makes a new anonymous player.
-* **Old anonymous accounts** accumulate; a later cleanup can delete accounts
-  inactive for a year, with their data.
+* **Fake players.** Someone with many Google accounts can inflate the
+  heatmap's counts with valid machines (reference solutions are public).
+  Google accounts are much costlier to script than anonymous ones would be,
+  App Check raises the cost further, and `rescore.js` can remove an account's
+  results.
+* **A smaller heatmap.** Only players who sign in count towards it.
 * **SDK from a CDN.** The Firebase SDK is loaded from Google's CDN at a pinned
   version, without integrity checks (not available for module imports).
 
@@ -493,8 +495,8 @@ Hardening:
    functions tested in the emulator, including attack cases: primitives at
    parents, unknown levels, wrong versions, bursts, oversized machines, the
    card bomb.
-4. Opt-in, anonymous sign-in and solution upload; heatmap and overall
-   frontier on the plot.
-5. Google sign-in, nicknames and cloud save.
+4. Google sign-in (the opt-in), nicknames and solution upload; heatmap and
+   overall frontier on the plot.
+5. Cloud save.
 6. Invites and friends' frontiers; `deleteMyData`.
 7. The deploy workflow and `rescore.js`.
