@@ -41,7 +41,13 @@ import {
 //   6  gather and war take both hands in one round when both are waiting
 //   7  burn and hand croupiers; jokers and advertising cards
 //   8  deal builds one pile per side, each card on top (piles reverse order)
-export const RULES_VERSION = 8;
+//   9  a run fails once more than MAX_FLOOR_CARDS cards are on the floor
+export const RULES_VERSION = 9;
+
+// A machine can multiply cards without bound (two duplicates feeding each
+// other quadruple them every four rounds), so a run fails once more than this
+// many cards are on the floor. No reference solution has more than 70.
+export const MAX_FLOOR_CARDS = 1000;
 
 export const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
 export const DIR_NAMES = ['E', 'SE', 'SW', 'W', 'NW', 'NE'];
@@ -50,11 +56,14 @@ const mod6 = (n) => ((n % 6) + 6) % 6;
 
 const cardsOf = (hand) => hand.map((x) => x.c);
 const playerCards = (hand) => hand.filter((x) => x.src === 'player').length;
-const heldCards = (cell) => {
-  if (!cell.held) return 0;
-  if (cell.fn === 'gather') return playerCards(cell.held[0]);
-  return Object.values(cell.held).reduce((a, h) => a + playerCards(h), 0);
+// The hands a croupier is holding (gather: [hand, side]; war: {player,
+// dealer}; hand: {buffer}).
+const heldHands = (cell) => {
+  if (!cell.held) return [];
+  if (cell.fn === 'gather') return [cell.held[0]];
+  return Object.values(cell.held);
 };
+const heldCards = (cell) => heldHands(cell).reduce((a, h) => a + playerCards(h), 0);
 
 // Croupier functions. Each gets (cell, hand, inSide) and returns a list of
 // [port, hand] outputs. Croupiers that need two hands (gather, war) keep the
@@ -214,6 +223,23 @@ export class Floor {
     return this.cells.get(key(cell.q + dq, cell.r + dr));
   }
 
+  // Cards on the floor: in slots, held by croupiers, or waiting to be placed
+  // by them (not the players' and shoes' next hands).
+  cardCount() {
+    let n = 0;
+    for (const c of this.cells.values()) {
+      for (const h of c.slots) if (h) n += h.length;
+      for (const h of heldHands(c)) n += h.length;
+      if (c.kind === 'croupier') for (const [, h] of c.pending) n += h.length;
+    }
+    return n;
+  }
+
+  // More than MAX_FLOOR_CARDS cards on the floor: the run has failed.
+  overflowed() {
+    return this.cardCount() > MAX_FLOOR_CARDS;
+  }
+
   croupierCount() {
     let n = 0;
     for (const c of this.cells.values()) if (c.kind === 'croupier' || c.kind === 'shoe') n++;
@@ -352,7 +378,8 @@ export function expectedPayouts(rule, inputs) {
 export const handKey = (hand, ordered = false) => (ordered ? [...hand] : [...hand].sort()).join(' ');
 
 // Run one test case against `rule` (see expectedPayouts). Payouts may arrive
-// in any order; each must match a distinct expected hand.
+// in any order; each must match a distinct expected hand. A run with more than
+// MAX_FLOOR_CARDS cards on the floor stops there and fails (`overflow`).
 export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {}) {
   const floor = new Floor(spec, inputs);
   const expected = expectedPayouts(rule, inputs);
@@ -363,9 +390,10 @@ export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {
   // payouts in that window). If the player cards are gone but payouts are
   // still owed (house cards on their way to the desk), it runs on for up to
   // `grace` rounds before giving up.
-  let settled = null, drained = null;
+  let settled = null, drained = null, overflow = false;
   while (floor.round < maxRounds) {
     floor.step();
+    if (floor.overflowed()) { overflow = true; break; }
     const allPaid = floor.inputPos >= inputs.length && floor.paid.length >= expected.length;
     if (allPaid) settled ??= floor.round;
     if (floor.done()) {
@@ -380,10 +408,10 @@ export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {
     const i = remaining.indexOf(handKey(h, ordered));
     if (i < 0) wrong.push(h); else remaining.splice(i, 1);
   }
-  const finished = floor.done() || settled !== null;
+  const finished = !overflow && (floor.done() || settled !== null);
   return {
     ok: finished && !wrong.length && !remaining.length,
-    rounds: settled ?? floor.round,
-    croupiers: floor.croupierCount(), wrong, missing: remaining, timeout: !finished,
+    rounds: overflow ? floor.round : settled ?? floor.round,
+    croupiers: floor.croupierCount(), wrong, missing: remaining, timeout: !finished && !overflow, overflow,
   };
 }

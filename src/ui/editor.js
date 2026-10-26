@@ -1,5 +1,5 @@
 // The level editor: palette, board, inspector, simulation and test runs.
-import { runTest, expectedPayouts } from '../engine.js';
+import { runTest, expectedPayouts, MAX_FLOOR_CARDS } from '../engine.js';
 import { h, s, handEl, parseCards, fmtCards } from './dom.js';
 import { Board, R } from './board.js';
 import {
@@ -296,6 +296,7 @@ export function openEditor(root, ctx, level) {
   function describeFailure(r) {
     if (r.error) return r.error;
     if (r.wrong?.length) return `paid ${fmtCards(r.wrong[0])}, which ${listed ? 'isn\'t one of the expected payouts' : 'should have been dropped'}.`;
+    if (r.overflow) return `more than ${MAX_FLOOR_CARDS} cards on the floor in round ${r.rounds}.`;
     if (r.timeout) return `still running after ${r.rounds} rounds (${r.missing.length} hand${r.missing.length === 1 ? '' : 's'} never paid).`;
     if (r.missing?.length) return `${r.missing.length} ${listed ? 'expected payout' : 'winning hand'}${r.missing.length === 1 ? '' : 's'} never paid.`;
     return 'failed.';

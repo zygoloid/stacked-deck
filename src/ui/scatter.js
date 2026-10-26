@@ -14,21 +14,9 @@
 // others:    optional [{ croupiers, rounds, count }]: other players' solutions,
 //            drawn as faint background markers sized by count (not used yet)
 import { h, s } from './dom.js';
+import { frontierOf } from '../score.js';
 
 const M = { l: 48, r: 18, t: 18, b: 42 };
-
-// Solutions not beaten on both axes by another one (by index).
-export function frontierOf(solutions) {
-  const out = new Set();
-  // Solutions that no longer clear the floor (after a rules change) are left out.
-  solutions.forEach((a, i) => {
-    if (a.broken) return;
-    const beaten = solutions.some((b) => !b.broken && b.croupiers <= a.croupiers && b.rounds <= a.rounds &&
-      (b.croupiers < a.croupiers || b.rounds < a.rounds));
-    if (!beaten) out.add(i);
-  });
-  return out;
-}
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 export const scoreText = (p) => `${plural(p.croupiers, 'croupier')} · ${plural(p.rounds, 'round')}`;

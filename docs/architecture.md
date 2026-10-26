@@ -7,6 +7,9 @@ build step: plain ES modules served as static files.
 index.html, style.css      page shell
 src/cards.js               cards, deck order, hand predicates, PRNG
 src/engine.js              floor simulator (Floor, runTest, FUNCTIONS)
+src/score.js               machines: engine spec, scoring, validation, canonical
+                           form and hash, frontier (no DOM; shared with
+                           anything that checks solutions outside the browser)
 src/levels.js              the campaign: LEVELS, CHAPTERS, CHAPTER_FILES, helpers
 src/levels/<chapter>.js    one module per chapter (hearts, diamonds, clubs,
                            spades, finale): its levels and PAR table
@@ -23,7 +26,8 @@ tools/serve.js             zero-dependency static server (npm run serve)
 Ownership while the game is being built:
 * `src/engine.js` and `src/cards.js` are shared. Don't change their behaviour
   without coordinating, because every saved solution and reference solution
-  depends on them.
+  depends on them. `src/score.js` is shared too: solution hashes and the
+  validator must stay the same wherever solutions are checked.
 * The UI owns `index.html`, `style.css`, `src/ui/`, `tools/serve.js`.
 * Content owns `src/levels.js`, `src/levels/`, `solutions/levels/`,
   `tools/level-specs/`, `test/levels.js`, `test/mutants/`, `docs/story.md`,
@@ -45,7 +49,9 @@ floor.cells                  // Map "q,r" -> cell with live state:
                              //   held (gather: [hand, side]; war: {player?, dealer?}),
                              //   facing
                              // A hand in the live state is an array of {c: 'AS', src: 'player'|'house'}.
-runTest({ cells }, inputs, pays) -> { ok, rounds, croupiers, wrong, missing, timeout }
+floor.cardCount()            // cards in slots, held, or waiting to be placed by croupiers
+floor.overflowed()           // cardCount() > MAX_FLOOR_CARDS (1000): the run has failed
+runTest({ cells }, inputs, pays) -> { ok, rounds, croupiers, wrong, missing, timeout, overflow }
 ```
 
 Cards are strings: rank `A23456789TJQK` + suit `SDCH`. A hand's top card is
@@ -206,7 +212,7 @@ player's own cells (shoes and croupiers), in the cell format above.
 `solutions` grows each time every test passes with a machine not already in
 the list; `at` is `Date.now()` when it was first found. Two machines are the
 same solution when their canonical forms match (`canonicalCells` in
-`src/ui/model.js`: undefined, empty and default fields (`facing: 0`,
+`src/score.js`: undefined, empty and default fields (`facing: 0`,
 `once: false`, `rule: 'high'`) dropped, keys sorted, cells sorted by
 position). The same machine built elsewhere on the floor is a different
 solution. The player can delete solutions; `best` is then recomputed from

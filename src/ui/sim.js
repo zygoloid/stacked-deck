@@ -1,7 +1,7 @@
 // Interactive simulation of one test case, with history for stepping back and
 // the same pass/fail rules as runTest in src/engine.js (checked live, so a run
 // can pause at the first wrong payout).
-import { Floor, expectedPayouts, handKey } from '../engine.js';
+import { Floor, expectedPayouts, handKey, MAX_FLOOR_CARDS } from '../engine.js';
 
 export const MAX_ROUNDS = 5000;   // as runTest
 export const GRACE = 50;          // as runTest
@@ -39,7 +39,7 @@ export class Sim {
   }
 
   get round() { return this.floor.round; }
-  get finished() { return ['passed', 'wrong', 'missing', 'timeout', 'jam'].includes(this.status.kind); }
+  get finished() { return ['passed', 'wrong', 'missing', 'timeout', 'jam', 'overflow'].includes(this.status.kind); }
 
   // Player-card positions: if this stops changing, nothing is happening.
   signature() {
@@ -91,6 +91,11 @@ export class Sim {
     this.store();
     const sig = this.signature();
     if (sig !== this.sig) { this.sig = sig; this.lastMove = f.round; }
+    if (f.overflowed()) {
+      const { missing } = this.tally();
+      this.status = { kind: 'overflow', missing, msg: `Too many cards: more than ${MAX_FLOOR_CARDS} on the floor in round ${f.round}.` };
+      return this.status.kind;
+    }
 
     if (f.paid.length > before) {
       const t = this.tally();
