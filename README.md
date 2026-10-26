@@ -18,8 +18,8 @@ Add `?unlockall` to the URL to open every floor.
     npm test             # engine, checker, sample machines, all 25 levels
 
 Online features (Firebase; see [docs/online.md](docs/online.md)): the
-database rules, the Cloud Functions in `functions/` and the project kill switch
-in `ops/` are tested against the Firebase emulators (needs Java):
+database rules and the Cloud Functions in `functions/` are tested against the
+Firebase emulators (needs Java):
 
     cd test/emulator && npm ci && npm test
 

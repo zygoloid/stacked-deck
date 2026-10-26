@@ -19,17 +19,6 @@
       "predeploy": [
         "node tools/copy-game.js"
       ]
-    },
-    {
-      "source": "ops",
-      "codebase": "ops",
-      "runtime": "nodejs22",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "*.log",
-        "*.local"
-      ]
     }
   ],
   "emulators": {

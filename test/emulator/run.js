@@ -1,4 +1,4 @@
-// Tests for the database rules, the scoring function and the kill switch,
+// Tests for the database rules and the scoring function,
 // against the Firebase emulators. Run from test/emulator: npm ci && npm test
 // (which starts the database and functions emulators and runs this).
 //
@@ -6,7 +6,8 @@
 //   rules-tests            the rules, exercised with client contexts
 //   direct-tests           processSolution and addPoint called directly
 //   zygoloid-stacked-deck  end to end: the deployed trigger scores a submission
-// The kill switch runs last, since it locks every instance it finds.
+// (The project's kill switch lives, and is tested, with the project's own
+// infrastructure, not here.)
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -295,56 +296,4 @@ console.log('processSolution and addPoint ok');
 }
 console.log('end to end ok');
 
-// ---------- kill switch ----------
-{
-  const opsRequire = createRequire(new URL('../../ops/package.json', import.meta.url));
-  const opsAdmin = opsRequire('firebase-admin/app');
-  const ks = await import('../../ops/killswitch.js');
-  const { KNOWN_INSTANCE_URLS, LIMITS } = await import('../../ops/config.js');
-
-  assert.strictEqual(ks.budgetExceeded({ costAmount: 2, budgetAmount: 10 }, 1), false);
-  assert.strictEqual(ks.budgetExceeded({ costAmount: 9.99, budgetAmount: 10, alertThresholdExceeded: 0.9 }, 1), false);
-  assert.strictEqual(ks.budgetExceeded({ costAmount: 10, budgetAmount: 10 }, 1), true);
-  assert.strictEqual(ks.budgetExceeded({ costAmount: 3, budgetAmount: 10, alertThresholdExceeded: 1.0 }, 1), true);
-  assert.strictEqual(ks.budgetExceeded(null, 1), false);
-  assert.deepStrictEqual(ks.overLimits({ sentBytesPerHour: 0, storedBytes: 0 }), []);
-  assert.deepStrictEqual(ks.overLimits({ sentBytesPerHour: LIMITS.sentBytesPerHour + 1, storedBytes: LIMITS.storedBytes + 1 }), ['sentBytesPerHour', 'storedBytes']);
-  assert.strictEqual(ks.sumSeries({ timeSeries: [{ points: [{ value: { int64Value: '5' } }, { value: { doubleValue: 2.5 } }] }] }), 7.5);
-  assert.strictEqual(ks.sumSeries({}), 0);
-
-  // A fake Google API: the instance list names one more game's instance, and
-  // the metrics come back as one series each.
-  const seen = [];
-  const fakeFetch = async (u) => {
-    seen.push(u);
-    const body = u.startsWith('https://firebasedatabase.googleapis.com/')
-      ? { instances: [{ databaseUrl: url('another-game') }, { databaseUrl: KNOWN_INSTANCE_URLS[1] }] }
-      : { timeSeries: [{ points: [{ value: { int64Value: u.includes('sent_bytes') ? '123' : '456' } }] }] };
-    return { ok: true, json: async () => body, text: async () => '' };
-  };
-  assert.deepStrictEqual(await ks.readUsage(fakeFetch, 't'), { sentBytesPerHour: 123, storedBytes: 456 });
-  assert(seen.some((u) => u.includes('crossSeriesReducer=REDUCE_SUM') && u.includes('sent_bytes_count')));
-
-  const logs = [];
-  const log = { error: (m) => logs.push(m), info: () => {} };
-  await owner('another-game', 'x', 'PUT', 1);
-  // The emulator treats the access token "owner" as an admin.
-  const ownerCredential = { getAccessToken: async () => ({ access_token: 'owner', expires_in: 3600 }) };
-  const opsApp = opsAdmin.initializeApp({ projectId: 'demo-stacked-deck', credential: ownerCredential }, 'ops-tests');
-  const locked = await ks.lockdown({ app: opsApp, fetchFn: fakeFetch, token: 't', log, reason: 'test' });
-  assert.deepStrictEqual(locked.sort(), [...new Set([...KNOWN_INSTANCE_URLS, url('another-game')])].sort());
-  for (const ns of ['another-game', 'zygoloid-stacked-deck']) {
-    assert.deepStrictEqual(await owner(ns, '.settings/rules'), ks.DENY_ALL, ns);
-  }
-  // Players are now refused, even for what they could read before.
-  const env3 = await initializeTestEnvironment({ projectId: 'demo-stacked-deck', database: { host, port: Number(port) } });
-  await assertFails(env3.authenticatedContext('e2e', { firebase: { sign_in_provider: 'google.com' } }).database(url('zygoloid-stacked-deck')).ref('config').get());
-  await env3.cleanup();
-  // Listing failing still locks the known instances.
-  const failing = async () => ({ ok: false, status: 403, text: async () => 'denied' });
-  const locked2 = await ks.lockdown({ app: opsApp, fetchFn: failing, token: 't', log, reason: 'test' });
-  assert.deepStrictEqual(locked2.sort(), [...KNOWN_INSTANCE_URLS].sort());
-  assert(logs.some((m) => m.includes('could not list')));
-}
-console.log('kill switch ok');
 process.exit(0);

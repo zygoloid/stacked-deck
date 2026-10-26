@@ -1,8 +1,8 @@
 # Stacked Deck: online features (design)
 
 Status: agreed design, partly built (see "Build order"): the shared scoring
-module, the engine card limit, check deals, the database rules, `scoreSolution` and the
-kill switch. Nothing is deployed yet.
+module, the engine card limit, check deals, the database rules and
+`scoreSolution`, and the project's kill switch. Nothing is deployed yet.
 
 Two connected features:
 
@@ -47,37 +47,24 @@ more valuable.
 | Realtime Database | This game's own instance (e.g. `zygoloid-stacked-deck`), read and written directly by the browser under security rules deployed from this repo. Instance names are global and can't move between projects. |
 | Cloud Functions | Node functions in `functions/` (the `stacked-deck` codebase) that verify solutions with the game's own engine and maintain scores and stats; later also friends and account deletion. |
 | `src/score.js` | Scoring and validation code shared by the game and the functions. |
-| Project controls | App Check, a budget, and a kill switch (`ops/`, the `ops` codebase), set up once for the shared project (see below). |
+| Project controls | App Check, a budget, and a kill switch, set up once for the shared project (see below). |
 
 ## Shared project controls
 
-These belong to the shared games project, not to this game, but this design
-depends on them being in place before launch.
+These belong to the shared games project, not to this game (they live with
+the project's own infrastructure), but this design depends on them being in
+place before launch.
 
-* **Kill switch** (`ops/`, deployed as the `ops` codebase with
-  `firebase deploy --only functions:ops`). It covers every game in the
-  project, and lives in this repo only until it moves to a repo of its own.
-  `lockdown()` (`ops/killswitch.js`) sets deny-all rules on every database
-  instance: those in `ops/config.js`, plus any the management API lists.
-  Rejected requests cost almost nothing, and with writes refused no function
-  is triggered. Undo it by redeploying each game's rules. Two triggers:
-  * `usageKillSwitch`, every 10 minutes, reads the project's database usage
-    from the Cloud Monitoring API (bytes sent in the last hour, and the most
-    stored in the last day, each summed across instances into one time
-    series) and locks down past `LIMITS`: 1 GiB sent in an hour (about $1)
-    or 2 GiB stored. That turns a bandwidth attack (about $1/GB downloaded,
-    otherwise limited only by the attacker's bandwidth) into some minutes of
-    charges followed by an outage. It stands in for Cloud Monitoring alert
-    policies, which cost about $0.10 per condition a month: it reads about
-    9,000 time series a month against a free allowance of 1 million per
-    billing account (then $0.50 per million), and uses one of the billing
-    account's 3 free Cloud Scheduler jobs. If it can't read the metrics it
-    logs an error and does nothing; after deploying, check that its
-    "database usage" log line shows plausible numbers.
-  * `budgetKillSwitch`, on the budget's Pub/Sub topic `over-budget`. Budgets
-    publish their status several times a day whatever the spend, so it locks
-    down only once actual spend reaches the budget. Billing data lags by
-    hours, so this is the slow backstop.
+* **Kill switch**, kept with the project's own infrastructure (it covers every
+  game in the project). It sets deny-all rules on every database instance in
+  the project when the budget's Pub/Sub notification says spend has reached
+  the budget, or when a check every 10 minutes finds database downloads or
+  storage past fixed limits (about 1 GiB sent in an hour, 2 GiB stored).
+  Denied requests cost almost nothing, and with writes refused no function is
+  triggered. That turns a bandwidth attack (about $1/GB downloaded, otherwise
+  limited only by the attacker's bandwidth) into some minutes of charges
+  followed by an outage. After a lockdown, this game's rules are restored by
+  redeploying them (`firebase deploy --only database:stacked-deck`).
 * **Budget** on the billing account, notifying by email and on `over-budget`.
 * **App Check** enforced on every database instance and callable function from
   launch (reCAPTCHA Enterprise provider; check its current free allowance and
@@ -469,12 +456,11 @@ The emulator tests: `cd test/emulator && npm ci && npm test` (needs Java;
 `firebase-tools` is pinned in that package). It copies the game code into
 `functions/game/`, starts the database and functions emulators for a demo
 project (no real resources) and runs `run.js`: the rules, `processSolution`
-and `addPoint`, a submission scored end to end by the trigger, and the kill
-switch. `firebase-tools` sends all its requests through `HTTPS_PROXY` and
+and `addPoint`, and a submission scored end to end by the trigger. `firebase-tools` sends all its requests through `HTTPS_PROXY` and
 ignores `NO_PROXY`, so behind a proxy run it with `HTTPS_PROXY` unset.
 
-The kill switch is deployed by hand, once for the project:
-`firebase deploy --only functions:ops`.
+The project's kill switch is deployed (from its own repository) before this
+game's rules and functions.
 
 One GitHub Actions workflow on pushes to `main`:
 
@@ -521,9 +507,8 @@ Hardening:
 1. Done: extract `src/score.js` and add `validateCells`; add the engine card
    limit, check deals, and rounds as the total over the tests (all
    `RULES_VERSION` 9).
-2. Shared project setup: project, Auth providers, App Check and budget are
-   done (by hand); the kill switch is written (`ops/`), to be deployed with
-   its service account.
+2. Shared project setup: project, Auth, App Check, budget, service accounts
+   and APIs are done (by hand); the kill switch is written, to be deployed.
 3. Done, not deployed: generated rules and `scoreSolution`, with rules and
    functions tested in the emulator, including attack cases: primitives at
    parents, unknown levels, wrong versions, bursts, oversized machines, the
