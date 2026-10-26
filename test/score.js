@@ -33,9 +33,12 @@ for (const level of ALL) {
   const res = validateCells(level, JSON.parse(JSON.stringify(cells)));
   assert(res.cells, `${level.id}: ${res.error}`);
   assert.strictEqual(canonicalCells(res.cells), canonicalCells(cells), level.id);
-  assert((await scoreMachine(level, res.cells)).ok, level.id);
+  const score = await scoreMachine(level, res.cells);
+  assert(score.ok, level.id);
+  // The score comes from the published tests only, never the check deals.
+  assert.deepStrictEqual({ croupiers: score.croupiers, rounds: score.rounds }, level.par, level.id);
 }
-console.log(`reference solutions valid (${ALL.length})`);
+console.log(`reference solutions valid and scored as par (${ALL.length})`);
 
 // Rejections: anything the editor can't build.
 {
