@@ -154,7 +154,9 @@ whenever a rule changes; the level select shows it.
   pays: (hand, earlierHands) => boolean,   // either this…
   expected: (inputs) => [hand, ...],       // …or this: the exact payouts (see below)
   ordered: false,                          // compare card order within payouts
-  tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays)
+  tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays);
+                                //   made by makeTests (src/levels/shared.js), which also records
+                                //   tests.deal = { handSize, handsPerTest } for the check deals
   par: { croupiers, rounds },   // from the reference solution (optional)
 }
 ```
@@ -184,8 +186,16 @@ count towards the campaign's unlock window, and their palette is whatever the
 level lists. Ids are unique across `LEVELS` and `BONUS`, since saves are keyed
 by id.
 
-A level is solved when `runTest` passes on every test. Scores are croupiers
-(shoes included) and rounds (the average over all tests, rounded). Levels
+A level is solved when `runTest` passes on every test and then on the
+machine's **check deals**: `CHECK_DEALS` (8) more random tests, dealt like the
+level's own random tests (`tests.deal`) from a seed taken from the SHA-256 of
+the level id and the machine's canonical form (`checkDeals` in
+`src/score.js`, with the 128-bit `sfc32` PRNG in `src/cards.js`). The same
+machine always gets the same check deals, in the browser and on the server,
+but changing the machine changes them, so a machine can't be fitted to the
+published tests or hard-code their payouts. `test/levels.js` checks every
+reference solution passes its check deals. Scores are croupiers (shoes
+included) and rounds (the average over the published tests only, rounded). Levels
 unlock in order, with some slack: a level is open when fewer than three levels
 before it are unsolved (`OPEN_UNSOLVED` in `src/ui/model.js`), so up to three
 unsolved levels are open at once. The UI reads both lists through

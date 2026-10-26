@@ -46,7 +46,7 @@ const reference = async (id) => {
 const LEVEL = 'upper-hand';
 const CELLS = await reference(LEVEL);
 const HASH = await solutionHash(CELLS);
-const PAR = scoreMachine(byId.get(LEVEL), CELLS);
+const PAR = await scoreMachine(byId.get(LEVEL), CELLS);
 assert(PAR.ok);
 // Two duplicates feeding each other: valid, but it fails on the card limit.
 const BOMB = [

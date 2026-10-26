@@ -666,6 +666,24 @@ try {
     check((await page.textContent('.marquee-meta')).includes(`1 / ${LEVELS.length} floors cleared · 2 / ${nBonus} bonus`), 'header: 1 campaign floor and 2 bonus floors cleared');
     check(await page.locator('.chapter.bonus a.tile.solved').count() === 2, 'bonus tiles marked solved');
     if (shots) await page.locator('.chapter.bonus').screenshot({ path: join(shots, '12c-bonus-deck-solved.png') });
+
+    // Check deals: a machine that only fits the published tests (they deal
+    // only hearts) passes them and fails a check deal, which is loaded and
+    // explained, and the floor stays uncleared.
+    await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true }, 'test-hearts': { cells: SOLUTIONS['test-hearts-everything'] } });
+    await page.goto(`${T}#/level/test-hearts`);
+    await page.reload();
+    await page.waitForSelector('svg.board');
+    check((await page.textContent('.check-hint').catch(() => '')).includes('8 check deals'), 'the tests panel mentions the check deals before a run');
+    await page.click('.speeds .sp:last-child');
+    await page.waitForSelector('.toast.bad', { timeout: 20000 });
+    const ct = (await page.textContent('.toast')) || '';
+    check(/Test 1 passed, but check deal \d failed/.test(ct) && ct.includes('change when it does'), `fitting the tests fails a check deal: "${ct.slice(0, 80)}..."`);
+    check(await page.locator('.test-chip.check').count() === 8 && await page.locator('.test-chip.check.fail').count() >= 1 &&
+      await page.locator('.test-chip.check.on').count() === 1, 'the check deals are shown, and the failing one is loaded');
+    check((await page.textContent('.tp-round')).includes('Check deal'), 'the transport names the check deal');
+    check(!(await getSave())['test-hearts'].solved, 'a floor is not cleared by fitting its tests');
+    if (shots) await page.locator('.panel.tests').screenshot({ path: join(shots, '15-check-deal-failed.png') });
     await setSave({});
   }
 

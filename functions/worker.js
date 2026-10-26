@@ -6,4 +6,4 @@ import { LEVELS, BONUS } from './game/levels.js';
 import { scoreMachine } from './game/score.js';
 
 const level = [...LEVELS, ...BONUS].find((l) => l.id === workerData.level);
-parentPort.postMessage(scoreMachine(level, workerData.cells));
+parentPort.postMessage(await scoreMachine(level, workerData.cells));

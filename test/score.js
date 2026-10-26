@@ -2,10 +2,15 @@
 // port table (which must match the editor's croupier table).
 import assert from 'node:assert';
 import { LEVELS, BONUS } from '../src/levels.js';
-import { PORTS, validateCells, canonicalCells, solutionHash, scoreMachine, MAX_DECK } from '../src/score.js';
+import {
+  PORTS, validateCells, canonicalCells, solutionHash, scoreMachine, MAX_DECK, checkDeals, CHECK_DEALS, toSpec,
+} from '../src/score.js';
+import { runTest } from '../src/engine.js';
+import { makeTests } from '../src/levels/shared.js';
 import { CROUPIERS } from '../src/ui/croupiers.js';
 
 const ALL = [...LEVELS, ...BONUS];
+const scoreTests = (level, cells) => level.tests.every((t) => runTest(toSpec(level, cells), t, level).ok);
 const byId = new Map(ALL.map((l) => [l.id, l]));
 const reference = async (level) => {
   const m = await import(`../solutions/levels/${level.id}.js`);
@@ -28,7 +33,7 @@ for (const level of ALL) {
   const res = validateCells(level, JSON.parse(JSON.stringify(cells)));
   assert(res.cells, `${level.id}: ${res.error}`);
   assert.strictEqual(canonicalCells(res.cells), canonicalCells(cells), level.id);
-  assert(scoreMachine(level, res.cells).ok, level.id);
+  assert((await scoreMachine(level, res.cells)).ok, level.id);
 }
 console.log(`reference solutions valid (${ALL.length})`);
 
@@ -121,3 +126,41 @@ console.log('validation rejects ok');
   assert.notStrictEqual(await solutionHash(moved), h, 'a different machine');
 }
 console.log('solution hashes ok');
+
+// Check deals: dealt like the floor's random tests, the same for the same
+// machine however it is written, different for a different machine or floor.
+{
+  const level = byId.get('upper-hand');
+  const cells = await reference(level);
+  const deals = await checkDeals(level, cells);
+  assert.strictEqual(deals.length, CHECK_DEALS);
+  for (const t of deals) {
+    assert.strictEqual(t.length, level.tests.deal.handsPerTest);
+    assert(t.every((hand) => hand.length === level.tests.deal.handSize));
+    assert.strictEqual(new Set(t.flat()).size, t.flat().length, 'one deck per deal');
+  }
+  const shuffled = [...cells].reverse().map((c) => Object.fromEntries(Object.entries(c).reverse()));
+  assert.deepStrictEqual(await checkDeals(level, shuffled), deals);
+  const moved = structuredClone(cells);
+  moved[0].facing = ((moved[0].facing ?? 0) + 1) % 6;
+  assert.notDeepStrictEqual(await checkDeals(level, moved), deals);
+  assert.notDeepStrictEqual(await checkDeals({ ...level, id: 'another-floor' }, cells), deals);
+  assert(!deals.some((d) => level.tests.some((t) => JSON.stringify(t) === JSON.stringify(d))), 'not the published tests');
+  // A floor whose tests weren't made by makeTests has none.
+  assert.deepStrictEqual(await checkDeals({ ...level, tests: [[['AS']]] }, cells), []);
+}
+{
+  // A machine fitted to the published tests: on a floor that pays hearts but
+  // whose tests (unluckily) deal only hearts, "pay everything" passes the
+  // tests and fails the check deals.
+  const base = byId.get('opening-night');
+  const level = {
+    ...base, id: 'hearts-test', pays: (hand) => hand[0][1] === 'H',
+    tests: makeTests({ handSize: 1, handsPerTest: 8, nRandom: 0, fixed: [['AH', '2H', '3H', '4H', '5H', '6H', '7H', '8H']] }),
+  };
+  const cells = await reference(base);
+  assert(scoreTests(level, cells), 'passes the published tests');
+  assert(!(await scoreMachine(level, cells)).ok, 'fails its check deals');
+  assert((await scoreMachine(base, cells)).ok);
+}
+console.log('check deals ok');

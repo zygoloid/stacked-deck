@@ -1,7 +1,7 @@
 // Helpers shared by the chapter modules in src/levels/. See docs/campaign.md
 // for the campaign plan and docs/architecture.md for the level format.
 import {
-  fullDeck, shuffled, rng, rankOf, suitOf, highValue, RANKS,
+  randomDeals, rng, rankOf, suitOf, highValue, RANKS,
 } from '../cards.js';
 
 // All hexes within `radius` of [cq, cr].
@@ -32,16 +32,15 @@ export function hexRect(r0, r1, x0, x1) {
 }
 
 // Fixed hands (strings like 'AS 2S'), then `nRandom` tests of `handsPerTest`
-// hands dealt from one shuffled deck each.
+// hands dealt from one shuffled deck each. The list also records how its
+// random tests are dealt (`tests.deal`, not enumerable), so the floor's check
+// deals (src/score.js) are dealt the same way.
 export function makeTests({ handSize, handsPerTest, fixed = [], nRandom = 4, seed = 1 }) {
-  const rand = rng(seed);
-  const tests = fixed.map((t) => t.map((h) => h.split(' ')));
-  for (let i = 0; i < nRandom; i++) {
-    const deck = shuffled(fullDeck(), rand);
-    const t = [];
-    for (let j = 0; j < handsPerTest; j++) t.push(deck.slice(j * handSize, (j + 1) * handSize));
-    tests.push(t);
-  }
+  const tests = [
+    ...fixed.map((t) => t.map((h) => h.split(' '))),
+    ...randomDeals(rng(seed), nRandom, handsPerTest, handSize),
+  ];
+  Object.defineProperty(tests, 'deal', { value: { handSize, handsPerTest } });
   return tests;
 }
 

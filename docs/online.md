@@ -1,7 +1,7 @@
 # Stacked Deck: online features (design)
 
 Status: agreed design, partly built (see "Build order"): the shared scoring
-module, the engine card limit, the database rules, `scoreSolution` and the
+module, the engine card limit, check deals, the database rules, `scoreSolution` and the
 kill switch. Nothing is deployed yet.
 
 Two connected features:
@@ -91,7 +91,7 @@ depends on them being in place before launch.
 ## Data layout
 
 ```
-/config/rulesVersion          9
+/config/rulesVersion          10
 /config/scoringPaused         true | absent
 /limits/$uid/submit           {level, hash, at}
 /solutions/$uid/$level/$hash  {cells, at, rules, score?}  or tombstone {invalid, rules, at}
@@ -247,8 +247,11 @@ the work is `processSolution` and `addPoint` in `functions/solutions.js`).
 4. **Score** in a `worker_threads` Worker (`functions/worker.js`) with
    `resourceLimits` (64 MB heap) and a 5-second timer. The engine's card limit
    (below) makes a runaway machine an ordinary failed run; a Worker that dies
-   or times out anyway writes the tombstone `{invalid: 'resources'}`. A
-   reference solution takes about 100 ms, mostly starting the Worker.
+   or times out anyway writes the tombstone `{invalid: 'resources'}`. Scoring
+   runs the floor's published tests and then the machine's check deals
+   (below), exactly as the game does, so a machine that cleared the floor in
+   the game is never rejected here. A reference solution takes about 100 ms,
+   mostly starting the Worker.
 5. If it clears the floor, **add the point**: a transaction on
    `/scores/v{N}/{uid}/{level}` adds it and drops the points it beats. Take
    the difference from the run that committed (a transaction may first run
@@ -312,6 +315,31 @@ The editor and the step-by-step simulator report it as a failure ("more than
 1000 cards on the floor in round N"). It protects the browser as well as the
 server.
 
+## Check deals (built)
+
+The published tests are public and fixed, so on their own a machine could be
+built around them: hard-coding their payouts (on floors with shoes, dealing
+the expected hands from house cards and dropping the players' hands; the
+checker compares cards, not where they came from), or getting the published
+deals right without following the rule. Secret or fresh random tests on the
+server would stop that, but then a machine that cleared a floor in the game
+could fail online.
+
+So a floor is cleared only if the machine also passes 8 **check deals**:
+random deals made like the floor's own random tests, seeded from the SHA-256
+of the floor id and the machine's canonical form, through a 128-bit PRNG
+(`sfc32`; a 32-bit seed would let someone search for a machine whose check
+deals they already know). The game and the server deal the same check deals
+for the same machine, so there are no surprises online, but changing a
+machine to fit its check deals changes them. Scores (croupiers and rounds)
+still come from the published tests only, so everyone's rounds are measured
+on the same deals. This is `RULES_VERSION` 10: saved solutions are re-scored,
+and any that only fitted the published tests become broken.
+
+In the editor the check deals run after the published tests, as chips C1–C8;
+a failing one is loaded into the step-by-step view like any test, with a note
+that check deals change with the machine. The help says the same.
+
 ## Shared scoring module (built)
 
 `src/score.js` (no DOM, no `localStorage`, no `location`) holds `scoreMachine`,
@@ -330,6 +358,8 @@ and their helpers (moved from `src/ui/model.js` and `src/ui/scatter.js`;
   `{cells}` (a copy) or `{error}`.
 * `solutionHash(cells)` (async): the first 32 hex digits of the SHA-256 of
   `canonicalCells`.
+* `checkDeals(level, cells)` (async) and `scoreMachine` (now async): see
+  "Check deals" below.
 
 The client validates and hashes the same way before uploading, so honest
 submissions never fail the server's checks. The editor doesn't enforce the
@@ -487,7 +517,7 @@ Hardening:
 ## Build order
 
 1. Done: extract `src/score.js` and add `validateCells`; add the engine card
-   limit (`RULES_VERSION` 9).
+   limit (`RULES_VERSION` 9); check deals (`RULES_VERSION` 10).
 2. Shared project setup: project, Auth providers, App Check and budget are
    done (by hand); the kill switch is written (`ops/`), to be deployed with
    its service account.

@@ -2,7 +2,7 @@
 // machines apart. Shared by the game UI and anything that checks solutions
 // outside the browser, so it uses no DOM, localStorage or location.
 import { DIRS, runTest } from './engine.js';
-import { SPECIALS, isCard, isSpecial } from './cards.js';
+import { SPECIALS, isCard, isSpecial, sfc32, randomDeals } from './cards.js';
 
 export const hexKey = ([q, r]) => `${q},${r}`;
 export const addDir = ([q, r], d) => [q + DIRS[d][0], r + DIRS[d][1]];
@@ -157,12 +157,35 @@ export function toSpec(level, cells) {
 
 export const countCroupiers = (cells) => cells.filter((c) => c.kind === 'croupier' || c.kind === 'shoe').length;
 
-// Run a machine against every test of a level.
-export function scoreMachine(level, cells) {
+// ---------- check deals ----------
+// Besides a floor's published tests, a machine must pass CHECK_DEALS more
+// random deals, dealt like the floor's own random tests (`tests.deal`, from
+// makeTests) but seeded from the machine itself: from the SHA-256 of the
+// floor id and the machine's canonical form. The game and the server deal
+// the same check deals for the same machine, so a machine that clears a floor
+// locally clears it everywhere; but changing a machine changes its check
+// deals, so no machine can be built around them (hard-coding the payouts, or
+// fitting just the published tests). Scores come from the published tests.
+export const CHECK_DEALS = 8;
+
+export async function checkDeals(level, cells) {
+  const deal = level.tests?.deal;
+  if (!deal) return [];
+  const text = `stacked-deck check deals\n${level.id}\n${canonicalCells(cells)}`;
+  const d = new DataView(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+  const rand = sfc32(d.getUint32(0), d.getUint32(4), d.getUint32(8), d.getUint32(12));
+  return randomDeals(rand, CHECK_DEALS, deal.handsPerTest, deal.handSize);
+}
+
+// Run a machine against every test of a level, then (if they all pass) its
+// check deals. `ok` needs both; the score comes from the tests alone.
+export async function scoreMachine(level, cells) {
   const spec = toSpec(level, cells);
   const results = level.tests.map((t) => runTest(spec, t, level));
+  let ok = results.every((r) => r.ok);
+  if (ok) ok = (await checkDeals(level, cells)).every((t) => runTest(spec, t, level).ok);
   return {
-    ok: results.every((r) => r.ok),
+    ok,
     croupiers: countCroupiers(cells),
     rounds: Math.round(results.reduce((a, r) => a + r.rounds, 0) / results.length),
   };

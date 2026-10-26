@@ -134,7 +134,7 @@ export async function rescoreStale(save, levels, onChange) {
     for (const sol of stale) {
       await new Promise((r) => setTimeout(r, 0));
       let res;
-      try { res = scoreMachine(level, sol.cells); } catch { res = { ok: false }; }
+      try { res = await scoreMachine(level, sol.cells); } catch { res = { ok: false }; }
       if (res.ok) Object.assign(sol, { croupiers: res.croupiers, rounds: res.rounds, broken: false });
       else sol.broken = true;
       sol.rules = RULES_VERSION;

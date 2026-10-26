@@ -415,6 +415,8 @@ svg.board.placing { cursor: copy; }
 .test-chip.on { border-style: solid; border-color: var(--gold-2); box-shadow: 0 0 0 2px rgba(242, 193, 78, 0.3); }
 .test-chip.pass { background: #1f7a45; }
 .test-chip.fail { background: #8c2632; }
+.test-chip.check { border-radius: 8px; }
+.check-hint { align-self: center; margin-left: 4px; cursor: help; }
 .sim-status { padding: 8px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.28); font-size: 13px; margin-bottom: 8px; border: 1px solid var(--line); }
 .sim-status.good { border-color: var(--good); color: #c8f5d8; }
 .sim-status.bad { border-color: var(--bad); color: #ffd0d0; }

@@ -10,6 +10,7 @@ import {
   hexKey, sanitizeCells, toSpec, countCroupiers, levelSave, warRules, specialCardsOf,
   solutionsOf, recordSolution, deleteSolution, findSolution,
 } from './model.js';
+import { checkDeals, CHECK_DEALS } from '../score.js';
 import { Sim } from './sim.js';
 import { scatterPlot, solutionList, scoreText } from './scatter.js';
 
@@ -33,6 +34,7 @@ export function openEditor(root, ctx, level) {
   const undo = [], redo = [];
   let sim = null, testIndex = 0, playing = false, speed = 1, raf = 0, lastT = 0, acc = 0;
   let runResults = null;          // results of checking every test
+  let checks = null;              // this machine's check deals, once a run reaches them
   let running = false;            // every test is being checked
   let deckDraft = null;           // { key, text, error }
 
@@ -93,6 +95,8 @@ export function openEditor(root, ctx, level) {
     ctx.persist();
     resetSim();
     runResults = null;
+    checks = null;
+    if (testIndex >= level.tests.length) testIndex = 0;
     renderAll();
   }
   function restoreCells(json) {
@@ -164,9 +168,15 @@ export function openEditor(root, ctx, level) {
   }
 
   // ---------- simulation ----------
+  // The published tests, then (once a run has reached them) the machine's
+  // check deals: random deals made from the machine itself (src/score.js).
+  const allTests = () => (checks ? [...level.tests, ...checks] : level.tests);
+  const isCheck = (i) => i >= level.tests.length;
+  const testName = (i) => (isCheck(i) ? `Check deal ${i - level.tests.length + 1}` : `Test ${i + 1}`);
+  const CHECK_NOTE = 'Check deals are random deals made from your machine itself, so they change when it does.';
   function makeSim() {
     try {
-      sim = new Sim(toSpec(level, cells), level.tests[testIndex], level);
+      sim = new Sim(toSpec(level, cells), allTests()[testIndex], level);
     } catch (e) {
       sim = null;
       showToast(`Can't run this floor: ${e.message}`, 'bad');
@@ -240,7 +250,7 @@ export function openEditor(root, ctx, level) {
   }
   function reportStatus() {
     const st = sim.status;
-    if (st.kind === 'passed') showToast(`Test ${testIndex + 1} passed in ${st.rounds} rounds.`, 'good');
+    if (st.kind === 'passed') showToast(`${testName(testIndex)} passed in ${st.rounds} rounds.`, 'good');
     else showToast(failureText(), 'bad');
   }
   function failureText() {
@@ -258,18 +268,30 @@ export function openEditor(root, ctx, level) {
     renderAll();
     let spec;
     try { spec = toSpec(level, cells); } catch (e) { showToast(e.message, 'bad'); running = false; return; }
-    for (let i = 0; i < level.tests.length; i++) {
-      await new Promise((r) => setTimeout(r, 0));
-      let res;
-      try { res = runTest(spec, level.tests[i], level); } catch (e) { res = { ok: false, error: e.message, rounds: 0, wrong: [], missing: [] }; }
-      runResults.push(res);
-      renderTests();
+    const runAll = async (tests) => {
+      for (const t of tests) {
+        await new Promise((r) => setTimeout(r, 0));
+        let res;
+        try { res = runTest(spec, t, level); } catch (e) { res = { ok: false, error: e.message, rounds: 0, wrong: [], missing: [] }; }
+        runResults.push(res);
+        renderTests();
+      }
+    };
+    // The published tests, then (if they all pass) the check deals. They
+    // depend only on the machine, so any shown already stay valid (editing the
+    // machine clears them).
+    await runAll(level.tests);
+    if (runResults.every((r) => r.ok)) {
+      checks = await checkDeals(level, machine);
+      await runAll(checks);
     }
     running = false;
     const ok = runResults.every((r) => r.ok);
     if (ok) {
       const croupiers = countCroupiers(machine);
-      const rounds = Math.round(runResults.reduce((a, r) => a + r.rounds, 0) / runResults.length);
+      // Scores come from the published tests only.
+      const scored = runResults.slice(0, level.tests.length);
+      const rounds = Math.round(scored.reduce((a, r) => a + r.rounds, 0) / scored.length);
       solutionsOf(ls);
       const prev = ls.best ? { ...ls.best } : undefined;
       const wasSolved = !!ls.solved;
@@ -286,10 +308,11 @@ export function openEditor(root, ctx, level) {
       resetSim();
       if (makeSim()) while (!sim.finished) sim.step();
       renderAll();
+      const note = isCheck(first) ? ` ${CHECK_NOTE}` : '';
       if (sim?.finished && sim.status.kind !== 'passed') {
-        showToast(`Test ${watched + 1} passed, but test ${first + 1} failed. ${failureText()}`, 'bad');
+        showToast(`${testName(watched)} passed, but ${testName(first).toLowerCase()} failed. ${failureText()}${note}`, 'bad');
       } else {
-        showToast(`Test ${first + 1} failed: ${describeFailure(runResults[first])}`, 'bad');
+        showToast(`${testName(first)} failed: ${describeFailure(runResults[first])}${note}`, 'bad');
       }
     }
   }
@@ -314,7 +337,7 @@ export function openEditor(root, ctx, level) {
       h('div', { class: 'modal results' },
         h('div', { class: 'res-suits' }, '♠ ♥ ♦ ♣'),
         h('h2', {}, wasSolved ? 'Floor cleared again' : 'Floor cleared!'),
-        h('p', { class: 'res-sub' }, `${level.title}: all ${level.tests.length} tests passed.`),
+        h('p', { class: 'res-sub' }, `${level.title}: all ${level.tests.length} tests${checks?.length ? ` and ${checks.length} check deals` : ''} passed.`),
         h('div', { class: 'res-grid' },
           row('Croupiers', croupiers, ls.best.croupiers, par?.croupiers, prev?.croupiers),
           row('Rounds', rounds, ls.best.rounds, par?.rounds, prev?.rounds)),
@@ -549,19 +572,21 @@ export function openEditor(root, ctx, level) {
   }
 
   function renderTests() {
-    const tests = level.tests;
+    const tests = allTests();
+    const nChecks = level.tests.deal ? CHECK_DEALS : 0;
     const chip = (i) => {
       const r = runResults?.[i];
       const cls = r ? (r.ok ? 'pass' : 'fail') : '';
       return h('button', {
-        class: `test-chip ${cls}${i === testIndex ? ' on' : ''}`, onclick: () => setTest(i),
-        title: r ? (r.ok ? `Passed in ${r.rounds} rounds` : describeFailure(r)) : `Test ${i + 1}: ${tests[i].length} hands`,
-      }, String(i + 1));
+        class: `test-chip ${cls}${isCheck(i) ? ' check' : ''}${i === testIndex ? ' on' : ''}`, onclick: () => setTest(i),
+        title: `${testName(i)}: ${r ? (r.ok ? `passed in ${r.rounds} rounds` : describeFailure(r)) : `${tests[i].length} hands`}`,
+      }, isCheck(i) ? `C${i - level.tests.length + 1}` : String(i + 1));
     };
     const parts = [
       h('div', { class: 'tests-head' }, h('h3', {}, 'Tests'),
-        running ? h('span', { class: 'muted small' }, `Checking ${runResults?.length ?? 0}/${tests.length}…`) : null),
-      h('div', { class: 'test-chips' }, tests.map((_, i) => chip(i))),
+        running ? h('span', { class: 'muted small' }, `Checking ${runResults?.length ?? 0}/${level.tests.length + nChecks}…`) : null),
+      h('div', { class: 'test-chips' }, tests.map((_, i) => chip(i)),
+        nChecks && !checks ? h('span', { class: 'check-hint muted small', title: CHECK_NOTE }, `+ ${nChecks} check deals`) : null),
     ];
     const inputs = tests[testIndex] ?? [];
     const f = sim?.floor;
@@ -643,7 +668,7 @@ export function openEditor(root, ctx, level) {
           class: `sp${i === speed ? ' on' : ''}`, onclick: () => { speed = i; if (!playing && !running) play(); else renderTransport(); },
         }, sp.label))),
       h('div', { class: 'tp-round' }, h('span', { class: 'muted' }, 'Round '), h('b', {}, String(r)),
-        h('span', { class: 'muted' }, ` · Test ${testIndex + 1}/${level.tests.length}`)));
+        h('span', { class: 'muted' }, ` · ${isCheck(testIndex) ? `${testName(testIndex)}/${checks?.length ?? CHECK_DEALS}` : `Test ${testIndex + 1}/${level.tests.length}`}`)));
   }
 
   // ---------- board pointer handling ----------
