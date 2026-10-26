@@ -22,6 +22,7 @@ Add `?unlockall` to the URL to open every floor.
 | [docs/architecture.md](docs/architecture.md) | modules, engine contract, croupier catalogue, level and save formats |
 | [docs/story.md](docs/story.md) | cast and chapter arcs |
 | [docs/validation.md](docs/validation.md) | how the rules were designed, with worked example machines |
+| [docs/online.md](docs/online.md) | design for cloud save and score comparison (not built yet) |
 | `src/levels.js` | level list |
 | `solutions/levels/` | a verified reference solution for each level |
 | `tools/write-solutions.js` | regenerates the par table |
