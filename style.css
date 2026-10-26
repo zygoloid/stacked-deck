@@ -690,3 +690,13 @@ svg.board.panning { cursor: grabbing; }
 .btn.ghost.danger { background: transparent; color: #ffb3b3; border-color: rgba(255, 120, 120, 0.4); }
 .dlg-danger-row { margin: 14px 0 0; text-align: center; }
 .dlg-check { display: block; margin: 4px 0 12px; font-size: 13.5px; line-height: 1.4; }
+.friend-list { margin: 8px 0 12px; display: flex; flex-direction: column; gap: 6px; }
+.friend-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.22); }
+.friend-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.invite-box:empty { display: none; }
+.invite-box { margin-top: 12px; }
+.invite-link { font: 13px var(--mono, monospace); }
+.sc-friend { fill: none; stroke-width: 1.8; stroke-linejoin: round; opacity: 0.9; pointer-events: none; }
+.sc-friend-pt { stroke: rgba(0, 0, 0, 0.5); stroke-width: 1; }
+.sc-friend-t { font-size: 10.5px; font-weight: 600; paint-order: stroke; stroke: rgba(4, 30, 18, 0.85); stroke-width: 3px; }
+.lg-friend { display: inline-block; width: 14px; height: 0; margin: 0 2px 3px; border-top: 2px solid; }

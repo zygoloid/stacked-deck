@@ -8,7 +8,8 @@ import { loadSave, writeSave, isOpen, rescoreStale } from './model.js';
 import { levelSelect, storyScreen, helpPanel } from './screens.js';
 import { openEditor } from './editor.js';
 import { createCloud } from './cloud.js';
-import { confirmOtherAccount, askName } from './account.js';
+import { LEVELS as REAL_LEVELS, BONUS as REAL_BONUS } from '../levels.js';
+import { confirmOtherAccount, askName, inviteFlow } from './account.js';
 
 const root = document.getElementById('app');
 const helpHost = document.getElementById('help');
@@ -27,10 +28,19 @@ const ctx = {
 };
 
 // The online features (src/ui/cloud.js): nothing loads unless the player
-// signed in last time or signs in now.
+// signed in last time or signs in now. Only real floors go online (not the
+// ?testlevels fixtures). When cloud save changes the floor being edited, the
+// editor reopens with it.
 ctx.cloud = createCloud({
-  save, persist: ctx.persist, levels: ALL_LEVELS,
-  ui: { confirmOtherAccount, askName, cleared: () => ctx.go('#/') },
+  save, persist: ctx.persist, levels: [...REAL_LEVELS, ...(REAL_BONUS ?? [])],
+  ui: {
+    confirmOtherAccount, askName,
+    cleared: () => ctx.go('#/'),
+    levelsUpdated: (ids) => {
+      const m = /^#\/level\/([^/]+)$/.exec(location.hash);
+      if (m && ids.includes(decodeURIComponent(m[1]))) route();
+    },
+  },
 });
 ctx.cloud.onChange(() => { if (document.body.dataset.screen === 'select') route(); });
 
@@ -70,8 +80,20 @@ function route() {
   levelSelect(root, ctx);
 }
 
-window.addEventListener('hashchange', route);
-route();
+// An invite link (#invite=<code>): take the code out of the address (so it
+// isn't left in the history or shared on), show the floors, and offer to
+// accept it.
+function takeInvite() {
+  const m = /^#invite=([A-Za-z0-9]{12})$/.exec(location.hash);
+  if (!m) return false;
+  history.replaceState(null, '', `${location.pathname}${location.search}#/`);
+  route();
+  inviteFlow(ctx.cloud, m[1]).catch((e) => console.warn('invite:', e));
+  return true;
+}
+
+window.addEventListener('hashchange', () => { if (!takeInvite()) route(); });
+if (!takeInvite()) route();
 
 // Saved solutions scored under older rules are re-run in the background.
 rescoreStale(save, ALL_LEVELS, () => {

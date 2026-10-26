@@ -94,6 +94,7 @@ export function openEditor(root, ctx, level) {
   function changed() {
     ls.cells = cells;
     ctx.persist();
+    ctx.cloud?.levelChanged(level.id, { work: true });
     resetSim();
     runResults = null;
     checks = null;
@@ -298,6 +299,7 @@ export function openEditor(root, ctx, level) {
       const { index: found, isNew } = recordSolution(ls, machine, { croupiers, rounds });
       ls.last = { croupiers, rounds };
       ctx.persist();
+      ctx.cloud?.levelChanged(level.id, { solved: true });
       ctx.cloud?.queueUploads();
       renderAll();
       showResults({ croupiers, rounds, prev, wasSolved, found, isNew });
@@ -380,8 +382,10 @@ export function openEditor(root, ctx, level) {
       const pick = (i) => { close(); loadSolution(i); };
       const del = (i) => {
         if (!confirm(`Delete your ${scoreText(list[i])} solution? This can't be undone.`)) return;
+        const gone = list[i];
         deleteSolution(ls, i);
         ctx.persist();
+        ctx.cloud?.solutionDeleted(level, gone);
         renderAll();
         draw();
       };
@@ -418,13 +422,27 @@ export function openEditor(root, ctx, level) {
         ? `Behind your solutions: everyone's best scores (${st.players} player${st.players === 1 ? '' : 's'} with this rules version).`
         : 'Nobody has a verified score on this floor yet.');
     };
-    const draw = (st) => box.replaceChildren(scatterPlot({ ...opts, others: st?.points ?? [] }), note(st) ?? '');
+    let friends = [];
+    let shown;
+    const draw = (st) => {
+      shown = st;
+      box.replaceChildren(scatterPlot({ ...opts, others: st?.points ?? [], friends }), note(st) ?? '');
+    };
     const refresh = () => {
       const cached = cloud?.cachedStats(level.id);
       const signedIn = cloud?.state() === 'signed-in';
+      if (!signedIn) friends = [];
       draw(cached ?? (signedIn ? undefined : null));
       if (signedIn && !cached) {
         cloud.statsFor(level.id).then((st) => { if (box.isConnected) draw(st); }, () => { if (box.isConnected) draw(null); });
+      }
+      // Friends' frontiers too (read once a session per friend).
+      if (signedIn) {
+        cloud.friendFrontiers(level.id).then((fr) => {
+          if (!box.isConnected || JSON.stringify(fr) === JSON.stringify(friends)) return;
+          friends = fr;
+          draw(shown);
+        }, () => {});
       }
     };
     refresh();

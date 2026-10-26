@@ -11,7 +11,10 @@
 // appear on a floor's plot; signing out keeps or clears this browser's
 // progress; signing in with another account asks before adding this
 // browser's progress to it; a reload restores the session; deleting an
-// account's data removes it (and the sign-in account) and its stats.
+// account's data removes it (and the sign-in account) and its stats; cloud
+// save carries progress, edits and deletions between two devices; invites
+// make friends (only after accepting), whose frontiers appear on the plot,
+// and removing a friend ends it both ways.
 import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
@@ -85,12 +88,38 @@ try {
     if (!['127.0.0.1', 'localhost'].includes(u.hostname)) { outside.push(u.href); return route.abort(); }
     return route.continue();
   });
-  const page = await context.newPage();
   const errors = [];
+  // A browser "device": its own storage, so its own local save and session.
+  async function device() {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+    await ctx.route('**/*', (route) => {
+      const u = new URL(route.request().url());
+      if (route.request().url().startsWith(`${FIREBASE_SDK}/`)) {
+        return route.fulfill({ path: join(sdkDir, u.pathname.split('/').pop()), contentType: 'text/javascript' });
+      }
+      if (!['127.0.0.1', 'localhost'].includes(u.hostname)) { outside.push(u.href); return route.abort(); }
+      return route.continue();
+    });
+    const p = await ctx.newPage();
+    p.on('pageerror', (e) => errors.push(e.message));
+    p.on('console', (m) => { if (m.type() === 'error' && !/WebSocket|net::ERR_FAILED/.test(m.text())) errors.push(m.text()); });
+    p.on('dialog', (d) => d.accept()); // the editor's confirm()s
+    return p;
+  }
+  const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/WebSocket|net::ERR_FAILED/.test(m.text())) errors.push(m.text()); });
-  const saveOf = () => page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')));
-  const header = () => page.textContent('.btn.account');
+  page.on('dialog', (d) => d.accept());
+  const saveOf = (p = page) => p.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')));
+  const header = (p = page) => p.textContent('.btn.account');
+  // Sign in on a page with the test hook (after the SDK has loaded).
+  async function signInAs(p, sub, email) {
+    await p.waitForSelector('.btn.account');
+    await p.click('.btn.account');
+    await p.waitForSelector('.modal.dialog .btn.gold:not([disabled])', { timeout: 20000 });
+    await p.click('.modal.dialog .btn.ghost');
+    await p.evaluate(([s, e]) => window.stackedDeckTest.signIn(s, e), [sub, email]);
+  }
 
   // A player with one solved floor, never signed in.
   await page.goto(base);
@@ -116,7 +145,7 @@ try {
   await page.waitForSelector('.modal.dialog .dlg-input', { timeout: 20000 });
   check(/Choose a nickname/.test(await page.textContent('.modal.dialog')), 'first sign-in asks for a nickname');
   if (shots) await page.locator('.modal.dialog').screenshot({ path: join(shots, 'o2-nickname.png') });
-  await page.fill('.dlg-input', '  Ace‮ of Clubs ');
+  await page.fill('.dlg-input', '  Ace\u202e of Clubs ');
   await page.keyboard.press('Enter');
   await until(async () => (await header()) === '☺ Ace of Clubs', 10000);
   check((await header()) === '☺ Ace of Clubs', `the header shows the cleaned nickname ("${await header()}")`);
@@ -205,6 +234,102 @@ try {
   await page.evaluate(() => window.stackedDeckTest.signIn('alice-sub', 'alice@example.com'));
   await until(async () => (await header()) === '☺ Ace of Clubs', 20000);
   check((await header()) === '☺ Ace of Clubs' && !(await page.locator('.modal.dialog').count()), 'the first account signs in again without questions');
+
+  // ---------- cloud save between two devices ----------
+  const second = await device();
+  await second.goto(`${site}#/`);
+  await signInAs(second, 'alice-sub', 'alice@example.com');
+  await until(async () => (await header(second)) === '☺ Ace of Clubs', 20000);
+  const got = await until(async () => {
+    const lv = (await saveOf(second))?.levels?.[LEVEL];
+    return lv?.solved && lv.solutions?.length === 1 && lv.cells?.length ? lv : null;
+  }, 20000);
+  check(got && JSON.stringify(got.cells) === JSON.stringify(REF) && got.solutions[0].croupiers === level.par.croupiers &&
+    got.solutions[0].rounds === level.par.rounds && !got.solutions[0].broken, 'a second device gets the floor: solved, its solution and the working machine');
+  check(await second.locator(`a.tile.solved[data-level="${LEVEL}"]`).count() === 1, 'the second device shows the floor cleared');
+
+  // ---------- friends ----------
+  // Carol: her own device, with a solved floor, signs in and picks a nickname.
+  const carolPage = await device();
+  await carolPage.goto(base);
+  await carolPage.evaluate(([id, cells, par, rules]) => localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: { [id]: {
+    cells, solved: true, best: par, solutions: [{ cells, croupiers: par.croupiers, rounds: par.rounds, at: 1700000000000, rules }],
+  } } })), [LEVEL, REF.slice().reverse(), level.par, RULES_VERSION]);
+  await carolPage.goto(`${site}#/`);
+  await signInAs(carolPage, 'carol-sub', 'carol@example.com');
+  await carolPage.waitForSelector('.modal.dialog .dlg-input', { timeout: 20000 });
+  await carolPage.fill('.dlg-input', 'Carol');
+  await carolPage.keyboard.press('Enter');
+  const carol = await until(async () => (await saveOf(carolPage)).account?.uid);
+  await until(async () => { const s = await owner(`solutions/${carol}/${LEVEL}`); return s && Object.values(s)[0]?.score; });
+
+  // Alice makes an invite link.
+  await page.click('.btn.account');
+  await page.click('.modal.dialog >> text=Friends…');
+  await page.waitForSelector('.modal.dialog >> text=No friends yet');
+  await page.click('.modal.dialog >> text=Invite a friend');
+  await page.waitForSelector('.invite-link', { timeout: 20000 });
+  const link = await page.inputValue('.invite-link');
+  const code = /#invite=([A-Za-z0-9]{12})$/.exec(link)?.[1];
+  check(!!code && link === `${base}#invite=${code}`, `an invite link is made (${link.replace(base, '')})`);
+  if (shots) await page.locator('.modal.dialog').screenshot({ path: join(shots, 'o6-invite.png') });
+  await page.click('.modal.dialog >> text=Close');
+
+  // Carol opens it: told who it's from, and nothing happens until she accepts.
+  await carolPage.goto(`${base}?emulator#invite=${code}`);
+  await carolPage.waitForSelector('.modal.dialog >> text=Accept invite?', { timeout: 30000 });
+  check(/Ace of Clubs/.test(await carolPage.textContent('.modal.dialog')), 'the invitee sees who the invite is from');
+  check(!(await carolPage.evaluate(() => location.hash)).includes('invite'), 'the code is taken out of the address');
+  check(await owner(`friends/${alice}`) === null, 'nothing changes before accepting');
+  if (shots) await carolPage.locator('.modal.dialog').screenshot({ path: join(shots, 'o7-accept.png') });
+  await carolPage.click('.modal.dialog button:text-is("Accept")');
+  await carolPage.waitForSelector('.modal.dialog >> text=/now friends|Couldn/', { timeout: 20000 });
+  check(/now friends/.test(await carolPage.textContent('.modal.dialog')), `accepting succeeds (${(await carolPage.textContent('.modal.dialog')).slice(0, 120)})`);
+  await carolPage.click('.modal.dialog >> text=OK');
+  check((await owner(`friends/${alice}/${carol}`)) === true && (await owner(`friends/${carol}/${alice}`)) === true && await owner(`invites/${code}`) === null,
+    'accepting makes the friendship both ways and uses up the invite');
+
+  // Alice sees Carol's frontier on the floor's plot, labelled with her nickname.
+  await page.goto(`${site}#/level/${LEVEL}`);
+  await page.reload();
+  await page.waitForSelector('svg.board');
+  await until(async () => (await header().catch(() => '')) !== 'Signing in…', 5000);
+  await page.click('.sol-btn');
+  await page.waitForSelector('.modal.solutions .sc-friend', { timeout: 20000 });
+  check((await page.textContent('.modal.solutions .sc-friend-t')) === 'Carol' && /Carol/.test(await page.textContent('.modal.solutions .sc-legend')),
+    'a friend\'s frontier is drawn on the plot with their nickname');
+  if (shots) await page.locator('.modal.solutions').screenshot({ path: join(shots, 'o8-friend-plot.png') });
+  await page.keyboard.press('Escape');
+
+  // Carol ends the friendship from her Friends list: gone both ways.
+  await carolPage.click('.btn.account');
+  await carolPage.click('.modal.dialog >> text=Friends…');
+  await carolPage.waitForSelector('.modal.dialog .friend-row >> text=Ace of Clubs', { timeout: 20000 });
+  await carolPage.click('.modal.dialog .friend-row >> text=Remove');
+  await carolPage.waitForSelector('.modal.dialog >> text=No friends yet', { timeout: 20000 });
+  check(await owner(`friends/${alice}`) === null && await owner(`friends/${carol}`) === null, 'removing a friend ends it both ways');
+  await carolPage.click('.modal.dialog >> text=Close');
+
+  // ---------- cloud save: edits and deletions reach the other device ----------
+  await page.goto(`${site}#/level/${LEVEL}`);
+  await page.waitForSelector('svg.board');
+  await page.click('text=Clear floor');
+  const emptied = await until(async () => (await owner(`saves/${alice}/${LEVEL}/work`))?.cells === '[]', 20000);
+  check(!!emptied, 'clearing the floor saves the (empty) working machine to the account');
+  await second.reload();
+  await until(async () => (await saveOf(second))?.levels?.[LEVEL]?.cells?.length === 0, 20000);
+  check((await saveOf(second)).levels[LEVEL].cells.length === 0, 'the other device gets the edit');
+  await page.click('.sol-btn');
+  await page.waitForSelector('.modal.solutions .sol-del');
+  await page.click('.modal.solutions .sol-del');
+  const hash = (await saveOf()).levels[LEVEL].deleted?.[0];
+  check(!!hash && (await saveOf()).levels[LEVEL].solutions.length === 0, 'deleting a solution remembers its hash');
+  await until(async () => (await owner(`saves/${alice}/${LEVEL}/deleted/${hash}`)) === true, 20000);
+  await second.reload();
+  await until(async () => (await saveOf(second))?.levels?.[LEVEL]?.solutions?.length === 0, 20000);
+  const gone = (await saveOf(second)).levels[LEVEL];
+  check(gone.solutions.length === 0 && gone.solved && gone.deleted?.includes(hash), 'the other device drops the deleted solution (the floor stays cleared)');
+  await page.goto(`${site}#/`);
 
   // Sign out and clear this browser.
   await page.click('.btn.account');

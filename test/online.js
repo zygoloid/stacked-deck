@@ -4,7 +4,7 @@ import assert from 'node:assert';
 import { LEVELS, BONUS } from '../src/levels.js';
 import { RULES_VERSION } from '../src/engine.js';
 import { solutionHash } from '../src/score.js';
-import { uploadCandidates, prepareUpload, submission, readStats, cleanName, MAX_MACHINE_CHARS } from '../src/online.js';
+import { uploadCandidates, prepareUpload, submission, readStats, cleanName, planMerge, MAX_MACHINE_CHARS } from '../src/online.js';
 
 const ALL = [...LEVELS, ...BONUS];
 const level = ALL.find((l) => l.id === 'opening-night');
@@ -48,9 +48,46 @@ const cells = (m.default ?? Object.values(m)[0]).cells ?? (m.default ?? Object.v
     { points: [{ croupiers: 3, rounds: 33, count: 2 }], players: 2 });
 }
 {
-  assert.strictEqual(cleanName('  Ace‮ of​  Clubs\n'), 'Ace of Clubs');
+  assert.strictEqual(cleanName('  Ace\u202e of\u200b  Clubs\n'), 'Ace of Clubs');
   assert.strictEqual(cleanName('x'.repeat(50)).length, 40);
   assert.strictEqual(cleanName('\u0007'), '');
   assert.strictEqual(cleanName(undefined), '');
 }
 console.log('online ok');
+
+{
+  // Cloud save merges.
+  const sol = (h) => ({ cells: [], croupiers: 3, rounds: 33, at: 1, rules: 9, hash: h });
+  const hashes = (ls) => new Map((ls?.solutions ?? []).map((s) => [s, s.hash]));
+  const plan = (ls, remote, remoteSolutions) => planMerge({ ls, remote, remoteSolutions, localHashes: hashes(ls) });
+  // Nothing anywhere.
+  assert.deepStrictEqual(plan(undefined, null, null), { work: null, markSolved: false, pushSolved: false, add: [], remove: [], deleted: [], pushDeleted: [] });
+  // Work: remote newer than the last sync and no local edits -> take; local
+  // edits only -> push; both changed -> the newer wins.
+  const cells = [{ at: [0, 0] }];
+  assert.strictEqual(plan({ cells, workAt: 5, workSynced: 5 }, { work: { cells: '[]', at: 9 } }).work, 'take');
+  assert.strictEqual(plan({ cells, workAt: 9, workSynced: 9 }, { work: { cells: '[]', at: 9 } }).work, null);
+  assert.strictEqual(plan({ cells, workAt: 12, workSynced: 9 }, { work: { cells: '[]', at: 9 } }).work, 'push');
+  assert.strictEqual(plan({ cells, workAt: 12, workSynced: 5 }, { work: { cells: '[]', at: 9 } }).work, 'push');
+  assert.strictEqual(plan({ cells, workAt: 7, workSynced: 5 }, { work: { cells: '[]', at: 9 } }).work, 'take');
+  assert.strictEqual(plan({ cells }, null).work, 'push', 'an old save with a machine and no times pushes it');
+  assert.strictEqual(plan({ cells }, { work: { cells: '[]', at: 9 } }).work, 'take', '...but a remote one wins over it');
+  assert.strictEqual(plan({ cells: [] }, null).work, null, 'an empty floor pushes nothing');
+  // Solved is true if either is.
+  assert.deepStrictEqual([plan({ solved: true }, null).pushSolved, plan({}, { solved: true }).markSolved], [true, true]);
+  // Solutions: the union, minus deletions from either side.
+  const a = sol('a'), b = sol('b');
+  const p = plan({ solutions: [a, b], deleted: ['c'] }, { deleted: { b: true } },
+    { a: { cells: '[]', at: 1, score: {} }, b: { cells: '[]', at: 2 }, c: { cells: '[]', at: 3 }, d: { cells: '[1]', at: 4 }, e: { invalid: 'x', rules: 9, at: 5 } });
+  assert.deepStrictEqual(p.add, [{ hash: 'd', cells: '[1]', at: 4 }]);
+  assert.deepStrictEqual(p.remove, [b]);
+  assert.deepStrictEqual(p.deleted, ['b', 'c']);
+  assert.deepStrictEqual(p.pushDeleted, ['c'], 'only deletions of solutions the account has');
+  assert.deepStrictEqual(plan({ deleted: ['zz'] }, null, null).pushDeleted, []);
+}
+console.log('cloud save merges ok');
+{
+  // Emptying the floor syncs too.
+  assert.strictEqual(planMerge({ ls: { cells: [], workAt: 12, workSynced: 9 }, remote: { work: { cells: '[1]', at: 9 } } }).work, 'push');
+}
+console.log('cloud save: emptied floors ok');

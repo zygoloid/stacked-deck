@@ -1,8 +1,7 @@
 # Stacked Deck: online features (design)
 
-Status: agreed design, partly built (see "Build order"): the shared scoring
-module, the engine card limit, check deals, the database rules and
-`scoreSolution`, and the project's kill switch. Nothing is deployed yet.
+Status: built except for the deploy workflow and `rescore.js` (see "Build
+order"), and tested against the Firebase emulators; nothing is deployed yet.
 
 Two connected features:
 
@@ -259,12 +258,17 @@ server's value, and `undefined` would abort without asking the server.
 
 ### Friends and accounts (callables)
 
+Built (`functions/friends.js`; the callables in `functions/index.js` check
+the caller signed in with Google and turn its errors into callable errors
+with a code the client shows):
+
 * **`createInvite()`**: generates a 12-character code with
-  `crypto.randomInt`, stores `invites/$code = {from, expires: now + 7 days}`,
-  deletes the caller's previous invite (`inviteOf/$uid`), so each player has at
-  most one live invite.
-* **`previewInvite(code)`**: returns the inviter's profile name, for the
-  confirmation screen.
+  `crypto.randomInt`, claims `invites/$code = {from, expires: now + 7 days}`
+  with a transaction (only if free), and deletes the caller's previous invite
+  (`inviteOf/$uid`), so each player has at most one live invite.
+* **`previewInvite(code)`**: `{ name, own, friends }`: the inviter's nickname,
+  and whether it's the caller's own invite or they are friends already, for
+  the confirmation screen.
 * **`acceptInvite(code)`**: checks `code` against
   `/^[A-Za-z0-9]{12}$/` before building any path; claims the invite with a
   transaction on `/invites/$code` that deletes it only if it exists, is
@@ -444,29 +448,38 @@ a "Content Security Policy" error in the browser console.
   read again. Any other error (offline) pauses the queue until the next
   trigger.
 
-### Cloud save
+### Cloud save (built)
 
-The local save gains, per level, `workAt` (when the working machine last
-changed, server time once synced) and `deleted` (hashes of solutions the
-player deleted). Merging a local level with `saves/$uid/$level`:
+The local save gains, per floor, `workAt` (when the working machine last
+changed: the server's time once synced, this browser's clock for edits
+since), `workSynced` (the server time of the working machine last pulled or
+pushed) and `deleted` (hashes of solutions the player deleted). Merging a
+floor (`planMerge` in `src/online.js`, applied by `runSync` in
+`src/ui/cloud.js`) with `saves/$uid/$level` and `solutions/$uid/$level`:
 
 | Field | Merge |
 |---|---|
-| working machine | the newer `at` wins |
+| working machine | the account's if it changed since the last sync and this browser's didn't (or is older); this browser's if only it changed (an old save that never synced counts) |
 | `solved` | true if either is |
-| solutions | local list ∪ the account's `solutions` (scored, not tombstones), minus `deleted` from either side |
-| `deleted` | union (only of uploaded solutions) |
+| solutions | local list ∪ the account's `solutions` (not tombstones), minus `deleted` from either side; added ones are validated and scored locally |
+| `deleted` | union; only deletions of solutions the account has are written (the rules require it) |
 
-* On sign-in and on each start, read `saves/$uid` and `solutions/$uid` once,
-  merge into the local save, and write back what the server lacks. Machines
-  from the server go through `validateCells` before they reach the editor.
-* While editing, write only `saves/$uid/$level/work`, a few seconds after the
-  last change and on `pagehide`. `solved` and `deleted` are written when they
-  change.
-* The client uses `get()` and short-lived connections (`goOffline()` once
-  synced), never live listeners.
+* The merge runs on signing in (after the nickname, before uploading) and on
+  each start, and when the player returns to the tab if 5 minutes have
+  passed: one read each of `saves/$uid` and `solutions/$uid`. If it changes
+  the floor open in the editor, the editor reopens with it.
+* While editing, only `saves/$uid/$level/work` is written, 4 seconds after
+  the last change (and at once when the page is hidden), with the server's
+  time read back into `workAt` and `workSynced`. Emptying the floor syncs
+  too. Clearing a floor writes `solved`; a machine deleted earlier and found
+  again is taken out of `deleted`. Deleting a solution writes its hash to
+  `deleted` (if the account has it).
+* Machines from the account go through `validateCells` before they reach the
+  editor.
 * Rescoring stays local (`rescoreStale`); the plot shows local scores, which
   match the server's because both use `src/score.js`.
+* Only real floors go online (not the `?testlevels` fixtures, which the rules
+  would reject).
 
 ### Comparison on the plot
 
@@ -478,11 +491,12 @@ count, a dashed staircase for everyone's frontier, and a note counting the
 players. Signed-out players see their own solutions only, with a line
 inviting them to sign in; signing in from there redraws the plot.
 
-Friends (step 6): also read
-`/friends/$uid`, then each friend's `/profiles/$friend` and
-`/scores/v{RULES_VERSION}/$friend` (all floors at once; cached for the
-session), and draw each friend's frontier as a labelled staircase. If a
-friend's data can't be read (they removed you), skip them.
+Friends (built): the plot also reads `/friends/$uid`, then each friend's
+`/profiles/$friend` and `/scores/v{RULES_VERSION}/$friend` (all floors at
+once; cached for the session, and again after a change to the friend list),
+and draws each friend's frontier as a staircase in its own colour (up to
+six), labelled with their nickname, with a legend entry each. A friend whose
+data can't be read (they removed you) is skipped.
 
 Names are only ever rendered as text (children or `textContent`, never the
 `html:` attribute of `dom.js` or a link `href`), with bidi and zero-width
@@ -492,11 +506,18 @@ control characters stripped.
 
 * On first sign-in the player picks a **nickname** for `profiles/$uid/name`.
   It is never filled in from the Google account.
-* **Invite**: `createInvite` and show `…/#invite=$code` to send by any means.
-* **Accept**: opening an invite link removes the code from the URL
-  (`history.replaceState`), prompts Google sign-in if needed, shows "Accept
-  invite from *name*?" (`previewInvite`) and only then calls `acceptInvite`.
-* **List and remove** friends (`removeFriend`).
+* **Friends…** in the account menu (built) lists friends by nickname, each
+  with Remove (`removeFriend`, after a confirm), and **Invite a friend**:
+  `createInvite`, then the link `<page>#invite=$code` with Copy, and a note
+  that it works once, until a date, for whoever has it. Inviting needs a
+  nickname first (friends see it).
+* **Accept** (built): opening an invite link takes the code out of the
+  address (`history.replaceState`) and shows the floors; if signed out, it
+  says there is an invite and offers signing in (which first explains what is
+  stored, as always); then it shows "Accept the invite from *name*?"
+  (`previewInvite`) and only on Accept calls `acceptInvite`. Its own invite
+  or an existing friend just gets a message. A player without a nickname is
+  asked for one after accepting.
 * **Delete my data** (built): from the account menu. The dialog lists what
   goes (uploaded machines and scores, which leave every chart; the nickname;
   the sign-in account) and offers to clear this browser's progress too.
@@ -517,8 +538,11 @@ the game in a browser with `?emulator`, which makes `src/ui/cloud.js` use the
 emulators and offer a test hook to sign in without Google's popup, and the
 SDK's CDN URLs served from `test/emulator/node_modules/firebase`. It signs in,
 picks a nickname, checks the saved solution is uploaded, scored and counted,
-that the plot shows it, the sign-out and other-account flows, and deleting an
-account's data (and the sign-in account) through the dialog. `firebase-tools`
+that the plot shows it, the sign-out and other-account flows, deleting an
+account's data (and the sign-in account) through the dialog, cloud save
+between two browser contexts (a second device gets the floor; an edit and a
+deletion reach it), and friends (an invite link, accepting it, the friend's
+frontier on the plot, removing them). `firebase-tools`
 sends all its requests through `HTTPS_PROXY` and ignores `NO_PROXY`, so
 behind a proxy run either suite with `HTTPS_PROXY` unset.
 
@@ -579,7 +603,7 @@ Hardening:
 4. Done, not deployed: Google sign-in (the opt-in), nicknames and solution
    upload; heatmap and overall frontier on the plot; tested end to end
    against the emulators. App Check waits for its site key.
-5. Cloud save.
-6. Invites and friends' frontiers. (`deleteMyData` and its dialog: done, not
-   deployed.)
+5. Done, not deployed: cloud save.
+6. Done, not deployed: invites, the friends list and friends' frontiers on
+   the plot; `deleteMyData` and its dialog.
 7. The deploy workflow and `rescore.js`.

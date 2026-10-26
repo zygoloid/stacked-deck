@@ -328,6 +328,44 @@ console.log('processSolution and addPoint ok');
 }
 console.log('deleting a player\'s data ok');
 
+{
+  // Friends: invites are single-use, last a week, can't be your own, and
+  // each player has one at a time; accepting makes a mutual friendship.
+  const fr = await import('../../functions/friends.js');
+  const failsWith = async (code, p) => { try { await p; } catch (e) { assert.strictEqual(e.code, code, e.message); return; } assert.fail(`expected ${code}`); };
+  await direct.ref('profiles/fa').set({ name: 'Ann' });
+  const a1 = await fr.createInvite(direct, 'fa', 1000);
+  assert(fr.isCode(a1.code) && a1.expires === 1000 + 7 * 24 * 3600 * 1000);
+  const a2 = await fr.createInvite(direct, 'fa', 2000);
+  assert.strictEqual((await direct.ref(`invites/${a1.code}`).get()).val(), null, 'a new invite replaces the old one');
+  assert.strictEqual((await direct.ref('inviteOf/fa').get()).val(), a2.code);
+  await failsWith('not-found', fr.previewInvite(direct, 'fb', a1.code, 3000));
+  await failsWith('invalid-argument', fr.previewInvite(direct, 'fb', '../../config', 3000));
+  await failsWith('invalid-argument', fr.acceptInvite(direct, 'fb', '', 3000));
+  assert.deepStrictEqual(await fr.previewInvite(direct, 'fb', a2.code, 3000), { name: 'Ann', own: false, friends: false });
+  assert.deepStrictEqual(await fr.previewInvite(direct, 'fa', a2.code, 3000), { name: 'Ann', own: true, friends: false });
+  await failsWith('failed-precondition', fr.acceptInvite(direct, 'fa', a2.code, 3000));
+  await failsWith('not-found', fr.acceptInvite(direct, 'fb', a2.code, a2.expires + 1));
+  // Two players accept at once: exactly one gets it.
+  const results = await Promise.allSettled([fr.acceptInvite(direct, 'fb', a2.code, 3000), fr.acceptInvite(direct, 'fc', a2.code, 3000)]);
+  assert.deepStrictEqual(results.map((r) => r.status).sort(), ['fulfilled', 'rejected']);
+  const winner = results[0].status === 'fulfilled' ? 'fb' : 'fc';
+  const loser = winner === 'fb' ? 'fc' : 'fb';
+  assert.deepStrictEqual(results.find((r) => r.status === 'fulfilled').value, { name: 'Ann' });
+  assert.strictEqual((await direct.ref(`invites/${a2.code}`).get()).val(), null, 'used up');
+  assert.strictEqual((await direct.ref('inviteOf/fa').get()).val(), null);
+  assert.deepStrictEqual((await direct.ref('friends').get()).val()?.fa, { [winner]: true });
+  assert.deepStrictEqual((await direct.ref(`friends/${winner}`).get()).val(), { fa: true });
+  assert.strictEqual((await direct.ref(`friends/${loser}`).get()).val(), null);
+  const a3 = await fr.createInvite(direct, 'fa', 4000);
+  assert.deepStrictEqual(await fr.previewInvite(direct, winner, a3.code, 4000), { name: 'Ann', own: false, friends: true });
+  await failsWith('invalid-argument', fr.removeFriend(direct, winner, 'a/b'));
+  await fr.removeFriend(direct, winner, 'fa');
+  assert.strictEqual((await direct.ref(`friends/${winner}`).get()).val(), null);
+  assert.strictEqual((await direct.ref('friends/fa').get()).val(), null, 'removed both ways');
+}
+console.log('friends ok');
+
 // ---------- end to end: the trigger scores a real submission ----------
 {
   const env2 = await initializeTestEnvironment({ projectId: 'demo-stacked-deck', database: { host, port: Number(port) } });

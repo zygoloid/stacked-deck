@@ -103,8 +103,9 @@ export function accountDialog(cloud) {
     const u = cloud.user();
     return [
       h('h2', {}, u?.name ? `Signed in as ${u.name}` : 'Signed in'),
-      h('p', { class: 'muted' }, 'Your solutions upload to your account, and each floor\'s chart shows everyone\'s scores.'),
+      h('p', { class: 'muted' }, 'Your progress is saved to your account, and each floor\'s chart shows everyone\'s scores and your friends\'.'),
       h('div', { class: 'modal-actions' },
+        h('button', { class: 'btn', onclick: () => close('friends') }, 'Friends…'),
         h('button', { class: 'btn', onclick: () => close('name') }, u?.name ? 'Change nickname' : 'Choose a nickname'),
         h('button', { class: 'btn', onclick: () => close('signout') }, 'Sign out'),
         h('button', { class: 'btn ghost', onclick: () => close() }, 'Close')),
@@ -118,8 +119,115 @@ export function accountDialog(cloud) {
       await signOutDialog(cloud);
     } else if (choice === 'delete') {
       await deleteDialog(cloud);
+    } else if (choice === 'friends') {
+      await friendsDialog(cloud);
     }
   });
+}
+
+const errText = (e) => e?.message || e?.code || String(e);
+
+// Friends: the list (each can be removed) and making an invite link.
+export function friendsDialog(cloud) {
+  return dialog((close) => {
+    const list = h('div', { class: 'friend-list' }, h('p', { class: 'muted small' }, 'Loading…'));
+    const inviteBox = h('div', { class: 'invite-box' });
+    const status = h('p', { class: 'muted small dlg-status' }, '');
+    const showList = () => cloud.friends().then((fs) => {
+      list.replaceChildren(...(fs.length ? fs.map((f) => h('div', { class: 'friend-row' },
+        h('span', { class: 'friend-name' }, f.name ?? 'A player with no nickname yet'),
+        h('button', {
+          class: 'btn ghost small', title: 'Stop being friends: neither of you sees the other\'s scores any more',
+          onclick: async (e) => {
+            if (!confirm(`Remove ${f.name ?? 'this friend'}? Neither of you will see the other's scores.`)) return;
+            e.currentTarget.disabled = true;
+            try { await cloud.removeFriend(f.uid); showList(); } catch (err) { status.textContent = `Couldn't remove (${errText(err)}).`; }
+          },
+        }, 'Remove'))) : [h('p', { class: 'muted' }, 'No friends yet. Invite someone with a link.')]));
+    }, (e) => list.replaceChildren(h('p', { class: 'muted' }, `Couldn't load your friends (${errText(e)}).`)));
+    showList();
+    const invite = h('button', {
+      class: 'btn gold',
+      onclick: async () => {
+        if (!cloud.user()?.name) {
+          const name = await askName();
+          if (!name || !(await cloud.setName(name).catch(() => false))) { status.textContent = 'Friends see your nickname, so choose one first.'; return; }
+          friendsDialog(cloud); // the nickname dialog replaced this one
+          return;
+        }
+        invite.disabled = true;
+        status.textContent = 'Making an invite…';
+        try {
+          const { code, expires } = await cloud.createInvite();
+          const link = `${location.origin}${location.pathname}#invite=${code}`;
+          const field = h('input', { class: 'dlg-input invite-link', readonly: true, value: link, 'aria-label': 'Invite link' });
+          const copy = h('button', {
+            class: 'btn',
+            onclick: () => { field.select(); navigator.clipboard?.writeText(link).then(() => { copy.textContent = 'Copied'; }, () => {}); },
+          }, 'Copy');
+          inviteBox.replaceChildren(field, h('div', { class: 'modal-actions' }, copy),
+            h('p', { class: 'muted small' }, `Send this to your friend. It works once, until ${new Date(expires).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, and anyone who has it can use it, so send it only to them. Making a new one cancels it.`));
+          status.textContent = '';
+        } catch (e) {
+          status.textContent = `Couldn't make an invite (${errText(e)}).`;
+        } finally {
+          invite.disabled = false;
+        }
+      },
+    }, 'Invite a friend');
+    return [
+      h('h2', {}, 'Friends'),
+      h('p', { class: 'muted' }, 'Friends see each other\'s nicknames and best scores on each floor, never machines.'),
+      list,
+      h('div', { class: 'modal-actions' }, invite, h('button', { class: 'btn ghost', onclick: () => close() }, 'Close')),
+      inviteBox, status,
+    ];
+  });
+}
+
+// Opening an invite link: sign in if needed, then show who it is from and
+// accept only if the player says so.
+export async function inviteFlow(cloud, code) {
+  await Promise.race([cloud.settled(), new Promise((r) => setTimeout(r, 15000))]);
+  if (cloud.state() !== 'signed-in') {
+    const go = await dialog((close) => [
+      h('h2', {}, 'An invite to be friends'),
+      h('p', {}, 'Someone has invited you to be friends in Stacked Deck: you would see each other\'s nicknames and best scores. Sign in to see who it is from.'),
+      h('div', { class: 'modal-actions' },
+        h('button', { class: 'btn gold', onclick: () => close(true) }, 'Sign in…'),
+        h('button', { class: 'btn ghost', onclick: () => close(false) }, 'Not now')),
+    ]);
+    if (!go || !(await signInDialog(cloud))) return;
+    // Wait for signing in to finish (nickname, merging progress).
+    await new Promise((r) => setTimeout(r, 0));
+    await cloud.whenReady();
+    if (cloud.state() !== 'signed-in') return;
+  }
+  const message = (title, text) => dialog((close) => [
+    h('h2', {}, title), h('p', {}, text),
+    h('div', { class: 'modal-actions' }, h('button', { class: 'btn gold', onclick: () => close() }, 'OK')),
+  ]);
+  let who;
+  try { who = await cloud.previewInvite(code); } catch (e) { await message('Invite not found', errText(e)); return; }
+  const name = who.name ?? 'a player with no nickname yet';
+  if (who.own) { await message('Your own invite', 'That\'s your own invite link: send it to a friend.'); return; }
+  if (who.friends) { await message('Already friends', `You and ${name} are already friends.`); return; }
+  const yes = await dialog((close) => [
+    h('h2', {}, 'Accept invite?'),
+    h('p', {}, 'Accept the invite from ', h('b', {}, name), '? You will see each other\'s nicknames and best scores on each floor (never machines). Either of you can end it from the Friends list.'),
+    h('div', { class: 'modal-actions' },
+      h('button', { class: 'btn gold', onclick: () => close(true) }, 'Accept'),
+      h('button', { class: 'btn ghost', onclick: () => close(false) }, 'Decline')),
+  ]);
+  if (!yes) return;
+  try {
+    await cloud.acceptInvite(code);
+  } catch (e) { await message('Couldn\'t accept', errText(e)); return; }
+  if (!cloud.user()?.name) {
+    const chosen = await askName();
+    if (chosen) await cloud.setName(chosen).catch(() => {});
+  }
+  await message('Friends', `You and ${name} are now friends.`);
 }
 
 // Deleting everything signing in stored: the deleteMyData function, then the

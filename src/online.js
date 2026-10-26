@@ -60,9 +60,56 @@ export function readStats(node) {
 // collapsed, at most 40 characters (database.rules.json). '' if nothing is left.
 export function cleanName(name) {
   return String(name ?? '')
-    .replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/g, '')
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 40)
     .trim();
+}
+
+// ---------- cloud save ----------
+// A floor's local save holds, besides the editor's fields: `workAt` (when the
+// working machine last changed: the server's time once synced, this
+// browser's clock for edits since), `workSynced` (the server time of the
+// working machine last pulled or pushed) and `deleted` (hashes of solutions
+// the player deleted). Its remote copy is saves/$uid/$level
+// ({ work: { cells, at }, solved, deleted: { $hash: true } }) plus the
+// account's solutions/$uid/$level.
+
+// What merging one floor needs to do, given its local save `ls` (or
+// undefined), its remote save and solutions (or null), and the hashes of its
+// local solutions (`localHashes`: hash per solution, null if unknown).
+//   work:      'take' (use remote.work), 'push' (send the local one) or null
+//   markSolved / pushSolved
+//   add:       remote solutions to add locally [{ hash, cells, at }]
+//   remove:    local solutions to drop (deleted elsewhere)
+//   deleted:   the merged deleted hashes; pushDeleted: those to send (only
+//              of solutions the account has, as the rules require)
+export function planMerge({ ls, remote, remoteSolutions, localHashes = new Map() }) {
+  const rw = remote?.work && typeof remote.work.cells === 'string' && Number.isFinite(remote.work.at) ? remote.work : null;
+  const synced = ls?.workSynced ?? 0;
+  // Local edits not yet pushed (including emptying the floor), or an old save
+  // that never synced and has a machine.
+  const unsyncedLocal = Array.isArray(ls?.cells) &&
+    (ls.workSynced === undefined ? ls.cells.length > 0 : ls.workAt !== ls.workSynced);
+  let work = null;
+  if (rw && rw.at > synced) work = unsyncedLocal && (ls.workAt ?? 0) > rw.at ? 'push' : 'take';
+  else if (unsyncedLocal) work = 'push';
+
+  const remoteDeleted = Object.keys(remote?.deleted ?? {}).filter((h) => remote.deleted[h] === true);
+  const deleted = new Set([...(ls?.deleted ?? []), ...remoteDeleted]);
+  const remoteSols = Object.entries(remoteSolutions ?? {})
+    .filter(([, s]) => s && typeof s.cells === 'string' && !s.invalid);
+  const have = new Set([...localHashes.values()].filter(Boolean));
+  const add = remoteSols.filter(([h]) => !have.has(h) && !deleted.has(h)).map(([hash, s]) => ({ hash, cells: s.cells, at: s.at }));
+  const remove = (ls?.solutions ?? []).filter((s) => deleted.has(localHashes.get(s)));
+  const pushDeleted = [...deleted].filter((h) => !remoteDeleted.includes(h) && remoteSolutions?.[h]);
+  return {
+    work,
+    markSolved: !!remote?.solved && !ls?.solved,
+    pushSolved: !!ls?.solved && !remote?.solved,
+    add, remove,
+    deleted: [...deleted].sort(),
+    pushDeleted,
+  };
 }

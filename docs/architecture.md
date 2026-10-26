@@ -218,6 +218,7 @@ test-only fixture floors of `test/ui-levels.js` to the bonus deck (used by
                 uploaded?, hash? }],   // online: the account it was uploaded to, its hash
   legacyBest: { croupiers, rounds },  // only for saves from before `solutions`
   last: { croupiers, rounds },    // score of the latest clear
+  workAt?, workSynced?, deleted?: [hash],  // online: cloud save (docs/online.md)
 } },
   account?: { uid, signedIn },    // online: the account this progress belongs to (docs/online.md)
 }
