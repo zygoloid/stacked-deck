@@ -11,6 +11,7 @@ import {
   solutionsOf, recordSolution, deleteSolution, findSolution,
 } from './model.js';
 import { checkDeals, CHECK_DEALS, totalRounds } from '../score.js';
+import { signInDialog, dialogOpen } from './account.js';
 import { Sim } from './sim.js';
 import { scatterPlot, solutionList, scoreText } from './scatter.js';
 
@@ -297,6 +298,7 @@ export function openEditor(root, ctx, level) {
       const { index: found, isNew } = recordSolution(ls, machine, { croupiers, rounds });
       ls.last = { croupiers, rounds };
       ctx.persist();
+      ctx.cloud?.queueUploads();
       renderAll();
       showResults({ croupiers, rounds, prev, wasSolved, found, isNew });
     } else {
@@ -346,7 +348,7 @@ export function openEditor(root, ctx, level) {
             h('span', { class: 'muted small' }, isNew
               ? `${ls.solutions.length === 1 ? 'Your first solution' : `Solution ${ls.solutions.length} saved`}. Click a point to load it.`
               : 'You had already saved this machine. Click a point to load it.')),
-          scatterPlot({
+          comparePlot({
             solutions: ls.solutions, par, current: findSolution(ls, cells), fresh: found, freshIsNew: isNew,
             onPick: (i) => { close(); loadSolution(i); }, height: 250,
           })),
@@ -391,11 +393,44 @@ export function openEditor(root, ctx, level) {
           h('p', { class: 'res-sub' }, `${level.title}: ${list.length} machine${list.length === 1 ? '' : 's'} saved`,
             b ? ` · best ${b.croupiers} croupiers, ${b.rounds} rounds` : '', par ? ` · par ${par.croupiers ?? '–'} / ${par.rounds ?? '–'}` : '',
             '. Fewer is better on both axes: the gold staircase joins the solutions nothing else beats on both.'),
-          scatterPlot({ solutions: list, par, current, onPick: pick }),
+          comparePlot({ solutions: list, par, current, onPick: pick }),
           solutionList({ solutions: list, current, onPick: pick, onDelete: del }))));
       modal.querySelector('.modal-x')?.focus();
     };
     draw();
+  }
+
+  // A floor's plot of the player's solutions. Signed in, everyone's scores are
+  // drawn behind it (fetched once per session, then the plot is redrawn);
+  // signed out, a line under it offers signing in.
+  function comparePlot(opts) {
+    const cloud = ctx.cloud;
+    const box = h('div', { class: 'compare' });
+    const note = (st) => {
+      if (!cloud) return null;
+      if (cloud.state() !== 'signed-in') {
+        return h('p', { class: 'compare-note' }, 'Sign in to see how everyone else scored on this floor. ',
+          h('button', { class: 'btn ghost small', onclick: () => signInDialog(cloud) }, 'Sign in…'));
+      }
+      if (st === undefined) return h('p', { class: 'compare-note muted' }, 'Loading everyone\'s scores…');
+      if (st === null) return h('p', { class: 'compare-note muted' }, 'Everyone\'s scores couldn\'t be loaded just now.');
+      return h('p', { class: 'compare-note muted' }, st.players
+        ? `Behind your solutions: everyone's best scores (${st.players} player${st.players === 1 ? '' : 's'} with this rules version).`
+        : 'Nobody has a verified score on this floor yet.');
+    };
+    const draw = (st) => box.replaceChildren(scatterPlot({ ...opts, others: st?.points ?? [] }), note(st) ?? '');
+    const refresh = () => {
+      const cached = cloud?.cachedStats(level.id);
+      const signedIn = cloud?.state() === 'signed-in';
+      draw(cached ?? (signedIn ? undefined : null));
+      if (signedIn && !cached) {
+        cloud.statsFor(level.id).then((st) => { if (box.isConnected) draw(st); }, () => { if (box.isConnected) draw(null); });
+      }
+    };
+    refresh();
+    // Signing in (or out) from the note redraws the plot.
+    const off = cloud?.onChange(() => { if (box.isConnected) refresh(); else off(); });
+    return box;
   }
 
   // ---------- toast ----------
@@ -771,7 +806,7 @@ export function openEditor(root, ctx, level) {
 
   // ---------- keyboard ----------
   function onKey(e) {
-    if (e.target.closest?.('input, textarea, select')) return;
+    if (e.target.closest?.('input, textarea, select') || dialogOpen()) return;
     if (modal.firstChild) {
       if (e.key === 'Escape') modal.replaceChildren();
       return;

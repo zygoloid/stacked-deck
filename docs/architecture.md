@@ -15,7 +15,10 @@ src/levels/<chapter>.js    one module per chapter (hearts, diamonds, clubs,
                            spades, finale): its levels and PAR table
 src/levels/shared.js       level helpers (hexRange, makeTests, paletteThrough, ...)
 src/layout.js              router for writing reference solutions (dev only)
-src/ui/*.js                the game UI
+src/online.js              online features' logic without the Firebase SDK (docs/online.md)
+src/firebase-config.js     the Firebase project's public config
+src/ui/*.js                the game UI (cloud.js and account.js: the online features)
+functions/                 Cloud Functions: scoring submitted solutions (docs/online.md)
 solutions/levels/<id>.js   a verified reference solution for every level
 test/*.js                  node tests (npm test); test/mutants/<chapter>.js
 tools/level-specs/<chapter>.js  reference-solution recipes per chapter
@@ -211,10 +214,13 @@ test-only fixture floors of `test/ui-levels.js` to the bonus deck (used by
   cells: [placed cells],          // the working machine (autosaved)
   solved: true,                   // set once the floor is first cleared; never unset
   best: { croupiers, rounds },    // each minimised on its own over all solutions
-  solutions: [{ cells, croupiers, rounds, at, rules, broken? }],  // every distinct machine that cleared it
+  solutions: [{ cells, croupiers, rounds, at, rules, broken?,  // every distinct machine that cleared it
+                uploaded?, hash? }],   // online: the account it was uploaded to, its hash
   legacyBest: { croupiers, rounds },  // only for saves from before `solutions`
   last: { croupiers, rounds },    // score of the latest clear
-} } }
+} },
+  account?: { uid, signedIn },    // online: the account this progress belongs to (docs/online.md)
+}
 ```
 
 `cells` (both the working machine and each solution's) holds only the

@@ -357,46 +357,75 @@ submitted.
 
 ## Client
 
-A new `src/ui/cloud.js` owns everything online. Firebase's modular SDK is
-imported from `https://www.gstatic.com/firebasejs/<version>/…` (an exact
-version) as ES modules, **lazily**: nothing loads until the player signs in,
-or until a previously signed-in player starts the game. Every call is best-effort; failures leave the local
-save as it is and are retried later. The Firebase config lives in
-`src/firebase-config.js`.
+Built so far (step 4): signing in, nicknames, uploading solutions and the
+comparison on the plot. The pieces:
 
-`index.html` gets a Content-Security-Policy `<meta>` tag allowing scripts only
-from the site and the Firebase and reCAPTCHA hosts, and connections only to
-the Firebase endpoints. (Pages can't send headers, so `frame-ancestors` isn't
-available.)
+| File | What it does |
+|---|---|
+| `src/firebase-config.js` | the project's (public) web config, this game's database URL, the SDK version, the App Check site key |
+| `src/online.js` | the logic that needs no SDK, tested in Node (`test/online.js`): which solutions to upload, the submission write, reading stats, cleaning nicknames |
+| `src/ui/cloud.js` | the Firebase side: loading the SDK, sign-in state, the profile, the upload queue, stats |
+| `src/ui/account.js` | the dialogs (sign in, nickname, another account's progress, account menu, sign out) and the header's account button |
+
+Firebase's modular SDK is imported from
+`https://www.gstatic.com/firebasejs/13.1.0/…` as ES modules, **lazily**:
+nothing loads until the player opens the sign-in dialog, or until a player who
+was signed in last time starts the game (the save's `account.signedIn`). A
+signed-out session contacts no other site at all (`tools/ui-smoke.js` checks
+this). Every call is best-effort; failures leave the local save as it is and
+are retried later. The database connection is closed after 15 idle seconds
+(`goOffline`), and nothing uses live listeners.
+
+App Check is initialised with reCAPTCHA Enterprise once `APP_CHECK_SITE_KEY`
+in `src/firebase-config.js` is set; until then it is skipped, and must not be
+enforced in the console.
+
+`index.html` has a Content-Security-Policy `<meta>` tag: scripts only from the
+site and Google's hosts (`www.gstatic.com` for the SDK, `apis.google.com` for
+the sign-in popup, `www.google.com` for reCAPTCHA), frames only from the auth
+domain and reCAPTCHA, connections only to Google's APIs, the Firebase
+databases and (for the emulators in tests) 127.0.0.1. Pages can't send
+headers, so `frame-ancestors` isn't available. The policy is checked against
+the emulators, not the real services, so a violation in production shows as
+a "Content Security Policy" error in the browser console.
 
 ### Signing in (the opt-in)
 
-* A **Sign in** button (on the floor select and next to each floor's plot)
-  first explains what signing in does: your scores join the heatmap, your
-  machines and progress are saved to your account, friends you invite see
-  your scores and nickname, and you can delete it all. Only then does it open
-  Google's sign-in popup (always a popup, never a redirect: on github.io the
-  auth domain is a different site and browsers' storage partitioning breaks
-  the redirect flow).
-* On first sign-in the player picks a nickname, and their solutions so far are
-  uploaded (below). The help screen repeats what is stored and how to delete
-  it.
-* The local save records the uid it belongs to. Signing in to a different
-  Google account on a browser whose save belongs to someone else asks before
-  merging anything.
-* **Sign out** offers to keep the local save or clear this device.
+* A **Sign in** button (on the floor select and under each floor's plot)
+  first explains what signing in stores: the machines and scores (machines
+  never shown to anyone), the counts on each floor's chart, a nickname, and
+  what Google tells the sign-in service. Only then does it open Google's
+  sign-in popup (always a popup, never a redirect: on github.io the auth
+  domain is a different site and browsers' storage partitioning breaks the
+  redirect flow). The SDK starts loading when the dialog opens, so the popup
+  opens straight from the button's click (browsers block popups opened
+  later).
+* On first sign-in the player picks a nickname (or "Later"), and their
+  solutions so far are uploaded (below). The help screen repeats what is
+  stored. Deleting the account from within the game comes with step 6; the
+  dialog says so.
+* The local save records the account it belongs to (`account: { uid,
+  signedIn }`). Signing in to a different account on a browser whose save
+  belongs to someone else asks first: add the progress to this account,
+  clear this browser, or cancel and sign out.
+* **Sign out** (from the account menu) offers to keep the local save or clear
+  this browser.
 
 ### Submitting solutions
 
-* Each local solution gets a `hash` and an `uploaded` flag. Before uploading,
-  the client reads `/config/rulesVersion` and submits with one `update()`
-  that sets `limits/$uid/submit` and `solutions/$uid/$level/$hash`, at most one
-  a second, in the background. Earlier solutions (from before this feature,
-  or found while offline) go up the same way.
+* Every saved solution that works under the current rules and isn't yet
+  uploaded for this account (`uploaded: <uid>`) is uploaded in the
+  background, one at a time and at most one a second: on signing in, on each
+  start, after rescoring and after each new solution. Its validated machine
+  is hashed (`hash` is kept too), the client reads `/config/rulesVersion`
+  once a session, and one `update()` sets `limits/$uid/submit` and
+  `solutions/$uid/$level/$hash`. A machine the server wouldn't accept (it
+  fails `validateCells`, or is over 10,000 characters) is not uploaded.
 * On "permission denied", the client reads the solution back (the owner can):
-  if it is there with the same `cells`, it is flagged as uploaded; otherwise
-  the client re-reads `rulesVersion` and retries later, or gives up for good
-  on a solution that fails validation.
+  if it is there (the same machine, scored or a tombstone), it is flagged as
+  uploaded; otherwise it is skipped for the session and the rules version is
+  read again. Any other error (offline) pauses the queue until the next
+  trigger.
 
 ### Cloud save
 
@@ -424,11 +453,15 @@ player deleted). Merging a local level with `saves/$uid/$level`:
 
 ### Comparison on the plot
 
-When a floor's plot is shown to a signed-in player, read
-`/stats/v{RULES_VERSION}/{level}` once, cached for the session, and pass it to
-`scatterPlot` as `others` (the hook is already there): faint markers sized by
-count, plus a line for the overall frontier. Signed-out players see their own
-solutions only, with a line inviting them to sign in to compare. Also read
+Built (step 4): when a floor's plot is shown to a signed-in player (the
+results after clearing it, and the solutions list), `/stats/v{RULES_VERSION}/{level}`
+is read once per session (again after one of the player's uploads to that
+floor) and drawn behind the player's solutions: faint markers sized by
+count, a dashed staircase for everyone's frontier, and a note counting the
+players. Signed-out players see their own solutions only, with a line
+inviting them to sign in; signing in from there redraws the plot.
+
+Friends (step 6): also read
 `/friends/$uid`, then each friend's `/profiles/$friend` and
 `/scores/v{RULES_VERSION}/$friend` (all floors at once; cached for the
 session), and draw each friend's frontier as a labelled staircase. If a
@@ -456,7 +489,15 @@ The emulator tests: `cd test/emulator && npm ci && npm test` (needs Java;
 `firebase-tools` is pinned in that package). It copies the game code into
 `functions/game/`, starts the database and functions emulators for a demo
 project (no real resources) and runs `run.js`: the rules, `processSolution`
-and `addPoint`, and a submission scored end to end by the trigger. `firebase-tools` sends all its requests through `HTTPS_PROXY` and
+and `addPoint`, and a submission scored end to end by the trigger.
+
+`npm run test:browser` there (also needs Playwright's Chromium, as
+`tools/ui-smoke.js`) adds the auth emulator and runs `tools/online-smoke.js`:
+the game in a browser with `?emulator`, which makes `src/ui/cloud.js` use the
+emulators and offer a test hook to sign in without Google's popup, and the
+SDK's CDN URLs served from `test/emulator/node_modules/firebase`. It signs in,
+picks a nickname, checks the saved solution is uploaded, scored and counted,
+that the plot shows it, and the sign-out and other-account flows. `firebase-tools` sends all its requests through `HTTPS_PROXY` and
 ignores `NO_PROXY`, so behind a proxy run it with `HTTPS_PROXY` unset.
 
 The project's kill switch is deployed (from its own repository) before this
@@ -513,8 +554,9 @@ Hardening:
    functions tested in the emulator, including attack cases: primitives at
    parents, unknown levels, wrong versions, bursts, oversized machines, the
    card bomb.
-4. Google sign-in (the opt-in), nicknames and solution upload; heatmap and
-   overall frontier on the plot.
+4. Done, not deployed: Google sign-in (the opt-in), nicknames and solution
+   upload; heatmap and overall frontier on the plot; tested end to end
+   against the emulators. App Check waits for its site key.
 5. Cloud save.
 6. Invites and friends' frontiers; `deleteMyData`.
 7. The deploy workflow and `rescore.js`.

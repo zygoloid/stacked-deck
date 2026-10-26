@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node ../../tools/copy-game.js && cd ../.. && test/emulator/node_modules/.bin/firebase emulators:exec --project demo-stacked-deck --only database,functions \"node test/emulator/run.js\""
+    "test": "node ../../tools/copy-game.js && cd ../.. && test/emulator/node_modules/.bin/firebase emulators:exec --project demo-stacked-deck --only database,functions \"node test/emulator/run.js\"",
+    "test:browser": "node ../../tools/copy-game.js && cd ../.. && test/emulator/node_modules/.bin/firebase emulators:exec --project demo-stacked-deck --only auth,database,functions \"node tools/online-smoke.js\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "6.0.0",

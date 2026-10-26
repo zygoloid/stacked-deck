@@ -5,12 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Stacked Deck</title>
   <meta name="description" content="A zachlike puzzle game in an esoteric casino.">
+  <!-- Scripts only from this site and Google's (the Firebase SDK, sign-in,
+       reCAPTCHA for App Check); connections only to Firebase. 127.0.0.1 is
+       for the Firebase emulators in tests. See docs/online.md. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com https://www.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.gstatic.com https://www.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://www.google.com http://127.0.0.1:* ws://127.0.0.1:*; frame-src https://zygoloid-github-io.firebaseapp.com https://www.google.com https://recaptcha.google.com http://127.0.0.1:*; object-src 'none'; base-uri 'self'; form-action 'none'">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='2' width='22' height='28' rx='3' fill='%23fdf8ec' stroke='%23c9a24a' stroke-width='2'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='%23b3243a'%3E%E2%99%A5%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app"></div>
   <div id="help"></div>
+  <div id="dialog"></div>
   <noscript>Stacked Deck needs JavaScript (ES modules). Serve the folder with <code>npm run serve</code>.</noscript>
   <script type="module" src="src/ui/main.js"></script>
 </body>

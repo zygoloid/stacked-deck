@@ -11,8 +11,9 @@
 //            width defaults to a narrower drawing on phones)
 // fresh:     index of the solution just found, or -1 (freshIsNew: false when
 //            it was already saved)
-// others:    optional [{ croupiers, rounds, count }]: other players' solutions,
-//            drawn as faint background markers sized by count (not used yet)
+// others:    optional [{ croupiers, rounds, count }]: everyone's scores (each
+//            player's frontier points), drawn as faint background markers sized
+//            by count, with a dashed staircase for everyone's frontier
 import { h, s } from './dom.js';
 import { frontierOf } from '../score.js';
 
@@ -82,12 +83,19 @@ export function scatterPlot({
     s('text', { class: 'sc-better', x: M.l + 8, y: M.t + ph - 8 }, '↙ better'));
   svg.append(g);
 
-  // other players: faint background
+  // other players: faint background, and a dashed staircase through the
+  // scores nobody has beaten on both axes
   if (others.length) {
     const maxN = Math.max(...others.map((o) => o.count ?? 1));
-    svg.append(s('g', { class: 'sc-others' }, others.map((o) => s('circle', {
-      cx: X(o.croupiers), cy: Y(o.rounds), r: 2.5 + 7 * Math.sqrt((o.count ?? 1) / maxN),
-    }))));
+    svg.append(s('g', { class: 'sc-others' }, others.map((o) => {
+      const dot = s('circle', { cx: X(o.croupiers), cy: Y(o.rounds), r: 2.5 + 7 * Math.sqrt((o.count ?? 1) / maxN) });
+      hoverTip(dot, () => [h('b', {}, scoreText(o)), h('div', { class: 'muted' }, `${o.count ?? 1} player${(o.count ?? 1) === 1 ? '' : 's'}`)]);
+      return dot;
+    })));
+    const best = [...frontierOf(others)].map((i) => others[i]).sort((a, b) => a.croupiers - b.croupiers);
+    let d = `M${X(best[0].croupiers)} ${M.t} V${Y(best[0].rounds)}`;
+    for (let i = 1; i < best.length; i++) d += ` H${X(best[i].croupiers)} V${Y(best[i].rounds)}`;
+    svg.append(s('path', { class: 'sc-overall', d: `${d} H${M.l + pw}` }));
   }
 
   // par: dashed guides to both axes here, and a diamond drawn over the points
@@ -186,7 +194,8 @@ export function scatterPlot({
     h('span', {}, h('i', { class: 'lg-dot beaten' }), 'beaten'),
     current >= 0 ? h('span', {}, h('i', { class: 'lg-dot ring' }), 'loaded now') : null,
     par ? h('span', {}, h('i', { class: 'lg-par' }), 'par') : null,
-    others.length ? h('span', {}, h('i', { class: 'lg-dot others' }), 'other players') : null));
+    others.length ? h('span', {}, h('i', { class: 'lg-dot others' }), 'everyone\'s scores') : null,
+    others.length ? h('span', {}, h('i', { class: 'lg-overall' }), 'everyone\'s frontier') : null));
   return wrap;
 }
 

@@ -22,6 +22,7 @@ database rules and the Cloud Functions in `functions/` are tested against the
 Firebase emulators (needs Java):
 
     cd test/emulator && npm ci && npm test
+    npm run test:browser          # the game against the emulators, in Chromium
 
 | Path | Contents |
 |---|---|

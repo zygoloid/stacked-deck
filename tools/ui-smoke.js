@@ -81,6 +81,11 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  // Signed out, the game must not contact any other site (the online
+  // features load only on signing in), and nothing may break its CSP.
+  const external = [];
+  page.on('request', (r) => { const u = new URL(r.url()); if (/^https?:$/.test(u.protocol) && !['localhost', '127.0.0.1'].includes(u.hostname)) external.push(r.url()); });
+  page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy/i.test(m.text())) errors.push(m.text()); });
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('dialog', (d) => d.accept()); // "Clear the whole floor?", "Delete ... solution?"
 
@@ -713,6 +718,7 @@ try {
   }
 
   check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
+  check(external.length === 0, `signed out, no requests to other sites${external.length ? ': ' + external.slice(0, 3).join(' ') : ''}`);
 } finally {
   await browser.close();
   server.kill();

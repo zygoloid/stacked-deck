@@ -576,6 +576,7 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .sc-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; fill: var(--gold); }
 .sc-better { font-size: 10.5px; font-style: italic; fill: var(--muted); opacity: 0.8; }
 .sc-others circle { fill: rgba(244, 236, 216, 0.08); stroke: rgba(244, 236, 216, 0.12); stroke-width: 0.8; }
+.sc-overall { fill: none; stroke: rgba(244, 236, 216, 0.45); stroke-width: 1.4; stroke-dasharray: 5 4; stroke-linejoin: round; pointer-events: none; }
 .sc-beaten { fill: rgba(212, 175, 55, 0.05); stroke: none; }
 .sc-front { fill: none; stroke: var(--gold-2); stroke-width: 1.8; stroke-linejoin: round; opacity: 0.75; }
 .sc-par-guide { fill: none; stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.45; }
@@ -614,6 +615,7 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .lg-dot.ring { margin: 0 3px; box-shadow: 0 0 0 2px #072a1a, 0 0 0 3.5px var(--ink); }
 .lg-dot.ring:not(.front):not(.beaten) { background: transparent; border-color: transparent; }
 .lg-dot.others { background: rgba(244, 236, 216, 0.15); border-color: rgba(244, 236, 216, 0.2); }
+.lg-overall { display: inline-block; width: 16px; height: 0; margin: 0 2px 3px; border-top: 1.5px dashed rgba(244, 236, 216, 0.6); }
 .lg-par { display: inline-block; width: 9px; height: 9px; margin: 0 2px; transform: rotate(45deg); border: 1.5px dashed var(--ink); }
 .sol-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 34vh; overflow-y: auto; }
 .sol-row {
@@ -668,3 +670,18 @@ svg.board.panning { cursor: grabbing; }
 .rules-version { font-size: 11px; opacity: 0.55; letter-spacing: 0.04em; }
 .lg-dot.broken { background: transparent; border: 1.5px dashed rgba(255, 255, 255, 0.35); }
 .sol-score.broken { opacity: 0.6; font-style: italic; }
+
+/* Online: sign-in and account dialogs (above every other modal), the note under a floor's plot */
+.dialog-back { z-index: 60; }
+.modal.dialog { max-width: 520px; }
+.modal.dialog p { line-height: 1.5; }
+.dlg-list { margin: 0 0 12px; padding-left: 20px; line-height: 1.5; }
+.dlg-list li { margin-bottom: 6px; }
+.dlg-input {
+  display: block; width: 100%; margin: 8px 0 4px; padding: 9px 11px; border-radius: 8px; font: 15px var(--sans);
+  background: rgba(0, 0, 0, 0.3); color: var(--ink); border: 1px solid var(--gold-soft);
+}
+.dlg-status { min-height: 1.2em; margin: 8px 0 0; text-align: center; }
+.compare-note { margin: 6px 0 0; font-size: 12.5px; text-align: center; }
+.compare-note .btn { margin-left: 4px; }
+.btn.account.signed-in { border-color: var(--gold-soft); }

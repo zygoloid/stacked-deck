@@ -7,6 +7,8 @@ import { CAMPAIGN, BONUS, ALL_LEVELS, findLevel } from './catalog.js';
 import { loadSave, writeSave, isOpen, rescoreStale } from './model.js';
 import { levelSelect, storyScreen, helpPanel } from './screens.js';
 import { openEditor } from './editor.js';
+import { createCloud } from './cloud.js';
+import { confirmOtherAccount, askName } from './account.js';
 
 const root = document.getElementById('app');
 const helpHost = document.getElementById('help');
@@ -23,6 +25,14 @@ const ctx = {
   helpOpen: () => !!helpHost.firstChild,
   nextLevel,
 };
+
+// The online features (src/ui/cloud.js): nothing loads unless the player
+// signed in last time or signs in now.
+ctx.cloud = createCloud({
+  save, persist: ctx.persist, levels: ALL_LEVELS,
+  ui: { confirmOtherAccount, askName, cleared: () => ctx.go('#/') },
+});
+ctx.cloud.onChange(() => { if (document.body.dataset.screen === 'select') route(); });
 
 // The floor to offer after clearing `level`: the next campaign floor; for a
 // bonus floor, the next open bonus floor (after it, else an earlier unsolved
@@ -67,4 +77,6 @@ route();
 rescoreStale(save, ALL_LEVELS, () => {
   writeSave(save);
   if (document.body.dataset.screen === 'select') route();
+  ctx.cloud.queueUploads();
 });
+ctx.cloud.start();
