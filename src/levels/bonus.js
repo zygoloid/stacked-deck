@@ -199,17 +199,17 @@ export const LEVELS = [
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
-// shoes; rounds averaged over the level's tests and rounded). test/levels.js
+// shoes; rounds totalled over the level's tests). test/levels.js
 // checks these exactly; `node tools/write-solutions.js bonus --par` rewrites
 // this table from the recipes in tools/level-specs/bonus.js.
 // BEGIN PAR
 const PAR = {
-  'small-change': { croupiers: 6, rounds: 19 },
-  'split-pot': { croupiers: 3, rounds: 11 },
-  'every-other': { croupiers: 4, rounds: 15 },
-  'after-a-pair': { croupiers: 13, rounds: 24 },
-  'bookends': { croupiers: 5, rounds: 22 },
-  'four-of-a-kind': { croupiers: 6, rounds: 67 },
+  'small-change': { croupiers: 6, rounds: 130 },
+  'split-pot': { croupiers: 3, rounds: 56 },
+  'every-other': { croupiers: 4, rounds: 90 },
+  'after-a-pair': { croupiers: 13, rounds: 171 },
+  'bookends': { croupiers: 5, rounds: 134 },
+  'four-of-a-kind': { croupiers: 6, rounds: 533 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

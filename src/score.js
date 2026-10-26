@@ -177,6 +177,10 @@ export async function checkDeals(level, cells) {
   return randomDeals(rand, CHECK_DEALS, deal.handsPerTest, deal.handSize);
 }
 
+// The rounds score: the total over a floor's published tests (an integer,
+// and it changes whenever any test's round count does).
+export const totalRounds = (results) => results.reduce((a, r) => a + r.rounds, 0);
+
 // Run a machine against every test of a level, then (if they all pass) its
 // check deals. `ok` needs both; the score comes from the tests alone.
 export async function scoreMachine(level, cells) {
@@ -187,7 +191,7 @@ export async function scoreMachine(level, cells) {
   return {
     ok,
     croupiers: countCroupiers(cells),
-    rounds: Math.round(results.reduce((a, r) => a + r.rounds, 0) / results.length),
+    rounds: totalRounds(results),
   };
 }
 

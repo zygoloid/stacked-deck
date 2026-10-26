@@ -391,24 +391,24 @@ export const LEVELS = [
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
-// shoes; rounds averaged over the level's tests and rounded). test/levels.js
+// shoes; rounds totalled over the level's tests). test/levels.js
 // checks these exactly; `node tools/write-solutions.js clubs --par` rewrites
 // this table from the recipes in tools/level-specs/clubs.js.
 // BEGIN PAR
 const PAR = {
-  'upper-hand': { croupiers: 4, rounds: 15 },
-  'high-spade': { croupiers: 6, rounds: 17 },
-  'top-pair': { croupiers: 5, rounds: 12 },
-  'new-rules': { croupiers: 4, rounds: 11 },
-  'bottom-dealer': { croupiers: 5, rounds: 15 },
-  'upside-down': { croupiers: 3, rounds: 13 },
-  'second-fiddle': { croupiers: 4, rounds: 16 },
-  'knockout': { croupiers: 17, rounds: 37 },
-  'low-ball': { croupiers: 14, rounds: 17 },
-  'ace-count': { croupiers: 13, rounds: 19 },
-  'bottom-pair': { croupiers: 11, rounds: 13 },
-  'small-pairs': { croupiers: 14, rounds: 13 },
-  'two-pair': { croupiers: 13, rounds: 15 },
+  'upper-hand': { croupiers: 4, rounds: 90 },
+  'high-spade': { croupiers: 6, rounds: 101 },
+  'top-pair': { croupiers: 5, rounds: 73 },
+  'new-rules': { croupiers: 4, rounds: 53 },
+  'bottom-dealer': { croupiers: 5, rounds: 77 },
+  'upside-down': { croupiers: 3, rounds: 63 },
+  'second-fiddle': { croupiers: 4, rounds: 98 },
+  'knockout': { croupiers: 17, rounds: 220 },
+  'low-ball': { croupiers: 14, rounds: 103 },
+  'ace-count': { croupiers: 13, rounds: 112 },
+  'bottom-pair': { croupiers: 11, rounds: 94 },
+  'small-pairs': { croupiers: 14, rounds: 91 },
+  'two-pair': { croupiers: 13, rounds: 104 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

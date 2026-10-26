@@ -91,7 +91,7 @@ depends on them being in place before launch.
 ## Data layout
 
 ```
-/config/rulesVersion          10
+/config/rulesVersion          9
 /config/scoringPaused         true | absent
 /limits/$uid/submit           {level, hash, at}
 /solutions/$uid/$level/$hash  {cells, at, rules, score?}  or tombstone {invalid, rules, at}
@@ -332,9 +332,11 @@ of the floor id and the machine's canonical form, through a 128-bit PRNG
 deals they already know). The game and the server deal the same check deals
 for the same machine, so there are no surprises online, but changing a
 machine to fit its check deals changes them. Scores (croupiers and rounds)
-still come from the published tests only, so everyone's rounds are measured
-on the same deals. This is `RULES_VERSION` 10: saved solutions are re-scored,
-and any that only fitted the published tests become broken.
+still come from the published tests only (rounds being the total over
+them), so everyone's rounds are measured on the same deals. This is part of
+`RULES_VERSION` 9, with the card limit and the change from averaged to total
+rounds: saved solutions are re-scored, and any that only fitted the published
+tests become broken.
 
 In the editor the check deals run after the published tests, as chips C1–C8;
 a failing one is loaded into the step-by-step view like any test, with a note
@@ -517,7 +519,8 @@ Hardening:
 ## Build order
 
 1. Done: extract `src/score.js` and add `validateCells`; add the engine card
-   limit (`RULES_VERSION` 9); check deals (`RULES_VERSION` 10).
+   limit, check deals, and rounds as the total over the tests (all
+   `RULES_VERSION` 9).
 2. Shared project setup: project, Auth providers, App Check and budget are
    done (by hand); the kill switch is written (`ops/`), to be deployed with
    its service account.

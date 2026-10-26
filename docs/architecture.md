@@ -195,7 +195,8 @@ machine always gets the same check deals, in the browser and on the server,
 but changing the machine changes them, so a machine can't be fitted to the
 published tests or hard-code their payouts. `test/levels.js` checks every
 reference solution passes its check deals. Scores are croupiers (shoes
-included) and rounds (the average over the published tests only, rounded). Levels
+included) and rounds (the total over the published tests only: `totalRounds` in
+`src/score.js`, an integer that changes whenever any test's count does). Levels
 unlock in order, with some slack: a level is open when fewer than three levels
 before it are unsolved (`OPEN_UNSOLVED` in `src/ui/model.js`), so up to three
 unsolved levels are open at once. The UI reads both lists through

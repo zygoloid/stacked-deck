@@ -324,24 +324,24 @@ export const LEVELS = [
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
-// shoes; rounds averaged over the level's tests and rounded). test/levels.js
+// shoes; rounds totalled over the level's tests). test/levels.js
 // checks these exactly; `node tools/write-solutions.js diamonds --par`
 // rewrites this table from the recipes in tools/level-specs/diamonds.js.
 // BEGIN PAR
 const PAR = {
-  'red-flush': { croupiers: 3, rounds: 11 },
-  'either-or': { croupiers: 5, rounds: 17 },
-  'pair-night': { croupiers: 3, rounds: 12 },
-  'inside-seven': { croupiers: 5, rounds: 16 },
-  'seven-up': { croupiers: 6, rounds: 18 },
-  'lucky-number': { croupiers: 11, rounds: 16 },
-  'beat-the-dealer': { croupiers: 4, rounds: 14 },
-  'ace-in-the-hole': { croupiers: 4, rounds: 10 },
-  'inside-bet': { croupiers: 5, rounds: 12 },
-  'top-dog': { croupiers: 5, rounds: 16 },
-  'top-of-the-heap': { croupiers: 6, rounds: 15 },
-  'royal-flush': { croupiers: 11, rounds: 13 },
-  'acey-deucey': { croupiers: 21, rounds: 31 },
+  'red-flush': { croupiers: 3, rounds: 53 },
+  'either-or': { croupiers: 5, rounds: 84 },
+  'pair-night': { croupiers: 3, rounds: 60 },
+  'inside-seven': { croupiers: 5, rounds: 82 },
+  'seven-up': { croupiers: 6, rounds: 89 },
+  'lucky-number': { croupiers: 11, rounds: 80 },
+  'beat-the-dealer': { croupiers: 4, rounds: 69 },
+  'ace-in-the-hole': { croupiers: 4, rounds: 52 },
+  'inside-bet': { croupiers: 5, rounds: 60 },
+  'top-dog': { croupiers: 5, rounds: 78 },
+  'top-of-the-heap': { croupiers: 6, rounds: 74 },
+  'royal-flush': { croupiers: 11, rounds: 66 },
+  'acey-deucey': { croupiers: 21, rounds: 244 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

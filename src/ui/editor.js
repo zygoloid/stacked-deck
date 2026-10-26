@@ -10,7 +10,7 @@ import {
   hexKey, sanitizeCells, toSpec, countCroupiers, levelSave, warRules, specialCardsOf,
   solutionsOf, recordSolution, deleteSolution, findSolution,
 } from './model.js';
-import { checkDeals, CHECK_DEALS } from '../score.js';
+import { checkDeals, CHECK_DEALS, totalRounds } from '../score.js';
 import { Sim } from './sim.js';
 import { scatterPlot, solutionList, scoreText } from './scatter.js';
 
@@ -290,8 +290,7 @@ export function openEditor(root, ctx, level) {
     if (ok) {
       const croupiers = countCroupiers(machine);
       // Scores come from the published tests only.
-      const scored = runResults.slice(0, level.tests.length);
-      const rounds = Math.round(scored.reduce((a, r) => a + r.rounds, 0) / scored.length);
+      const rounds = totalRounds(runResults.slice(0, level.tests.length));
       solutionsOf(ls);
       const prev = ls.best ? { ...ls.best } : undefined;
       const wasSolved = !!ls.solved;

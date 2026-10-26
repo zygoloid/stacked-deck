@@ -41,10 +41,11 @@ import {
 //   6  gather and war take both hands in one round when both are waiting
 //   7  burn and hand croupiers; jokers and advertising cards
 //   8  deal builds one pile per side, each card on top (piles reverse order)
-//   9  a run fails once more than MAX_FLOOR_CARDS cards are on the floor
-//  10  a floor is cleared only if the machine also passes its check deals
-//      (random deals seeded from the machine itself; see src/score.js)
-export const RULES_VERSION = 10;
+//   9  a run fails once more than MAX_FLOOR_CARDS cards are on the floor; a
+//      floor is cleared only if the machine also passes its check deals
+//      (random deals seeded from the machine itself; see src/score.js); the
+//      rounds score is the total over the tests, not the rounded average
+export const RULES_VERSION = 9;
 
 // A machine can multiply cards without bound (two duplicates feeding each
 // other quadruple them every four rounds), so a run fails once more than this
