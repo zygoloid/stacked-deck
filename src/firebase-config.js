@@ -13,6 +13,9 @@ export const firebaseConfig = {
 // This game's own database instance (not the project's default one).
 export const DATABASE_URL = 'https://zygoloid-stacked-deck.firebaseio.com';
 
+// Where this game's Cloud Functions run (functions/config.js).
+export const FUNCTIONS_REGION = 'us-central1';
+
 // The Firebase JS SDK's browser modules, at an exact version.
 export const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/13.1.0';
 
@@ -20,6 +23,6 @@ export const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/13.1.0';
 // src/ui/cloud.js).
 export const EMULATOR_PROJECT = 'demo-stacked-deck';
 
-// App Check's reCAPTCHA Enterprise site key. While it is empty, App Check is
-// not used (and must not be enforced in the console).
-export const APP_CHECK_SITE_KEY = '';
+// App Check's reCAPTCHA Enterprise site key (public, like the rest). While it
+// is empty, App Check is not used (and must not be enforced).
+export const APP_CHECK_SITE_KEY = '6LcIfwEuAAAAAAIpO5pt-AlTybrNHzsG30orz65C';

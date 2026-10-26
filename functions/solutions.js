@@ -71,6 +71,46 @@ export async function addPoint(db, version, uid, level, point) {
   return diff;
 }
 
+// (A transaction's first run often sees a cached null rather than the
+// server's value. Returning undefined then would abort without ever asking
+// the server, so the transactions below return null for null: if the node
+// does exist, the server refuses that and the function runs again with it.)
+
+// Remove a player's whole frontier for a floor and rules version, and their
+// points from its stats. Safe to repeat. Returns the points removed.
+export async function removeFrontier(db, version, uid, level) {
+  let removed = [];
+  const { committed } = await db.ref(`scores/v${version}/${uid}/${level}`).transaction((current) => {
+    removed = Object.keys(current ?? {}); // from the run that commits
+    return null;
+  });
+  if (!committed || !removed.length) return [];
+  const update = { players: ServerValue.increment(-1) };
+  for (const k of removed) update[`points/${k}`] = ServerValue.increment(-1);
+  await db.ref(`stats/v${version}/${level}`).update(update);
+  return removed;
+}
+
+// Take one point back out of a player's frontier (when the solution it came
+// from was deleted while being scored). Safe to repeat.
+export async function removePoint(db, version, uid, level, point) {
+  const key = pointKey(point);
+  let removed = false, emptied = false;
+  const { committed } = await db.ref(`scores/v${version}/${uid}/${level}`).transaction((current) => {
+    removed = !!current?.[key];
+    if (!removed) return current ?? null; // not there: change nothing
+    const next = { ...current };
+    delete next[key];
+    emptied = !Object.keys(next).length;
+    return emptied ? null : next;
+  });
+  if (!committed || !removed) return false;
+  const update = { [`points/${key}`]: ServerValue.increment(-1) };
+  if (emptied) update.players = ServerValue.increment(-1);
+  await db.ref(`stats/v${version}/${level}`).update(update);
+  return true;
+}
+
 // Verify and score one submitted solution (written by a player to
 // solutions/{uid}/{level}/{hash}). Returns what happened, for logs and tests.
 export async function processSolution(db, { uid, level, hash }) {
@@ -83,8 +123,10 @@ export async function processSolution(db, { uid, level, hash }) {
   if (sol.rules !== RULES_VERSION) return 'other version';
 
   // Invalid submissions keep only a small tombstone, never their contents.
+  // (Only while it still exists: never recreate one the player deleted.)
   const tombstone = async (reason) => {
-    await ref.set({ invalid: reason, rules: sol.rules, at: typeof sol.at === 'number' ? sol.at : 0 });
+    const stone = { invalid: reason, rules: sol.rules, at: typeof sol.at === 'number' ? sol.at : 0 };
+    await ref.transaction((current) => (current ? stone : null));
     return `invalid: ${reason}`;
   };
   const lv = LEVEL_BY_ID.get(level);
@@ -105,6 +147,13 @@ export async function processSolution(db, { uid, level, hash }) {
   // The point goes in before `score` is written, so a retry after a crash
   // redoes both (and adding the point again changes nothing).
   if (res.ok) await addPoint(db, RULES_VERSION, uid, level, res);
-  await ref.child('score').set(res.ok ? { croupiers: res.croupiers, rounds: res.rounds } : { broken: true });
+  const score = res.ok ? { croupiers: res.croupiers, rounds: res.rounds } : { broken: true };
+  // Only while the solution still exists: if the player deleted their data
+  // meanwhile, write nothing back and take the point out again.
+  const { snapshot } = await ref.transaction((current) => (current ? { ...current, score } : null));
+  if (!snapshot.exists()) {
+    if (res.ok) await removePoint(db, RULES_VERSION, uid, level, res);
+    return 'deleted meanwhile';
+  }
   return res.ok ? 'scored' : 'broken';
 }

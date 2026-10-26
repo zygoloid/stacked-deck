@@ -246,10 +246,16 @@ the work is `processSolution` and `addPoint` in `functions/solutions.js`).
    `/stats/v{N}/{level}` in one `update()` with `ServerValue.increment(±1)` on
    each added or removed point, and on `players` if the frontier was empty.
    No transaction ever covers a shared node.
-6. Write `score` last. A retry after a crash redoes steps 5 and 6, and the
-   transaction makes step 5 a no-op if the point is already there. A crash
-   between the transaction and the increments loses those increments until
-   the next rebuild.
+6. Write `score` last, in a transaction that writes only if the solution still
+   exists (tombstones too): if the player deleted their data meanwhile,
+   nothing is written back and the point is taken out again (`removePoint`).
+   A retry after a crash redoes steps 5 and 6, and the transaction makes step
+   5 a no-op if the point is already there. A crash between the transaction
+   and the increments loses those increments until the next rebuild.
+
+Transactions here return `null`, never `undefined`, for a `null` current
+value: a transaction's first run often sees a cached `null` rather than the
+server's value, and `undefined` would abort without asking the server.
 
 ### Friends and accounts (callables)
 
@@ -265,10 +271,17 @@ the work is `processSolution` and `addPoint` in `functions/solutions.js`).
   unexpired and isn't the caller's own; only after that commits, writes
   `friends/a/b` and `friends/b/a`.
 * **`removeFriend(uid)`**: deletes both directions.
-* **`deleteMyData()`**: removes the caller's points from the
-  current `stats` (the inverse of adding a point), then deletes their
-  `solutions`, `scores`, `saves`, `profiles`, `limits`, invite and both
-  directions of every friendship. The client then calls `user.delete()`.
+* **`deleteMyData()`** (built; `functions/account.js`): for a caller signed
+  in with Google, deletes their `solutions` first (so nothing new is scored),
+  then for every rules version their frontiers and their points in each
+  floor's `stats` (`removeFrontier`), then their `saves`, `profile`, `limits`,
+  invite and both directions of every friendship. Safe to repeat. The client
+  then deletes the sign-in account itself (`deleteUser`), so the functions
+  never need rights over the project's users; if Google wants a recent
+  sign-in first, the client asks the player to confirm with Google (a popup
+  from a click) and deletes it then. While the project holds only this game
+  that removes everything stored about the player; once other games share
+  the sign-in accounts, deleting the account will need to cover them too.
 
 ### `rescore.js` and repairs
 
@@ -376,9 +389,13 @@ this). Every call is best-effort; failures leave the local save as it is and
 are retried later. The database connection is closed after 15 idle seconds
 (`goOffline`), and nothing uses live listeners.
 
-App Check is initialised with reCAPTCHA Enterprise once `APP_CHECK_SITE_KEY`
-in `src/firebase-config.js` is set; until then it is skipped, and must not be
-enforced in the console.
+App Check is initialised with reCAPTCHA Enterprise (`APP_CHECK_SITE_KEY` in
+`src/firebase-config.js`; skipped against the emulators). It is not enforced
+yet: turn on enforcement for the database in the console, and
+`ENFORCE_APP_CHECK` in `functions/config.js` for the callables, once the App
+Check metrics show the game's requests are verified. For sign-in testing from
+`localhost`, add `localhost` to the reCAPTCHA key's domains (or register a
+debug token); unenforced, a failed App Check token doesn't block anything.
 
 `index.html` has a Content-Security-Policy `<meta>` tag: scripts only from the
 site and Google's hosts (`www.gstatic.com` for the SDK, `apis.google.com` for
@@ -480,8 +497,11 @@ control characters stripped.
   (`history.replaceState`), prompts Google sign-in if needed, shows "Accept
   invite from *name*?" (`previewInvite`) and only then calls `acceptInvite`.
 * **List and remove** friends (`removeFriend`).
-* **Delete my data** (`deleteMyData`, then `user.delete()`), and offer to
-  clear the local save too.
+* **Delete my data** (built): from the account menu. The dialog lists what
+  goes (uploaded machines and scores, which leave every chart; the nickname;
+  the sign-in account) and offers to clear this browser's progress too.
+  Uploads stop and any under way finishes first; then `deleteMyData`, then
+  `deleteUser`; the player is signed out and the save forgets the account.
 
 ## Testing and deployment
 
@@ -497,8 +517,10 @@ the game in a browser with `?emulator`, which makes `src/ui/cloud.js` use the
 emulators and offer a test hook to sign in without Google's popup, and the
 SDK's CDN URLs served from `test/emulator/node_modules/firebase`. It signs in,
 picks a nickname, checks the saved solution is uploaded, scored and counted,
-that the plot shows it, and the sign-out and other-account flows. `firebase-tools` sends all its requests through `HTTPS_PROXY` and
-ignores `NO_PROXY`, so behind a proxy run it with `HTTPS_PROXY` unset.
+that the plot shows it, the sign-out and other-account flows, and deleting an
+account's data (and the sign-in account) through the dialog. `firebase-tools`
+sends all its requests through `HTTPS_PROXY` and ignores `NO_PROXY`, so
+behind a proxy run either suite with `HTTPS_PROXY` unset.
 
 The project's kill switch is deployed (from its own repository) before this
 game's rules and functions.
@@ -558,5 +580,6 @@ Hardening:
    upload; heatmap and overall frontier on the plot; tested end to end
    against the emulators. App Check waits for its site key.
 5. Cloud save.
-6. Invites and friends' frontiers; `deleteMyData`.
+6. Invites and friends' frontiers. (`deleteMyData` and its dialog: done, not
+   deployed.)
 7. The deploy workflow and `rescore.js`.

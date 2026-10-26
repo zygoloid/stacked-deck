@@ -276,6 +276,58 @@ const key = `${PAR.croupiers}_${PAR.rounds}`;
 }
 console.log('processSolution and addPoint ok');
 
+{
+  // Deleting a player's data: their solutions, frontiers (every rules
+  // version) and points in the stats, profile, save, limits, friendships
+  // both ways and invite; other players' data stays. Safe to repeat.
+  const { deleteUserData } = await import('../../functions/account.js');
+  const { removePoint } = await import('../../functions/solutions.js');
+  const before = await stats();
+  await direct.ref('/').update({
+    'profiles/p1': { name: 'One' }, 'saves/p1/opening-night/solved': true, 'limits/p1/submit': { level: LEVEL, hash: HASH, at: 1 },
+    'friends/p1/p2': true, 'friends/p2/p1': true, 'friends/p2/p9': true, 'inviteOf/p1': 'abcdefghijkl',
+    'invites/abcdefghijkl': { from: 'p1', expires: 1 }, 'scores/v1/p1/opening-night': { '4_40': true },
+    'stats/v1/opening-night': { points: { '4_40': 3 }, players: 3 },
+  });
+  assert.strictEqual(await deleteUserData(direct, 'p1'), 2);
+  for (const path of ['solutions/p1', `scores/v${RULES_VERSION}/p1`, 'scores/v1/p1', 'profiles/p1', 'saves/p1', 'limits/p1',
+    'friends/p1', 'friends/p2/p1', 'inviteOf/p1', 'invites/abcdefghijkl']) {
+    assert.strictEqual((await direct.ref(path).get()).val(), null, `${path} deleted`);
+  }
+  assert.deepStrictEqual((await direct.ref('friends/p2').get()).val(), { p9: true }, "others' friendships stay");
+  assert.notStrictEqual((await direct.ref(`solutions/p2/${LEVEL}`).get()).val(), null, "others' solutions stay");
+  const after = await stats();
+  assert.strictEqual(after.players, before.players - 1);
+  assert.strictEqual(after.points[key], before.points[key] - 1);
+  assert.deepStrictEqual((await direct.ref('stats/v1/opening-night').get()).val(), { points: { '4_40': 2 }, players: 2 });
+  assert.strictEqual(await deleteUserData(direct, 'p1'), 0);
+  assert.deepStrictEqual(await stats(), after, 'repeating changes nothing');
+
+  // Taking a single point back out (a solution deleted while being scored).
+  await addPoint(direct, 1, 'r', 'two-tables', { croupiers: 5, rounds: 50 });
+  await addPoint(direct, 1, 'r', 'two-tables', { croupiers: 6, rounds: 40 });
+  assert.strictEqual(await removePoint(direct, 1, 'r', 'two-tables', { croupiers: 5, rounds: 50 }), true);
+  assert.strictEqual(await removePoint(direct, 1, 'r', 'two-tables', { croupiers: 5, rounds: 50 }), false);
+  assert.strictEqual(await removePoint(direct, 1, 'r', 'two-tables', { croupiers: 6, rounds: 40 }), true);
+  assert.strictEqual((await direct.ref('scores/v1/r').get()).val(), null);
+  assert.deepStrictEqual((await direct.ref('stats/v1/two-tables').get()).val(), { points: { '5_50': 0, '6_40': 0 }, players: 0 });
+
+  // A solution deleted while it is being scored leaves nothing behind.
+  await put('p6', HASH, { cells: JSON.stringify(CELLS) });
+  const run = processSolution(direct, { uid: 'p6', level: LEVEL, hash: HASH });
+  await sleep(15);
+  const mid = await stats();
+  await deleteUserData(direct, 'p6');
+  const res = await run;
+  assert(['deleted meanwhile', 'done already'].includes(res), res);
+  assert.strictEqual((await direct.ref('solutions/p6').get()).val(), null, 'nothing written back');
+  assert.strictEqual((await direct.ref(`scores/v${RULES_VERSION}/p6`).get()).val(), null);
+  const end = await stats();
+  assert.strictEqual(end.players, mid.players);
+  assert.strictEqual(end.points[key], mid.points[key]);
+}
+console.log('deleting a player\'s data ok');
+
 // ---------- end to end: the trigger scores a real submission ----------
 {
   const env2 = await initializeTestEnvironment({ projectId: 'demo-stacked-deck', database: { host, port: Number(port) } });

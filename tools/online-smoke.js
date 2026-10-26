@@ -10,7 +10,8 @@
 // solutions upload and the scoring function scores them; everyone's scores
 // appear on a floor's plot; signing out keeps or clears this browser's
 // progress; signing in with another account asks before adding this
-// browser's progress to it; a reload restores the session.
+// browser's progress to it; a reload restores the session; deleting an
+// account's data removes it (and the sign-in account) and its stats.
 import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
@@ -36,6 +37,11 @@ async function loadPlaywright() {
   return createRequire(join(root, 'noop.js'))('playwright');
 }
 const { chromium } = await loadPlaywright();
+// The Admin SDK (test/emulator's copy) against the auth emulator, to check
+// sign-in accounts.
+const adminRequire = createRequire(join(repo, 'test/emulator/package.json'));
+const adminAuth = adminRequire('firebase-admin/auth').getAuth(adminRequire('firebase-admin/app').initializeApp({ projectId: 'demo-stacked-deck' }));
+const userExists = (uid) => adminAuth.getUser(uid).then(() => true, () => false);
 
 // The database emulator as its owner (bypasses rules).
 async function owner(path, method = 'GET', body) {
@@ -174,6 +180,31 @@ try {
   });
   check(!!bobs, 'the progress is added to the second account');
   check((await owner(`stats/v${RULES_VERSION}/${LEVEL}`))?.players === 2, 'the stats now count two players');
+
+  // Delete the second account's data (keeping this browser's progress).
+  await page.click('.btn.account');
+  await page.click('.modal.dialog >> text=Delete my data…');
+  await page.waitForSelector('.modal.dialog >> text=Delete everything');
+  check(/sign-in account itself/.test(await page.textContent('.modal.dialog')), 'the delete dialog says what goes');
+  if (shots) await page.locator('.modal.dialog').screenshot({ path: join(shots, 'o5-delete.png') });
+  await page.click('.modal.dialog >> text=Delete everything');
+  await page.waitForSelector('.modal.dialog h2 >> text=Deleted', { timeout: 30000 });
+  check(await owner(`solutions/${bob}`) === null && await owner(`scores/v${RULES_VERSION}/${bob}`) === null && await owner(`limits/${bob}`) === null,
+    'the account\'s solutions, scores and limits are deleted');
+  check(JSON.stringify(await owner(`stats/v${RULES_VERSION}/${LEVEL}`)) === JSON.stringify({ players: 1, points: { [key]: 1 } }), 'its points leave the stats');
+  check(!(await userExists(bob)) && await userExists(alice), 'its sign-in account is deleted (and only that one)');
+  await page.click('.modal.dialog >> text=Close');
+  const afterDelete = await saveOf();
+  check((await header()) === 'Sign in' && !afterDelete.account && afterDelete.levels[LEVEL]?.solved, 'signed out, with this browser\'s progress kept');
+
+  // The first account signs in again: no questions (the browser's progress
+  // belongs to no account now), and its nickname is back.
+  await page.click('.btn.account');
+  await page.waitForSelector('.modal.dialog .btn.gold:not([disabled])');
+  await page.click('.modal.dialog .btn.ghost');
+  await page.evaluate(() => window.stackedDeckTest.signIn('alice-sub', 'alice@example.com'));
+  await until(async () => (await header()) === '☺ Ace of Clubs', 20000);
+  check((await header()) === '☺ Ace of Clubs' && !(await page.locator('.modal.dialog').count()), 'the first account signs in again without questions');
 
   // Sign out and clear this browser.
   await page.click('.btn.account');

@@ -685,3 +685,8 @@ svg.board.panning { cursor: grabbing; }
 .compare-note { margin: 6px 0 0; font-size: 12.5px; text-align: center; }
 .compare-note .btn { margin-left: 4px; }
 .btn.account.signed-in { border-color: var(--gold-soft); }
+.btn.danger { background: #8c2632; border-color: #c4485a; color: #fff; }
+.btn.danger:hover:not(:disabled) { background: #a32e3c; }
+.btn.ghost.danger { background: transparent; color: #ffb3b3; border-color: rgba(255, 120, 120, 0.4); }
+.dlg-danger-row { margin: 14px 0 0; text-align: center; }
+.dlg-check { display: block; margin: 4px 0 12px; font-size: 13.5px; line-height: 1.4; }

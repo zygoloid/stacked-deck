@@ -9,7 +9,9 @@
 // 127.0.0.1 instead (for tests; see tools/online-smoke.js), and exposes
 // window.stackedDeckTest.signIn(sub, email) to sign in without a popup.
 import { RULES_VERSION } from '../engine.js';
-import { firebaseConfig, DATABASE_URL, FIREBASE_SDK, APP_CHECK_SITE_KEY, EMULATOR_PROJECT } from '../firebase-config.js';
+import {
+  firebaseConfig, DATABASE_URL, FIREBASE_SDK, FUNCTIONS_REGION, APP_CHECK_SITE_KEY, EMULATOR_PROJECT,
+} from '../firebase-config.js';
 import { uploadCandidates, prepareUpload, submission, readStats, cleanName } from '../online.js';
 
 const EMULATOR = typeof location !== 'undefined' && /[?&]emulator\b/.test(location.search);
@@ -31,10 +33,12 @@ export function createCloud({ save, persist, levels, ui }) {
   const stats = new Map();      // level id -> { points, players }
   const statsLoads = new Map(); // level id -> promise
   const skip = new Set();       // solutions not to retry this session
-  let uploading = false;
+  let uploading = null;          // the upload queue's run, while it runs
+  let deleting = false;          // deleting the account: no more uploads
   let serverRules = null;       // /config/rulesVersion, read once per session
   let lastSubmit = 0;
   let idleTimer = 0;
+  let pendingClear = false;      // deleteAccount's clearLocal, while Google asks to confirm
 
   const notify = () => listeners.forEach((fn) => { try { fn(); } catch (e) { console.error(e); } });
   const setState = (s, u = user) => { state = s; user = u; notify(); };
@@ -60,7 +64,7 @@ export function createCloud({ save, persist, levels, ui }) {
             authM.GoogleAuthProvider.credential(JSON.stringify({ sub, email, email_verified: true }))),
         };
       }
-      fb = { authM, dbM, auth, db };
+      fb = { app, authM, dbM, auth, db };
       authM.onAuthStateChanged(auth, (u) => { onUser(u).catch((e) => console.error('sign-in:', e)); });
       return fb;
     })();
@@ -120,12 +124,15 @@ export function createCloud({ save, persist, levels, ui }) {
 
   // Upload saved solutions this account doesn't have yet, one at a time and
   // at most one a second, in the background.
-  async function queueUploads() {
-    if (uploading || state !== 'signed-in') return;
-    uploading = true;
+  function queueUploads() {
+    if (uploading || deleting || state !== 'signed-in') return uploading;
+    uploading = runUploads().finally(() => { uploading = null; });
+    return uploading;
+  }
+  async function runUploads() {
     try {
       for (;;) {
-        if (state !== 'signed-in') break;
+        if (state !== 'signed-in' || deleting) break;
         const uid = user.uid;
         const [next] = uploadCandidates(save, levels, uid, skip);
         if (!next) break;
@@ -160,9 +167,19 @@ export function createCloud({ save, persist, levels, ui }) {
       }
     } catch (e) {
       console.warn('upload paused:', e); // offline or similar: retried on the next solve or start
-    } finally {
-      uploading = false;
     }
+  }
+
+  // After the account's data is deleted: forget the account here, and clear
+  // this browser's progress too if asked.
+  function forgetAccount(clearLocal) {
+    delete save.account;
+    if (clearLocal) save.levels = {};
+    persist();
+    stats.clear();
+    deleting = false;
+    setState('signed-out', null);
+    if (clearLocal) ui.cleared?.();
   }
 
   return {
@@ -189,6 +206,38 @@ export function createCloud({ save, persist, levels, ui }) {
     },
     setName,
     queueUploads,
+    // Delete everything this game stores for the account (the deleteMyData
+    // function), then the sign-in account itself. Returns 'done', or
+    // 'reauth' if Google wants the player to confirm it's them first (then
+    // call reauthAndDelete() from a click).
+    async deleteAccount({ clearLocal = false } = {}) {
+      if (state !== 'signed-in') throw new Error('not signed in');
+      deleting = true;
+      try {
+        await uploading; // let an upload under way finish first
+        const fnM = await import(`${FIREBASE_SDK}/firebase-functions.js`);
+        const functions = fnM.getFunctions(fb.app, FUNCTIONS_REGION);
+        if (EMULATOR) fnM.connectFunctionsEmulator(functions, '127.0.0.1', 5001);
+        await fnM.httpsCallable(functions, 'deleteMyData')();
+        try {
+          await fb.authM.deleteUser(fb.auth.currentUser);
+        } catch (e) {
+          if (e?.code === 'auth/requires-recent-login') { pendingClear = clearLocal; return 'reauth'; }
+          throw e;
+        }
+        forgetAccount(clearLocal);
+        return 'done';
+      } catch (e) {
+        deleting = false;
+        throw e;
+      }
+    },
+    async reauthAndDelete() {
+      const u = fb.auth.currentUser;
+      await fb.authM.reauthenticateWithPopup(u, new fb.authM.GoogleAuthProvider());
+      await fb.authM.deleteUser(u);
+      forgetAccount(pendingClear);
+    },
     // A floor's stats for this rules version: { points, players }, fetched
     // once per session (and again after one of our uploads to that floor).
     cachedStats: (levelId) => stats.get(levelId) ?? null,
