@@ -1,7 +1,8 @@
 # Stacked Deck: online features (design)
 
-Status: agreed design. Built so far: the shared scoring module and the engine
-card limit (build order step 1).
+Status: agreed design, partly built (see "Build order"): the shared scoring
+module, the engine card limit, the database rules, `scoreSolution` and the
+kill switch. Nothing is deployed yet.
 
 Two connected features:
 
@@ -42,24 +43,40 @@ more valuable.
 | Firebase project | A **shared Blaze project for games hosted on `zygoloid.github.io`**, used for nothing else. Each game has its own database instance and its own functions codebase. |
 | Firebase Auth | Plain Firebase Auth (no Identity Platform upgrade), shared by the games: anonymous accounts for players who opt in, Google sign-in (linked to the anonymous account) for cloud save and friends. Never phone sign-in. |
 | Realtime Database | This game's own instance (e.g. `zygoloid-stacked-deck`), read and written directly by the browser under security rules deployed from this repo. Instance names are global and can't move between projects. |
-| Cloud Functions | Node functions in `functions/` that verify solutions with the game's own engine, maintain scores and stats, and handle friends and account deletion. |
+| Cloud Functions | Node functions in `functions/` (the `stacked-deck` codebase) that verify solutions with the game's own engine and maintain scores and stats; later also friends and account deletion. |
 | `src/score.js` | Scoring and validation code shared by the game and the functions. |
-| Project controls | App Check, a fast kill switch and budget alerts, set up once for the shared project (see below). |
+| Project controls | App Check, a budget, and a kill switch (`ops/`, the `ops` codebase), set up once for the shared project (see below). |
 
 ## Shared project controls
 
-These belong to the shared games project, not to this repo, but this design
+These belong to the shared games project, not to this game, but this design
 depends on them being in place before launch.
 
-* **Kill switch.** A Cloud Monitoring alert on each database instance's
-  outbound bytes and stored bytes (metrics react within minutes, unlike
-  billing data) publishes to Pub/Sub. A small `lockdown` function deploys
-  deny-all rules to every instance in the project. Rejected requests cost
-  almost nothing, and with writes refused no function is triggered. Restoring
-  is redeploying each game's rules. This turns a bandwidth attack (about
-  $1/GB downloaded, otherwise limited only by the attacker's bandwidth) into a
-  few minutes of charges followed by an outage.
-* **Budget alerts** on the billing account as a slower backstop.
+* **Kill switch** (`ops/`, deployed as the `ops` codebase with
+  `firebase deploy --only functions:ops`). It covers every game in the
+  project, and lives in this repo only until it moves to a repo of its own.
+  `lockdown()` (`ops/killswitch.js`) sets deny-all rules on every database
+  instance: those in `ops/config.js`, plus any the management API lists.
+  Rejected requests cost almost nothing, and with writes refused no function
+  is triggered. Undo it by redeploying each game's rules. Two triggers:
+  * `usageKillSwitch`, every 10 minutes, reads the project's database usage
+    from the Cloud Monitoring API (bytes sent in the last hour, and the most
+    stored in the last day, each summed across instances into one time
+    series) and locks down past `LIMITS`: 1 GiB sent in an hour (about $1)
+    or 2 GiB stored. That turns a bandwidth attack (about $1/GB downloaded,
+    otherwise limited only by the attacker's bandwidth) into some minutes of
+    charges followed by an outage. It stands in for Cloud Monitoring alert
+    policies, which cost about $0.10 per condition a month: it reads about
+    9,000 time series a month against a free allowance of 1 million per
+    billing account (then $0.50 per million), and uses one of the billing
+    account's 3 free Cloud Scheduler jobs. If it can't read the metrics it
+    logs an error and does nothing; after deploying, check that its
+    "database usage" log line shows plausible numbers.
+  * `budgetKillSwitch`, on the budget's Pub/Sub topic `over-budget`. Budgets
+    publish their status several times a day whatever the spend, so it locks
+    down only once actual spend reaches the budget. Billing data lags by
+    hours, so this is the slow backstop.
+* **Budget** on the billing account, notifying by email and on `over-budget`.
 * **App Check** enforced on every database instance and callable function from
   launch (reCAPTCHA Enterprise provider; check its current free allowance and
   set a long token lifetime so each session needs few assessments).
@@ -72,7 +89,7 @@ depends on them being in place before launch.
 ```
 /config/rulesVersion          9
 /config/scoringPaused         true | absent
-/limits/$uid/submit           {hash, at}
+/limits/$uid/submit           {level, hash, at}
 /solutions/$uid/$level/$hash  {cells, at, rules, score?}  or tombstone {invalid, rules, at}
 /scores/v$N/$uid/$level       {"<croupiers>_<rounds>": true, ...}
 /stats/v$N/$level             {points: {"<croupiers>_<rounds>": count, ...}, players}
@@ -153,103 +170,25 @@ Deploying a new rules version (say 8 to 9):
 
 Deploys that don't change `RULES_VERSION` skip steps 2, 3 and 5.
 
-## Security rules (sketch)
+## Security rules
 
 `database.rules.json` for this game's instance is generated by
-`tools/write-rules.js`, which fills in `LEVEL_IDS` (a regex alternation of
-every id in `LEVELS` and `BONUS`); `npm test` checks the file is current.
-Functions use the Admin SDK, which bypasses the rules.
-
-```json
-{
-  "rules": {
-    ".read": false,
-    ".write": false,
-    "config": { ".read": "auth != null" },
-    "limits": {
-      "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        "submit": {
-          ".write": "auth != null && auth.uid === $uid && newData.exists()",
-          ".validate": "newData.hasChildren(['hash', 'at']) && (!data.exists() || now - data.child('at').val() >= 1000)",
-          "hash": { ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{32}$/)" },
-          "at": { ".validate": "newData.val() === now" },
-          "$other": { ".validate": false }
-        }
-      }
-    },
-    "solutions": {
-      "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        "$level": {
-          ".validate": "$level.matches(/^(LEVEL_IDS)$/)",
-          "$hash": {
-            ".write": "auth != null && auth.uid === $uid && !data.exists() && newData.exists()",
-            ".validate": "newData.hasChildren(['cells', 'at', 'rules']) && newData.parent().parent().parent().parent().child('limits').child($uid).child('submit').child('hash').val() === $hash && newData.parent().parent().parent().parent().child('limits').child($uid).child('submit').child('at').val() === now",
-            "cells": { ".validate": "newData.isString() && newData.val().length <= 10000" },
-            "at": { ".validate": "newData.isNumber()" },
-            "rules": { ".validate": "newData.val() === root.child('config').child('rulesVersion').val()" },
-            "$other": { ".validate": false }
-          }
-        }
-      }
-    },
-    "scores": {
-      "$v": {
-        "$uid": {
-          ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())"
-        }
-      }
-    },
-    "stats": { "$v": { ".read": "auth != null" } },
-    "saves": {
-      "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid && auth.token.firebase.sign_in_provider === 'google.com'",
-        ".validate": "newData.hasChildren()",
-        "$level": {
-          ".validate": "$level.matches(/^(LEVEL_IDS)$/) && newData.hasChildren()",
-          "work": {
-            ".validate": "newData.hasChildren(['cells', 'at'])",
-            "cells": { ".validate": "newData.isString() && newData.val().length <= 10000" },
-            "at": { ".validate": "newData.val() === now" },
-            "$other": { ".validate": false }
-          },
-          "solved": { ".validate": "newData.isBoolean()" },
-          "deleted": {
-            ".validate": "newData.hasChildren()",
-            "$hash": { ".validate": "newData.val() === true && root.child('solutions').child($uid).child($level).child($hash).exists()" }
-          },
-          "$other": { ".validate": false }
-        }
-      }
-    },
-    "profiles": {
-      "$uid": {
-        ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())",
-        ".write": "auth != null && auth.uid === $uid && auth.token.firebase.sign_in_provider === 'google.com'",
-        ".validate": "newData.hasChildren(['name'])",
-        "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
-        "$other": { ".validate": false }
-      }
-    },
-    "friends": {
-      "$uid": { ".read": "auth != null && auth.uid === $uid" }
-    }
-  }
-}
-```
+`tools/write-rules.js` from `tools/database.rules.template.json`, filling in
+`LEVEL_IDS` (a regex alternation of every id in `LEVELS` and `BONUS`); `npm
+test` checks the file is current. Functions use the Admin SDK, which bypasses
+the rules. `test/emulator/run.js` checks each guarantee below, and the attacks
+the security review raised, against the emulator.
 
 What the rules guarantee:
 
 * **One solution per write, at most one per second per account.** Each
   submission is a multi-path `update()` that sets `limits/$uid/submit` to
-  `{hash, at: now}` and creates `solutions/$uid/$level/$hash` with that same
-  hash, so one update can create only one solution. `submit` can't be deleted
+  `{level, hash, at: now}` and creates `solutions/$uid/$level/$hash` with that
+  same level and hash, so one update can create only one solution. `submit` can't be deleted
   (which would reset the clock), only replaced a second or more after the last
   one. Each account can therefore add at most 10 KB a second; with the level
   allowlist and App Check that bounds what scripted accounts can store, and
-  the kill switch's storage alert covers the rest.
+  the kill switch's storage check covers the rest.
 * **Nothing a stranger can read is free-form.** `stats` holds integers written
   by functions. Names are visible only to friends and capped at 40
   characters. Machines are readable only by their owner.
@@ -269,6 +208,8 @@ What the rules guarantee:
 All in `functions/` (its own `package.json` with `firebase-functions` and
 `firebase-admin`; the game itself keeps no dependencies), deployed as the
 `stacked-deck` codebase so deploys from other games never delete them.
+`functions/config.js` names the project, the database instance and its URL,
+the region and the runtime service account.
 
 Every function:
 
@@ -280,9 +221,10 @@ Every function:
   which caps the worst-case compute bill at a few dollars a month;
 * enforces App Check (callables) and checks `request.auth` itself.
 
-### `scoreSolution`
+### `scoreSolution` (built)
 
-`onValueCreated` on `/solutions/{uid}/{level}/{hash}`.
+`onValueCreated` on `/solutions/{uid}/{level}/{hash}` (`functions/index.js`;
+the work is `processSolution` and `addPoint` in `functions/solutions.js`).
 
 1. Read the node from the database (the event carries only what the client
    wrote). Stop if it already has `score`, is a tombstone, or
@@ -290,14 +232,14 @@ Every function:
 2. Stop unless its `rules` equals the function's `RULES_VERSION`: during a
    deploy, `rescore.js` handles the rest.
 3. **Validate.** Look the level up in a `Map` of `LEVELS` and `BONUS`; parse
-   `cells` in a `try`; run `validateCells` (below); check that the canonical
-   form of the input equals that of the validated machine and that `$hash`
-   matches. Any failure replaces the node with a tombstone and stops.
-4. **Score** in a `worker_threads` Worker with `resourceLimits` (64 MB heap)
-   and a 5-second timer. The engine's card limit (below) makes a runaway
-   machine an ordinary failed run; a Worker that dies or times out anyway
-   writes the tombstone `{invalid: 'resources'}`. Reference solutions score in
-   under 20 ms.
+   `cells` in a `try`; run `validateCells` (below), which rejects anything
+   the editor can't build; check that `$hash` matches the validated machine.
+   Any failure replaces the node with a tombstone and stops.
+4. **Score** in a `worker_threads` Worker (`functions/worker.js`) with
+   `resourceLimits` (64 MB heap) and a 5-second timer. The engine's card limit
+   (below) makes a runaway machine an ordinary failed run; a Worker that dies
+   or times out anyway writes the tombstone `{invalid: 'resources'}`. A
+   reference solution takes about 100 ms, mostly starting the Worker.
 5. If it clears the floor, **add the point**: a transaction on
    `/scores/v{N}/{uid}/{level}` adds it and drops the points it beats. Take
    the difference from the run that committed (a transaction may first run
@@ -343,10 +285,9 @@ above, it can:
   set `/config/scoringPaused`, recompute everything, write it, clear the flag,
   then sweep unscored solutions.
 
-Packaging: Firebase uploads only `functions/`, so a `predeploy` step copies
-`src/engine.js`, `src/cards.js`, `src/score.js`, `src/levels.js` and
-`src/levels/` into `functions/game/` (git-ignored). Test-only fixture floors
-are not included.
+Packaging: Firebase uploads only `functions/`, so a `predeploy` step
+(`tools/copy-game.js`) copies everything in `src/` except `src/ui/` into
+`functions/game/` (git-ignored). Test-only fixture floors are not included.
 
 ## Engine card limit (built)
 
@@ -487,7 +428,18 @@ control characters stripped.
 * **Delete my data** (`deleteMyData`, then `user.delete()`), and offer to
   clear the local save too.
 
-## Deployment
+## Testing and deployment
+
+The emulator tests: `cd test/emulator && npm ci && npm test` (needs Java;
+`firebase-tools` is pinned in that package). It copies the game code into
+`functions/game/`, starts the database and functions emulators for a demo
+project (no real resources) and runs `run.js`: the rules, `processSolution`
+and `addPoint`, a submission scored end to end by the trigger, and the kill
+switch. `firebase-tools` sends all its requests through `HTTPS_PROXY` and
+ignores `NO_PROXY`, so behind a proxy run it with `HTTPS_PROXY` unset.
+
+The kill switch is deployed by hand, once for the project:
+`firebase deploy --only functions:ops`.
 
 One GitHub Actions workflow on pushes to `main`:
 
@@ -534,9 +486,10 @@ Hardening:
 
 1. Done: extract `src/score.js` and add `validateCells`; add the engine card
    limit (`RULES_VERSION` 9).
-2. Shared project setup: project, Auth providers, App Check, kill switch,
-   budget alerts. (Outside this repo.)
-3. Database instance, generated rules and `scoreSolution`, with rules and
+2. Shared project setup: project, Auth providers, App Check and budget are
+   done (by hand); the kill switch is written (`ops/`), to be deployed with
+   its service account.
+3. Done, not deployed: generated rules and `scoreSolution`, with rules and
    functions tested in the emulator, including attack cases: primitives at
    parents, unknown levels, wrong versions, bursts, oversized machines, the
    card bomb.

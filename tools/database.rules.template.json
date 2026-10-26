@@ -1,0 +1,86 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "config": {
+      ".read": "auth != null"
+    },
+    "limits": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "submit": {
+          ".write": "auth != null && auth.uid === $uid && newData.exists()",
+          ".validate": "newData.hasChildren(['level', 'hash', 'at']) && (!data.exists() || now - data.child('at').val() >= 1000)",
+          "level": { ".validate": "newData.isString() && newData.val().matches(/^(LEVEL_IDS)$/)" },
+          "hash": { ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{32}$/)" },
+          "at": { ".validate": "newData.val() === now" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+    "solutions": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$level": {
+          ".validate": "$level.matches(/^(LEVEL_IDS)$/)",
+          "$hash": {
+            ".write": "auth != null && auth.uid === $uid && !data.exists() && newData.exists()",
+            ".validate": "newData.hasChildren(['cells', 'at', 'rules']) && newData.parent().parent().parent().parent().child('limits').child($uid).child('submit').child('level').val() === $level && newData.parent().parent().parent().parent().child('limits').child($uid).child('submit').child('hash').val() === $hash && newData.parent().parent().parent().parent().child('limits').child($uid).child('submit').child('at').val() === now",
+            "cells": { ".validate": "newData.isString() && newData.val().length <= 10000" },
+            "at": { ".validate": "newData.isNumber()" },
+            "rules": { ".validate": "newData.val() === root.child('config').child('rulesVersion').val()" },
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    },
+    "scores": {
+      "$v": {
+        "$uid": {
+          ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())"
+        }
+      }
+    },
+    "stats": {
+      "$v": {
+        ".read": "auth != null"
+      }
+    },
+    "saves": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && auth.token.firebase.sign_in_provider === 'google.com'",
+        ".validate": "newData.hasChildren()",
+        "$level": {
+          ".validate": "$level.matches(/^(LEVEL_IDS)$/) && newData.hasChildren()",
+          "work": {
+            ".validate": "newData.hasChildren(['cells', 'at'])",
+            "cells": { ".validate": "newData.isString() && newData.val().length <= 10000" },
+            "at": { ".validate": "newData.val() === now" },
+            "$other": { ".validate": false }
+          },
+          "solved": { ".validate": "newData.isBoolean()" },
+          "deleted": {
+            ".validate": "newData.hasChildren()",
+            "$hash": { ".validate": "newData.val() === true && root.child('solutions').child($uid).child($level).child($hash).exists()" }
+          },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+    "profiles": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())",
+        ".write": "auth != null && auth.uid === $uid && auth.token.firebase.sign_in_provider === 'google.com'",
+        ".validate": "newData.hasChildren(['name'])",
+        "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+        "$other": { ".validate": false }
+      }
+    },
+    "friends": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
