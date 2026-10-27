@@ -423,26 +423,35 @@ export function openEditor(root, ctx, level) {
         : 'Nobody has a verified score on this floor yet.');
     };
     let friends = [];
+    let friendsLoading = false;
     let shown;
     const draw = (st) => {
       shown = st;
-      box.replaceChildren(scatterPlot({ ...opts, others: st?.points ?? [], friends }), note(st) ?? '');
+      box.replaceChildren(scatterPlot({ ...opts, others: st?.points ?? [], friends }), note(st) ?? '',
+        friendsLoading ? h('p', { class: 'compare-note muted' }, 'Loading friends\' scores…') : '');
     };
     const refresh = () => {
       const cached = cloud?.cachedStats(level.id);
       const signedIn = cloud?.state() === 'signed-in';
       if (!signedIn) friends = [];
+      friendsLoading = false;
       draw(cached ?? (signedIn ? undefined : null));
       if (signedIn && !cached) {
         cloud.statsFor(level.id).then((st) => { if (box.isConnected) draw(st); }, () => { if (box.isConnected) draw(null); });
       }
-      // Friends' frontiers too (read once a session per friend).
+      // Friends' frontiers too (cached for a few minutes), with a note if
+      // they take a moment.
       if (signedIn) {
-        cloud.friendFrontiers(level.id).then((fr) => {
-          if (!box.isConnected || JSON.stringify(fr) === JSON.stringify(friends)) return;
-          friends = fr;
+        let loaded = false;
+        setTimeout(() => { if (!loaded && box.isConnected) { friendsLoading = true; draw(shown); } }, 300);
+        const done = (fr) => {
+          loaded = true;
+          if (!box.isConnected) return;
+          friendsLoading = false;
+          friends = fr ?? friends;
           draw(shown);
-        }, () => {});
+        };
+        cloud.friendFrontiers(level.id).then(done, () => done());
       }
     };
     refresh();

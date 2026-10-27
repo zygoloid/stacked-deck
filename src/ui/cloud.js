@@ -52,7 +52,7 @@ export function createCloud({ save, persist, levels, ui }) {
   let lastSync = 0;
   const pending = new Map();     // level id -> { timer, solved } waiting to be pushed
   let friendList = null;         // promise of [{ uid, name }], once a session
-  const friendScores = new Map(); // friend uid -> promise of { [level]: { "c_r": true } }
+  const friendScores = new Map(); // friend uid -> { at, scores: promise of { [level]: { "c_r": true } } }
   let fnM = null, functions = null;
   let handling = null;           // the latest sign-in change being handled
   let settle;                    // resolves once the first sign-in state is known
@@ -135,6 +135,8 @@ export function createCloud({ save, persist, levels, ui }) {
     }
     await syncAll();
     queueUploads();
+    // Read friends' scores now, so the plot has them when a floor is solved.
+    friends().then((list) => list.forEach((f) => scoresOf(f.uid))).catch(() => {});
   }
 
   async function setName(raw) {
@@ -369,34 +371,39 @@ export function createCloud({ save, persist, levels, ui }) {
     if (state !== 'signed-in') return Promise.resolve([]);
     friendList ??= withDb(async (dbM, db) => {
       const uids = Object.keys((await dbM.get(dbM.ref(db, `friends/${user.uid}`))).val() ?? {});
-      const out = [];
-      for (const uid of uids) {
+      return Promise.all(uids.map(async (uid) => {
         let name = null;
         try { name = (await dbM.get(dbM.ref(db, `profiles/${uid}/name`))).val(); } catch { /* they removed us */ }
-        out.push({ uid, name: cleanName(name) || null });
-      }
-      return out;
+        return { uid, name: cleanName(name) || null };
+      }));
     }).catch((e) => { friendList = null; throw e; });
     return friendList;
   }
   const friendsChanged = () => { friendList = null; friendScores.clear(); notify(); };
 
-  // Each friend's frontier on a floor (this rules version): [{ uid, name,
-  // points: [{ croupiers, rounds }] }], for friends with any. A friend's
-  // scores for every floor are read once a session.
+  // A friend's scores on every floor (this rules version), read at most every
+  // RESYNC_MS. A failed read (no longer friends, or offline) counts as none
+  // and is tried again next time.
+  function scoresOf(uid) {
+    const cached = friendScores.get(uid);
+    if (cached && Date.now() - cached.at < RESYNC_MS) return cached.scores;
+    const entry = { at: Date.now() };
+    entry.scores = withDb(async (dbM, db) => (await dbM.get(dbM.ref(db, `scores/v${RULES_VERSION}/${uid}`))).val() ?? {})
+      .catch(() => { if (friendScores.get(uid) === entry) friendScores.delete(uid); return {}; });
+    friendScores.set(uid, entry);
+    return entry.scores;
+  }
+
+  // Each friend's frontier on a floor: [{ uid, name, points: [{ croupiers,
+  // rounds }] }], for friends with any.
   async function friendFrontiers(levelId) {
     const list = await friends();
-    const out = [];
-    for (const f of list) {
-      if (!friendScores.has(f.uid)) {
-        friendScores.set(f.uid, withDb(async (dbM, db) => (await dbM.get(dbM.ref(db, `scores/v${RULES_VERSION}/${f.uid}`))).val() ?? {})
-          .catch(() => ({}))); // no longer friends, or offline: skip them
-      }
-      const points = readStats({ points: Object.fromEntries(Object.keys((await friendScores.get(f.uid))[levelId] ?? {}).map((k) => [k, 1])) }).points
-        .map(({ croupiers, rounds }) => ({ croupiers, rounds }));
-      if (points.length) out.push({ ...f, points });
-    }
-    return out;
+    const all = await Promise.all(list.map(async (f) => ({
+      ...f,
+      points: readStats({ points: Object.fromEntries(Object.keys((await scoresOf(f.uid))[levelId] ?? {}).map((k) => [k, 1])) }).points
+        .map(({ croupiers, rounds }) => ({ croupiers, rounds })),
+    })));
+    return all.filter((f) => f.points.length);
   }
 
   // After the account's data is deleted: forget the account here, and clear
