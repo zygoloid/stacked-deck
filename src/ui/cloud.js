@@ -161,10 +161,19 @@ export function createCloud({ save, persist, levels, ui }) {
         if (!next) break;
         const { level, sol } = next;
         const prep = await prepareUpload(level, sol.cells);
-        if (!prep) { skip.add(sol); continue; }
+        if (!prep) {
+          console.warn(`online: not uploading a ${level.id} solution the server wouldn't accept (invalid or too long)`);
+          skip.add(sol);
+          continue;
+        }
         const done = await withDb(async (dbM, db) => {
           serverRules ??= (await dbM.get(dbM.ref(db, 'config/rulesVersion'))).val();
-          if (!Number.isInteger(serverRules)) return 'stop'; // the server isn't set up
+          if (!Number.isInteger(serverRules)) {
+            // The server isn't set up: config/rulesVersion must be a number.
+            console.warn(`online: not uploading: config/rulesVersion is ${JSON.stringify(serverRules)}, not a number`);
+            serverRules = null; // read it again next time
+            return 'stop';
+          }
           await new Promise((r) => setTimeout(r, Math.max(0, lastSubmit + SUBMIT_GAP_MS - Date.now())));
           lastSubmit = Date.now();
           try {
@@ -177,6 +186,7 @@ export function createCloud({ save, persist, levels, ui }) {
             // Already there (an earlier upload, or another device), or refused.
             const there = (await dbM.get(dbM.ref(db, `solutions/${uid}/${level.id}/${prep.hash}`))).val();
             if (there && (there.cells === prep.json || there.invalid || there.score)) return 'uploaded';
+            console.warn(`online: upload of a ${level.id} solution refused (rules version ${serverRules}; this game's is ${RULES_VERSION}):`, e?.message ?? e);
             serverRules = null; // perhaps the server's rules version changed
             return 'refused';
           }
@@ -189,7 +199,7 @@ export function createCloud({ save, persist, levels, ui }) {
         stats.delete(level.id); // our point may change the stats
       }
     } catch (e) {
-      console.warn('upload paused:', e); // offline or similar: retried on the next solve or start
+      console.warn('online: upload paused:', e); // offline or similar: retried on the next solve or start
     }
   }
 
