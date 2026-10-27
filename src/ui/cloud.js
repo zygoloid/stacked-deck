@@ -38,7 +38,7 @@ export function createCloud({ save, persist, levels, ui }) {
   let loading = null;    // promise of fb
   let state = 'signed-out';
   let user = null;
-  const stats = new Map();      // level id -> { points, players }
+  const stats = new Map();      // level id -> { at, st: { points, players } }
   const statsLoads = new Map(); // level id -> promise
   const skip = new Set();       // solutions not to retry this session
   let uploading = null;          // the upload queue's run, while it runs
@@ -52,11 +52,16 @@ export function createCloud({ save, persist, levels, ui }) {
   let lastSync = 0;
   const pending = new Map();     // level id -> { timer, solved } waiting to be pushed
   let friendList = null;         // promise of [{ uid, name }], once a session
-  const friendScores = new Map(); // friend uid -> { at, scores: promise of { [level]: { "c_r": true } } }
+  const friendLoads = new Map(); // level id -> { at, frontiers: promise of friendFrontiers' result }
   let fnM = null, functions = null;
   let handling = null;           // the latest sign-in change being handled
   let settle;                    // resolves once the first sign-in state is known
   const settled = new Promise((r) => { settle = r; });
+
+  // A floor's stats and friends' frontiers are read when a plot first needs
+  // them, again after the account uploads a solution there, and at most every
+  // RESYNC_MS otherwise, so friends' new solves show up.
+  const fresh = (entry) => !!entry && Date.now() - entry.at < RESYNC_MS;
 
   const notify = () => listeners.forEach((fn) => { try { fn(); } catch (e) { console.error(e); } });
   const setState = (s, u = user) => { state = s; user = u; notify(); };
@@ -110,7 +115,7 @@ export function createCloud({ save, persist, levels, ui }) {
     if (!u) {
       if (save.account?.signedIn) { save.account.signedIn = false; persist(); }
       friendList = null;
-      friendScores.clear();
+      friendLoads.clear();
       setState('signed-out', null);
       return;
     }
@@ -135,8 +140,6 @@ export function createCloud({ save, persist, levels, ui }) {
     }
     await syncAll();
     queueUploads();
-    // Read friends' scores now, so the plot has them when a floor is solved.
-    friends().then((list) => list.forEach((f) => scoresOf(f.uid))).catch(() => {});
   }
 
   async function setName(raw) {
@@ -198,7 +201,11 @@ export function createCloud({ save, persist, levels, ui }) {
         sol.uploaded = uid;
         sol.hash = prep.hash;
         persist();
-        stats.delete(level.id); // our point may change the stats
+        // Our point may change the stats, and friends may have solved the
+        // floor since they were read: read both again (open plots redraw).
+        stats.delete(level.id);
+        friendLoads.delete(level.id);
+        notify();
       }
     } catch (e) {
       console.warn('online: upload paused:', e); // offline or similar: retried on the next solve or start
@@ -379,31 +386,25 @@ export function createCloud({ save, persist, levels, ui }) {
     }).catch((e) => { friendList = null; throw e; });
     return friendList;
   }
-  const friendsChanged = () => { friendList = null; friendScores.clear(); notify(); };
+  const friendsChanged = () => { friendList = null; friendLoads.clear(); notify(); };
 
-  // A friend's scores on every floor (this rules version), read at most every
-  // RESYNC_MS. A failed read (no longer friends, or offline) counts as none
-  // and is tried again next time.
-  function scoresOf(uid) {
-    const cached = friendScores.get(uid);
-    if (cached && Date.now() - cached.at < RESYNC_MS) return cached.scores;
-    const entry = { at: Date.now() };
-    entry.scores = withDb(async (dbM, db) => (await dbM.get(dbM.ref(db, `scores/v${RULES_VERSION}/${uid}`))).val() ?? {})
-      .catch(() => { if (friendScores.get(uid) === entry) friendScores.delete(uid); return {}; });
-    friendScores.set(uid, entry);
-    return entry.scores;
-  }
-
-  // Each friend's frontier on a floor: [{ uid, name, points: [{ croupiers,
-  // rounds }] }], for friends with any.
-  async function friendFrontiers(levelId) {
-    const list = await friends();
-    const all = await Promise.all(list.map(async (f) => ({
-      ...f,
-      points: readStats({ points: Object.fromEntries(Object.keys((await scoresOf(f.uid))[levelId] ?? {}).map((k) => [k, 1])) }).points
-        .map(({ croupiers, rounds }) => ({ croupiers, rounds })),
-    })));
-    return all.filter((f) => f.points.length);
+  // Each friend's frontier on a floor (this rules version): [{ uid, name,
+  // points: [{ croupiers, rounds }] }], for friends with any. Read with the
+  // floor's stats, and again when they are (see fresh()).
+  function friendFrontiers(levelId) {
+    if (!fresh(friendLoads.get(levelId))) {
+      const entry = { at: Date.now() };
+      entry.frontiers = friends().then((list) => withDb((dbM, db) => Promise.all(list.map(async (f) => {
+        let node = null;
+        try { node = (await dbM.get(dbM.ref(db, `scores/v${RULES_VERSION}/${f.uid}/${levelId}`))).val(); } catch { /* they removed us */ }
+        const points = readStats({ points: Object.fromEntries(Object.keys(node ?? {}).map((k) => [k, 1])) }).points
+          .map(({ croupiers, rounds }) => ({ croupiers, rounds }));
+        return { ...f, points };
+      })))).then((all) => all.filter((f) => f.points.length));
+      entry.frontiers.catch(() => { if (friendLoads.get(levelId) === entry) friendLoads.delete(levelId); });
+      friendLoads.set(levelId, entry);
+    }
+    return friendLoads.get(levelId).frontiers;
   }
 
   // After the account's data is deleted: forget the account here, and clear
@@ -413,6 +414,7 @@ export function createCloud({ save, persist, levels, ui }) {
     if (clearLocal) save.levels = {};
     persist();
     stats.clear();
+    friendLoads.clear();
     deleting = false;
     setState('signed-out', null);
     if (clearLocal) ui.cleared?.();
@@ -491,13 +493,14 @@ export function createCloud({ save, persist, levels, ui }) {
     },
     // A floor's stats for this rules version: { points, players }, fetched
     // once per session (and again after one of our uploads to that floor).
-    cachedStats: (levelId) => stats.get(levelId) ?? null,
+    cachedStats: (levelId) => (fresh(stats.get(levelId)) ? stats.get(levelId).st : null),
     statsFor(levelId) {
       if (state !== 'signed-in') return Promise.resolve(null);
-      if (stats.has(levelId)) return Promise.resolve(stats.get(levelId));
+      if (fresh(stats.get(levelId))) return Promise.resolve(stats.get(levelId).st);
       if (!statsLoads.has(levelId)) {
+        const at = Date.now();
         statsLoads.set(levelId, withDb(async (dbM, db) => readStats((await dbM.get(dbM.ref(db, `stats/v${RULES_VERSION}/${levelId}`))).val()))
-          .then((st) => { stats.set(levelId, st); return st; })
+          .then((st) => { stats.set(levelId, { at, st }); return st; })
           .finally(() => statsLoads.delete(levelId)));
       }
       return statsLoads.get(levelId);

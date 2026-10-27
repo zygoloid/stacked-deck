@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { LEVELS } from '../src/levels.js';
 import { RULES_VERSION } from '../src/engine.js';
 import { FIREBASE_SDK } from '../src/firebase-config.js';
+import { prepareUpload } from '../src/online.js';
 
 const repo = fileURLToPath(new URL('..', import.meta.url));
 const shots = process.argv.slice(2).find((a) => !a.startsWith('--')) || process.env.SHOTS || null;
@@ -32,7 +33,12 @@ if (!DB || !process.env.FIREBASE_AUTH_EMULATOR_HOST) throw new Error('run under 
 const NS = 'zygoloid-stacked-deck';
 const LEVEL = 'opening-night';
 const level = LEVELS.find((l) => l.id === LEVEL);
-const REF = ((m) => (m.default ?? Object.values(m)[0]).cells ?? (m.default ?? Object.values(m)[0]))(await import(`../solutions/levels/${LEVEL}.js`));
+const refOf = async (id) => ((m) => (m.default ?? Object.values(m)[0]).cells ?? (m.default ?? Object.values(m)[0]))(await import(`../solutions/levels/${id}.js`));
+const REF = await refOf(LEVEL);
+// A second floor, which a friend solves while the player's session is open.
+const LEVEL2 = 'around-the-bar';
+const level2 = LEVELS.find((l) => l.id === LEVEL2);
+const REF2 = await refOf(LEVEL2);
 
 async function loadPlaywright() {
   try { return await import('playwright'); } catch { /* fall through */ }
@@ -290,6 +296,12 @@ try {
     'accepting makes the friendship both ways and uses up the invite');
 
   // Alice sees Carol's frontier on the floor's plot, labelled with her nickname.
+  // (She also has a machine for a second floor ready, for later.)
+  await page.evaluate(([id, cells]) => {
+    const sv = JSON.parse(localStorage.getItem('stacked-deck-v1'));
+    sv.levels[id] = { cells };
+    localStorage.setItem('stacked-deck-v1', JSON.stringify(sv));
+  }, [LEVEL2, REF2]);
   await page.goto(`${site}#/level/${LEVEL}`);
   await page.reload();
   await page.waitForSelector('svg.board');
@@ -299,6 +311,21 @@ try {
   check((await page.textContent('.modal.solutions .sc-friend-t')) === 'Carol' && /Carol/.test(await page.textContent('.modal.solutions .sc-legend')),
     'a friend\'s frontier is drawn on the plot with their nickname');
   if (shots) await page.locator('.modal.solutions').screenshot({ path: join(shots, 'o8-friend-plot.png') });
+  await page.keyboard.press('Escape');
+
+  // Carol solves the second floor while Alice's session is open; then Alice
+  // clears it too (no reload): her results plot has Carol's new frontier.
+  const prep2 = await prepareUpload(level2, REF2.slice().reverse());
+  await owner(`solutions/${carol}/${LEVEL2}/${prep2.hash}`, 'PUT', { cells: prep2.json, at: Date.now(), rules: RULES_VERSION });
+  await until(async () => (await owner(`scores/v${RULES_VERSION}/${carol}/${LEVEL2}`)) !== null);
+  await page.evaluate(() => { window.sameSession = true; });
+  await page.evaluate((id) => { location.hash = `#/level/${id}`; }, LEVEL2);
+  await page.waitForSelector(`svg.board`);
+  await page.click('.speeds .sp:last-child');
+  await page.waitForSelector('.modal.results', { timeout: 30000 });
+  await page.waitForSelector('.modal.results .sc-friend', { timeout: 20000 }).catch(() => {});
+  check(await page.evaluate(() => window.sameSession) && (await page.locator('.modal.results .sc-friend-t').textContent().catch(() => '')) === 'Carol',
+    'a friend\'s solve since their scores were last read shows on the plot after clearing that floor');
   await page.keyboard.press('Escape');
 
   // Carol ends the friendship from her Friends list: gone both ways.

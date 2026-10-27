@@ -489,18 +489,20 @@ floor (`planMerge` in `src/online.js`, applied by `runSync` in
 
 Built (step 4): when a floor's plot is shown to a signed-in player (the
 results after clearing it, and the solutions list), `/stats/v{RULES_VERSION}/{level}`
-is read once per session (again after one of the player's uploads to that
-floor) and drawn behind the player's solutions: faint markers sized by
+is read when first needed, again after one of the player's uploads to that
+floor (open plots then redraw), and at most every five minutes otherwise; it
+is drawn behind the player's solutions: faint markers sized by
 count, a dashed staircase for everyone's frontier, and a note counting the
 players. Signed-out players see their own solutions only, with a line
 inviting them to sign in; signing in from there redraws the plot.
 
-Friends (built): the client reads `/friends/$uid` (once a session, and
-again after a change to the friend list), then in parallel each friend's
-`/profiles/$friend` and `/scores/v{RULES_VERSION}/$friend` (all floors at
-once; read just after sign-in so a solved floor's plot has them, and again
-after five minutes or a failed read). The plot draws each friend's frontier as a staircase in its own colour (up to
-six), labelled with their nickname, with a legend entry each. A friend whose
+Friends (built): the client reads `/friends/$uid` and each friend's
+`/profiles/$friend` (once a session, and again after a change to the friend
+list). Each friend's `/scores/v{RULES_VERSION}/$friend/{level}` is read in
+parallel along with the floor's stats, and again whenever those are: one
+snapshot, so a friend's point in everyone's stats always comes with their
+staircase. The plot draws each friend's frontier as a staircase in its own
+colour (up to six), labelled with their nickname, with a legend entry each. A friend whose
 data can't be read (they removed you) is skipped.
 
 Names are only ever rendered as text (children or `textContent`, never the

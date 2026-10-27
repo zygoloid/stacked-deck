@@ -404,8 +404,9 @@ export function openEditor(root, ctx, level) {
     draw();
   }
 
-  // A floor's plot of the player's solutions. Signed in, everyone's scores are
-  // drawn behind it (fetched once per session, then the plot is redrawn);
+  // A floor's plot of the player's solutions. Signed in, everyone's scores and
+  // friends' frontiers are drawn behind it (read when needed, then the plot is
+  // redrawn, and again when the cloud reads them again);
   // signed out, a line under it offers signing in.
   function comparePlot(opts) {
     const cloud = ctx.cloud;
@@ -435,12 +436,12 @@ export function openEditor(root, ctx, level) {
       const signedIn = cloud?.state() === 'signed-in';
       if (!signedIn) friends = [];
       friendsLoading = false;
-      draw(cached ?? (signedIn ? undefined : null));
+      // While re-reading, keep showing what was read before.
+      draw(cached ?? (signedIn ? shown : null));
       if (signedIn && !cached) {
         cloud.statsFor(level.id).then((st) => { if (box.isConnected) draw(st); }, () => { if (box.isConnected) draw(null); });
       }
-      // Friends' frontiers too (cached for a few minutes), with a note if
-      // they take a moment.
+      // Friends' frontiers too, with a note if they take a moment.
       if (signedIn) {
         let loaded = false;
         setTimeout(() => { if (!loaded && box.isConnected) { friendsLoading = true; draw(shown); } }, 300);
