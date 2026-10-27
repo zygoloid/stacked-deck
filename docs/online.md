@@ -161,7 +161,8 @@ Deploying a new rules version (say 8 to 9):
    until they reload.
 5. Delete `scores/v8` and `stats/v8` at the next version bump.
 
-Deploys that don't change `RULES_VERSION` skip steps 2, 3 and 5.
+Deploys that don't change `RULES_VERSION` skip steps 2, 3 and 5. Those are done by the
+deploy workflow on every push to `main` ("Deploying (GitHub Actions)" below).
 
 ## Security rules
 
@@ -563,28 +564,110 @@ behind a proxy run either suite with `HTTPS_PROXY` unset.
 The project's kill switch is deployed (from its own repository) before this
 game's rules and functions.
 
-One GitHub Actions workflow on pushes to `main`:
+### Deploying (GitHub Actions)
 
-* a **test** job (`npm test`, plus the rules and functions tests in the
-  Firebase emulator) with no deploy permissions;
-* a **deploy** job, after it, in a protected `production` environment, the
-  only job with `id-token: write`. It authenticates with Workload Identity
-  Federation and runs the steps in "Rules versions": deploy functions and
-  rules (`firebase deploy --only database:stacked-deck,functions:stacked-deck`),
-  and if `RULES_VERSION` changed, set `config/rulesVersion` and run
-  `rescore.js`; then deploy the site to Pages (Pages' source set to "GitHub
-  Actions").
+`.github/workflows/deploy.yml` deploys everything from `main`; nothing is
+deployed by hand except a rules version change (below) and the kill switch
+(from its own repository, first). It has three jobs:
 
-Hardening:
+* **test**, on every push and pull request, with no credentials: `npm test`,
+  `tools/ui-smoke.js`, both emulator suites, and `tools/build-site.js`.
+* **firebase**, on `main` after the tests pass, in the `production`
+  environment; the only job that can get Google credentials. It checks that
+  the server's `config/rulesVersion` equals `RULES_VERSION` (if not, it is a
+  rules version change: it stops, deploying nothing), then deploys the
+  functions, then the database rules: in that order, so the functions know
+  every floor and feature the new rules accept. Unchanged functions are
+  skipped by the Firebase CLI.
+* **pages**, after that: builds `_site/` (`index.html`, `privacy.html`,
+  `style.css`, `src/`; `tools/build-site.js` checks every import stays
+  inside it) and publishes it. The site goes live last, after the server
+  can handle it, and not at all if anything before failed.
 
-* The Workload Identity Federation provider only accepts this repository (by
-  `repository_id` and `repository_owner_id`, not by name), `refs/heads/main`
-  and this workflow.
-* The deploy service account can deploy functions and this instance's rules,
-  act as the runtime service account and nothing else, and read and write the
-  database for `rescore.js`.
-* Actions are pinned by commit SHA; `firebase-tools` and the functions'
-  dependencies are pinned in lockfiles.
+Running the workflow by hand (Actions → Test and deploy → Run workflow, on
+`main`) defaults to a **dry run**: `firebase deploy --dry-run` for both
+deploys and no Pages deploy, which checks the deploy account's permissions
+without changing anything.
+
+**Rules version changes** are still done by hand, following "Rules
+versions" above: the workflow refuses to deploy while the server's version
+differs, so push the new version, deploy the functions and rules from a
+checkout, set `config/rulesVersion`, re-score (`rescore.js`, step 7), then
+re-run the workflow, which deploys the site.
+
+**Credentials.** No key is stored in GitHub. The job exchanges GitHub's
+OIDC token for a short-lived token for the `stacked-deck-deploy` service
+account through Workload Identity Federation. The provider accepts only
+tokens from this repository (by id, which survives renames and can't be
+taken over), on `refs/heads/main`, from this workflow, in the `production`
+environment; pull requests, forks and other branches get nothing. Its
+roles:
+
+| Role | On | Why |
+|---|---|---|
+| Cloud Functions Developer | project | deploy the functions |
+| Service Account User | `stacked-deck-fn` only | deploy functions that run as it |
+| Firebase Realtime Database Admin | project | deploy rules; read `config/rulesVersion` |
+| Service Usage Consumer | project | the Firebase CLI checks the APIs are on |
+| Firebase Viewer | project | the Firebase CLI reads the project |
+| Artifact Registry Reader | project | the Firebase CLI checks the images' cleanup policy |
+
+It can deploy any function in the project, including the kill switch's;
+that is accepted (only `main` of this repository can use it, and the budget
+is the backstop). An IAM condition on function names could narrow it.
+
+Install scripts are skipped in CI (`npm ci --ignore-scripts`; the two the
+functions' dependencies declare only print a notice or read an unused
+environment variable), and `firebase-tools` and the functions' dependencies
+are pinned in lockfiles. The actions are pinned by major version tag;
+pinning them by commit SHA would harden this further.
+
+**One-off setup** (in Cloud Shell, or anywhere with `gcloud`):
+
+```sh
+PROJECT=zygoloid-github-io
+NUMBER=$(gcloud projects describe $PROJECT --format='value(projectNumber)')
+SA=stacked-deck-deploy@$PROJECT.iam.gserviceaccount.com
+
+gcloud iam service-accounts create stacked-deck-deploy --project=$PROJECT \
+  --display-name='Stacked Deck deploys (GitHub Actions)'
+for role in cloudfunctions.developer firebasedatabase.admin serviceusage.serviceUsageConsumer \
+    firebase.viewer artifactregistry.reader; do
+  gcloud projects add-iam-policy-binding $PROJECT --member=serviceAccount:$SA \
+    --role=roles/$role --condition=None
+done
+gcloud iam service-accounts add-iam-policy-binding stacked-deck-fn@$PROJECT.iam.gserviceaccount.com \
+  --project=$PROJECT --member=serviceAccount:$SA --role=roles/iam.serviceAccountUser
+
+# One pool for GitHub in this project; one provider per repository.
+gcloud iam workload-identity-pools create github --project=$PROJECT --location=global \
+  --display-name='GitHub Actions'
+gcloud iam workload-identity-pools providers create-oidc stacked-deck --project=$PROJECT \
+  --location=global --workload-identity-pool=github --display-name='zygoloid/stacked-deck' \
+  --issuer-uri=https://token.actions.githubusercontent.com \
+  --attribute-mapping='google.subject=assertion.sub,attribute.repository_id=assertion.repository_id' \
+  --attribute-condition="assertion.repository_id == '1427703511' && assertion.repository_owner_id == '232783' && assertion.ref == 'refs/heads/main' && assertion.environment == 'production' && assertion.job_workflow_ref == 'zygoloid/stacked-deck/.github/workflows/deploy.yml@refs/heads/main'"
+gcloud iam service-accounts add-iam-policy-binding $SA --project=$PROJECT \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$NUMBER/locations/global/workloadIdentityPools/github/attribute.repository_id/1427703511"
+
+# The provider's name, for the repository variable WIF_PROVIDER:
+echo projects/$NUMBER/locations/global/workloadIdentityPools/github/providers/stacked-deck
+```
+
+Then, in the repository's settings:
+
+* **Secrets and variables → Actions → Variables**: `WIF_PROVIDER`, the
+  provider name printed above (not a secret).
+* **Environments**: create `production`; optionally add yourself as a
+  required reviewer, so each deploy waits for approval.
+* **Pages → Build and deployment → Source**: "GitHub Actions" (instead of
+  deploying from the branch).
+
+Then run the workflow by hand as a dry run. A missing permission shows up
+there as a 403 naming it. If the Firebase CLI asks about a cleanup policy
+for the functions' container images, set one once from a checkout:
+`firebase functions:artifacts:setpolicy --project zygoloid-github-io`.
 
 ## Risks accepted
 
@@ -622,4 +705,5 @@ Hardening:
 5. Done: cloud save.
 6. Done: invites, the friends list and friends' frontiers on the plot;
    `deleteMyData` and its dialog; the privacy notice.
-7. The deploy workflow and `rescore.js`.
+7. Done: the deploy workflow (GitHub Actions). Still to do: `rescore.js`,
+   needed before the next rules version change.
