@@ -209,8 +209,9 @@ Every function:
 
 * names this game's database instance explicitly (the trigger's `instance`
   option and `getDatabase(app, '<instance URL>')`), never the project default;
-* runs as a dedicated runtime service account with only database access, not
-  the Compute Engine default account;
+* runs as a dedicated runtime service account (`stacked-deck-fn`: Firebase
+  Realtime Database Admin, plus Eventarc Event Receiver so the database
+  trigger's events reach it), not the Compute Engine default account;
 * has `maxInstances` (2), `concurrency` 1, a short timeout and retries off,
   which caps the worst-case compute bill at a few dollars a month;
 * enforces App Check (callables) and checks `request.auth` itself, including
