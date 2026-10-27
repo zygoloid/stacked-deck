@@ -607,16 +607,18 @@ Hardening:
 1. Done: extract `src/score.js` and add `validateCells`; add the engine card
    limit, check deals, and rounds as the total over the tests (all
    `RULES_VERSION` 9).
-2. Shared project setup: project, Auth, App Check, budget, service accounts
-   and APIs are done (by hand); the kill switch is written, to be deployed.
-3. Done, not deployed: generated rules and `scoreSolution`, with rules and
+2. Done: shared project setup (by hand: project, Auth, App Check, budget,
+   service accounts and APIs) and the kill switch, deployed from the infra
+   repository and tested with a lockdown and a restore.
+3. Done and deployed: generated rules and `scoreSolution`, with rules and
    functions tested in the emulator, including attack cases: primitives at
    parents, unknown levels, wrong versions, bursts, oversized machines, the
    card bomb.
-4. Done, not deployed: Google sign-in (the opt-in), nicknames and solution
+4. Done and deployed: Google sign-in (the opt-in), nicknames and solution
    upload; heatmap and overall frontier on the plot; tested end to end
-   against the emulators. App Check waits for its site key.
-5. Done, not deployed: cloud save.
-6. Done, not deployed: invites, the friends list and friends' frontiers on
-   the plot; `deleteMyData` and its dialog.
+   against the emulators and the real project. App Check sends tokens; it
+   isn't enforced yet.
+5. Done: cloud save.
+6. Done: invites, the friends list and friends' frontiers on the plot;
+   `deleteMyData` and its dialog; the privacy notice.
 7. The deploy workflow and `rescore.js`.
