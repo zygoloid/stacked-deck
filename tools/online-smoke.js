@@ -96,8 +96,8 @@ try {
   });
   const errors = [];
   // A browser "device": its own storage, so its own local save and session.
-  async function device() {
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  async function device(viewport = { width: 1280, height: 860 }) {
+    const ctx = await browser.newContext({ viewport });
     await ctx.route('**/*', (route) => {
       const u = new URL(route.request().url());
       if (route.request().url().startsWith(`${FIREBASE_SDK}/`)) {
@@ -373,6 +373,30 @@ try {
   await until(async () => (await header()) === 'Sign in', 10000);
   const cleared = await saveOf();
   check(Object.keys(cleared.levels).length === 0 && !cleared.account, 'signing out can clear this browser\'s progress');
+
+  // ---------- a phone with a backlog to upload ----------
+  // Dave signs in on a phone with several floors cleared. While they upload
+  // (one a second), the floors list stays where he scrolled it.
+  const phone = await device({ width: 390, height: 844 });
+  const backlog = LEVELS.slice(0, 5);
+  const cellsOf = await Promise.all(backlog.map((l) => refOf(l.id)));
+  await phone.goto(base);
+  await phone.evaluate(([ids, cells, rules]) => localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: Object.fromEntries(ids.map((id, i) => [id, {
+    cells: cells[i], solved: true, best: { croupiers: 99, rounds: 999 },
+    solutions: [{ cells: cells[i], croupiers: 99, rounds: 999, at: 1700000000000, rules }],
+  }])) })), [backlog.map((l) => l.id), cellsOf, RULES_VERSION]);
+  await phone.goto(`${site}#/`);
+  await signInAs(phone, 'dave-sub', 'dave@example.com');
+  await phone.waitForSelector('.modal.dialog .dlg-input', { timeout: 20000 });
+  await phone.fill('.dlg-input', 'Dave');
+  await phone.keyboard.press('Enter');
+  const dave = await until(async () => (await saveOf(phone)).account?.uid);
+  await phone.evaluate(() => window.scrollTo(0, 600));
+  const scrolled = await phone.evaluate(() => window.scrollY);
+  await until(async () => Object.keys((await owner(`solutions/${dave}`)) ?? {}).length === backlog.length, 30000);
+  await sleep(1500);
+  const after = await phone.evaluate(() => window.scrollY);
+  check(scrolled > 0 && after === scrolled, `the floors list keeps its scroll while a backlog uploads (${scrolled} → ${after})`);
 
   check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''}`);
   check(outside.length === 0, `nothing outside this machine was contacted${outside.length ? ': ' + outside.slice(0, 3).join(' ') : ''}`);

@@ -162,6 +162,7 @@ export function createCloud({ save, persist, levels, ui }) {
     return uploading;
   }
   async function runUploads() {
+    let uploaded = false;
     try {
       for (;;) {
         if (state !== 'signed-in' || deleting) break;
@@ -206,14 +207,16 @@ export function createCloud({ save, persist, levels, ui }) {
         sol.hash = prep.hash;
         persist();
         // Our point may change the stats, and friends may have solved the
-        // floor since they were read: read both again (open plots redraw).
+        // floor since they were read: read both again.
         stats.delete(level.id);
         friendLoads.delete(level.id);
-        notify();
+        uploaded = true;
       }
     } catch (e) {
       console.warn('online: upload paused:', e); // offline or similar: retried on the next solve or start
     }
+    // Open plots redraw (once, not after every upload of a backlog).
+    if (uploaded) notify();
   }
 
   // ---------- cloud save ----------

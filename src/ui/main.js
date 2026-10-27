@@ -38,11 +38,11 @@ ctx.cloud = createCloud({
     cleared: () => ctx.go('#/'),
     levelsUpdated: (ids) => {
       const m = /^#\/level\/([^/]+)$/.exec(location.hash);
-      if (m && ids.includes(decodeURIComponent(m[1]))) route();
+      if (m && ids.includes(decodeURIComponent(m[1]))) rerender();
     },
   },
 });
-ctx.cloud.onChange(() => { if (document.body.dataset.screen === 'select') route(); });
+ctx.cloud.onChange(() => { if (document.body.dataset.screen === 'select') rerender(); });
 
 // The floor to offer after clearing `level`: the next campaign floor; for a
 // bonus floor, the next open bonus floor (after it, else an earlier unsolved
@@ -60,6 +60,15 @@ document.addEventListener('keydown', (e) => {
   if (helpHost.firstChild && (e.key === 'Escape' || e.key === '?')) { e.preventDefault(); helpHost.replaceChildren(); return; }
   if (e.key === '?' && !helpHost.firstChild) { e.preventDefault(); ctx.help(); }
 });
+
+// Draw the current screen again for a change from elsewhere (the cloud, or
+// rescoring), where the player is: route() scrolls to the top, as for
+// navigating.
+function rerender() {
+  const y = window.scrollY;
+  route();
+  window.scrollTo(0, y);
+}
 
 function route() {
   cleanup?.();
@@ -98,7 +107,7 @@ if (!takeInvite()) route();
 // Saved solutions scored under older rules are re-run in the background.
 rescoreStale(save, ALL_LEVELS, () => {
   writeSave(save);
-  if (document.body.dataset.screen === 'select') route();
+  if (document.body.dataset.screen === 'select') rerender();
   ctx.cloud.queueUploads();
 });
 ctx.cloud.start();
