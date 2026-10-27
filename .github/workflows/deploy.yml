@@ -1,0 +1,113 @@
+# Tests every push and pull request; on main, deploys the game's Cloud
+# Functions, then its database rules, then the site (GitHub Pages), in that
+# order. See "Deploying" in docs/online.md, including the one-off setup.
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only check the deploy (firebase deploy --dry-run); deploy nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm test
+      - name: Install test tools
+        # Install scripts are skipped: nothing here needs them.
+        run: |
+          (cd functions && npm ci --ignore-scripts)
+          (cd test/emulator && npm ci --ignore-scripts)
+          npm install --no-save --ignore-scripts playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - run: node tools/ui-smoke.js
+      - name: Emulator tests
+        working-directory: test/emulator
+        run: npm test && npm run test:browser
+      - run: node tools/build-site.js
+
+  # Only this job can get Google credentials: the Workload Identity
+  # Federation provider accepts tokens only from this workflow on main, in
+  # the production environment (docs/online.md).
+  firebase:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      FIREBASE: test/emulator/node_modules/.bin/firebase
+      PROJECT: zygoloid-github-io
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install firebase-tools and the functions' dependencies
+        run: |
+          (cd functions && npm ci --ignore-scripts)
+          (cd test/emulator && npm ci --ignore-scripts)
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: stacked-deck-deploy@zygoloid-github-io.iam.gserviceaccount.com
+      - name: Check the server's rules version
+        run: node tools/check-rules-version.js "$($FIREBASE database:get /config/rulesVersion --instance zygoloid-stacked-deck --project $PROJECT)"
+      # Functions first, so they know about anything the new rules accept.
+      - name: Deploy functions
+        run: $FIREBASE deploy --only functions:stacked-deck --project $PROJECT --non-interactive $DRY_RUN
+      - name: Deploy database rules
+        run: $FIREBASE deploy --only database:stacked-deck --project $PROJECT --non-interactive $DRY_RUN
+
+  pages:
+    needs: firebase
+    if: github.event_name == 'push' || !inputs.dry_run
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/build-site.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
