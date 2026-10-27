@@ -497,8 +497,10 @@ players. Signed-out players see their own solutions only, with a line
 inviting them to sign in; signing in from there redraws the plot.
 
 Friends (built): the client reads `/friends/$uid` and each friend's
-`/profiles/$friend` (once a session, and again after a change to the friend
-list). Each friend's `/scores/v{RULES_VERSION}/$friend/{level}` is read in
+`/profiles/$friend` when first needed, again after a change made here, on
+opening the Friends dialog, and at most every five minutes otherwise (an
+invite may be accepted meanwhile); if the friends changed, open plots
+redraw. Each friend's `/scores/v{RULES_VERSION}/$friend/{level}` is read in
 parallel along with the floor's stats, and again whenever those are: one
 snapshot, so a friend's point in everyone's stats always comes with their
 staircase. The plot draws each friend's frontier as a staircase in its own

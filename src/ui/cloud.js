@@ -51,7 +51,7 @@ export function createCloud({ save, persist, levels, ui }) {
   let syncing = null;            // cloud save's merge, while it runs
   let lastSync = 0;
   const pending = new Map();     // level id -> { timer, solved } waiting to be pushed
-  let friendList = null;         // promise of [{ uid, name }], once a session
+  let friendList = null;         // { at, list: promise of [{ uid, name }] }
   const friendLoads = new Map(); // level id -> { at, frontiers: promise of friendFrontiers' result }
   let fnM = null, functions = null;
   let handling = null;           // the latest sign-in change being handled
@@ -372,19 +372,30 @@ export function createCloud({ save, persist, levels, ui }) {
     return (await fnM.httpsCallable(functions, name)(data)).data;
   }
 
-  // The account's friends, with their nicknames: [{ uid, name }], read once a
-  // session (and again after a change).
-  function friends() {
+  // The account's friends, with their nicknames: [{ uid, name }]. Read at
+  // most every RESYNC_MS (someone may accept an invite meanwhile), after a
+  // change here, and whenever `reread` (the Friends dialog). If the friends
+  // differ from before, open plots redraw with them.
+  function friends({ reread = false } = {}) {
     if (state !== 'signed-in') return Promise.resolve([]);
-    friendList ??= withDb(async (dbM, db) => {
-      const uids = Object.keys((await dbM.get(dbM.ref(db, `friends/${user.uid}`))).val() ?? {});
-      return Promise.all(uids.map(async (uid) => {
-        let name = null;
-        try { name = (await dbM.get(dbM.ref(db, `profiles/${uid}/name`))).val(); } catch { /* they removed us */ }
-        return { uid, name: cleanName(name) || null };
-      }));
-    }).catch((e) => { friendList = null; throw e; });
-    return friendList;
+    if (reread || !fresh(friendList)) {
+      const before = friendList?.list.catch(() => null);
+      const entry = { at: Date.now() };
+      entry.list = withDb(async (dbM, db) => {
+        const uids = Object.keys((await dbM.get(dbM.ref(db, `friends/${user.uid}`))).val() ?? {});
+        return Promise.all(uids.map(async (uid) => {
+          let name = null;
+          try { name = (await dbM.get(dbM.ref(db, `profiles/${uid}/name`))).val(); } catch { /* they removed us */ }
+          return { uid, name: cleanName(name) || null };
+        }));
+      });
+      entry.list.then(async (list) => {
+        const old = await before;
+        if (old && friendList === entry && JSON.stringify(old) !== JSON.stringify(list)) { friendLoads.clear(); notify(); }
+      }, () => { if (friendList === entry) friendList = null; });
+      friendList = entry;
+    }
+    return friendList.list;
   }
   const friendsChanged = () => { friendList = null; friendLoads.clear(); notify(); };
 

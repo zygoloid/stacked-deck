@@ -133,7 +133,7 @@ export function friendsDialog(cloud) {
     const list = h('div', { class: 'friend-list' }, h('p', { class: 'muted small' }, 'Loading…'));
     const inviteBox = h('div', { class: 'invite-box' });
     const status = h('p', { class: 'muted small dlg-status' }, '');
-    const showList = () => cloud.friends().then((fs) => {
+    const showList = () => cloud.friends({ reread: true }).then((fs) => {
       list.replaceChildren(...(fs.length ? fs.map((f) => h('div', { class: 'friend-row' },
         h('span', { class: 'friend-name' }, f.name ?? 'A player with no nickname yet'),
         h('button', {

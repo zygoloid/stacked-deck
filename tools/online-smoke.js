@@ -295,6 +295,13 @@ try {
   check((await owner(`friends/${alice}/${carol}`)) === true && (await owner(`friends/${carol}/${alice}`)) === true && await owner(`invites/${code}`) === null,
     'accepting makes the friendship both ways and uses up the invite');
 
+  // Alice's page stayed open: her Friends list shows Carol now.
+  await page.click('.btn.account');
+  await page.click('.modal.dialog >> text=Friends…');
+  await page.waitForSelector('.modal.dialog .friend-row >> text=Carol', { timeout: 20000 }).catch(() => {});
+  check(await page.locator('.modal.dialog .friend-row >> text=Carol').count() === 1, 'the inviter\'s open page lists the new friend');
+  await page.click('.modal.dialog >> text=Close');
+
   // Alice sees Carol's frontier on the floor's plot, labelled with her nickname.
   // (She also has a machine for a second floor ready, for later.)
   await page.evaluate(([id, cells]) => {
