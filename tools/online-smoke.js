@@ -141,6 +141,7 @@ try {
   await page.waitForSelector('.modal.dialog');
   const text = await page.textContent('.modal.dialog');
   check(/What signing in stores/.test(text) && /never shown to anyone else/.test(text) && /nickname/.test(text), 'the sign-in dialog says what is stored');
+  check(await page.locator('.modal.dialog a[href="privacy.html"]').count() === 1, 'the sign-in dialog links the privacy notice');
   await page.waitForSelector('.modal.dialog .btn.gold:not([disabled])', { timeout: 20000 });
   check((await page.textContent('.modal.dialog .btn.gold')) === 'Sign in with Google', 'the Google button is ready once the SDK has loaded');
   if (shots) await page.locator('.modal.dialog').screenshot({ path: join(shots, 'o1-sign-in.png') });

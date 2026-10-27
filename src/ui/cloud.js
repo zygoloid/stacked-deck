@@ -130,11 +130,15 @@ export function createCloud({ save, persist, levels, ui }) {
     save.account = { uid: u.uid, signedIn: true };
     persist();
     let name = '';
+    let read = false;
     try {
       name = await withDb(async (dbM, db) => (await dbM.get(dbM.ref(db, `profiles/${u.uid}/name`))).val() ?? '');
+      read = true;
     } catch (e) { console.warn('profile:', e); }
     setState('signed-in', { uid: u.uid, name });
-    if (!name) {
+    // Ask for a nickname only if there really is none (not if the read
+    // failed, e.g. while the database is locked down).
+    if (read && !name) {
       const chosen = await ui.askName();
       if (chosen) await setName(chosen).catch((e) => console.warn('nickname:', e));
     }

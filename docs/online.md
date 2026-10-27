@@ -425,10 +425,14 @@ a "Content Security Policy" error in the browser console.
   redirect flow). The SDK starts loading when the dialog opens, so the popup
   opens straight from the button's click (browsers block popups opened
   later).
+* `privacy.html` is the privacy notice: what is stored where, who sees
+  it, how long it's kept and how to delete it. The sign-in dialog, the
+  account menu and the help link to it; keep it in step with what this
+  document says is stored.
 * On first sign-in the player picks a nickname (or "Later"), and their
-  solutions so far are uploaded (below). The help screen repeats what is
-  stored. Deleting the account from within the game comes with step 6; the
-  dialog says so.
+  solutions so far are uploaded (below). The nickname is asked for only when
+  the profile was read and has none, not when the read failed (as it does
+  during a lockdown). The help screen repeats what is stored.
 * The local save records the account it belongs to (`account: { uid,
   signedIn }`). Signing in to a different account on a browser whose save
   belongs to someone else asks first: add the progress to this account,

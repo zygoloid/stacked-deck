@@ -54,9 +54,10 @@ export function signInDialog(cloud) {
       h('ul', { class: 'dlg-list' },
         h('li', {}, 'The machines you have solved floors with, and their scores, are uploaded to your account. Your machines are never shown to anyone else.'),
         h('li', {}, 'Your scores join each floor\'s chart of everyone\'s scores, which shows only how many players got each score, never who.'),
-        h('li', {}, 'A nickname you choose. Nobody else sees it yet; later, friends you invite will see it next to your scores.'),
+        h('li', {}, 'Your progress (your working machine on each floor and which floors you\'ve cleared), so it follows you to other devices.'),
+        h('li', {}, 'A nickname you choose. Friends you invite see it next to their view of your best scores.'),
         h('li', {}, 'Google tells the sign-in service your name and email address. Other players never see them.')),
-      h('p', { class: 'muted small' }, 'You can sign out, or delete everything signing in stored, at any time from the account menu.'),
+      h('p', { class: 'muted small' }, 'You can sign out, or delete everything signing in stored, at any time from the account menu. The ', h('a', { class: 'dlg-link', href: 'privacy.html', target: '_blank', rel: 'noopener' }, 'privacy notice'), ' has the details.'),
       h('div', { class: 'modal-actions' }, go, h('button', { class: 'btn ghost', onclick: () => close(false) }, 'Not now')),
       status,
     ];
@@ -109,7 +110,8 @@ export function accountDialog(cloud) {
         h('button', { class: 'btn', onclick: () => close('name') }, u?.name ? 'Change nickname' : 'Choose a nickname'),
         h('button', { class: 'btn', onclick: () => close('signout') }, 'Sign out'),
         h('button', { class: 'btn ghost', onclick: () => close() }, 'Close')),
-      h('p', { class: 'dlg-danger-row' }, h('button', { class: 'btn ghost small danger', onclick: () => close('delete') }, 'Delete my data…')),
+      h('p', { class: 'dlg-danger-row' }, h('button', { class: 'btn ghost small danger', onclick: () => close('delete') }, 'Delete my data…'),
+        ' ', h('a', { class: 'dlg-link small', href: 'privacy.html', target: '_blank', rel: 'noopener' }, 'Privacy notice')),
     ];
   }).then(async (choice) => {
     if (choice === 'name') {

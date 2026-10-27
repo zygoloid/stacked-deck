@@ -700,3 +700,14 @@ svg.board.panning { cursor: grabbing; }
 .sc-friend-pt { stroke: rgba(0, 0, 0, 0.5); stroke-width: 1; }
 .sc-friend-t { font-size: 10.5px; font-weight: 600; paint-order: stroke; stroke: rgba(4, 30, 18, 0.85); stroke-width: 3px; }
 .lg-friend { display: inline-block; width: 14px; height: 0; margin: 0 2px 3px; border-top: 2px solid; }
+
+/* ---------- privacy.html ---------- */
+.doc-page { min-height: 100%; }
+.doc { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; font-size: 15px; line-height: 1.6; color: var(--ink-2); }
+.doc h1, .doc h2 { font-family: var(--serif); color: var(--gold-2); font-weight: 600; }
+.doc h1 { font-size: 30px; margin: 8px 0 0; }
+.doc h2 { font-size: 20px; margin: 28px 0 6px; }
+.doc strong { color: var(--ink); }
+.doc ul { padding-left: 20px; }
+.doc li { margin: 6px 0; }
+.doc a, .dlg-link, .help a { color: var(--gold-2); }

@@ -256,6 +256,7 @@ try {
   // Help panel.
   await page.keyboard.press('?');
   check(await page.locator('.modal.help .help-table tr').count() >= 10, 'help panel lists croupiers');
+  check(await page.locator('.modal.help a[href="privacy.html"]').count() === 1, 'help links the privacy notice');
   await page.keyboard.press('Escape');
 
   // An old save (no solutions list) still loads; best is kept when solving.
@@ -716,6 +717,14 @@ try {
       check(res === 'solved' && saved.solved && saved.solutions?.length === 1, `${lv.id}: reference solution ${res}, best ${JSON.stringify(saved.best)}${par}`);
     }
   }
+
+  // The privacy notice, a page of its own (no scripts; checked for CSP
+  // errors and requests below).
+  await page.goto(`${base}privacy.html`);
+  await page.waitForSelector('main.doc h1');
+  check(/Delete my data/.test(await page.textContent('main.doc')) && await page.locator('main.doc a[href="./"]').count() === 1,
+    'the privacy notice loads, with a way back to the game');
+  if (shots) await page.screenshot({ path: join(shots, 'privacy.png'), fullPage: true });
 
   check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
   check(external.length === 0, `signed out, no requests to other sites${external.length ? ': ' + external.slice(0, 3).join(' ') : ''}`);

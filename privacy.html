@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stacked Deck: privacy</title>
+  <meta name="description" content="What Stacked Deck stores about you, and how to delete it.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='2' width='22' height='28' rx='3' fill='%23fdf8ec' stroke='%23c9a24a' stroke-width='2'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='%23b3243a'%3E%E2%99%A5%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="felt-bg doc-page">
+<main class="doc">
+  <p><a href="./">← Back to Stacked Deck</a></p>
+  <h1>Privacy</h1>
+  <p class="muted">Last updated 27 October 2026.</p>
+
+  <p>You can play Stacked Deck without an account, and then nothing about you
+  leaves your browser. Signing in with Google is optional: it's how you agree
+  to the game storing the things below online, and you can delete all of it
+  from within the game at any time.</p>
+
+  <h2>Who runs it</h2>
+  <p>Stacked Deck is a free hobby game made by
+  <a href="https://github.com/zygoloid">zygoloid</a>, hosted on GitHub Pages.
+  Its source code, including exactly what it stores, is
+  <a href="https://github.com/zygoloid/stacked-deck">on GitHub</a>. To ask
+  about your data, <a href="https://github.com/zygoloid/stacked-deck/issues">open
+  an issue</a> (it's public, so don't put personal details in it; say how to
+  reach you and you'll be contacted).</p>
+
+  <h2>Without signing in</h2>
+  <ul>
+    <li>Your progress (your machines, scores and which floors you've cleared)
+    is saved in your browser's local storage, on your device only.</li>
+    <li>There are no cookies, analytics, ads or trackers, and the game loads
+    nothing from other sites.</li>
+    <li>GitHub serves the game's pages, and like any web host it sees your IP
+    address when it does; see
+    <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub's
+    privacy statement</a>.</li>
+  </ul>
+
+  <h2>When you sign in</h2>
+  <p>The online features run on Google's Firebase, which stores and processes
+  the data for the game, in the United States.</p>
+  <ul>
+    <li><strong>Your sign-in account.</strong> Google tells Firebase's sign-in
+    service your Google account's ID, name, email address and profile picture
+    link. The game itself uses only an account number; nobody else sees any
+    of these.</li>
+    <li><strong>A nickname</strong> you choose (not your Google name).</li>
+    <li><strong>Your solutions:</strong> the machines you've cleared floors
+    with, when you found them, and their scores, which the game's server
+    checks.</li>
+    <li><strong>Your progress</strong>, so it follows you to other devices:
+    the machine you're working on for each floor, which floors you've
+    cleared, and which solutions you've deleted.</li>
+    <li><strong>Friends:</strong> who you are friends with, and an invite
+    code while one of yours is open (each lasts a week at most).</li>
+    <li><strong>Abuse protection.</strong> When you sign in, the game uses
+    Google's reCAPTCHA (through Firebase App Check) to check that requests
+    come from the real game. It collects information about your browser and
+    device, under Google's
+    <a href="https://policies.google.com/privacy">privacy policy</a> and
+    <a href="https://policies.google.com/terms">terms</a>.</li>
+    <li><strong>Logs.</strong> The game's server logs its requests (with
+    your IP address and browser), which account submitted each solution, and
+    requests to delete data, to find faults and abuse. These logs are kept
+    for 30 days.</li>
+  </ul>
+
+  <h2>Who sees what</h2>
+  <ul>
+    <li><strong>Your machines</strong> are never shown to anyone else.</li>
+    <li><strong>Friends</strong> (people who accepted your invite link, or
+    whose link you accepted) see your nickname and your best scores on each
+    floor.</li>
+    <li><strong>Everyone else</strong> who signs in sees each floor's chart,
+    which counts how many players got each score, never who.</li>
+  </ul>
+
+  <h2>How long it's kept, and deleting it</h2>
+  <p>Everything is kept until you delete it; there are no backups.</p>
+  <ul>
+    <li><strong>Sign out</strong> from the account menu stops the game using
+    your account in that browser, and can clear that browser's progress.</li>
+    <li><strong>Delete my data</strong>, in the account menu, deletes
+    everything above: your solutions, scores, progress, nickname, friendships
+    (both ways) and invite, takes your scores out of the floor charts, and
+    deletes your sign-in account. Only the logs remain, until they expire.
+    Google may ask you to sign in again to confirm.</li>
+  </ul>
+
+  <h2>Your rights</h2>
+  <p>Signing in is your consent to the above, and deleting your data
+  withdraws it. Depending on where you live, you may also have the right to
+  ask for a copy of your data, to have it corrected, and to complain to your
+  local data protection authority.</p>
+
+  <h2>Changes</h2>
+  <p>If this notice changes, the new version will be on this page, and its
+  history is in the game's source code.</p>
+</main>
+</body>
+</html>
