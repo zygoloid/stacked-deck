@@ -134,15 +134,15 @@ export const LEVELS = [
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
-// shoes; rounds averaged over the level's tests and rounded). test/levels.js
+// shoes; rounds totalled over the level's tests). test/levels.js
 // checks these exactly; `node tools/write-solutions.js finale --par` rewrites
 // this table from the recipes in tools/level-specs/finale.js.
 // BEGIN PAR
 const PAR = {
-  'mind-the-gap': { croupiers: 5, rounds: 26 },
-  'straight-flush-draw': { croupiers: 5, rounds: 14 },
-  'red-carpet': { croupiers: 12, rounds: 16 },
-  'deja-vu': { croupiers: 6, rounds: 74 },
+  'mind-the-gap': { croupiers: 5, rounds: 129 },
+  'straight-flush-draw': { croupiers: 5, rounds: 86 },
+  'red-carpet': { croupiers: 12, rounds: 114 },
+  'deja-vu': { croupiers: 6, rounds: 595 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

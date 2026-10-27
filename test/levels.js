@@ -16,9 +16,9 @@
 //  * its reference solution only uses the level's floor, palette, War rules
 //    and special cards, places only shoes and croupiers, and doesn't overlap
 //    the fixed cells;
-//  * the solution passes every test;
-//  * par matches the solution exactly: croupiers, and rounds (the average over
-//    all tests, rounded). The engine is deterministic, so any change in rounds
+//  * the solution passes every test, and its check deals (src/score.js);
+//  * par matches the solution exactly: croupiers, and rounds (the total over
+//    all tests). The engine is deterministic, so any change in rounds
 //    means the solution or the tests changed; regenerate the PAR table with
 //    `node tools/write-solutions.js <chapter> --par`.
 //  * the tests discriminate: "pay everything" and "drop everything" machines
@@ -34,6 +34,7 @@ import {
 } from '../src/levels.js';
 import { runTest, expectedPayouts, handKey, FUNCTIONS, DIRS } from '../src/engine.js';
 import { RANKS, SUITS, SPECIALS } from '../src/cards.js';
+import { checkDeals, totalRounds } from '../src/score.js';
 
 const MUTANTS = {}, DOOR = [];
 for (const name of [...Object.values(CHAPTER_FILES), BONUS_FILE]) {
@@ -208,9 +209,14 @@ for (const level of [...LEVELS, ...BONUS]) {
   const all = [...level.fixed, ...cells];
   const results = runAll(level, all);
   results.forEach((r, i) => check(r.ok, `test ${i}: ${r.timeout ? 'timeout' : ''} wrong ${JSON.stringify(r.wrong)} missing ${JSON.stringify(r.missing)}`));
-  const rounds = Math.round(results.reduce((a, r) => a + r.rounds, 0) / results.length);
+  const rounds = totalRounds(results);
   check(level.par && level.par.croupiers === results[0].croupiers, `par croupiers ${level.par?.croupiers} = ${results[0].croupiers}`);
   check(level.par && level.par.rounds === rounds, `par rounds ${level.par?.rounds} = ${rounds}`);
+  check(level.tests.deal, 'tests made by dealtTests (so it has check deals)');
+  (await checkDeals(level, cells)).forEach((t, i) => {
+    const r = runTest({ cells: all }, t, level);
+    check(r.ok, `check deal ${i + 1}: ${r.timeout ? 'timeout' : ''} wrong ${JSON.stringify(r.wrong)} missing ${JSON.stringify(r.missing)}`);
+  });
 
   // --- The tests discriminate ---
   const payouts = level.tests.map((t) => expectedPayouts(level, t));

@@ -7,11 +7,11 @@
 // everything (every croupier, both War rules, every special card). Mirror
 // Image and Showdown seat two players. See docs/campaign.md.
 import {
-  hexRange, hexRect, makeTests, makeMixedTests, floorOf, source, desk, E, NE,
+  hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, NE,
   hv, high, one, paletteThrough, finishChapter,
 } from './shared.js';
 import {
-  RANKS, rankOf, suitOf, rankValue, highValue, largestSet, rankCounts, fullDeck, shuffled, rng,
+  RANKS, rankOf, suitOf, rankValue, highValue, largestSet, rankCounts, fullDeck, shuffled,
 } from '../cards.js';
 
 const B1 = [source([-3, 0], E), desk([1, 0])];
@@ -64,8 +64,7 @@ function showdown(a, b) {
 }
 // Mirror Image tests: each player deals from their own deck; player B's
 // hand is often player A's cards reordered, or one card off.
-function mirrorTests(seed, nTests, nDeals) {
-  const rand = rng(seed);
+function mirrorDeals(rand, nTests, nDeals) {
   const tests = [];
   for (let t = 0; t < nTests; t++) {
     const d1 = shuffled(fullDeck(), rand), d2 = shuffled(fullDeck(), rand);
@@ -421,16 +420,17 @@ export const LEVELS = [
     warRules: ALL,
     specialCards: ['?', '??', '$', '$$'],
     expected: (inputs) => deals(inputs).filter(([a, b]) => same(a, b)).flat(),
-    tests: [
-      ...[
+    tests: dealtTests({
+      deal: (rand, n) => mirrorDeals(rand, n, 8),
+      fixed: [
         ['AS 2S 3S 4S 5S', '5S 4S 3S 2S AS', 'KD QD JD TD 9D', 'KD QD JD TD 9C', '7S 7D 7C 7H 2S', '7S 7D 7C 7H 2D',
           '3C 8H JS 2D 6C', '6C 2D JS 8H 3C', '5H 9S KC 4D TH', '5H 9S KC 4D TH', 'AH KS 2C 3D 4H', 'AH KS 2C 3D 5H'],
         // matches back to back, then near misses back to back
         ['2C 4D 6H 8S TC', '8S TC 2C 6H 4D', 'JH QH KH AH 2H', '2H JH AH KH QH', '3S 5S 9D 9C QH', 'QH 9C 9D 5S 3S',
           'AD 3D 5D 7D 9D', 'AD 3D 5D 7D 9H', '4C 6C 8C TC QC', '4C 6C 8C TC KC', 'KS QS JS TS 9S', 'KS QS JS TS 8S'],
-      ].map((t) => t.map((h) => h.split(' '))),
-      ...mirrorTests(176, 4, 8),
-    ],
+      ],
+      nRandom: 4, seed: 176,
+    }),
   },
   {
     id: 'showdown',
@@ -519,26 +519,26 @@ export const LEVELS = [
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
-// shoes; rounds averaged over the level's tests and rounded). test/levels.js
+// shoes; rounds totalled over the level's tests). test/levels.js
 // checks these exactly; `node tools/write-solutions.js bonus --par` rewrites
 // this table from the recipes in tools/level-specs/bonus.js.
 // BEGIN PAR
 const PAR = {
-  'small-change': { croupiers: 6, rounds: 19 },
-  'split-pot': { croupiers: 3, rounds: 11 },
-  'every-other': { croupiers: 4, rounds: 15 },
-  'after-a-pair': { croupiers: 13, rounds: 24 },
-  'bookends': { croupiers: 5, rounds: 22 },
-  'four-of-a-kind': { croupiers: 6, rounds: 67 },
-  'two-apart': { croupiers: 5, rounds: 20 },
-  'three-apart': { croupiers: 7, rounds: 21 },
-  'counting-up': { croupiers: 9, rounds: 41 },
-  'rising': { croupiers: 12, rounds: 36 },
-  'head-count': { croupiers: 19, rounds: 113 },
-  'mirror-image': { croupiers: 25, rounds: 64 },
-  'showdown': { croupiers: 43, rounds: 49 },
-  'last-in-first-out': { croupiers: 20, rounds: 119 },
-  'one-up': { croupiers: 16, rounds: 510 },
+  'small-change': { croupiers: 6, rounds: 130 },
+  'split-pot': { croupiers: 3, rounds: 56 },
+  'every-other': { croupiers: 4, rounds: 90 },
+  'after-a-pair': { croupiers: 13, rounds: 171 },
+  'bookends': { croupiers: 5, rounds: 134 },
+  'four-of-a-kind': { croupiers: 6, rounds: 533 },
+  'two-apart': { croupiers: 5, rounds: 120 },
+  'three-apart': { croupiers: 7, rounds: 125 },
+  'counting-up': { croupiers: 9, rounds: 290 },
+  'rising': { croupiers: 12, rounds: 214 },
+  'head-count': { croupiers: 19, rounds: 676 },
+  'mirror-image': { croupiers: 25, rounds: 383 },
+  'showdown': { croupiers: 43, rounds: 296 },
+  'last-in-first-out': { croupiers: 20, rounds: 835 },
+  'one-up': { croupiers: 16, rounds: 4076 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

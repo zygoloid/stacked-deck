@@ -38,6 +38,12 @@ an arrow for its main output side (`>` E, `\` SE, `/` SW, `<` W, `` ` `` NW,
   cards, any order within a hand, any order between hands). A run ends when
   every player card has left the floor, or 50 rounds after the last expected
   payout. The second case is for machines that keep copies of cards in memory.
+  A run fails if more than 1,000 cards are ever on the floor at once (a pair
+  of Duplicates feeding each other would otherwise multiply cards without
+  bound), or after 5,000 rounds. A floor is cleared when the machine passes
+  every test and then 8 **check deals**: random deals seeded from the machine
+  itself, so a machine has to follow the rule rather than fit the tests (see
+  docs/architecture.md).
 
 ## Results
 

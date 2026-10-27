@@ -17,11 +17,19 @@ Add `?unlockall` to the URL to open every floor.
 
     npm test             # engine, checker, sample machines, every level
 
+Online features (Firebase; see [docs/online.md](docs/online.md)): the
+database rules and the Cloud Functions in `functions/` are tested against the
+Firebase emulators (needs Java):
+
+    cd test/emulator && npm ci && npm test
+    npm run test:browser          # the game against the emulators, in Chromium
+
 | Path | Contents |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | modules, engine contract, croupier catalogue, level and save formats |
 | [docs/story.md](docs/story.md) | cast and chapter arcs |
 | [docs/validation.md](docs/validation.md) | how the rules were designed, with worked example machines |
+| [docs/online.md](docs/online.md) | design for cloud save and score comparison (partly built) |
 | `src/levels.js` | level list |
 | `solutions/levels/` | a verified reference solution for each level |
 | `tools/write-solutions.js` | regenerates the par table |

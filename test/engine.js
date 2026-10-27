@@ -1,6 +1,7 @@
 // Unit checks for individual croupiers and engine features.
 import assert from 'node:assert';
-import { Floor } from '../src/engine.js';
+import { Floor, runTest, MAX_FLOOR_CARDS } from '../src/engine.js';
+import { Sim } from '../src/ui/sim.js';
 
 // Suits: hearts east, spades+clubs south-east, rest (diamonds) to misc = west... via payout cells.
 {
@@ -268,3 +269,39 @@ console.log('deal piles ok');
   assert.deepStrictEqual(dealt(), [true, true, true, true, true, true, true, false, true], 'restore keeps seats');
 }
 console.log('seated players ok');
+
+// Card limit: two duplicates feeding each other multiply the cards without
+// bound; the run fails (overflow) instead of running out of memory.
+{
+  const spec = { cells: [
+    { at: [0, 0], kind: 'source', out: 0 },
+    { at: [1, 0], kind: 'croupier', fn: 'duplicate', out: { a: 0, b: 0 } },
+    { at: [2, 0], kind: 'croupier', fn: 'duplicate', out: { a: 3, b: 3 } },
+    { at: [1, 1], kind: 'payout' },
+  ] };
+  const pays = () => true;
+  const r = runTest(spec, [['AS', 'KH']], pays);
+  assert(r.overflow && !r.ok && !r.timeout, JSON.stringify(r));
+  assert(r.rounds < 40, `overflowed in round ${r.rounds}`);
+  const f = new Floor(spec, [['AS', 'KH']]);
+  while (!f.overflowed()) f.step();
+  assert(f.cardCount() > MAX_FLOOR_CARDS && f.cardCount() <= 4 * MAX_FLOOR_CARDS, String(f.cardCount()));
+  assert.strictEqual(f.round, r.rounds);
+  // The interactive simulator stops at the same round.
+  const sim = new Sim(spec, [['AS', 'KH']], pays);
+  while (!sim.finished) sim.step();
+  assert.strictEqual(sim.status.kind, 'overflow');
+  assert.strictEqual(sim.round, r.rounds);
+}
+// A machine that keeps a few cards in a loop is well under the limit.
+{
+  const f = new Floor({ cells: [
+    { at: [0, 0], kind: 'source', out: 0 },
+    { at: [1, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } },
+    { at: [2, 0], kind: 'croupier', fn: 'pass', out: { out: 3 } },
+  ] }, [['AS', '2S', '3S']]);
+  for (let i = 0; i < 20; i++) f.step();
+  assert.strictEqual(f.cardCount(), 3);
+  assert(!f.overflowed());
+}
+console.log('card limit ok');

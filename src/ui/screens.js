@@ -5,6 +5,7 @@ import { CAMPAIGN as LEVELS, BONUS, findLevel } from './catalog.js';
 import { RULES_VERSION } from '../engine.js';
 import { isUnlocked, isBonusOpen, specialCardsUnlocked } from './model.js';
 import { floorLabel, chapterInfo, floorBadge } from './floors.js';
+import { accountButton } from './account.js';
 
 // Tile classes for the four finale cards.
 const SPECIAL_TILE = { '?': 'f-mono', '??': 'f-colour', '$': 'f-front', '$$': 'f-back' };
@@ -28,6 +29,7 @@ export function levelSelect(root, ctx) {
         h('span', { class: 'meta-count' }, `${solvedCount} / ${LEVELS.length} floors cleared`,
           BONUS.length ? h('span', { class: 'meta-bonus' }, ` · ${bonusSolved} / ${BONUS.length} bonus`) : null),
         h('button', { class: 'btn ghost small', onclick: () => ctx.help() }, '? How to play'),
+        ctx.cloud ? accountButton(ctx.cloud) : null,
         h('span', { class: 'rules-version', title: 'Version of the game rules this page is running' }, `rules v${RULES_VERSION}`))),
     [...chapters].map(([ch, list]) => h('section', { class: 'chapter' },
       chapterHeading(ch),
@@ -146,7 +148,9 @@ export function helpPanel(close, save) {
         h('li', {}, 'Each croupier has named ', h('b', {}, 'output ports'), '. Point each port at a side of its hex. A port left on ', h('b', {}, '✕ floor'), ', or pointing at a hex with no table, drops its cards.'),
         h('li', {}, 'Croupiers accept hands from any side. Every round, each free croupier picks up one hand (from the side it last took from, otherwise the next filled side clockwise), acts, and places its outputs. A croupier whose target slot is full waits.'),
         h('li', {}, 'A hand\'s top card is drawn first (leftmost). House cards from shoes are drawn dashed.'),
-        h('li', {}, 'A floor is cleared when every test passes. Scores: croupiers placed (shoes count) and rounds (average over the tests). Fewer is better.')),
+        h('li', {}, 'A floor is cleared when every test passes, and then its check deals: random deals made from your machine itself, so they change whenever the machine does. A machine has to follow the floor\'s rule, not just get the tests right.'),
+        h('li', {}, 'Scores: croupiers placed (shoes count) and rounds (the total over all the tests; check deals don\'t count). Fewer is better.'),
+        h('li', {}, 'Signing in with Google (optional, from the floors list) uploads the machines you solve floors with and shows everyone\'s scores behind your own on each floor\'s chart. Other players see only how many players got each score, never your machines. Until you sign in, nothing leaves your browser, and the account menu can delete everything signing in stored. See the ', h('a', { href: 'privacy.html', target: '_blank', rel: 'noopener' }, 'privacy notice'), '.')),
       h('h3', {}, 'Croupiers'),
       h('table', { class: 'help-table' }, h('tbody', {}, rows)),
       specials.length ? specialHelp(specials) : null,

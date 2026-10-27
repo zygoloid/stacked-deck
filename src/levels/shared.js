@@ -1,7 +1,7 @@
 // Helpers shared by the chapter modules in src/levels/. See docs/campaign.md
 // for the campaign plan and docs/architecture.md for the level format.
 import {
-  fullDeck, shuffled, rng, rankOf, suitOf, highValue, RANKS,
+  randomDeals, mixedDeals, rng, rankOf, suitOf, highValue, RANKS,
 } from '../cards.js';
 
 // All hexes within `radius` of [cq, cr].
@@ -31,36 +31,27 @@ export function hexRect(r0, r1, x0, x1) {
   return out;
 }
 
-// Fixed hands (strings like 'AS 2S'), then `nRandom` tests of `handsPerTest`
-// hands dealt from one shuffled deck each.
-export function makeTests({ handSize, handsPerTest, fixed = [], nRandom = 4, seed = 1 }) {
-  const rand = rng(seed);
-  const tests = fixed.map((t) => t.map((h) => h.split(' ')));
-  for (let i = 0; i < nRandom; i++) {
-    const deck = shuffled(fullDeck(), rand);
-    const t = [];
-    for (let j = 0; j < handsPerTest; j++) t.push(deck.slice(j * handSize, (j + 1) * handSize));
-    tests.push(t);
-  }
+// A floor's tests: the fixed ones (hands as strings like 'AS 2S'), then
+// `nRandom` dealt by `deal(rand, n)`, which returns n tests. The list also
+// records `deal` (`tests.deal`, not enumerable), so the floor's check deals
+// (src/score.js) are dealt the same way, from a generator seeded by the
+// machine. Every floor's tests are made by this.
+export function dealtTests({ deal, fixed = [], nRandom = 4, seed = 1 }) {
+  const tests = [...fixed.map((t) => t.map((h) => h.split(' '))), ...deal(rng(seed), nRandom)];
+  Object.defineProperty(tests, 'deal', { value: deal });
   return tests;
 }
 
+// Tests of `handsPerTest` hands of `handSize` cards, each test dealt from one
+// shuffled deck.
+export function makeTests({ handSize, handsPerTest, ...rest }) {
+  return dealtTests({ deal: (rand, n) => randomDeals(rand, n, handsPerTest, handSize), ...rest });
+}
+
 // Like makeTests, for hands of mixed sizes: each hand's size is drawn from
-// minSize..maxSize, and each test is dealt from one shuffled deck.
-export function makeMixedTests({ minSize, maxSize, handsPerTest, fixed = [], nRandom = 4, seed = 1 }) {
-  const rand = rng(seed);
-  const tests = fixed.map((t) => t.map((h) => h.split(' ')));
-  for (let i = 0; i < nRandom; i++) {
-    const deck = shuffled(fullDeck(), rand);
-    const t = [];
-    for (let j = 0; j < handsPerTest; j++) {
-      const n = minSize + Math.floor(rand() * (maxSize - minSize + 1));
-      if (deck.length < n) break;
-      t.push(deck.splice(0, n));
-    }
-    tests.push(t);
-  }
-  return tests;
+// minSize..maxSize.
+export function makeMixedTests({ minSize, maxSize, handsPerTest, ...rest }) {
+  return dealtTests({ deal: (rand, n) => mixedDeals(rand, n, handsPerTest, minSize, maxSize), ...rest });
 }
 
 // Floor helpers: remove hexes (fixed cells, pillars) from a list of hexes.

@@ -1,5 +1,5 @@
 // The level editor: palette, board, inspector, simulation and test runs.
-import { runTest, expectedPayouts } from '../engine.js';
+import { runTest, expectedPayouts, MAX_FLOOR_CARDS } from '../engine.js';
 import { h, s, handEl, parseCards, fmtCards } from './dom.js';
 import { Board, R } from './board.js';
 import {
@@ -10,6 +10,8 @@ import {
   hexKey, sanitizeCells, toSpec, countCroupiers, levelSave, warRules, specialCardsOf,
   solutionsOf, recordSolution, deleteSolution, findSolution,
 } from './model.js';
+import { checkDeals, CHECK_DEALS, totalRounds } from '../score.js';
+import { signInDialog, dialogOpen } from './account.js';
 import { Sim } from './sim.js';
 import { scatterPlot, solutionList, scoreText } from './scatter.js';
 
@@ -33,6 +35,7 @@ export function openEditor(root, ctx, level) {
   const undo = [], redo = [];
   let sim = null, testIndex = 0, playing = false, speed = 1, raf = 0, lastT = 0, acc = 0;
   let runResults = null;          // results of checking every test
+  let checks = null;              // this machine's check deals, once a run reaches them
   let running = false;            // every test is being checked
   let deckDraft = null;           // { key, text, error }
 
@@ -91,8 +94,11 @@ export function openEditor(root, ctx, level) {
   function changed() {
     ls.cells = cells;
     ctx.persist();
+    ctx.cloud?.levelChanged(level.id, { work: true });
     resetSim();
     runResults = null;
+    checks = null;
+    if (testIndex >= level.tests.length) testIndex = 0;
     renderAll();
   }
   function restoreCells(json) {
@@ -164,9 +170,15 @@ export function openEditor(root, ctx, level) {
   }
 
   // ---------- simulation ----------
+  // The published tests, then (once a run has reached them) the machine's
+  // check deals: random deals made from the machine itself (src/score.js).
+  const allTests = () => (checks ? [...level.tests, ...checks] : level.tests);
+  const isCheck = (i) => i >= level.tests.length;
+  const testName = (i) => (isCheck(i) ? `Check deal ${i - level.tests.length + 1}` : `Test ${i + 1}`);
+  const CHECK_NOTE = 'Check deals are random deals made from your machine itself, so they change when it does.';
   function makeSim() {
     try {
-      sim = new Sim(toSpec(level, cells), level.tests[testIndex], level);
+      sim = new Sim(toSpec(level, cells), allTests()[testIndex], level);
     } catch (e) {
       sim = null;
       showToast(`Can't run this floor: ${e.message}`, 'bad');
@@ -240,7 +252,7 @@ export function openEditor(root, ctx, level) {
   }
   function reportStatus() {
     const st = sim.status;
-    if (st.kind === 'passed') showToast(`Test ${testIndex + 1} passed in ${st.rounds} rounds.`, 'good');
+    if (st.kind === 'passed') showToast(`${testName(testIndex)} passed in ${st.rounds} rounds.`, 'good');
     else showToast(failureText(), 'bad');
   }
   function failureText() {
@@ -258,24 +270,37 @@ export function openEditor(root, ctx, level) {
     renderAll();
     let spec;
     try { spec = toSpec(level, cells); } catch (e) { showToast(e.message, 'bad'); running = false; return; }
-    for (let i = 0; i < level.tests.length; i++) {
-      await new Promise((r) => setTimeout(r, 0));
-      let res;
-      try { res = runTest(spec, level.tests[i], level); } catch (e) { res = { ok: false, error: e.message, rounds: 0, wrong: [], missing: [] }; }
-      runResults.push(res);
-      renderTests();
+    const runAll = async (tests) => {
+      for (const t of tests) {
+        await new Promise((r) => setTimeout(r, 0));
+        let res;
+        try { res = runTest(spec, t, level); } catch (e) { res = { ok: false, error: e.message, rounds: 0, wrong: [], missing: [] }; }
+        runResults.push(res);
+        renderTests();
+      }
+    };
+    // The published tests, then (if they all pass) the check deals. They
+    // depend only on the machine, so any shown already stay valid (editing the
+    // machine clears them).
+    await runAll(level.tests);
+    if (runResults.every((r) => r.ok)) {
+      checks = await checkDeals(level, machine);
+      await runAll(checks);
     }
     running = false;
     const ok = runResults.every((r) => r.ok);
     if (ok) {
       const croupiers = countCroupiers(machine);
-      const rounds = Math.round(runResults.reduce((a, r) => a + r.rounds, 0) / runResults.length);
+      // Scores come from the published tests only.
+      const rounds = totalRounds(runResults.slice(0, level.tests.length));
       solutionsOf(ls);
       const prev = ls.best ? { ...ls.best } : undefined;
       const wasSolved = !!ls.solved;
       const { index: found, isNew } = recordSolution(ls, machine, { croupiers, rounds });
       ls.last = { croupiers, rounds };
       ctx.persist();
+      ctx.cloud?.levelChanged(level.id, { solved: true });
+      ctx.cloud?.queueUploads();
       renderAll();
       showResults({ croupiers, rounds, prev, wasSolved, found, isNew });
     } else {
@@ -286,16 +311,18 @@ export function openEditor(root, ctx, level) {
       resetSim();
       if (makeSim()) while (!sim.finished) sim.step();
       renderAll();
+      const note = isCheck(first) ? ` ${CHECK_NOTE}` : '';
       if (sim?.finished && sim.status.kind !== 'passed') {
-        showToast(`Test ${watched + 1} passed, but test ${first + 1} failed. ${failureText()}`, 'bad');
+        showToast(`${testName(watched)} passed, but ${testName(first).toLowerCase()} failed. ${failureText()}${note}`, 'bad');
       } else {
-        showToast(`Test ${first + 1} failed: ${describeFailure(runResults[first])}`, 'bad');
+        showToast(`${testName(first)} failed: ${describeFailure(runResults[first])}${note}`, 'bad');
       }
     }
   }
   function describeFailure(r) {
     if (r.error) return r.error;
     if (r.wrong?.length) return `paid ${fmtCards(r.wrong[0])}, which ${listed ? 'isn\'t one of the expected payouts' : 'should have been dropped'}.`;
+    if (r.overflow) return `more than ${MAX_FLOOR_CARDS} cards on the floor in round ${r.rounds}.`;
     if (r.timeout) return `still running after ${r.rounds} rounds (${r.missing.length} hand${r.missing.length === 1 ? '' : 's'} never paid).`;
     if (r.missing?.length) return `${r.missing.length} ${listed ? 'expected payout' : 'winning hand'}${r.missing.length === 1 ? '' : 's'} never paid.`;
     return 'failed.';
@@ -313,7 +340,7 @@ export function openEditor(root, ctx, level) {
       h('div', { class: 'modal results' },
         h('div', { class: 'res-suits' }, '♠ ♥ ♦ ♣'),
         h('h2', {}, wasSolved ? 'Floor cleared again' : 'Floor cleared!'),
-        h('p', { class: 'res-sub' }, `${level.title}: all ${level.tests.length} tests passed.`),
+        h('p', { class: 'res-sub' }, `${level.title}: all ${level.tests.length} tests${checks?.length ? ` and ${checks.length} check deals` : ''} passed.`),
         h('div', { class: 'res-grid' },
           row('Croupiers', croupiers, ls.best.croupiers, par?.croupiers, prev?.croupiers),
           row('Rounds', rounds, ls.best.rounds, par?.rounds, prev?.rounds)),
@@ -323,7 +350,7 @@ export function openEditor(root, ctx, level) {
             h('span', { class: 'muted small' }, isNew
               ? `${ls.solutions.length === 1 ? 'Your first solution' : `Solution ${ls.solutions.length} saved`}. Click a point to load it.`
               : 'You had already saved this machine. Click a point to load it.')),
-          scatterPlot({
+          comparePlot({
             solutions: ls.solutions, par, current: findSolution(ls, cells), fresh: found, freshIsNew: isNew,
             onPick: (i) => { close(); loadSolution(i); }, height: 250,
           })),
@@ -355,8 +382,10 @@ export function openEditor(root, ctx, level) {
       const pick = (i) => { close(); loadSolution(i); };
       const del = (i) => {
         if (!confirm(`Delete your ${scoreText(list[i])} solution? This can't be undone.`)) return;
+        const gone = list[i];
         deleteSolution(ls, i);
         ctx.persist();
+        ctx.cloud?.solutionDeleted(level, gone);
         renderAll();
         draw();
       };
@@ -368,11 +397,68 @@ export function openEditor(root, ctx, level) {
           h('p', { class: 'res-sub' }, `${level.title}: ${list.length} machine${list.length === 1 ? '' : 's'} saved`,
             b ? ` · best ${b.croupiers} croupiers, ${b.rounds} rounds` : '', par ? ` · par ${par.croupiers ?? '–'} / ${par.rounds ?? '–'}` : '',
             '. Fewer is better on both axes: the gold staircase joins the solutions nothing else beats on both.'),
-          scatterPlot({ solutions: list, par, current, onPick: pick }),
+          comparePlot({ solutions: list, par, current, onPick: pick }),
           solutionList({ solutions: list, current, onPick: pick, onDelete: del }))));
       modal.querySelector('.modal-x')?.focus();
     };
     draw();
+  }
+
+  // A floor's plot of the player's solutions. Signed in, everyone's scores and
+  // friends' frontiers are drawn behind it (read when needed, then the plot is
+  // redrawn, and again when the cloud reads them again);
+  // signed out, a line under it offers signing in.
+  function comparePlot(opts) {
+    const cloud = ctx.cloud;
+    const box = h('div', { class: 'compare' });
+    const note = (st) => {
+      if (!cloud) return null;
+      if (cloud.state() !== 'signed-in') {
+        return h('p', { class: 'compare-note' }, 'Sign in to see how everyone else scored on this floor. ',
+          h('button', { class: 'btn ghost small', onclick: () => signInDialog(cloud) }, 'Sign in…'));
+      }
+      if (st === undefined) return h('p', { class: 'compare-note muted' }, 'Loading everyone\'s scores…');
+      if (st === null) return h('p', { class: 'compare-note muted' }, 'Everyone\'s scores couldn\'t be loaded just now.');
+      return h('p', { class: 'compare-note muted' }, st.players
+        ? `Behind your solutions: everyone's best scores (${st.players} player${st.players === 1 ? '' : 's'} with this rules version).`
+        : 'Nobody has a verified score on this floor yet.');
+    };
+    let friends = [];
+    let friendsLoading = false;
+    let shown;
+    const draw = (st) => {
+      shown = st;
+      box.replaceChildren(scatterPlot({ ...opts, others: st?.points ?? [], friends }), note(st) ?? '',
+        friendsLoading ? h('p', { class: 'compare-note muted' }, 'Loading friends\' scores…') : '');
+    };
+    const refresh = () => {
+      const cached = cloud?.cachedStats(level.id);
+      const signedIn = cloud?.state() === 'signed-in';
+      if (!signedIn) friends = [];
+      friendsLoading = false;
+      // While re-reading, keep showing what was read before.
+      draw(cached ?? (signedIn ? shown : null));
+      if (signedIn && !cached) {
+        cloud.statsFor(level.id).then((st) => { if (box.isConnected) draw(st); }, () => { if (box.isConnected) draw(null); });
+      }
+      // Friends' frontiers too, with a note if they take a moment.
+      if (signedIn) {
+        let loaded = false;
+        setTimeout(() => { if (!loaded && box.isConnected) { friendsLoading = true; draw(shown); } }, 300);
+        const done = (fr) => {
+          loaded = true;
+          if (!box.isConnected) return;
+          friendsLoading = false;
+          friends = fr ?? friends;
+          draw(shown);
+        };
+        cloud.friendFrontiers(level.id).then(done, () => done());
+      }
+    };
+    refresh();
+    // Signing in (or out) from the note redraws the plot.
+    const off = cloud?.onChange(() => { if (box.isConnected) refresh(); else off(); });
+    return box;
   }
 
   // ---------- toast ----------
@@ -548,19 +634,21 @@ export function openEditor(root, ctx, level) {
   }
 
   function renderTests() {
-    const tests = level.tests;
+    const tests = allTests();
+    const nChecks = level.tests.deal ? CHECK_DEALS : 0;
     const chip = (i) => {
       const r = runResults?.[i];
       const cls = r ? (r.ok ? 'pass' : 'fail') : '';
       return h('button', {
-        class: `test-chip ${cls}${i === testIndex ? ' on' : ''}`, onclick: () => setTest(i),
-        title: r ? (r.ok ? `Passed in ${r.rounds} rounds` : describeFailure(r)) : `Test ${i + 1}: ${tests[i].length} hands`,
-      }, String(i + 1));
+        class: `test-chip ${cls}${isCheck(i) ? ' check' : ''}${i === testIndex ? ' on' : ''}`, onclick: () => setTest(i),
+        title: `${testName(i)}: ${r ? (r.ok ? `passed in ${r.rounds} rounds` : describeFailure(r)) : `${tests[i].length} hands`}`,
+      }, isCheck(i) ? `C${i - level.tests.length + 1}` : String(i + 1));
     };
     const parts = [
       h('div', { class: 'tests-head' }, h('h3', {}, 'Tests'),
-        running ? h('span', { class: 'muted small' }, `Checking ${runResults?.length ?? 0}/${tests.length}…`) : null),
-      h('div', { class: 'test-chips' }, tests.map((_, i) => chip(i))),
+        running ? h('span', { class: 'muted small' }, `Checking ${runResults?.length ?? 0}/${level.tests.length + nChecks}…`) : null),
+      h('div', { class: 'test-chips' }, tests.map((_, i) => chip(i)),
+        nChecks && !checks ? h('span', { class: 'check-hint muted small', title: CHECK_NOTE }, `+ ${nChecks} check deals`) : null),
     ];
     const inputs = tests[testIndex] ?? [];
     const f = sim?.floor;
@@ -650,7 +738,7 @@ export function openEditor(root, ctx, level) {
           class: `sp${i === speed ? ' on' : ''}`, onclick: () => { speed = i; if (!playing && !running) play(); else renderTransport(); },
         }, sp.label))),
       h('div', { class: 'tp-round' }, h('span', { class: 'muted' }, 'Round '), h('b', {}, String(r)),
-        h('span', { class: 'muted' }, ` · Test ${testIndex + 1}/${level.tests.length}`)));
+        h('span', { class: 'muted' }, ` · ${isCheck(testIndex) ? `${testName(testIndex)}/${checks?.length ?? CHECK_DEALS}` : `Test ${testIndex + 1}/${level.tests.length}`}`)));
   }
 
   // ---------- board pointer handling ----------
@@ -754,7 +842,7 @@ export function openEditor(root, ctx, level) {
 
   // ---------- keyboard ----------
   function onKey(e) {
-    if (e.target.closest?.('input, textarea, select')) return;
+    if (e.target.closest?.('input, textarea, select') || dialogOpen()) return;
     if (modal.firstChild) {
       if (e.key === 'Escape') modal.replaceChildren();
       return;

@@ -101,6 +101,24 @@ export function rng(seed) {
   };
 }
 
+// A PRNG with a 128-bit seed (sfc32), for check deals (src/score.js): their
+// seed comes from a hash, and a 32-bit seed would let someone search for a
+// machine whose check deals they already know.
+export function sfc32(a, b, c, d) {
+  const next = () => {
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    const t = (((a + b) | 0) + d) | 0;
+    d = (d + 1) | 0;
+    a = b ^ (b >>> 9);
+    b = (c + (c << 3)) | 0;
+    c = (c << 21) | (c >>> 11);
+    c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
+  };
+  for (let i = 0; i < 15; i++) next(); // mix the seed in
+  return next;
+}
+
 export function shuffled(deck, rand) {
   const d = [...deck];
   for (let i = d.length - 1; i > 0; i--) {
@@ -108,4 +126,34 @@ export function shuffled(deck, rand) {
     [d[i], d[j]] = [d[j], d[i]];
   }
   return d;
+}
+
+// `n` random tests of `handsPerTest` hands of `handSize` cards, each test
+// dealt from its own shuffled deck.
+export function randomDeals(rand, n, handsPerTest, handSize) {
+  const tests = [];
+  for (let i = 0; i < n; i++) {
+    const deck = shuffled(fullDeck(), rand);
+    const t = [];
+    for (let j = 0; j < handsPerTest; j++) t.push(deck.slice(j * handSize, (j + 1) * handSize));
+    tests.push(t);
+  }
+  return tests;
+}
+
+// Like randomDeals, for hands of mixed sizes: each hand's size is drawn from
+// minSize..maxSize (fewer hands if the deck runs out).
+export function mixedDeals(rand, n, handsPerTest, minSize, maxSize) {
+  const tests = [];
+  for (let i = 0; i < n; i++) {
+    const deck = shuffled(fullDeck(), rand);
+    const t = [];
+    for (let j = 0; j < handsPerTest; j++) {
+      const size = minSize + Math.floor(rand() * (maxSize - minSize + 1));
+      if (deck.length < size) break;
+      t.push(deck.splice(0, size));
+    }
+    tests.push(t);
+  }
+  return tests;
 }

@@ -11,24 +11,17 @@
 //            width defaults to a narrower drawing on phones)
 // fresh:     index of the solution just found, or -1 (freshIsNew: false when
 //            it was already saved)
-// others:    optional [{ croupiers, rounds, count }]: other players' solutions,
-//            drawn as faint background markers sized by count (not used yet)
+// others:    optional [{ croupiers, rounds, count }]: everyone's scores (each
+//            player's frontier points), drawn as faint background markers sized
+//            by count, with a dashed staircase for everyone's frontier
+// friends:   optional [{ name, points: [{ croupiers, rounds }] }]: each friend's
+//            frontier, a coloured staircase labelled with their nickname
 import { h, s } from './dom.js';
+import { frontierOf } from '../score.js';
 
 const M = { l: 48, r: 18, t: 18, b: 42 };
-
-// Solutions not beaten on both axes by another one (by index).
-export function frontierOf(solutions) {
-  const out = new Set();
-  // Solutions that no longer clear the floor (after a rules change) are left out.
-  solutions.forEach((a, i) => {
-    if (a.broken) return;
-    const beaten = solutions.some((b) => !b.broken && b.croupiers <= a.croupiers && b.rounds <= a.rounds &&
-      (b.croupiers < a.croupiers || b.rounds < a.rounds));
-    if (!beaten) out.add(i);
-  });
-  return out;
-}
+// Up to this many friends' frontiers are drawn, one colour each.
+const FRIEND_COLOURS = ['#6fb7ff', '#ff8a65', '#c792ea', '#5fd38d', '#f48fb1', '#80deea'];
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 export const scoreText = (p) => `${plural(p.croupiers, 'croupier')} · ${plural(p.rounds, 'round')}`;
@@ -60,13 +53,15 @@ function axis(values, target, minSpan) {
 }
 
 export function scatterPlot({
-  solutions, par = null, current = -1, fresh = -1, freshIsNew = true, others = [], onPick, height = 300, width,
+  solutions, par = null, current = -1, fresh = -1, freshIsNew = true, others = [], friends = [], onPick, height = 300, width,
 }) {
   // A narrower drawing on phones, so the text isn't scaled down to nothing.
   const W = width ?? (window.innerWidth < 640 ? 360 : 520);
   const H = width || window.innerWidth >= 640 ? height : Math.round(height * 0.85);
   const pw = W - M.l - M.r, ph = H - M.t - M.b;
-  const pts = [...solutions.filter((p) => !p.broken), ...(par?.croupiers != null && par?.rounds != null ? [par] : []), ...others];
+  friends = friends.filter((f) => f.points?.length).slice(0, FRIEND_COLOURS.length);
+  const pts = [...solutions.filter((p) => !p.broken), ...(par?.croupiers != null && par?.rounds != null ? [par] : []), ...others,
+    ...friends.flatMap((f) => f.points)];
   const xa = axis(pts.length ? pts.map((p) => p.croupiers) : [1], 8, 4);
   const ya = axis(pts.length ? pts.map((p) => p.rounds) : [10], 5, 4);
   const X = (v) => M.l + ((v - xa.lo) / (xa.hi - xa.lo)) * pw;
@@ -94,13 +89,38 @@ export function scatterPlot({
     s('text', { class: 'sc-better', x: M.l + 8, y: M.t + ph - 8 }, '↙ better'));
   svg.append(g);
 
-  // other players: faint background
+  // other players: faint background, and a dashed staircase through the
+  // scores nobody has beaten on both axes
   if (others.length) {
     const maxN = Math.max(...others.map((o) => o.count ?? 1));
-    svg.append(s('g', { class: 'sc-others' }, others.map((o) => s('circle', {
-      cx: X(o.croupiers), cy: Y(o.rounds), r: 2.5 + 7 * Math.sqrt((o.count ?? 1) / maxN),
-    }))));
+    svg.append(s('g', { class: 'sc-others' }, others.map((o) => {
+      const dot = s('circle', { cx: X(o.croupiers), cy: Y(o.rounds), r: 2.5 + 7 * Math.sqrt((o.count ?? 1) / maxN) });
+      hoverTip(dot, () => [h('b', {}, scoreText(o)), h('div', { class: 'muted' }, `${o.count ?? 1} player${(o.count ?? 1) === 1 ? '' : 's'}`)]);
+      return dot;
+    })));
+    const best = [...frontierOf(others)].map((i) => others[i]).sort((a, b) => a.croupiers - b.croupiers);
+    let d = `M${X(best[0].croupiers)} ${M.t} V${Y(best[0].rounds)}`;
+    for (let i = 1; i < best.length; i++) d += ` H${X(best[i].croupiers)} V${Y(best[i].rounds)}`;
+    svg.append(s('path', { class: 'sc-overall', d: `${d} H${M.l + pw}` }));
   }
+
+  // friends: a staircase each, in its own colour, with the nickname by it
+  // (names are only ever text, never markup)
+  friends.forEach((f, n) => {
+    const colour = FRIEND_COLOURS[n];
+    const best = [...frontierOf(f.points)].map((i) => f.points[i]).sort((a, b) => a.croupiers - b.croupiers);
+    let d = `M${X(best[0].croupiers)} ${M.t} V${Y(best[0].rounds)}`;
+    for (let i = 1; i < best.length; i++) d += ` H${X(best[i].croupiers)} V${Y(best[i].rounds)}`;
+    const g = s('g', { class: 'sc-friends' },
+      s('path', { class: 'sc-friend', d: `${d} H${M.l + pw}`, stroke: colour }),
+      best.map((p) => {
+        const dot = s('circle', { class: 'sc-friend-pt', cx: X(p.croupiers), cy: Y(p.rounds), r: 4, fill: colour });
+        hoverTip(dot, () => [h('b', {}, f.name ?? 'Friend'), h('div', { class: 'muted' }, scoreText(p))]);
+        return dot;
+      }),
+      s('text', { class: 'sc-friend-t', x: X(best[0].croupiers) + 6, y: Y(best[0].rounds) - 6, fill: colour }, f.name ?? 'Friend'));
+    svg.append(g);
+  });
 
   // par: dashed guides to both axes here, and a diamond drawn over the points
   const hasPar = par?.croupiers != null && par?.rounds != null;
@@ -198,7 +218,9 @@ export function scatterPlot({
     h('span', {}, h('i', { class: 'lg-dot beaten' }), 'beaten'),
     current >= 0 ? h('span', {}, h('i', { class: 'lg-dot ring' }), 'loaded now') : null,
     par ? h('span', {}, h('i', { class: 'lg-par' }), 'par') : null,
-    others.length ? h('span', {}, h('i', { class: 'lg-dot others' }), 'other players') : null));
+    others.length ? h('span', {}, h('i', { class: 'lg-dot others' }), 'everyone\'s scores') : null,
+    others.length ? h('span', {}, h('i', { class: 'lg-overall' }), 'everyone\'s frontier') : null,
+    friends.map((f, n) => h('span', { class: 'lg-friend-row' }, h('i', { class: 'lg-friend', style: { borderColor: FRIEND_COLOURS[n] } }), f.name ?? 'Friend'))));
   return wrap;
 }
 

@@ -1,0 +1,21 @@
+{
+  "projects": {
+    "default": "zygoloid-github-io"
+  },
+  "targets": {
+    "zygoloid-github-io": {
+      "database": {
+        "stacked-deck": [
+          "zygoloid-stacked-deck"
+        ]
+      }
+    },
+    "demo-stacked-deck": {
+      "database": {
+        "stacked-deck": [
+          "zygoloid-stacked-deck"
+        ]
+      }
+    }
+  }
+}

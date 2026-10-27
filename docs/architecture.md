@@ -7,12 +7,18 @@ build step: plain ES modules served as static files.
 index.html, style.css      page shell
 src/cards.js               cards, deck order, hand predicates, PRNG
 src/engine.js              floor simulator (Floor, runTest, FUNCTIONS)
+src/score.js               machines: engine spec, scoring, validation, canonical
+                           form and hash, frontier (no DOM; shared with
+                           anything that checks solutions outside the browser)
 src/levels.js              the campaign: LEVELS, CHAPTERS, CHAPTER_FILES, helpers
 src/levels/<chapter>.js    one module per chapter (hearts, diamonds, clubs,
                            spades, finale): its levels and PAR table
 src/levels/shared.js       level helpers (hexRange, makeTests, paletteThrough, ...)
 src/layout.js              router for writing reference solutions (dev only)
-src/ui/*.js                the game UI
+src/online.js              online features' logic without the Firebase SDK (docs/online.md)
+src/firebase-config.js     the Firebase project's public config
+src/ui/*.js                the game UI (cloud.js and account.js: the online features)
+functions/                 Cloud Functions: scoring submitted solutions (docs/online.md)
 solutions/levels/<id>.js   a verified reference solution for every level
 test/*.js                  node tests (npm test); test/mutants/<chapter>.js
 tools/level-specs/<chapter>.js  reference-solution recipes per chapter
@@ -23,7 +29,8 @@ tools/serve.js             zero-dependency static server (npm run serve)
 Ownership while the game is being built:
 * `src/engine.js` and `src/cards.js` are shared. Don't change their behaviour
   without coordinating, because every saved solution and reference solution
-  depends on them.
+  depends on them. `src/score.js` is shared too: solution hashes and the
+  validator must stay the same wherever solutions are checked.
 * The UI owns `index.html`, `style.css`, `src/ui/`, `tools/serve.js`.
 * Content owns `src/levels.js`, `src/levels/`, `solutions/levels/`,
   `tools/level-specs/`, `test/levels.js`, `test/mutants/`, `docs/story.md`,
@@ -45,7 +52,9 @@ floor.cells                  // Map "q,r" -> cell with live state:
                              //   held (gather: [hand, side]; war: {player?, dealer?}),
                              //   facing
                              // A hand in the live state is an array of {c: 'AS', src: 'player'|'house'}.
-runTest({ cells }, inputs, pays) -> { ok, rounds, croupiers, wrong, missing, timeout }
+floor.cardCount()            // cards in slots, held, or waiting to be placed by croupiers
+floor.overflowed()           // cardCount() > MAX_FLOOR_CARDS (1000): the run has failed
+runTest({ cells }, inputs, pays) -> { ok, rounds, croupiers, wrong, missing, timeout, overflow }
 ```
 
 Cards are strings: rank `A23456789TJQK` + suit `SDCH`. A hand's top card is
@@ -159,7 +168,10 @@ whenever a rule changes; the level select shows it.
   expected: (inputs) => [hand, ...],       // …or this: the exact payouts (see below)
   ordered: false,                          // compare card order within payouts
   inOrder: false,                          // payouts must come in the listed order
-  tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays)
+  tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays);
+                                //   made by dealtTests (src/levels/shared.js; makeTests and
+                                //   makeMixedTests use it), which also records the deal function
+                                //   tests.deal(rand, n) for the check deals
   par: { croupiers, rounds },   // from the reference solution (optional)
 }
 ```
@@ -192,8 +204,17 @@ count towards the campaign's unlock window, and their palette is whatever the
 level lists. Ids are unique across `LEVELS` and `BONUS`, since saves are keyed
 by id.
 
-A level is solved when `runTest` passes on every test. Scores are croupiers
-(shoes included) and rounds (the average over all tests, rounded). Levels
+A level is solved when `runTest` passes on every test and then on the
+machine's **check deals**: `CHECK_DEALS` (8) more random tests, dealt like the
+level's own random tests (`tests.deal(rand, n)`) from a seed taken from the SHA-256 of
+the level id and the machine's canonical form (`checkDeals` in
+`src/score.js`, with the 128-bit `sfc32` PRNG in `src/cards.js`). The same
+machine always gets the same check deals, in the browser and on the server,
+but changing the machine changes them, so a machine can't be fitted to the
+published tests or hard-code their payouts. `test/levels.js` checks every
+reference solution passes its check deals. Scores are croupiers (shoes
+included) and rounds (the total over the published tests only: `totalRounds` in
+`src/score.js`, an integer that changes whenever any test's count does). Levels
 unlock in order, with some slack: a level is open when fewer than three levels
 before it are unsolved (`OPEN_UNSOLVED` in `src/ui/model.js`), so up to three
 unsolved levels are open at once. The UI reads both lists through
@@ -208,10 +229,14 @@ test-only fixture floors of `test/ui-levels.js` to the bonus deck (used by
   cells: [placed cells],          // the working machine (autosaved)
   solved: true,                   // set once the floor is first cleared; never unset
   best: { croupiers, rounds },    // each minimised on its own over all solutions
-  solutions: [{ cells, croupiers, rounds, at, rules, broken? }],  // every distinct machine that cleared it
+  solutions: [{ cells, croupiers, rounds, at, rules, broken?,  // every distinct machine that cleared it
+                uploaded?, hash? }],   // online: the account it was uploaded to, its hash
   legacyBest: { croupiers, rounds },  // only for saves from before `solutions`
   last: { croupiers, rounds },    // score of the latest clear
-} } }
+  workAt?, workSynced?, deleted?: [hash],  // online: cloud save (docs/online.md)
+} },
+  account?: { uid, signedIn },    // online: the account this progress belongs to (docs/online.md)
+}
 ```
 
 `cells` (both the working machine and each solution's) holds only the
@@ -220,7 +245,7 @@ player's own cells (shoes and croupiers), in the cell format above.
 `solutions` grows each time every test passes with a machine not already in
 the list; `at` is `Date.now()` when it was first found. Two machines are the
 same solution when their canonical forms match (`canonicalCells` in
-`src/ui/model.js`: undefined, empty and default fields (`facing: 0`,
+`src/score.js`: undefined, empty and default fields (`facing: 0`,
 `once: false`, `rule: 'high'`) dropped, keys sorted, cells sorted by
 position). The same machine built elsewhere on the floor is a different
 solution. The player can delete solutions; `best` is then recomputed from

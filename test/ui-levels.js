@@ -3,6 +3,7 @@
 // the smoke test can cover `expected` / `ordered` floors and bonus unlocking
 // whatever the real content is. Not part of the game; ids start with `test-`.
 import { newDeckIndex } from '../src/cards.js';
+import { makeTests } from '../src/levels/shared.js';
 
 const source = (at, out) => ({ at, kind: 'source', out });
 const desk = (at) => ({ at, kind: 'payout' });
@@ -54,6 +55,18 @@ export const BONUS = [
     pays: () => true,
     tests: tests(['AS', '2D']),
   },
+  {
+    id: 'test-hearts',
+    unlockAfter: 'around-the-bar',
+    title: 'Hearts Tonight',
+    story: ['Test floor: the tests deal only hearts, so paying everything passes them, but not the check deals.'],
+    brief: 'Pay out the hearts.',
+    handSize: 1,
+    floor, fixed: FIXED,
+    croupiers: ['pass'],
+    pays: (hand) => hand[0][1] === 'H',
+    tests: makeTests({ handSize: 1, handsPerTest: 4, nRandom: 0, fixed: [['AH', '2H', '3H', '4H'], ['KH', 'QH']] }),
+  },
 ];
 
 // Machines for the floors above (player cells, as saved).
@@ -64,4 +77,5 @@ export const SOLUTIONS = {
   ],
   'test-sorted': [{ at: [0, 0], kind: 'croupier', fn: 'sort', out: { out: 0 } }],
   'test-sorted-wrong': [{ at: [0, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } }],
+  'test-hearts-everything': [{ at: [0, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } }],
 };

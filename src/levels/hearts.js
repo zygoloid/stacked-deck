@@ -289,24 +289,24 @@ export const LEVELS = [
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
-// shoes; rounds averaged over the level's tests and rounded). test/levels.js
+// shoes; rounds totalled over the level's tests). test/levels.js
 // checks these exactly; `node tools/write-solutions.js hearts --par` rewrites
 // this table from the recipes in tools/level-specs/hearts.js.
 // BEGIN PAR
 const PAR = {
-  'opening-night': { croupiers: 3, rounds: 11 },
-  'around-the-bar': { croupiers: 7, rounds: 15 },
-  'two-tables': { croupiers: 4, rounds: 19 },
-  'hearts-only': { croupiers: 3, rounds: 14 },
-  'seeing-red': { croupiers: 4, rounds: 17 },
-  'standing-room': { croupiers: 10, rounds: 27 },
-  'black-tie': { croupiers: 7, rounds: 19 },
-  'back-to-back': { croupiers: 9, rounds: 17 },
-  'next-door': { croupiers: 7, rounds: 15 },
-  'lucky-seven': { croupiers: 8, rounds: 15 },
-  'penny-ante': { croupiers: 10, rounds: 21 },
-  'royalty': { croupiers: 13, rounds: 23 },
-  'even-money': { croupiers: 14, rounds: 28 },
+  'opening-night': { croupiers: 3, rounds: 33 },
+  'around-the-bar': { croupiers: 7, rounds: 45 },
+  'two-tables': { croupiers: 4, rounds: 57 },
+  'hearts-only': { croupiers: 3, rounds: 55 },
+  'seeing-red': { croupiers: 4, rounds: 69 },
+  'standing-room': { croupiers: 10, rounds: 107 },
+  'black-tie': { croupiers: 7, rounds: 74 },
+  'back-to-back': { croupiers: 9, rounds: 83 },
+  'next-door': { croupiers: 7, rounds: 75 },
+  'lucky-seven': { croupiers: 8, rounds: 77 },
+  'penny-ante': { croupiers: 10, rounds: 103 },
+  'royalty': { croupiers: 13, rounds: 114 },
+  'even-money': { croupiers: 14, rounds: 169 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

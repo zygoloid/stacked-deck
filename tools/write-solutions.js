@@ -18,6 +18,7 @@ import { buildLevel } from './level-build.js';
 import { runTest } from '../src/engine.js';
 import { render } from '../src/render.js';
 import { fmtHand } from '../src/cards.js';
+import { totalRounds } from '../src/score.js';
 
 const args = process.argv.slice(2);
 const dry = args.includes('--dry');
@@ -49,7 +50,7 @@ for (const level of ALL) {
   const results = level.tests.map((t) => runTest({ cells: all }, t, level));
   const ok = results.every((r) => r.ok);
   if (!ok) failed++;
-  const rounds = Math.round(results.reduce((a, r) => a + r.rounds, 0) / results.length);
+  const rounds = totalRounds(results);
   const floor = new Set(level.floor.map((h) => h.join(',')));
   const off = cells.filter((c) => !floor.has(c.at.join(',')));
   const map = render({ cells: all });

@@ -392,24 +392,24 @@ export const LEVELS = [
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
-// shoes; rounds averaged over the level's tests and rounded). test/levels.js
+// shoes; rounds totalled over the level's tests). test/levels.js
 // checks these exactly; `node tools/write-solutions.js spades --par` rewrites
 // this table from the recipes in tools/level-specs/spades.js.
 // BEGIN PAR
 const PAR = {
-  'hot-streak': { croupiers: 4, rounds: 13 },
-  'high-roller': { croupiers: 4, rounds: 18 },
-  'burn-card': { croupiers: 3, rounds: 11 },
-  'third-time-lucky': { croupiers: 2, rounds: 8 },
-  'full-house': { croupiers: 13, rounds: 58 },
-  'the-wheel': { croupiers: 6, rounds: 11 },
-  'calling-card': { croupiers: 11, rounds: 30 },
-  'seven-heaven': { croupiers: 5, rounds: 34 },
-  'suit-yourself': { croupiers: 9, rounds: 10 },
-  'change-of-heart': { croupiers: 6, rounds: 87 },
-  'next-in-line': { croupiers: 6, rounds: 17 },
-  'jacks-or-better': { croupiers: 19, rounds: 18 },
-  'house-record': { croupiers: 31, rounds: 105 },
+  'hot-streak': { croupiers: 4, rounds: 80 },
+  'high-roller': { croupiers: 4, rounds: 89 },
+  'burn-card': { croupiers: 3, rounds: 55 },
+  'third-time-lucky': { croupiers: 2, rounds: 49 },
+  'full-house': { croupiers: 13, rounds: 409 },
+  'the-wheel': { croupiers: 6, rounds: 63 },
+  'calling-card': { croupiers: 11, rounds: 210 },
+  'seven-heaven': { croupiers: 5, rounds: 168 },
+  'suit-yourself': { croupiers: 9, rounds: 69 },
+  'change-of-heart': { croupiers: 6, rounds: 696 },
+  'next-in-line': { croupiers: 6, rounds: 133 },
+  'jacks-or-better': { croupiers: 19, rounds: 147 },
+  'house-record': { croupiers: 31, rounds: 627 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

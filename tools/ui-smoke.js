@@ -81,6 +81,11 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  // Signed out, the game must not contact any other site (the online
+  // features load only on signing in), and nothing may break its CSP.
+  const external = [];
+  page.on('request', (r) => { const u = new URL(r.url()); if (/^https?:$/.test(u.protocol) && !['localhost', '127.0.0.1'].includes(u.hostname)) external.push(r.url()); });
+  page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy/i.test(m.text())) errors.push(m.text()); });
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('dialog', (d) => d.accept()); // "Clear the whole floor?", "Delete ... solution?"
 
@@ -251,6 +256,7 @@ try {
   // Help panel.
   await page.keyboard.press('?');
   check(await page.locator('.modal.help .help-table tr').count() >= 10, 'help panel lists croupiers');
+  check(await page.locator('.modal.help a[href="privacy.html"]').count() === 1, 'help links the privacy notice');
   await page.keyboard.press('Escape');
 
   // An old save (no solutions list) still loads; best is kept when solving.
@@ -666,6 +672,24 @@ try {
     check((await page.textContent('.marquee-meta')).includes(`1 / ${LEVELS.length} floors cleared · 2 / ${nBonus} bonus`), 'header: 1 campaign floor and 2 bonus floors cleared');
     check(await page.locator('.chapter.bonus a.tile.solved').count() === 2, 'bonus tiles marked solved');
     if (shots) await page.locator('.chapter.bonus').screenshot({ path: join(shots, '12c-bonus-deck-solved.png') });
+
+    // Check deals: a machine that only fits the published tests (they deal
+    // only hearts) passes them and fails a check deal, which is loaded and
+    // explained, and the floor stays uncleared.
+    await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true }, 'test-hearts': { cells: SOLUTIONS['test-hearts-everything'] } });
+    await page.goto(`${T}#/level/test-hearts`);
+    await page.reload();
+    await page.waitForSelector('svg.board');
+    check((await page.textContent('.check-hint').catch(() => '')).includes('8 check deals'), 'the tests panel mentions the check deals before a run');
+    await page.click('.speeds .sp:last-child');
+    await page.waitForSelector('.toast.bad', { timeout: 20000 });
+    const ct = (await page.textContent('.toast')) || '';
+    check(/Test 1 passed, but check deal \d failed/.test(ct) && ct.includes('change when it does'), `fitting the tests fails a check deal: "${ct.slice(0, 80)}..."`);
+    check(await page.locator('.test-chip.check').count() === 8 && await page.locator('.test-chip.check.fail').count() >= 1 &&
+      await page.locator('.test-chip.check.on').count() === 1, 'the check deals are shown, and the failing one is loaded');
+    check((await page.textContent('.tp-round')).includes('Check deal'), 'the transport names the check deal');
+    check(!(await getSave())['test-hearts'].solved, 'a floor is not cleared by fitting its tests');
+    if (shots) await page.locator('.panel.tests').screenshot({ path: join(shots, '15-check-deal-failed.png') });
     await setSave({});
   }
 
@@ -694,7 +718,16 @@ try {
     }
   }
 
+  // The privacy notice, a page of its own (no scripts; checked for CSP
+  // errors and requests below).
+  await page.goto(`${base}privacy.html`);
+  await page.waitForSelector('main.doc h1');
+  check(/Delete my data/.test(await page.textContent('main.doc')) && await page.locator('main.doc a[href="./"]').count() === 1,
+    'the privacy notice loads, with a way back to the game');
+  if (shots) await page.screenshot({ path: join(shots, 'privacy.png'), fullPage: true });
+
   check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
+  check(external.length === 0, `signed out, no requests to other sites${external.length ? ': ' + external.slice(0, 3).join(' ') : ''}`);
 } finally {
   await browser.close();
   server.kill();
