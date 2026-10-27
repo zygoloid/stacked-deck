@@ -10,7 +10,7 @@
 //    grow, and are not mentioned before a floor allows them;
 //  * bonus floors: ids unique across the campaign and the bonus deck; each
 //    opens after a campaign floor (`unlockAfter`), in campaign order, with
-//    cards A..K of BONUS_SUIT in list order; its palette, War rules and
+//    cards A..K of each of BONUS_SUITS in turn, in list order; its palette, War rules and
 //    special cards are all available by its unlockAfter floor;
 //  * a level has either `pays(hand, earlierHands)` or `expected(inputs)`;
 //  * its reference solution only uses the level's floor, palette, War rules
@@ -30,7 +30,7 @@
 //   node test/levels.js [id | chapter]      (chapter: 1-5 or hearts, diamonds, ..., bonus)
 import assert from 'node:assert';
 import {
-  LEVELS, BONUS, CHAPTERS, CHAPTER_FILES, CHAPTER_SUITS, FINALE_CARDS, BONUS_FILE, BONUS_SUIT,
+  LEVELS, BONUS, CHAPTERS, CHAPTER_FILES, CHAPTER_SUITS, FINALE_CARDS, BONUS_FILE, BONUS_SUITS,
 } from '../src/levels.js';
 import { runTest, expectedPayouts, handKey, FUNCTIONS, DIRS } from '../src/engine.js';
 import { RANKS, SUITS, SPECIALS } from '../src/cards.js';
@@ -59,7 +59,11 @@ const check = (cond, msg) => { if (!cond) { failures++; console.log(`   FAIL ${m
 // Run every test; a machine "fails the level" if any test is not ok.
 const runAll = (level, cells, opts) => level.tests.map((t) => runTest({ cells }, t, level, opts));
 // A test's payouts as a sorted list of hand keys (compared like runTest does).
-const payoutKeys = (level, hands) => hands.map((h) => handKey(h, !!level.ordered)).sort().join(' | ');
+// (In order, for a level whose payouts must come in order.)
+const payoutKeys = (level, hands) => {
+  const keys = hands.map((h) => handKey(h, !!level.ordered));
+  return (level.inOrder ? keys : keys.sort()).join(' | ');
+};
 
 // --- Campaign-wide checks (always on the whole campaign) ---
 const ids = new Set(), cards = new Set();
@@ -107,8 +111,8 @@ BONUS.forEach((level, i) => {
   const where = `${level.id} (bonus):`;
   check(!ids.has(level.id), `${where} id is unique across the campaign and the bonus deck`); ids.add(level.id);
   check(level.chapter === undefined, `${where} has no chapter`);
-  const want = i < 13 ? RANKS[i] + BONUS_SUIT : null;
-  check(level.card === want, `${where} card ${level.card} should be ${want} (at most 13 bonus floors)`);
+  const want = i < 13 * BONUS_SUITS.length ? RANKS[i % 13] + BONUS_SUITS[Math.floor(i / 13)] : null;
+  check(level.card === want, `${where} card ${level.card} should be ${want} (at most ${13 * BONUS_SUITS.length} bonus floors)`);
   const after = availableBy.get(level.unlockAfter);
   check(after, `${where} unlockAfter ${level.unlockAfter} is a campaign floor`);
   if (!after) return;
@@ -148,6 +152,7 @@ for (const level of [...LEVELS, ...BONUS]) {
   check(hasPays !== hasExpected, 'has exactly one of pays(hand, earlierHands) and expected(inputs)');
   check(level.ordered === undefined || typeof level.ordered === 'boolean', 'ordered is a boolean');
   check(!level.ordered || hasExpected, 'ordered only on an expected level');
+  check(level.inOrder === undefined || (typeof level.inOrder === 'boolean' && hasExpected), 'inOrder is a boolean, only on an expected level');
   check(level.croupiers.every((c) => PALETTE.has(c)), `palette names ${level.croupiers}`);
   const warRules = level.warRules ?? ['high'];
   check(warRules.length && warRules.every((r) => r === 'high' || r === 'top'), 'warRules');

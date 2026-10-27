@@ -369,11 +369,13 @@ export function expectedPayouts(rule, inputs) {
 export const handKey = (hand, ordered = false) => (ordered ? [...hand] : [...hand].sort()).join(' ');
 
 // Run one test case against `rule` (see expectedPayouts). Payouts may arrive
-// in any order; each must match a distinct expected hand.
+// in any order; each must match a distinct expected hand. A level with
+// `inOrder: true` must pay them in the order listed.
 export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {}) {
   const floor = new Floor(spec, inputs);
   const expected = expectedPayouts(rule, inputs);
   const ordered = typeof rule === 'object' && !!rule.ordered;
+  const inOrder = typeof rule === 'object' && !!rule.inOrder;
   // A run ends when every player card has left the floor. Machines with
   // memory keep copies of player cards circulating forever, so a run also
   // ends `grace` rounds after the last expected payout (catching any extra
@@ -391,11 +393,17 @@ export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {
       if (floor.round - drained >= grace) break;
     } else if (settled !== null && floor.round - settled >= grace) break;
   }
-  const remaining = expected.map((h) => handKey(h, ordered));
+  let remaining = expected.map((h) => handKey(h, ordered));
   const wrong = [];
-  for (const h of floor.paid) {
-    const i = remaining.indexOf(handKey(h, ordered));
-    if (i < 0) wrong.push(h); else remaining.splice(i, 1);
+  if (inOrder) {
+    // Payouts must come in the listed order: the n-th payout is expected[n].
+    floor.paid.forEach((h, n) => { if (handKey(h, ordered) !== remaining[n]) wrong.push(h); });
+    remaining = remaining.filter((k, n) => !(n < floor.paid.length && handKey(floor.paid[n], ordered) === k));
+  } else {
+    for (const h of floor.paid) {
+      const i = remaining.indexOf(handKey(h, ordered));
+      if (i < 0) wrong.push(h); else remaining.splice(i, 1);
+    }
   }
   const finished = floor.done() || settled !== null;
   return {

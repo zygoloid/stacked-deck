@@ -606,6 +606,10 @@ export function openEditor(root, ctx, level) {
         parts.push(h('div', { class: 'order-note' }, h('span', { class: 'order-tag' }, 'card order matters'),
           h('span', { class: 'muted small' }, 'each payout must match card for card, top card first')));
       }
+      if (level.inOrder) {
+        parts.push(h('div', { class: 'order-note' }, h('span', { class: 'order-tag' }, 'payout order matters'),
+          h('span', { class: 'muted small' }, 'pay these hands in the order listed, first to last')));
+      }
       parts.push(h('div', { class: 'paid expected' },
         expected.map((hand, i) => h('div', { class: `p-item e-item${matched[i] ? ' ok' : ''}`, title: matched[i] ? `Paid (payout ${matched[i]})` : 'Not paid yet' },
           h('span', { class: 'p-n' }, String(i + 1)), handEl(hand), h('span', { class: 'p-mark' }, matched[i] ? '✓' : '$'))),

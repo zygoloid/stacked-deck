@@ -1,6 +1,6 @@
 // The bonus deck: floors outside the 56-card campaign. Each opens once its
 // `unlockAfter` campaign floor is solved, and has its own card in the bonus
-// deck: A..K of spades of a second deck, in this list's order (which follows
+// deck: A..K of spades, then of hearts, of a second deck, in this list's order (which follows
 // the unlockAfter floors' order in the campaign). Some are floors cut from
 // the campaign to make room (their ids are unchanged, since saves are keyed
 // by id); the others are extra floors, from 7♠ on for players who have
@@ -20,15 +20,17 @@ const B3 = [source([-2, 0], E), desk([2, 0])];
 const B4 = [source([-3, 0], E), desk([-1, 0])];
 const B5 = [source([-3, 0], E), desk([0, 0])];
 const B6 = [source([-3, 0], E), desk([1, 0])];
-const B7 = [source([-3, 0], E), desk([2, 0])];
-const B8 = [source([-3, 0], E), desk([2, 0])];
-const B9 = [source([-4, 0], E), desk([2, 0])];
-const B10 = [source([-4, 0], E), desk([4, 0])];
-const B11 = [source([-5, 0], E), desk([1, 1])];
+const B7 = [source([-3, 0], E), desk([-2, 2])];
+const B8 = [source([-3, 0], E), desk([-2, 2])];
+const B9 = [source([-4, 0], E), desk([-2, 1])];
+const B10 = [source([-4, 0], E), desk([-3, 2])];
+const B11 = [source([-5, 0], E), desk([-4, 2])];
 // Two seated players: hand i of a test is player A's for even i, B's for odd.
 const seated = (at, out, seat) => ({ ...source(at, out), seat });
-const B12 = [seated([-5, 0], E, 0), seated([-5, 1], NE, 1), desk([6, 0])];
-const B13 = [seated([-10, 0], E, 0), seated([-10, 1], NE, 1), desk([7, 1])];
+const B12 = [seated([-5, 0], E, 0), seated([-5, 1], NE, 1), desk([-4, 2])];
+const B13 = [seated([-6, -4], E, 0), seated([-6, -3], NE, 1), desk([-7, -1])];
+const H1 = [source([-3, 0], E), desk([-3, 2])];
+const H2 = [source([-2, 1], E), desk([-2, 3])];
 
 const ALL = ['high', 'top'];
 const last = (before) => before[before.length - 1];
@@ -47,6 +49,8 @@ function countingUp(h, before) {
   for (const b of before) if (b.some((c) => rankOf(c) === RANKS[want])) want = (want + 1) % 13;
   return h.some((c) => rankOf(c) === RANKS[want]);
 }
+// One Up: the next card up in the same suit (the king's is the ace).
+const oneUp = (c) => RANKS[(RANKS.indexOf(rankOf(c)) + 1) % 13] + suitOf(c);
 // Two players' hands, as [player A's, player B's] for each deal.
 const deals = (inputs) => Array.from({ length: Math.floor(inputs.length / 2) }, (_, i) => [inputs[2 * i], inputs[2 * i + 1]]);
 const same = (a, b) => [...a].sort().join() === [...b].sort().join();
@@ -439,7 +443,7 @@ export const LEVELS = [
     ],
     brief: 'Two players, three-card hands, one each per deal. Pay out the higher hand, comparing highest cards, then middle, then lowest (aces high); on a tie pay neither.',
     handSize: 3,
-    floor: floorOf(hexRect(-3, 4, -21, 17), B13),
+    floor: floorOf(hexRect(-7, 5, -19, 9), B13),
     fixed: B13,
     croupiers: paletteThrough('hand'),
     warRules: ALL,
@@ -460,6 +464,58 @@ export const LEVELS = [
       nRandom: 4, seed: 177,
     }),
   },
+  {
+    id: 'last-in-first-out',
+    card: 'AH',
+    unlockAfter: 'deja-vu',
+    title: 'Last In, First Out',
+    story: [
+      'The cloakroom has a new attendant, and a new rule: tickets are for amateurs. Guests hand over hands of one to five cards on the way in, and at the end of the night the house pays every one of them back, the last hand handed in first, then the one before it, and so on back to the first.',
+      'The cards of a hand may come back in any order, but the hands must come back in exactly that order. The attendant knows the night is over when the guests stop arriving.',
+    ],
+    brief: 'Hands of 1 to 5 cards. Pay out every hand, in the reverse of the order they were played: the last hand first.',
+    handSize: [1, 5],
+    floor: floorOf(hexRect(-3, 5, -9, 9), H1),
+    fixed: H1,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => [...inputs].reverse(),
+    inOrder: true,
+    tests: makeMixedTests({
+      minSize: 1, maxSize: 5, handsPerTest: 8,
+      fixed: [
+        ['AS', '2D 3C', '4H 5S 6D', '7C 8H 9S TD', 'JC QH KS AD 2C'],
+        // the same cards twice, single cards back to back, and one hand alone
+        ['KS QS', '3H', '3D', '9D 9C 9H 9S', 'KS QS', '5C 6C 7C 8C TC', 'AH', '2S 4S'],
+        ['7D 8D 9D'],
+      ],
+      nRandom: 4, seed: 178,
+    }),
+  },
+  {
+    id: 'one-up',
+    card: '2H',
+    unlockAfter: 'deja-vu',
+    title: 'One Up',
+    story: [
+      'Old Thursday has one trick left, and he insists it is the best one. You show him a card, and he produces the next card up in the same suit: a 7 of clubs for a 6 of clubs, the ace for the king.',
+      'The house pays out his card and keeps yours. He says he has a whole deck up his sleeve, and the house would be wise to keep one too.',
+    ],
+    brief: 'Single cards. For every card, pay out the next card up in the same suit (a house card; after the king comes the ace).',
+    handSize: 1,
+    floor: floorOf(hexRect(-3, 5, -7, 9), H2),
+    fixed: H2,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => inputs.map(([c]) => [oneUp(c)]),
+    tests: makeTests({
+      handSize: 1, handsPerTest: 6,
+      fixed: [one('KS AS KH AH QD KD'), one('AD 2D KC AC QC JC'), one('7H'), one('2S 3S 4S 5S')],
+      nRandom: 4, seed: 179,
+    }),
+  },
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
@@ -476,11 +532,13 @@ const PAR = {
   'four-of-a-kind': { croupiers: 6, rounds: 67 },
   'two-apart': { croupiers: 5, rounds: 20 },
   'three-apart': { croupiers: 7, rounds: 21 },
-  'counting-up': { croupiers: 11, rounds: 43 },
-  'rising': { croupiers: 14, rounds: 39 },
-  'head-count': { croupiers: 19, rounds: 96 },
-  'mirror-image': { croupiers: 25, rounds: 46 },
-  'showdown': { croupiers: 39, rounds: 45 },
+  'counting-up': { croupiers: 9, rounds: 41 },
+  'rising': { croupiers: 12, rounds: 36 },
+  'head-count': { croupiers: 19, rounds: 113 },
+  'mirror-image': { croupiers: 25, rounds: 64 },
+  'showdown': { croupiers: 43, rounds: 49 },
+  'last-in-first-out': { croupiers: 20, rounds: 119 },
+  'one-up': { croupiers: 16, rounds: 510 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

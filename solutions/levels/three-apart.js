@@ -3,17 +3,18 @@
 // only the player's own cells (shoes and croupiers), not the level's fixed cells.
 // 7 croupiers, 21 rounds.
 //
-//      ?\     .    ?\     .     .
-//   in>   G>    Str   G>    Str\  $$
-//       .     .     .     .    Su
+//      ?\     .    ?\     .
+//   in>   G>    Str   G\
+//       .     .    Su    Str<
+//    .     .    $$     .
 export default {
   cells: [
     {"at":[-2,0],"kind":"croupier","fn":"gather","under":4,"out":{"out":0}},
     {"at":[-2,-1],"kind":"shoe","deck":["?"],"out":1},
     {"at":[-1,0],"kind":"croupier","fn":"straight","out":{"no":0}},
-    {"at":[0,0],"kind":"croupier","fn":"gather","under":4,"out":{"out":0}},
+    {"at":[0,0],"kind":"croupier","fn":"gather","under":4,"out":{"out":1}},
     {"at":[0,-1],"kind":"shoe","deck":["?"],"out":1},
-    {"at":[1,0],"kind":"croupier","fn":"straight","out":{"yes":1}},
-    {"at":[1,1],"kind":"croupier","fn":"suits","out":{"S":5,"H":5,"D":5,"C":5}},
+    {"at":[0,1],"kind":"croupier","fn":"straight","out":{"yes":3}},
+    {"at":[-1,1],"kind":"croupier","fn":"suits","out":{"S":2,"H":2,"D":2,"C":2}},
   ],
 };

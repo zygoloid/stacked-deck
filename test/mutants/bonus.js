@@ -29,6 +29,8 @@ const showdown = (key, { ties = [] } = {}) => (t) => deals(t).flatMap(([a, b]) =
   return i < 0 ? ties.map((n) => [a, b][n]) : x[i] > y[i] ? [a] : [b];
 });
 const desc = (val) => (h) => h.map(val).sort((x, y) => y - x);
+const up = (c, k = 1) => RANKS[(RANKS.indexOf(rankOf(c)) + 13 + k) % 13] + c[1];
+const NEW_DECK = ['S', 'D', 'C', 'H'].flatMap((s) => RANKS.map((r) => r + s)).sort((a, b) => newDeckIndex(a) - newDeckIndex(b));
 
 export const MUTANTS = {
   // Expected-payout floors: mutants are (inputs) => payouts.
@@ -114,6 +116,20 @@ export const MUTANTS = {
     'aces low': showdown(desc(rv)),
     'total of the ranks': showdown((h) => [h.reduce((a, c) => a + hv(c), 0)]),
     'in dealt order': showdown((h) => h.map(hv)),
+  },
+  'last-in-first-out': {
+    'in the order played': (t) => t,
+    'last first, then in order': (t) => [t[t.length - 1], ...t.slice(0, -1)],
+    'first first, then reversed': (t) => [t[0], ...t.slice(1).reverse()],
+    'reversed in pairs': (t) => t.map((h, i) => t[i ^ 1] ?? h),
+  },
+  'one-up': {
+    'the same card': (t) => t,
+    'one down': (t) => t.map(([c]) => [up(c, -1)]),
+    'the next spade': (t) => t.map(([c]) => [up(c[0] + 'S')]),
+    'no wrap at the king': (t) => t.filter(([c]) => rankOf(c) !== 'K').map(([c]) => [up(c)]),
+    'next in new deck order': (t) => t.map(([c]) => [NEW_DECK[(NEW_DECK.indexOf(c) + 1) % 52]]),
+    'two up': (t) => t.map(([c]) => [up(c, 2)]),
   },
 };
 

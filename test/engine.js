@@ -200,6 +200,12 @@ console.log('rules v7 ok');
   const passPay = { cells: [{ at: [-1, 0], kind: 'source', out: 0 }, { at: [0, 0], kind: 'payout' }] };
   assert(!runTest(passPay, [['KS', 'AS']], sorted).ok, 'ordered: KS AS is not AS KS');
   assert(runTest(passPay, [['AS', 'KS']], sorted).ok);
+  // inOrder: the n-th payout must be the n-th expected hand.
+  const reversed = { expected: (inputs) => [...inputs].reverse(), inOrder: true };
+  const r = runTest(passPay, [['AS'], ['KS']], reversed);
+  assert(!r.ok && r.wrong.length === 2 && r.missing.length === 2, 'inOrder: paid in the wrong order');
+  assert(runTest(passPay, [['AS'], ['AS']], reversed).ok, 'inOrder: equal hands either way');
+  assert(runTest(passPay, [['AS'], ['KS']], { expected: (inputs) => inputs, inOrder: true }).ok);
 }
 console.log('expected payouts ok');
 // A house card still on its way to the desk after the last player card has

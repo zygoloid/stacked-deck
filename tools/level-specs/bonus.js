@@ -3,6 +3,8 @@
 import { E, SE, SW, W, NW, NE, c, pass, war, twar, shoe } from './shared.js';
 import { RANKS } from '../../src/cards.js';
 
+const SUITED = ['S', 'D', 'C', 'H'];
+
 export const SPECS = {
   'small-change': {
     // A king beats a queen but not a king; the ace of spades then beats it,
@@ -72,9 +74,9 @@ export const SPECS = {
     // one apart is already out); Suits then drops the joker on the way out.
     cells: [
       c([-2, 0], 'straight', { out: { no: E } }),
-      c([-1, 0], 'gather', { under: NW, out: { out: E } }), shoe([-1, -1], '?', { out: SE }),
-      c([0, 0], 'straight', { out: { yes: E } }),
-      c([1, 0], 'suits', { out: { S: E, H: E, D: E, C: E } }),
+      c([-1, 0], 'gather', { under: NW, out: { out: SE } }), shoe([-1, -1], '?', { out: SE }),
+      c([-1, 1], 'straight', { out: { yes: W } }),
+      c([-2, 1], 'suits', { out: { S: SE, H: SE, D: SE, C: SE } }),
     ],
   },
   'three-apart': {
@@ -82,9 +84,9 @@ export const SPECS = {
     cells: [
       c([-2, 0], 'gather', { under: NW, out: { out: E } }), shoe([-2, -1], '?', { out: SE }),
       c([-1, 0], 'straight', { out: { no: E } }),
-      c([0, 0], 'gather', { under: NW, out: { out: E } }), shoe([0, -1], '?', { out: SE }),
-      c([1, 0], 'straight', { out: { yes: SE } }),
-      c([1, 1], 'suits', { out: { S: NE, H: NE, D: NE, C: NE } }),
+      c([0, 0], 'gather', { under: NW, out: { out: SE } }), shoe([0, -1], '?', { out: SE }),
+      c([0, 1], 'straight', { out: { yes: W } }),
+      c([-1, 1], 'suits', { out: { S: SW, H: SW, D: SW, C: SW } }),
     ],
   },
   'counting-up': {
@@ -96,7 +98,7 @@ export const SPECS = {
     cells: [
       c([-3, 0], 'gather', { under: W, out: { out: E } }),
       c([-2, 0], 'kind', { n: 5, out: { yes: E, no: SW } }),
-      c([-1, 0], 'cut', { out: { bottom: E, top: NW } }), pass([0, 0], E), pass([1, 0], E),
+      c([-1, 0], 'cut', { out: { bottom: SW, top: NW } }),
       c([-3, 1], 'cut', { out: { top: NW } }),
       pass([-1, -1], W), shoe([0, -1], '$', { out: W, once: true }),
       war([-2, -1], { dealer: E, out: { win: SW, lose: SW } }),
@@ -111,15 +113,14 @@ export const SPECS = {
     // it beats the ace in the second War, and a last Burn drops it, leaving
     // the hand's copy to pay.
     cells: [
-      c([-3, 0], 'duplicate', { out: { a: E, b: SE } }),
-      c([-2, 0], 'gather', { under: NW, out: { out: E } }), shoe([-2, -1], '?', { out: SE }),
-      pass([-3, 1], E), pass([-2, 1], NE),
-      c([-1, 0], 'gather', { under: SW, out: { out: E } }),
-      c([0, 0], 'burn', { out: { burn: NE, rest: E } }), pass([1, -1], SE),
-      twar([1, 0], { dealer: W, out: { dwin: E } }),
-      twar([2, 0], { dealer: NW, out: { win: E, lose: SW } }), shoe([2, -1], 'AC', { out: SE }),
-      pass([1, 1], W), pass([0, 1], NW),
-      c([3, 0], 'burn', { out: { rest: E } }),
+      c([-3, 0], 'duplicate', { out: { a: E, b: NE } }),
+      c([-2, 0], 'gather', { under: SW, out: { out: E } }), shoe([-3, 1], '?', { out: NE }),
+      pass([-2, -1], E), pass([-1, -1], SE),
+      c([-1, 0], 'gather', { under: NW, out: { out: E } }),
+      c([0, 0], 'burn', { out: { burn: E, rest: SE } }), pass([1, 0], SW),
+      twar([0, 1], { dealer: NW, out: { dwin: W } }),
+      twar([-1, 1], { dealer: SE, out: { win: W, lose: NE } }), shoe([-1, 2], 'AC', { out: NW }),
+      c([-2, 1], 'burn', { out: { rest: SW } }),
     ],
   },
   'head-count': {
@@ -131,8 +132,7 @@ export const SPECS = {
     // hand beats them; otherwise the top half goes, and the hand can't beat
     // a stack that holds it.
     cells: [
-      c([-4, 0], 'duplicate', { out: { a: E, b: NE } }),
-      pass([-3, 0], E), pass([-2, 0], E), pass([-1, 0], E), pass([0, 0], SE),
+      c([-4, 0], 'duplicate', { out: { a: SE, b: NE } }),
       c([-3, -1], 'duplicate', { out: { a: E, b: NE } }), pass([-2, -2], SE),
       c([-2, -1], 'gather', { under: NW, out: { out: E } }),
       c([-1, -2], 'hand', { n: 12, out: { out: SE } }),
@@ -142,8 +142,8 @@ export const SPECS = {
       twar([1, -1], { dealer: W, out: { dwin: E, lose: NE, win: SE } }), pass([2, -2], SE),
       twar([2, -1], { dealer: NW, out: { dlose: SW, lose: SE } }),
       c([2, 0], 'suits', { out: { misc: W, S: E, H: E, D: E, C: E } }),
-      pass([1, 0], SW),
-      war([0, 1], { dealer: NE, out: { win: E } }),
+      pass([1, 0], SW), pass([0, 1], W), pass([-1, 1], W), pass([-2, 1], W), pass([-3, 1], W),
+      war([-4, 1], { dealer: E, out: { win: SE } }),
     ],
   },
   'mirror-image': {
@@ -168,10 +168,10 @@ export const SPECS = {
       c([3, -1], 'burn', { out: { burn: E } }),
       c([2, -2], 'burn', { out: { rest: E } }), pass([3, -2], E), pass([4, -2], SE),
       c([4, -1], 'hand', { n: 5, out: { out: SE } }),
-      pass([-3, 1], E), pass([-2, 1], E), pass([-1, 1], E), pass([0, 1], E), pass([1, 1], E), pass([2, 1], E),
-      pass([3, 1], NE),
-      war([4, 0], { dealer: SW, out: { dwin: E } }),
-      c([5, 0], 'cut', { out: { top: E, bottom: SE } }), pass([5, 1], NE),
+      pass([4, 0], SW), pass([3, 1], W), pass([2, 1], W), pass([1, 1], W), pass([0, 1], W), pass([-1, 1], W),
+      pass([-2, 1], W),
+      war([-3, 1], { dealer: NW, out: { dwin: SE } }),
+      c([-3, 2], 'cut', { out: { top: W, bottom: SW } }), pass([-4, 3], NW),
     ],
   },
   showdown: {
@@ -186,31 +186,86 @@ export const SPECS = {
     // top cards to the bottom (Burn with both piles to one side) for the
     // next stage. Ties in the last stage are dropped.
     cells: [
-      c([-9, 0], 'gather', { under: SW, out: { out: E } }),
-      c([-8, 0], 'hand', { n: 3, out: { out: E } }),
-      c([-7, 0], 'deal', { out: { to: [E, NE, SE] } }), pass([-6, -1], SE), pass([-7, 1], E),
-      war([-6, 0], { dealer: NW, out: { win: E, dwin: E, lose: SE, dlose: SE } }),
-      war([-6, 1], { dealer: W, out: { win: NE, dwin: NE, lose: SE, dlose: SE } }),
-      war([-5, 0], { dealer: SW, out: { win: E, dwin: E, lose: SE, dlose: SE } }), pass([-5, 1], NE),
-      c([-4, 0], 'gather', { under: SW, out: { out: E } }),
-      pass([-6, 2], E), pass([-5, 2], E), pass([-4, 2], NE), pass([-3, 1], NW),
-      c([-3, 0], 'gather', { under: SE, out: { out: E } }),
-      c([-2, 0], 'hand', { n: 6, out: { out: E } }),
-      c([-1, 0], 'cut', { out: { top: E, bottom: SE } }), pass([-1, 1], NE),
+      // the sorter, along the top
+      c([-5, -4], 'gather', { under: SW, out: { out: E } }),
+      c([-4, -4], 'hand', { n: 3, out: { out: E } }),
+      c([-3, -4], 'deal', { out: { to: [E, NE, SE] } }), pass([-2, -5], SE), pass([-3, -3], E),
+      war([-2, -4], { dealer: NW, out: { win: E, dwin: E, lose: SE, dlose: SE } }),
+      war([-2, -3], { dealer: W, out: { win: NE, dwin: NE, lose: SE, dlose: SE } }),
+      war([-1, -4], { dealer: SW, out: { win: E, dwin: E, lose: SE, dlose: SE } }), pass([-1, -3], NE),
+      c([0, -4], 'gather', { under: SW, out: { out: E } }),
+      pass([-2, -2], E), pass([-1, -2], E), pass([0, -2], NE), pass([1, -3], NW),
+      c([1, -4], 'gather', { under: SE, out: { out: E } }),
+      c([2, -4], 'hand', { n: 6, out: { out: SE } }),
+      pass([2, -3], SE), pass([2, -2], SW), pass([1, -1], SE),
+      c([1, 0], 'cut', { out: { top: W, bottom: SW } }), pass([0, 1], NW),
       // stage 1
-      twar([0, 0], { dealer: SW, out: { win: NE, dwin: E, lose: SE } }), pass([0, 1], NE),
-      twar([1, 0], { dealer: SW, out: { win: NE, dwin: E, lose: SE } }),
-      c([2, 0], 'burn', { out: { burn: SE, rest: SE } }), c([1, 1], 'burn', { out: { burn: E, rest: E } }),
+      twar([0, 0], { dealer: SE, out: { win: NW, dwin: W, lose: SW } }), pass([-1, 1], NW),
+      twar([-1, 0], { dealer: SE, out: { win: NW, dwin: W, lose: SW } }),
+      c([-2, 0], 'burn', { out: { burn: SW, rest: SW } }), c([-2, 1], 'burn', { out: { burn: W, rest: W } }),
       // stage 2
-      twar([2, 1], { dealer: W, out: { win: NE, dwin: E, lose: SE } }), pass([2, 2], NE),
-      twar([3, 1], { dealer: SW, out: { win: NE, dwin: E, lose: SE } }),
-      c([4, 1], 'burn', { out: { burn: SE, rest: SE } }), c([3, 2], 'burn', { out: { burn: E, rest: E } }),
+      twar([-3, 1], { dealer: E, out: { win: NW, dwin: W, lose: SW } }), pass([-4, 2], NW),
+      twar([-4, 1], { dealer: SE, out: { win: NW, dwin: W, lose: SW } }),
+      c([-5, 1], 'burn', { out: { burn: SW, rest: SW } }), c([-5, 2], 'burn', { out: { burn: W, rest: W } }),
       // stage 3
-      twar([4, 2], { dealer: W, out: { win: NE, dwin: E, lose: SE } }), pass([4, 3], NE),
-      twar([5, 2], { dealer: SW, out: { win: NE } }),
+      twar([-6, 2], { dealer: E, out: { win: NW, dwin: W, lose: SW } }), pass([-7, 3], NW),
+      twar([-7, 2], { dealer: SE, out: { win: NW } }),
       // to the desk
-      pass([1, -1], E), pass([2, -1], E), pass([3, -1], SE), pass([3, 0], E), pass([4, 0], E),
-      pass([5, 0], SE), pass([5, 1], E), pass([6, 1], E),
+      pass([0, -1], W), pass([-1, -1], W), pass([-2, -1], SW), pass([-3, 0], W), pass([-4, 0], W),
+      pass([-5, 0], SW), pass([-6, 1], W), pass([-7, 1], NW), pass([-7, 0], NW),
     ],
   },
+  'last-in-first-out': {
+    // A pass prefers the player's side to a `once` joker's, so the joker
+    // only gets through after the last hand. Each hand is gathered onto a
+    // `$` marker and pushed onto a stack (seeded with a `$`); a top-card War
+    // against an ace sends the stack round again until the joker is on top.
+    // Then the joker is burned and the stack is dealt off a card at a time
+    // (Burn in a loop) onto a growing hand; when a marker comes up (a
+    // top-card War against `$$` only ties on an advertising card), Burn
+    // takes it off to start the next hand, and Suits drops the old marker
+    // on the way to the desk.
+    cells: [
+      pass([-2, 0], E), shoe([-2, -1], '?', { out: SE, once: true }),
+      c([-1, 0], 'gather', { under: NW, out: { out: E } }), shoe([-1, -1], '$', { out: SE }),
+      c([0, 0], 'gather', { under: SE, out: { out: E } }),
+      twar([1, 0], { dealer: NW, out: { lose: SW, win: E } }), shoe([1, -1], 'AC', { out: SE }),
+      pass([0, 1], NW), shoe([-1, 1], '$', { out: E, once: true }),
+      c([2, 0], 'burn', { out: { rest: SE } }),
+      c([2, 1], 'burn', { out: { burn: SW, rest: E } }), pass([3, 1], W),
+      c([1, 2], 'gather', { under: SW, out: { out: W } }),
+      twar([0, 2], { dealer: NE, out: { win: SE, lose: W } }), shoe([1, 1], '$$', { out: SW }),
+      pass([0, 3], NE), shoe([1, 3], '$', { out: W, once: true }),
+      c([-1, 2], 'burn', { out: { burn: SE, rest: W } }), pass([-1, 3], E),
+      c([-2, 2], 'suits', { out: { S: W, H: W, D: W, C: W } }),
+    ],
+  },
+  'one-up': {
+    // Two shoes in step deal each card and the next one up in its suit
+    // (A..K and 2..A, suit by suit); a gather pairs them, and the card
+    // waiting in the loop takes the next pair on top of it. N of a kind and
+    // Flush keep [card, x, y] only if the card is x or y; a Deal sets x
+    // aside and a second K2 tells x (pay y: Burn) from y (go round again).
+    // Everything else burns the waiting card back into the loop (Burn's
+    // rest keeps the player's own card when it matched y). One card at a
+    // time: a War lets the next card in when the last one is paid.
+    cells: [
+      war([-1, 1], { dealer: SE, out: { win: E, lose: E } }),
+      pass([-1, 2], NW), shoe([-2, 2], '$', { out: E, once: true }),
+      c([0, 1], 'pass', { out: { out: NW } }),
+      c([0, 0], 'gather', { under: NE, out: { out: E } }),
+      c([1, -1], 'gather', { under: NE, out: { out: SW } }),
+      shoe([1, -2], SUITED.flatMap((s) => RANKS.map((r) => r + s)), { out: SE }),
+      shoe([2, -2], SUITED.flatMap((s) => RANKS.map((r, i) => RANKS[(i + 1) % 13] + s)), { out: SW }),
+      c([1, 0], 'kind', { n: 2, out: { yes: E, no: SE } }),
+      c([2, 0], 'flush', { out: { yes: SE, no: SW } }),
+      c([2, 1], 'deal', { out: { to: [SW, E, SW] } }),
+      c([1, 2], 'kind', { n: 2, out: { no: SW, yes: W } }),
+      c([1, 1], 'burn', { out: { burn: W } }),
+      c([0, 2], 'burn', { out: { rest: NW } }),
+      pass([0, 3], W),
+      c([-1, 3], 'burn', { out: { burn: W, rest: NW } }),
+    ],
+  },
+
 };

@@ -158,6 +158,7 @@ whenever a rule changes; the level select shows it.
   pays: (hand, earlierHands) => boolean,   // either this…
   expected: (inputs) => [hand, ...],       // …or this: the exact payouts (see below)
   ordered: false,                          // compare card order within payouts
+  inOrder: false,                          // payouts must come in the listed order
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays)
   par: { croupiers, rounds },   // from the reference solution (optional)
 }
@@ -169,7 +170,10 @@ inputs: hands may repeat (pay a hand once per ace), be regrouped from cards of
 several inputs (each four of a kind across all cards played), or be made of
 house cards from shoes (pay the next higher spade). Payouts may arrive in any
 order, and each must match a distinct expected hand; hands are compared as
-multisets of cards unless `ordered: true`. `expectedPayouts(rule, inputs)` and
+multisets of cards unless `ordered: true`. With `inOrder: true` the payouts
+must also arrive in the order listed: the n-th payout must match the n-th
+expected hand (the UI marks such a floor "payout order matters").
+`expectedPayouts(rule, inputs)` and
 `runTest(spec, inputs, rule)` in `src/engine.js` accept either a `pays`
 function or the level object.
 
