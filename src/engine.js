@@ -41,6 +41,7 @@ import {
 //   6  gather and war take both hands in one round when both are waiting
 //   7  burn and hand croupiers; jokers and advertising cards
 //   8  deal builds one pile per side, each card on top (piles reverse order)
+// (Seated players, `seat` on a source, are a level feature: no rule changed.)
 export const RULES_VERSION = 8;
 
 export const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
@@ -197,8 +198,12 @@ export class Floor {
     this.round = 0;
     this.paid = [];
     this.inputs = inputs.map((h) => h.map((c) => ({ c, src: 'player' })));
-    this.inputPos = 0;
+    this.inputPos = 0; // hands dealt so far (by all players)
     this.live = 0; // player cards on the floor, including ones held by croupiers
+    // Seated players (sources with a `seat`) each deal their own hands: with
+    // n seats, hand i belongs to seat i % n. Unseated players share one queue.
+    this.seats = Math.max(0, ...spec.cells.filter((c) => c.kind === 'source' && c.seat !== undefined)
+      .map((c) => c.seat + 1));
     for (const c of spec.cells) {
       if (c.kind === 'croupier' && !FUNCTIONS[c.fn]) throw new Error(`unknown fn ${c.fn}`);
       const cell = {
@@ -247,8 +252,13 @@ export class Floor {
           cell.pending = [[cell.out, [{ c: cell.deck[cell.pos++ % cell.deck.length], src: 'house' }]]];
         }
       }
-      if (cell.kind === 'source' && !cell.pending.length && this.inputPos < this.inputs.length) {
-        cell.pending = [[cell.out, this.inputs[this.inputPos++]]];
+      if (cell.kind === 'source' && !cell.pending.length) {
+        const i = this.seats ? (cell.seat ?? 0) + cell.pos * this.seats : this.inputPos;
+        if (i < this.inputs.length) {
+          cell.pending = [[cell.out, this.inputs[i]]];
+          cell.pos++;
+          this.inputPos++;
+        }
       }
       cell.pending = cell.pending.filter(([d, h]) => !this.deposit(cell, d, h));
     }
@@ -294,6 +304,13 @@ export class Floor {
     // (war: the player's hand; dropped hands don't count), so it next looks
     // there and then clockwise.
     if (face !== undefined) cell.facing = face;
+  }
+
+  // Whether input hand i has been dealt.
+  dealt(i) {
+    if (!this.seats) return i < this.inputPos;
+    const src = [...this.cells.values()].find((c) => c.kind === 'source' && (c.seat ?? 0) === i % this.seats);
+    return !!src && Math.floor(i / this.seats) < src.pos;
   }
 
   deposit(from, d, hand) {

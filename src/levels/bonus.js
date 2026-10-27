@@ -3,13 +3,16 @@
 // deck: A..K of spades of a second deck, in this list's order (which follows
 // the unlockAfter floors' order in the campaign). Some are floors cut from
 // the campaign to make room (their ids are unchanged, since saves are keyed
-// by id); the others are extra floors whose payouts are not simply the hands
-// dealt. See docs/campaign.md.
+// by id); the others are extra floors, from 7♠ on for players who have
+// everything (every croupier, both War rules, every special card). Mirror
+// Image and Showdown seat two players. See docs/campaign.md.
 import {
-  hexRange, hexRect, makeTests, floorOf, source, desk, E,
+  hexRange, hexRect, makeTests, makeMixedTests, floorOf, source, desk, E, NE,
   hv, high, one, paletteThrough, finishChapter,
 } from './shared.js';
-import { rankOf, largestSet, rankCounts } from '../cards.js';
+import {
+  RANKS, rankOf, suitOf, rankValue, highValue, largestSet, rankCounts, fullDeck, shuffled, rng,
+} from '../cards.js';
 
 const B1 = [source([-3, 0], E), desk([1, 0])];
 const B2 = [source([-3, 0], E), desk([0, 0])];
@@ -17,6 +20,15 @@ const B3 = [source([-2, 0], E), desk([2, 0])];
 const B4 = [source([-3, 0], E), desk([-1, 0])];
 const B5 = [source([-3, 0], E), desk([0, 0])];
 const B6 = [source([-3, 0], E), desk([1, 0])];
+const B7 = [source([-3, 0], E), desk([2, 0])];
+const B8 = [source([-3, 0], E), desk([2, 0])];
+const B9 = [source([-4, 0], E), desk([2, 0])];
+const B10 = [source([-4, 0], E), desk([4, 0])];
+const B11 = [source([-5, 0], E), desk([1, 1])];
+// Two seated players: hand i of a test is player A's for even i, B's for odd.
+const seated = (at, out, seat) => ({ ...source(at, out), seat });
+const B12 = [seated([-5, 0], E, 0), seated([-5, 1], NE, 1), desk([6, 0])];
+const B13 = [seated([-10, 0], E, 0), seated([-10, 1], NE, 1), desk([7, 1])];
 
 const ALL = ['high', 'top'];
 const last = (before) => before[before.length - 1];
@@ -25,6 +37,52 @@ function splitSet(h) {
   const counts = rankCounts(h);
   const max = Math.max(...counts.values());
   return [h.filter((c) => counts.get(rankOf(c)) === max), h.filter((c) => counts.get(rankOf(c)) !== max)];
+}
+// The rank gaps between two cards, with the ace played low and high.
+const gaps = ([a, b]) => new Set([Math.abs(rankValue(a) - rankValue(b)), Math.abs(highValue(a) - highValue(b))]);
+// Pay the first hand holding a 2, then the first after it holding a 3, and
+// so on up to the ace, then a 2 again.
+function countingUp(h, before) {
+  let want = 1;
+  for (const b of before) if (b.some((c) => rankOf(c) === RANKS[want])) want = (want + 1) % 13;
+  return h.some((c) => rankOf(c) === RANKS[want]);
+}
+// Two players' hands, as [player A's, player B's] for each deal.
+const deals = (inputs) => Array.from({ length: Math.floor(inputs.length / 2) }, (_, i) => [inputs[2 * i], inputs[2 * i + 1]]);
+const same = (a, b) => [...a].sort().join() === [...b].sort().join();
+// Showdown: the higher hand of a deal, comparing the highest cards, then
+// the middle ones, then the lowest (aces high); 0 on a tie.
+const ranked = (h) => h.map(hv).sort((x, y) => y - x);
+function showdown(a, b) {
+  const x = ranked(a), y = ranked(b);
+  const i = x.findIndex((v, j) => v !== y[j]);
+  return i < 0 ? 0 : x[i] > y[i] ? 1 : -1;
+}
+// Mirror Image tests: each player deals from their own deck; player B's
+// hand is often player A's cards reordered, or one card off.
+function mirrorTests(seed, nTests, nDeals) {
+  const rand = rng(seed);
+  const tests = [];
+  for (let t = 0; t < nTests; t++) {
+    const d1 = shuffled(fullDeck(), rand), d2 = shuffled(fullDeck(), rand);
+    const test = [];
+    for (let i = 0; i < nDeals; i++) {
+      const a = d1.splice(0, 5);
+      const x = rand();
+      let b;
+      if (x < 0.45) b = shuffled(a, rand);
+      else if (x < 0.7) {
+        // one card swapped for another of the same rank or the same suit
+        b = shuffled(a, rand);
+        const k = Math.floor(rand() * 5), c = b[k];
+        const alts = fullDeck().filter((y) => !a.includes(y) && (rankOf(y) === rankOf(c) || suitOf(y) === suitOf(c)));
+        b[k] = alts[Math.floor(rand() * alts.length)];
+      } else b = d2.splice(0, 5);
+      test.push(a, b);
+    }
+    tests.push(test);
+  }
+  return tests;
 }
 // Every time the fourth unpaid card of a rank is played, those four.
 function quadsOf(inputs) {
@@ -196,6 +254,212 @@ export const LEVELS = [
       nRandom: 4, seed: 166,
     }),
   },
+  {
+    id: 'two-apart',
+    card: '7S',
+    unlockAfter: 'deja-vu',
+    title: 'Two Apart',
+    story: [
+      'The doormen are back on their break, and they have a new game for it. A two-card hand wins if its cards are exactly two ranks apart: a 5 with a 7, a 10 with a queen.',
+      'The ace plays high or low, so an ace with a 3 wins, and so does a queen with an ace. A king with a 2 is not two apart, however you count it.',
+    ],
+    brief: 'Two-card hands. Pay out every hand whose cards are exactly two ranks apart (ace high or low).',
+    handSize: 2,
+    floor: floorOf(hexRect(-2, 2, -7, 5), B7),
+    fixed: B7,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    pays: (h) => gaps(h).has(2),
+    tests: makeTests({
+      handSize: 2, handsPerTest: 20,
+      fixed: [
+        ['AS 3D', '3C AH', 'QS AD', 'AC QH', 'KS 2D', '5S 7D', '7C 5H', '5D 6S', '9S 9D', '2S 5D',
+          'TS QD', 'KD JC', '2C 4H', 'AH 2H', 'KH AS', '8S TS'],
+        // two apart back to back, then not
+        ['3S 5D', '6C 4H', 'JS 9D', 'KC JH', 'AD 3C', '3H 4S', 'KS AC', '7D 7C', '2D 6H', '8C JD'],
+      ],
+      nRandom: 4, seed: 171,
+    }),
+  },
+  {
+    id: 'three-apart',
+    card: '8S',
+    unlockAfter: 'deja-vu',
+    title: 'Three Apart',
+    story: [
+      'The doormen have told the cloakroom, and the cloakroom plays it one better: a two-card hand wins if its cards are exactly three ranks apart, a 4 with a 7 or a 10 with a king.',
+      'The ace still plays high or low: an ace with a 4 wins, and so does a jack with an ace.',
+    ],
+    brief: 'Two-card hands. Pay out every hand whose cards are exactly three ranks apart (ace high or low).',
+    handSize: 2,
+    floor: floorOf(hexRect(-2, 2, -7, 5), B8),
+    fixed: B8,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    pays: (h) => gaps(h).has(3),
+    tests: makeTests({
+      handSize: 2, handsPerTest: 20,
+      fixed: [
+        ['AS 4D', '4C AH', 'JS AD', 'AC JH', 'KS 3D', '2S 5D', '9C 6H', '7S 9D', '7S TD', 'TC KD',
+          '6S 7H', '8D 8C', 'AD 3S', 'QS AC', '2H 6C', '5H 8S'],
+        // three apart back to back, then not
+        ['3S 6D', '9C 6H', 'QS 9D', 'KC TH', 'AD 4C', '3H 5S', 'KS AC', '7D 7C', '2D 7H', '8C 9D'],
+      ],
+      nRandom: 4, seed: 172,
+    }),
+  },
+  {
+    id: 'counting-up',
+    card: '9S',
+    unlockAfter: 'deja-vu',
+    title: 'Counting Up',
+    story: [
+      'Old Thursday is counting his way through the deck tonight. He pays the first five-card hand that holds a 2, then the first hand after that which holds a 3, then a 4, and so on up through the king to the ace.',
+      'After the ace he starts again at 2. A hand only ever counts for the rank he is waiting for, however many others it holds.',
+    ],
+    brief: 'Five-card hands. Pay out the first hand holding a 2, then the next hand holding a 3, and so on up to the ace, then 2 again.',
+    handSize: 5,
+    floor: floorOf(hexRect(-3, 3, -9, 5), B9),
+    fixed: B9,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    pays: countingUp,
+    tests: makeTests({
+      handSize: 5, handsPerTest: 10,
+      fixed: [
+        // one rank per hand, all the way round and on to 2 again
+        ['2S 9D 9C 9H 9S', '3S TD TC TH TS', '4S 4D JC JH JS', '5S QD QC QH QS', '6S KD KC KH KS',
+          '7S 8D 8C 8H 8S', '8S 9D 9C 9H 9S', '9S 2D 2C 2H 2S', 'TS 3D 3C 3H 3S', 'JS 4D 4C 4H 4S',
+          'QS 5D 5C 5H 5S', 'KS 6D 6C 6H 6S', 'AS 7D 7C 7H 7S', '3D 4D 5D 6D 7D', '2D 3H 4H 5H 6H'],
+        // the next rank is often in the hand just paid; several in one hand count once
+        ['2S 3S 4S 5S 6S', '3D 4D 5D 6D 7D', 'KS KD KC KH QS', '4C 5C 6C 7C 8C', '2H 3H 4H 5H 6H',
+          '5D 6D 7D 8D 9D', 'AS AD AC AH 2S', '6S 6D 7S 7D 8S'],
+        ['3S 4S 5S 6S 7S', '9S 9D 9C 9H TS', '2S 2D 2C 2H 3D', '2S 2D 4C 4H 5D', '3C 3H 4S 5S 6S'],
+      ],
+      nRandom: 4, seed: 173,
+    }),
+  },
+  {
+    id: 'rising',
+    card: 'TS',
+    unlockAfter: 'deja-vu',
+    title: 'Rising',
+    story: [
+      'The string quartet has given up on beats and taken up scales. Hands of any size from one card to six win if they climb: every card at least as high as the card above it, aces high.',
+      'A card may repeat the rank above it, so 3 7 7 J climbs. A single card climbs on its own, the second violin points out, and nobody argues.',
+    ],
+    brief: 'Hands of 1 to 6 cards. Pay out every hand whose cards never go down from top to bottom (aces high; equal ranks are fine).',
+    handSize: [1, 6],
+    floor: floorOf(hexRect(-3, 3, -9, 9), B10),
+    fixed: B10,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    pays: (h) => h.every((c, i) => i === 0 || hv(c) >= hv(h[i - 1])),
+    tests: makeMixedTests({
+      minSize: 1, maxSize: 6, handsPerTest: 12,
+      fixed: [
+        ['2S 5D 5C KH AS', 'AS 2D', 'KS AD', '7H', '3S 4D 5C 6H 7S 8D', '8D 7S 6H 5C 4D 3S', 'QS QD QC',
+          '2S 3D 4C 6H 5S', 'AS', '9S 9D 8C', 'JS QD', 'TD 2H'],
+        // climbing hands back to back, then not, with a long one in each
+        ['2S 3S 4S 5S 6S 7S', '5D 9D', 'AC', '3H 3S 3D 3C 4H', 'KS AS', '6D 6C',
+          '7S 6S 5S 4S 3S 2S', '9D 5D', '2C AC 3C', 'AH KH', '4S 3S 4D 5D', 'JD TD JC'],
+      ],
+      nRandom: 4, seed: 174,
+    }),
+  },
+  {
+    id: 'head-count',
+    card: 'JS',
+    unlockAfter: 'deja-vu',
+    title: 'Head Count',
+    story: [
+      'Commissioner Pryce has a new regulation, and this one he wrote himself. A hand of one to six cards wins if its top card says how many cards it holds: an ace on a hand of one, a 4 on a hand of four.',
+      'He calls it honest labelling. A king on top never wins, since nobody holds thirteen cards, and nor does an ace on anything but a single card.',
+    ],
+    brief: 'Hands of 1 to 6 cards. Pay out every hand whose top card\'s rank is the number of cards in it (ace = 1).',
+    handSize: [1, 6],
+    floor: floorOf(hexRect(-5, 4, -11, 9), B11),
+    fixed: B11,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    pays: (h) => rankValue(h[0]) === h.length,
+    tests: makeMixedTests({
+      minSize: 1, maxSize: 6, handsPerTest: 12,
+      fixed: [
+        ['AS', '2D 9C', '3H KS 4D', '4S 2D 7C 9H', '5D AS 2C 3H 4S', '6C 7D 8S 9H TC JD',
+          '2S', 'AH 3S', '3C 4D', '5S 6D 7C 8H', '4H 2C 3D 5S 6H', 'KD QD JD TD 9D 8D'],
+        // winners back to back, then losers of every size
+        ['3S 9D 9C', '2H 7S', 'AD', '6S 2D 3C 4H 5S 7D', '4C 5D 6H 7S', '5H 8S 8D 8C 8H',
+          'KS', '7D 8S', '2C 2D 2H', 'AH 2H 3H 4H', '3D 4D 5D 6D 7D', '5C 6C 7C 8C 9C TC'],
+      ],
+      nRandom: 4, seed: 175,
+    }),
+  },
+  {
+    id: 'mirror-image',
+    card: 'QS',
+    unlockAfter: 'deja-vu',
+    title: 'Mirror Image',
+    story: [
+      'The Marchetti twins are back, at two tables again, and each has brought a deck of their own. They play five-card hands side by side, one each per deal, and the house pays both hands when the twins hold exactly the same five cards.',
+      'The order the cards come in doesn\'t matter, but the suits do: a pair of sevens is not the same as a pair of sevens.',
+    ],
+    brief: 'Two players, five-card hands, one each per deal. When both hold the same five cards (in any order), pay out both hands.',
+    handSize: 5,
+    floor: floorOf(hexRect(-4, 4, -11, 13), B12),
+    fixed: B12,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => deals(inputs).filter(([a, b]) => same(a, b)).flat(),
+    tests: [
+      ...[
+        ['AS 2S 3S 4S 5S', '5S 4S 3S 2S AS', 'KD QD JD TD 9D', 'KD QD JD TD 9C', '7S 7D 7C 7H 2S', '7S 7D 7C 7H 2D',
+          '3C 8H JS 2D 6C', '6C 2D JS 8H 3C', '5H 9S KC 4D TH', '5H 9S KC 4D TH', 'AH KS 2C 3D 4H', 'AH KS 2C 3D 5H'],
+        // matches back to back, then near misses back to back
+        ['2C 4D 6H 8S TC', '8S TC 2C 6H 4D', 'JH QH KH AH 2H', '2H JH AH KH QH', '3S 5S 9D 9C QH', 'QH 9C 9D 5S 3S',
+          'AD 3D 5D 7D 9D', 'AD 3D 5D 7D 9H', '4C 6C 8C TC QC', '4C 6C 8C TC KC', 'KS QS JS TS 9S', 'KS QS JS TS 8S'],
+      ].map((t) => t.map((h) => h.split(' '))),
+      ...mirrorTests(176, 4, 8),
+    ],
+  },
+  {
+    id: 'showdown',
+    card: 'KS',
+    unlockAfter: 'deja-vu',
+    title: 'Showdown',
+    story: [
+      'Sal Vellani and Dmitri have agreed to settle things at the table, three cards each, one hand each per deal. The house pays the better hand: highest card against highest card, and if those match, middle against middle, then lowest against lowest.',
+      'Aces are high. Suits don\'t count, and if all three ranks match the house pays neither of them, which both agree is the only fair result.',
+    ],
+    brief: 'Two players, three-card hands, one each per deal. Pay out the higher hand, comparing highest cards, then middle, then lowest (aces high); on a tie pay neither.',
+    handSize: 3,
+    floor: floorOf(hexRect(-3, 4, -21, 17), B13),
+    fixed: B13,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => deals(inputs).flatMap(([a, b]) => {
+      const w = showdown(a, b);
+      return w > 0 ? [a] : w < 0 ? [b] : [];
+    }),
+    tests: makeTests({
+      handSize: 3, handsPerTest: 16,
+      fixed: [
+        ['AS 2D 3C', 'KS QD JC', '2S 9D 5C', '9H 3S 4D', 'QS 7D 7C', '7H QD 8S', '4S 4D 2C', '4C 4H 3S',
+          'JS 6D 2C', '2D JC 6S', 'TS 9D 8C', '8D TC 9S', '5S 5D 5C', 'KD 2H 3H', 'AD AC 2S', 'AH AS 3D'],
+        // the first or second cards tie, back to back
+        ['KS 9D 2C', '2S 9C KH', 'KD 9S 3C', '3D KC 9H', 'QS JD 5C', 'JS 5D QC', '8S 7D 6C', '8D 6S 7C',
+          'AS 2D 2C', '2S AD 3C', '6S 6D 6C', '6H 6S 5D'],
+      ],
+      nRandom: 4, seed: 177,
+    }),
+  },
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
@@ -210,6 +474,13 @@ const PAR = {
   'after-a-pair': { croupiers: 13, rounds: 24 },
   'bookends': { croupiers: 5, rounds: 22 },
   'four-of-a-kind': { croupiers: 6, rounds: 67 },
+  'two-apart': { croupiers: 5, rounds: 20 },
+  'three-apart': { croupiers: 7, rounds: 21 },
+  'counting-up': { croupiers: 11, rounds: 43 },
+  'rising': { croupiers: 14, rounds: 39 },
+  'head-count': { croupiers: 19, rounds: 96 },
+  'mirror-image': { croupiers: 25, rounds: 46 },
+  'showdown': { croupiers: 39, rounds: 45 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

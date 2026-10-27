@@ -141,7 +141,9 @@ for (const level of [...LEVELS, ...BONUS]) {
   check(/^[a-z0-9-]+$/.test(level.id), 'id is lowercase-kebab');
   for (const f of ['title', 'brief']) check(typeof level[f] === 'string' && level[f].length, `has ${f}`);
   check(Array.isArray(level.story) && level.story.length >= 1 && level.story.length <= 3, 'story has 1-3 paragraphs');
-  check(Number.isInteger(level.handSize) && level.handSize >= 1, 'handSize');
+  // handSize: a number, or [min, max] for hands of mixed sizes.
+  const [minSize, maxSize] = [].concat(level.handSize, level.handSize).slice(0, 2);
+  check(Number.isInteger(minSize) && Number.isInteger(maxSize) && minSize >= 1 && minSize <= maxSize, 'handSize');
   const hasPays = typeof level.pays === 'function', hasExpected = typeof level.expected === 'function';
   check(hasPays !== hasExpected, 'has exactly one of pays(hand, earlierHands) and expected(inputs)');
   check(level.ordered === undefined || typeof level.ordered === 'boolean', 'ordered is a boolean');
@@ -167,7 +169,7 @@ for (const level of [...LEVELS, ...BONUS]) {
     // multi-deck shoe), but a hand never holds the same card twice. Players
     // only ever hold natural cards.
     for (const h of t) {
-      check(h.length === level.handSize, `hand ${h} has ${level.handSize} cards`);
+      check(h.length >= minSize && h.length <= maxSize, `hand ${h} has ${minSize === maxSize ? minSize : `${minSize}-${maxSize}`} cards`);
       check(new Set(h).size === h.length, `hand ${h} repeats a card`);
       for (const c of h) check(CARDS.has(c), `card ${c}`);
     }

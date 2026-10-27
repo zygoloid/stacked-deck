@@ -45,6 +45,24 @@ export function makeTests({ handSize, handsPerTest, fixed = [], nRandom = 4, see
   return tests;
 }
 
+// Like makeTests, for hands of mixed sizes: each hand's size is drawn from
+// minSize..maxSize, and each test is dealt from one shuffled deck.
+export function makeMixedTests({ minSize, maxSize, handsPerTest, fixed = [], nRandom = 4, seed = 1 }) {
+  const rand = rng(seed);
+  const tests = fixed.map((t) => t.map((h) => h.split(' ')));
+  for (let i = 0; i < nRandom; i++) {
+    const deck = shuffled(fullDeck(), rand);
+    const t = [];
+    for (let j = 0; j < handsPerTest; j++) {
+      const n = minSize + Math.floor(rand() * (maxSize - minSize + 1));
+      if (deck.length < n) break;
+      t.push(deck.splice(0, n));
+    }
+    tests.push(t);
+  }
+  return tests;
+}
+
 // Floor helpers: remove hexes (fixed cells, pillars) from a list of hexes.
 const k = ([q, r]) => `${q},${r}`;
 export function without(hexes, ...remove) {

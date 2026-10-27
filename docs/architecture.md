@@ -57,13 +57,23 @@ coordinates: `0 E [1,0]`, `1 SE [0,1]`, `2 SW [-1,1]`, `3 W [-1,0]`,
 
 | kind | fields |
 |---|---|
-| `source` (card player, fixed by level) | `at, out` (side it hands cards to) |
+| `source` (card player, fixed by level) | `at, out` (side it hands cards to), `seat?` |
 | `payout` (chip desk, fixed) | `at` |
 | `shoe` (croupier dealing a stacked deck) | `at, out, deck: ['AS', ...], once?` |
 | `croupier` | `at, fn, out: {port: side}, facing?, ...params` |
 
 An unassigned port, or a port pointing at a hex with no table, drops cards on
 the floor (they are gone). Every croupier accepts input from any side.
+
+**Players.** Unseated sources share one queue: each deals the test's next
+hand whenever it has handed its last one on. **Seated** sources (`seat: 0`,
+`1`, ...; a floor seats all its players or none) each deal only their own
+hands: with n seats, hand i of a test belongs to seat i % n, so a test lists
+the deals in turn (A's hand, B's hand, A's, B's, ...) and a player whose hands
+are held up never lets the other get ahead or behind in the queue. The UI
+letters seated players (PLAYER A, PLAYER B) and labels the queue 1A, 1B, 2A,
+.... `floor.inputPos` counts hands dealt by everyone, and `floor.dealt(i)`
+says whether hand i has been dealt (each source counts its own in `pos`).
 
 **Outputs to the same side are stacked** into one hand, earlier outputs on
 top: cut bottom half above top (so both halves to one side complete the cut,
@@ -136,7 +146,7 @@ whenever a rule changes; the level select shows it.
   title: 'Opening Night',
   story: ['paragraph', ...],    // shown before the level
   brief: 'Pay out every card.', // one-line goal, always visible
-  handSize: 1,
+  handSize: 1,                  // or [min, max] for hands of mixed sizes
   floor: [[q, r], ...],         // hexes where the player may place croupiers
   fixed: [cells],               // sources and payouts (not editable)
   croupiers: ['pass', 'shoe', ...],  // palette: fn names plus 'shoe'
