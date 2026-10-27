@@ -257,6 +257,19 @@ const key = `${PAR.croupiers}_${PAR.rounds}`;
   assert.strictEqual(await processSolution(direct, { uid: 'p5', level: LEVEL, hash: HASH }), 'scored');
 }
 {
+  // Seated players, payouts in order, hands of mixed sizes and a floor's own
+  // deals: the server (the game code copied into functions/) scores these
+  // floors' references at par.
+  for (const id of ['showdown', 'mirror-image', 'last-in-first-out', 'rising']) {
+    const cells = await reference(id);
+    const h = await solutionHash(cells);
+    await direct.ref(`solutions/p7/${id}/${h}`).set({ at: 1, rules: RULES_VERSION, cells: JSON.stringify(cells) });
+    assert.strictEqual(await processSolution(direct, { uid: 'p7', level: id, hash: h }), 'scored', id);
+    const { croupiers, rounds } = byId.get(id).par;
+    assert.deepStrictEqual((await direct.ref(`solutions/p7/${id}/${h}/score`).get()).val(), { croupiers, rounds }, id);
+  }
+}
+{
   // Frontiers: points that don't beat each other are both kept; a point
   // beating both replaces them; repeats and beaten points change nothing,
   // even when run at the same time.

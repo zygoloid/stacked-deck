@@ -137,9 +137,10 @@ console.log('solution hashes ok');
   const cells = await reference(level);
   const deals = await checkDeals(level, cells);
   assert.strictEqual(deals.length, CHECK_DEALS);
+  const published = level.tests.at(-1); // a random test, dealt the same way
   for (const t of deals) {
-    assert.strictEqual(t.length, level.tests.deal.handsPerTest);
-    assert(t.every((hand) => hand.length === level.tests.deal.handSize));
+    assert.strictEqual(t.length, published.length);
+    assert(t.every((hand) => hand.length === published[0].length));
     assert.strictEqual(new Set(t.flat()).size, t.flat().length, 'one deck per deal');
   }
   const shuffled = [...cells].reverse().map((c) => Object.fromEntries(Object.entries(c).reverse()));

@@ -140,3 +140,20 @@ export function randomDeals(rand, n, handsPerTest, handSize) {
   }
   return tests;
 }
+
+// Like randomDeals, for hands of mixed sizes: each hand's size is drawn from
+// minSize..maxSize (fewer hands if the deck runs out).
+export function mixedDeals(rand, n, handsPerTest, minSize, maxSize) {
+  const tests = [];
+  for (let i = 0; i < n; i++) {
+    const deck = shuffled(fullDeck(), rand);
+    const t = [];
+    for (let j = 0; j < handsPerTest; j++) {
+      const size = minSize + Math.floor(rand() * (maxSize - minSize + 1));
+      if (deck.length < size) break;
+      t.push(deck.splice(0, size));
+    }
+    tests.push(t);
+  }
+  return tests;
+}

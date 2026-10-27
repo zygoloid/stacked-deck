@@ -66,13 +66,23 @@ coordinates: `0 E [1,0]`, `1 SE [0,1]`, `2 SW [-1,1]`, `3 W [-1,0]`,
 
 | kind | fields |
 |---|---|
-| `source` (card player, fixed by level) | `at, out` (side it hands cards to) |
+| `source` (card player, fixed by level) | `at, out` (side it hands cards to), `seat?` |
 | `payout` (chip desk, fixed) | `at` |
 | `shoe` (croupier dealing a stacked deck) | `at, out, deck: ['AS', ...], once?` |
 | `croupier` | `at, fn, out: {port: side}, facing?, ...params` |
 
 An unassigned port, or a port pointing at a hex with no table, drops cards on
 the floor (they are gone). Every croupier accepts input from any side.
+
+**Players.** Unseated sources share one queue: each deals the test's next
+hand whenever it has handed its last one on. **Seated** sources (`seat: 0`,
+`1`, ...; a floor seats all its players or none) each deal only their own
+hands: with n seats, hand i of a test belongs to seat i % n, so a test lists
+the deals in turn (A's hand, B's hand, A's, B's, ...) and a player whose hands
+are held up never lets the other get ahead or behind in the queue. The UI
+letters seated players (PLAYER A, PLAYER B) and labels the queue 1A, 1B, 2A,
+.... `floor.inputPos` counts hands dealt by everyone, and `floor.dealt(i)`
+says whether hand i has been dealt (each source counts its own in `pos`).
 
 **Outputs to the same side are stacked** into one hand, earlier outputs on
 top: cut bottom half above top (so both halves to one side complete the cut,
@@ -145,7 +155,7 @@ whenever a rule changes; the level select shows it.
   title: 'Opening Night',
   story: ['paragraph', ...],    // shown before the level
   brief: 'Pay out every card.', // one-line goal, always visible
-  handSize: 1,
+  handSize: 1,                  // or [min, max] for hands of mixed sizes
   floor: [[q, r], ...],         // hexes where the player may place croupiers
   fixed: [cells],               // sources and payouts (not editable)
   croupiers: ['pass', 'shoe', ...],  // palette: fn names plus 'shoe'
@@ -157,9 +167,11 @@ whenever a rule changes; the level select shows it.
   pays: (hand, earlierHands) => boolean,   // either this…
   expected: (inputs) => [hand, ...],       // …or this: the exact payouts (see below)
   ordered: false,                          // compare card order within payouts
+  inOrder: false,                          // payouts must come in the listed order
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays);
-                                //   made by makeTests (src/levels/shared.js), which also records
-                                //   tests.deal = { handSize, handsPerTest } for the check deals
+                                //   made by dealtTests (src/levels/shared.js; makeTests and
+                                //   makeMixedTests use it), which also records the deal function
+                                //   tests.deal(rand, n) for the check deals
   par: { croupiers, rounds },   // from the reference solution (optional)
 }
 ```
@@ -170,7 +182,10 @@ inputs: hands may repeat (pay a hand once per ace), be regrouped from cards of
 several inputs (each four of a kind across all cards played), or be made of
 house cards from shoes (pay the next higher spade). Payouts may arrive in any
 order, and each must match a distinct expected hand; hands are compared as
-multisets of cards unless `ordered: true`. `expectedPayouts(rule, inputs)` and
+multisets of cards unless `ordered: true`. With `inOrder: true` the payouts
+must also arrive in the order listed: the n-th payout must match the n-th
+expected hand (the UI marks such a floor "payout order matters").
+`expectedPayouts(rule, inputs)` and
 `runTest(spec, inputs, rule)` in `src/engine.js` accept either a `pays`
 function or the level object.
 
@@ -191,7 +206,7 @@ by id.
 
 A level is solved when `runTest` passes on every test and then on the
 machine's **check deals**: `CHECK_DEALS` (8) more random tests, dealt like the
-level's own random tests (`tests.deal`) from a seed taken from the SHA-256 of
+level's own random tests (`tests.deal(rand, n)`) from a seed taken from the SHA-256 of
 the level id and the machine's canonical form (`checkDeals` in
 `src/score.js`, with the 128-bit `sfc32` PRNG in `src/cards.js`). The same
 machine always gets the same check deals, in the browser and on the server,

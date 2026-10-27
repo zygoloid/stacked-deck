@@ -334,7 +334,8 @@ server would stop that, but then a machine that cleared a floor in the game
 could fail online.
 
 So a floor is cleared only if the machine also passes 8 **check deals**:
-random deals made like the floor's own random tests, seeded from the SHA-256
+random deals made like the floor's own random tests (by the same deal
+function, `tests.deal`), seeded from the SHA-256
 of the floor id and the machine's canonical form, through a 128-bit PRNG
 (`sfc32`; a 32-bit seed would let someone search for a machine whose check
 deals they already know). The game and the server deal the same check deals

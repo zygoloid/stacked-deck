@@ -241,12 +241,16 @@ export class Board {
       g.append(s('polygon', { class: 'hex src', points: HEX }),
         s('rect', { class: 'cardback', x: -11, y: -22, width: 22, height: 30, rx: 3 }),
         s('rect', { class: 'cardback-inner', x: -8, y: -19, width: 16, height: 24, rx: 2 }),
-        s('text', { class: 'fixed-label', y: 22, 'text-anchor': 'middle' }, 'PLAYER'));
-      if (live && this.level.fixed.filter((c) => c.kind === 'source').length === 1) {
-        const left = live.inputs.length - live.inputPos + live.cells.get(hexKey(cell.at)).pending.length;
+        s('text', { class: 'fixed-label', y: 22, 'text-anchor': 'middle' }, cell.seat === undefined ? 'PLAYER' : `PLAYER ${'ABCDEF'[cell.seat]}`));
+      // Hands still to come: a lone player's, or a seated player's own.
+      const seated = cell.seat !== undefined;
+      if (live && (seated || this.level.fixed.filter((c) => c.kind === 'source').length === 1)) {
+        const st = live.cells.get(hexKey(cell.at));
+        const mine = seated ? live.inputs.filter((_, i) => i % live.seats === cell.seat).length : live.inputs.length;
+        const left = mine - (seated ? st.pos : live.inputPos) + st.pending.length;
         g.append(s('text', { class: 'src-count', y: -3, 'text-anchor': 'middle' }, String(left)));
       }
-      g.append(s('title', {}, 'Card player: hands out the test hands'));
+      g.append(s('title', {}, seated ? `Player ${'ABCDEF'[cell.seat]}: hands out their own test hands (marked ${'ABCDEF'[cell.seat]} in the list)` : 'Card player: hands out the test hands'));
       return g;
     }
     if (cell.kind === 'payout') {

@@ -45,6 +45,8 @@ import {
 //      floor is cleared only if the machine also passes its check deals
 //      (random deals seeded from the machine itself; see src/score.js); the
 //      rounds score is the total over the tests, not the rounded average
+// (Seated players, `seat` on a source, and `inOrder` payouts are level
+// features: no rule changed.)
 export const RULES_VERSION = 9;
 
 // A machine can multiply cards without bound (two duplicates feeding each
@@ -209,8 +211,12 @@ export class Floor {
     this.round = 0;
     this.paid = [];
     this.inputs = inputs.map((h) => h.map((c) => ({ c, src: 'player' })));
-    this.inputPos = 0;
+    this.inputPos = 0; // hands dealt so far (by all players)
     this.live = 0; // player cards on the floor, including ones held by croupiers
+    // Seated players (sources with a `seat`) each deal their own hands: with
+    // n seats, hand i belongs to seat i % n. Unseated players share one queue.
+    this.seats = Math.max(0, ...spec.cells.filter((c) => c.kind === 'source' && c.seat !== undefined)
+      .map((c) => c.seat + 1));
     for (const c of spec.cells) {
       if (c.kind === 'croupier' && !FUNCTIONS[c.fn]) throw new Error(`unknown fn ${c.fn}`);
       const cell = {
@@ -276,8 +282,13 @@ export class Floor {
           cell.pending = [[cell.out, [{ c: cell.deck[cell.pos++ % cell.deck.length], src: 'house' }]]];
         }
       }
-      if (cell.kind === 'source' && !cell.pending.length && this.inputPos < this.inputs.length) {
-        cell.pending = [[cell.out, this.inputs[this.inputPos++]]];
+      if (cell.kind === 'source' && !cell.pending.length) {
+        const i = this.seats ? (cell.seat ?? 0) + cell.pos * this.seats : this.inputPos;
+        if (i < this.inputs.length) {
+          cell.pending = [[cell.out, this.inputs[i]]];
+          cell.pos++;
+          this.inputPos++;
+        }
       }
       cell.pending = cell.pending.filter(([d, h]) => !this.deposit(cell, d, h));
     }
@@ -323,6 +334,13 @@ export class Floor {
     // (war: the player's hand; dropped hands don't count), so it next looks
     // there and then clockwise.
     if (face !== undefined) cell.facing = face;
+  }
+
+  // Whether input hand i has been dealt.
+  dealt(i) {
+    if (!this.seats) return i < this.inputPos;
+    const src = [...this.cells.values()].find((c) => c.kind === 'source' && (c.seat ?? 0) === i % this.seats);
+    return !!src && Math.floor(i / this.seats) < src.pos;
   }
 
   deposit(from, d, hand) {
@@ -381,12 +399,14 @@ export function expectedPayouts(rule, inputs) {
 export const handKey = (hand, ordered = false) => (ordered ? [...hand] : [...hand].sort()).join(' ');
 
 // Run one test case against `rule` (see expectedPayouts). Payouts may arrive
-// in any order; each must match a distinct expected hand. A run with more than
+// in any order; each must match a distinct expected hand. A level with
+// `inOrder: true` must pay them in the order listed. A run with more than
 // MAX_FLOOR_CARDS cards on the floor stops there and fails (`overflow`).
 export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {}) {
   const floor = new Floor(spec, inputs);
   const expected = expectedPayouts(rule, inputs);
   const ordered = typeof rule === 'object' && !!rule.ordered;
+  const inOrder = typeof rule === 'object' && !!rule.inOrder;
   // A run ends when every player card has left the floor. Machines with
   // memory keep copies of player cards circulating forever, so a run also
   // ends `grace` rounds after the last expected payout (catching any extra
@@ -405,11 +425,17 @@ export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {
       if (floor.round - drained >= grace) break;
     } else if (settled !== null && floor.round - settled >= grace) break;
   }
-  const remaining = expected.map((h) => handKey(h, ordered));
+  let remaining = expected.map((h) => handKey(h, ordered));
   const wrong = [];
-  for (const h of floor.paid) {
-    const i = remaining.indexOf(handKey(h, ordered));
-    if (i < 0) wrong.push(h); else remaining.splice(i, 1);
+  if (inOrder) {
+    // Payouts must come in the listed order: the n-th payout is expected[n].
+    floor.paid.forEach((h, n) => { if (handKey(h, ordered) !== remaining[n]) wrong.push(h); });
+    remaining = remaining.filter((k, n) => !(n < floor.paid.length && handKey(floor.paid[n], ordered) === k));
+  } else {
+    for (const h of floor.paid) {
+      const i = remaining.indexOf(handKey(h, ordered));
+      if (i < 0) wrong.push(h); else remaining.splice(i, 1);
+    }
   }
   const finished = !overflow && (floor.done() || settled !== null);
   return {

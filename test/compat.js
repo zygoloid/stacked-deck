@@ -13,7 +13,7 @@ const file = new URL('./compat.json', import.meta.url);
 const update = process.argv.includes('--update');
 const snap = JSON.parse(readFileSync(file, 'utf8'));
 const key = (h) => h.join(',');
-const fixedOf = (l) => l.fixed.map((c) => ({ at: c.at, kind: c.kind, ...(c.out !== undefined ? { out: c.out } : {}) }));
+const fixedOf = (l) => l.fixed.map((c) => ({ at: c.at, kind: c.kind, ...(c.out !== undefined ? { out: c.out } : {}), ...(c.seat !== undefined ? { seat: c.seat } : {}) }));
 const levels = [...LEVELS, ...(BONUS ?? [])];
 const ids = new Set(levels.map((l) => l.id));
 

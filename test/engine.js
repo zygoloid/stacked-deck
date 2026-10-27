@@ -201,6 +201,12 @@ console.log('rules v7 ok');
   const passPay = { cells: [{ at: [-1, 0], kind: 'source', out: 0 }, { at: [0, 0], kind: 'payout' }] };
   assert(!runTest(passPay, [['KS', 'AS']], sorted).ok, 'ordered: KS AS is not AS KS');
   assert(runTest(passPay, [['AS', 'KS']], sorted).ok);
+  // inOrder: the n-th payout must be the n-th expected hand.
+  const reversed = { expected: (inputs) => [...inputs].reverse(), inOrder: true };
+  const r = runTest(passPay, [['AS'], ['KS']], reversed);
+  assert(!r.ok && r.wrong.length === 2 && r.missing.length === 2, 'inOrder: paid in the wrong order');
+  assert(runTest(passPay, [['AS'], ['AS']], reversed).ok, 'inOrder: equal hands either way');
+  assert(runTest(passPay, [['AS'], ['KS']], { expected: (inputs) => inputs, inOrder: true }).ok);
 }
 console.log('expected payouts ok');
 // A house card still on its way to the desk after the last player card has
@@ -241,6 +247,29 @@ console.log('house cards in flight ok');
   assert.deepStrictEqual(run([0, 3], ['AS', '2S', '3S']), ['3S AS'], 'a side with no table drops its pile');
 }
 console.log('deal piles ok');
+// Seated players: with seats, hand i belongs to seat i % seats, and each
+// player deals its own hands whether or not the other is held up.
+{
+  const f = new Floor({ cells: [
+    { at: [-1, 0], kind: 'source', out: 0, seat: 0 },
+    { at: [0, 0], kind: 'payout' },
+    { at: [-1, 2], kind: 'source', out: 0, seat: 1 },
+    // a War with no dealer: holds seat 1's first hand, the next waits in its slot
+    { at: [0, 2], kind: 'croupier', fn: 'war', dealer: 0, out: { win: 0 } },
+  ] }, ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S'].map((c) => [c]));
+  for (let i = 0; i < 8; i++) f.step();
+  assert.deepStrictEqual(f.paid, [['AS'], ['3S'], ['5S'], ['7S'], ['9S']], 'seat 0 deals the even hands');
+  const dealt = () => [0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => f.dealt(i));
+  assert.deepStrictEqual(dealt(), [true, true, true, true, true, true, true, false, true]);
+  assert.strictEqual(f.inputPos, 8);
+  assert(!f.done(), 'not done while a seat has hands left');
+  const snap = f.snapshot();
+  f.step();
+  f.restore(snap);
+  assert.deepStrictEqual(dealt(), [true, true, true, true, true, true, true, false, true], 'restore keeps seats');
+}
+console.log('seated players ok');
+
 // Card limit: two duplicates feeding each other multiply the cards without
 // bound; the run fails (overflow) instead of running out of memory.
 {

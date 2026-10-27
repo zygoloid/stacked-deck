@@ -669,13 +669,17 @@ export function openEditor(root, ctx, level) {
       parts.push(h('div', { class: 'sim-detail' }, 'Never paid: ', st.missing.slice(0, 6).map((m) => handEl(m)), st.missing.length > 6 ? ` +${st.missing.length - 6}` : ''));
     }
     // queue
-    parts.push(h('div', { class: 'sub-title' }, 'Player\'s hands', h('span', { class: 'muted' }, ` ${Math.max(0, inputs.length - pos)} to come`)));
+    // Seated floors: hand i belongs to player A, B, ... (i % seats), each dealing their own.
+    const seats = level.fixed.filter((c) => c.kind === 'source' && c.seat !== undefined).length;
+    const dealt = (i) => (f ? f.dealt(i) : false);
+    const nextIdx = seats ? -1 : pos;
+    parts.push(h('div', { class: 'sub-title' }, seats ? 'Players\' hands' : 'Player\'s hands', h('span', { class: 'muted' }, ` ${Math.max(0, inputs.length - pos)} to come`)));
     const winIdx = new Set();
     if (!listed) inputs.forEach((hand, i) => { if (level.pays(hand, inputs.slice(0, i))) winIdx.add(i); });
     parts.push(h('div', { class: `queue${listed ? ' short' : ''}` }, inputs.map((hand, i) => h('div', {
-      class: `q-item${i < pos ? ' dealt' : ''}${i === pos ? ' next' : ''}${winIdx.has(i) ? ' win' : ''}`,
-      title: listed ? null : winIdx.has(i) ? 'Should be paid' : 'Should be dropped',
-    }, h('span', { class: 'q-n' }, String(i + 1)), handEl(hand), listed ? null : h('span', { class: 'q-mark' }, winIdx.has(i) ? '$' : '')))));
+      class: `q-item${dealt(i) ? ' dealt' : ''}${i === nextIdx || (seats && !dealt(i) && (i < seats || dealt(i - seats))) ? ' next' : ''}${winIdx.has(i) ? ' win' : ''}`,
+      title: [seats ? `Player ${'ABCDEF'[i % seats]}` : null, listed ? null : winIdx.has(i) ? 'Should be paid' : 'Should be dropped'].filter(Boolean).join(': ') || null,
+    }, h('span', { class: 'q-n' }, seats ? `${Math.floor(i / seats) + 1}${'ABCDEF'[i % seats]}` : String(i + 1)), handEl(hand), listed ? null : h('span', { class: 'q-mark' }, winIdx.has(i) ? '$' : '')))));
     const paidRows = t ? t.paid : [];
     if (listed) {
       // The hands the chip desk should receive, ticked off as they are paid;
@@ -689,6 +693,10 @@ export function openEditor(root, ctx, level) {
       if (level.ordered) {
         parts.push(h('div', { class: 'order-note' }, h('span', { class: 'order-tag' }, 'card order matters'),
           h('span', { class: 'muted small' }, 'each payout must match card for card, top card first')));
+      }
+      if (level.inOrder) {
+        parts.push(h('div', { class: 'order-note' }, h('span', { class: 'order-tag' }, 'payout order matters'),
+          h('span', { class: 'muted small' }, 'pay these hands in the order listed, first to last')));
       }
       parts.push(h('div', { class: 'paid expected' },
         expected.map((hand, i) => h('div', { class: `p-item e-item${matched[i] ? ' ok' : ''}`, title: matched[i] ? `Paid (payout ${matched[i]})` : 'Not paid yet' },

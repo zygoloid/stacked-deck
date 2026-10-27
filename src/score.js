@@ -2,7 +2,7 @@
 // machines apart. Shared by the game UI and anything that checks solutions
 // outside the browser, so it uses no DOM, localStorage or location.
 import { DIRS, runTest } from './engine.js';
-import { SPECIALS, isCard, isSpecial, sfc32, randomDeals } from './cards.js';
+import { SPECIALS, isCard, isSpecial, sfc32 } from './cards.js';
 
 export const hexKey = ([q, r]) => `${q},${r}`;
 export const addDir = ([q, r], d) => [q + DIRS[d][0], r + DIRS[d][1]];
@@ -160,7 +160,7 @@ export const countCroupiers = (cells) => cells.filter((c) => c.kind === 'croupie
 // ---------- check deals ----------
 // Besides a floor's published tests, a machine must pass CHECK_DEALS more
 // random deals, dealt like the floor's own random tests (`tests.deal`, from
-// makeTests) but seeded from the machine itself: from the SHA-256 of the
+// dealtTests in src/levels/shared.js) but seeded from the machine itself: from the SHA-256 of the
 // floor id and the machine's canonical form. The game and the server deal
 // the same check deals for the same machine, so a machine that clears a floor
 // locally clears it everywhere; but changing a machine changes its check
@@ -174,7 +174,7 @@ export async function checkDeals(level, cells) {
   const text = `stacked-deck check deals\n${level.id}\n${canonicalCells(cells)}`;
   const d = new DataView(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
   const rand = sfc32(d.getUint32(0), d.getUint32(4), d.getUint32(8), d.getUint32(12));
-  return randomDeals(rand, CHECK_DEALS, deal.handsPerTest, deal.handSize);
+  return deal(rand, CHECK_DEALS);
 }
 
 // The rounds score: the total over a floor's published tests (an integer,

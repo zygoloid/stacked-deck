@@ -15,7 +15,7 @@ Add `?unlockall` to the URL to open every floor.
 
 ## Develop
 
-    npm test             # engine, checker, sample machines, all 25 levels
+    npm test             # engine, checker, sample machines, every level
 
 Online features (Firebase; see [docs/online.md](docs/online.md)): the
 database rules and the Cloud Functions in `functions/` are tested against the

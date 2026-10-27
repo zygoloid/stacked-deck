@@ -1,7 +1,7 @@
 // Helpers shared by the chapter modules in src/levels/. See docs/campaign.md
 // for the campaign plan and docs/architecture.md for the level format.
 import {
-  randomDeals, rng, rankOf, suitOf, highValue, RANKS,
+  randomDeals, mixedDeals, rng, rankOf, suitOf, highValue, RANKS,
 } from '../cards.js';
 
 // All hexes within `radius` of [cq, cr].
@@ -31,17 +31,27 @@ export function hexRect(r0, r1, x0, x1) {
   return out;
 }
 
-// Fixed hands (strings like 'AS 2S'), then `nRandom` tests of `handsPerTest`
-// hands dealt from one shuffled deck each. The list also records how its
-// random tests are dealt (`tests.deal`, not enumerable), so the floor's check
-// deals (src/score.js) are dealt the same way.
-export function makeTests({ handSize, handsPerTest, fixed = [], nRandom = 4, seed = 1 }) {
-  const tests = [
-    ...fixed.map((t) => t.map((h) => h.split(' '))),
-    ...randomDeals(rng(seed), nRandom, handsPerTest, handSize),
-  ];
-  Object.defineProperty(tests, 'deal', { value: { handSize, handsPerTest } });
+// A floor's tests: the fixed ones (hands as strings like 'AS 2S'), then
+// `nRandom` dealt by `deal(rand, n)`, which returns n tests. The list also
+// records `deal` (`tests.deal`, not enumerable), so the floor's check deals
+// (src/score.js) are dealt the same way, from a generator seeded by the
+// machine. Every floor's tests are made by this.
+export function dealtTests({ deal, fixed = [], nRandom = 4, seed = 1 }) {
+  const tests = [...fixed.map((t) => t.map((h) => h.split(' '))), ...deal(rng(seed), nRandom)];
+  Object.defineProperty(tests, 'deal', { value: deal });
   return tests;
+}
+
+// Tests of `handsPerTest` hands of `handSize` cards, each test dealt from one
+// shuffled deck.
+export function makeTests({ handSize, handsPerTest, ...rest }) {
+  return dealtTests({ deal: (rand, n) => randomDeals(rand, n, handsPerTest, handSize), ...rest });
+}
+
+// Like makeTests, for hands of mixed sizes: each hand's size is drawn from
+// minSize..maxSize.
+export function makeMixedTests({ minSize, maxSize, handsPerTest, ...rest }) {
+  return dealtTests({ deal: (rand, n) => mixedDeals(rand, n, handsPerTest, minSize, maxSize), ...rest });
 }
 
 // Floor helpers: remove hexes (fixed cells, pillars) from a list of hexes.

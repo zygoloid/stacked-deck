@@ -19,6 +19,7 @@ export class Sim {
     this.inputs = inputs;
     this.expected = expectedPayouts(rule, inputs);
     this.ordered = typeof rule === 'object' && !!rule?.ordered;
+    this.inOrder = typeof rule === 'object' && !!rule?.inOrder;
     // `expected` levels list their payouts; `pays` levels pay input hands.
     this.listed = typeof rule === 'object' && typeof rule?.expected === 'function';
     this.reset();
@@ -57,6 +58,12 @@ export class Sim {
   // card sequences when the level is ordered), as runTest does. `matched[i]`
   // is the number (1-based) of the payout that matched expected[i], or 0.
   tally() {
+    if (this.inOrder) {
+      // The n-th payout must be expected[n].
+      const matched = this.expected.map((x, i) => (i < this.floor.paid.length && this.key(this.floor.paid[i]) === this.key(x) ? i + 1 : 0));
+      const paid = this.floor.paid.map((h, n) => ({ h, ok: !!matched[n] }));
+      return { paid, matched, missing: this.expected.filter((x, i) => !matched[i]) };
+    }
     const remaining = this.expected.map((h, i) => ({ h, i, k: this.key(h) }));
     const matched = this.expected.map(() => 0);
     const paid = this.floor.paid.map((h, n) => {
@@ -74,6 +81,7 @@ export class Sim {
     const k = this.key(hand);
     const dup = this.expected.some((x) => this.key(x) === k);
     if (!this.listed) return dup ? 'Paid out a winning hand a second time.' : 'Paid out a hand that should have been dropped.';
+    if (this.inOrder && dup) return 'Paid out a hand out of turn (payouts must come in the order listed).';
     if (dup) return 'Paid out that hand more times than expected.';
     if (this.ordered && this.expected.some((x) => canon(x) === canon(hand))) return 'Paid out a hand with its cards in the wrong order (card order matters here).';
     return 'Paid out a hand that isn\'t one of the expected payouts.';

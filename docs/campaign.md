@@ -171,12 +171,12 @@ outside the 56-card campaign. Cut floors move here rather than being deleted
 floors. Each bonus floor opens once its `unlockAfter` campaign floor is
 solved and doesn't count towards the campaign's unlock window.
 
-**Cards.** The bonus deck is a second deck, and so far uses its spades: the
-n-th bonus floor is the n-th card A♠, 2♠, ... K♠, and BONUS is kept in the
-order the floors unlock (by their unlockAfter floor's place in the
-campaign), so the cards read in unlock order. Adding a floor in the middle
-renumbers the later ones (cards are labels only; saves are keyed by id).
-After K♠ the deck would continue with a second suit.
+**Cards.** The bonus deck is a second deck: the n-th bonus floor is the
+n-th card A♠, 2♠, ... K♠, then A♥, 2♥, ... (`BONUS_SUITS`), and BONUS is
+kept in the order the floors unlock (by their unlockAfter floor's place in
+the campaign), so the cards read in unlock order. Adding a floor in the
+middle renumbers the later ones (cards are labels only; saves are keyed by
+id).
 
 **Palette.** A bonus floor's palette, War rules and special cards must all be
 available at its unlockAfter floor (test/levels.js checks this; the
@@ -190,15 +190,45 @@ campaign's "palette only grows" rule doesn't apply to the bonus deck).
 | 4♠ | after-a-pair | After a Pair | 9♠ suit-yourself | 5 | pay a hand if the hand before it held a pair or better | duplicate; the copy's K2 releases a 2 or an ace into the gate's dealer line, seeded with a `once` ace (13/171); 12 without a copy | 6 | cut from 9♠ |
 | 5♠ | bookends | Bookends | 10♠ change-of-heart | 2 | top card beats the previous hand's bottom card | duplicate; the copy's bottom card waits in the gate's dealer line behind a `once` ace; top-card War (5/134) | 5 | cut from 10♠ (it repeated Hot Streak's carried card) |
 | 6♠ | four-of-a-kind | Four of a Kind | `$$` deja-vu | 1 | **expected**, regrouped: every time the fourth unpaid card of a rank is played, pay those four as one hand | Déjà Vu's memory seeded with `$$`: gather, K4, Set (set to the desk, rest back to the memory) (6/533) | 6 | new |
+| 7♠ | two-apart | Two Apart | `$$` deja-vu | 2 | ranks exactly two apart (ace high or low) | not a Straight, but a Straight once a joker is gathered on; Suits drops the joker (5/120) | 3 | new |
+| 8♠ | three-apart | Three Apart | `$$` deja-vu | 2 | ranks exactly three apart (ace high or low) | as Two Apart with two jokers: not a run with one, a run with two (7/125) | 3 | new |
+| 9♠ | counting-up | Counting Up | `$$` deja-vu | 5 | pay the first hand holding a 2, then the next holding a 3, ... up to the ace, then 2 again | the rank waited for is four cards of it, gathered on each hand: K5, then a cut splits them off; on a payout the four go to a War that releases the next four from Hand(4) on a stacked shoe (seeded by a `once` `$`) (9/290) | 6 | new |
+| 10♠ | rising | Rising | `$$` deja-vu | 1–6 | cards never go down, top to bottom (aces high, ties fine) | [hand, joker, hand] round a loop: Burn, a top-card War of the burned card against the rest, a top-card War of the rest against an ace that only the joker wins; a last Burn drops the joker and pays the copy (12/214) | 6 | new |
+| J♠ | head-count | Head Count | `$$` deja-vu | 1–6 | the top card's rank (ace 1) is the number of cards | the hand doubled on a 12-card ruler (6 5 4 3 2 A and six `$`; Hand(12) on a shoe); a cut puts the ruler card for the hand's size on top of the bottom half; two top-card Wars compare it with the top card; the gate's dealer gets the `$`s on a tie, else the top half (19/676) | 8 | new |
+| Q♠ | mirror-image | Mirror Image | `$$` deja-vu | 5, two players | **expected**: when both players hold the same five cards (any order), pay both hands | stack the two hands and copy; Sort the copy, Hand(2) into pairs, K2 + Flush check each pair is two identical cards; one card per pair (the card, or a joker for a mismatch, routes of equal length) into Hand(5); the stack beats its own cards but not a joker; a cut splits it back into the two hands (25/383) | 8 | new |
+| K♠ | showdown | Showdown | `$$` deja-vu | 3, two players | **expected**: pay the higher hand of each deal, comparing highest, middle, lowest (aces high); a tie pays neither | stack the hands, Hand(3) deals them out again into one sorter (Deal, three Wars as compare-and-swap, two gathers); Hand(6) and a cut pair them up; three stages of two top-card Wars (both ways round), Burn-rotating both on a tie; laid out as a U so the winners' line ends by the players (43/296) | 9 | new |
+| A♥ | last-in-first-out | Last In, First Out | `$$` deja-vu | 1–5 | **expected**, `inOrder`: every hand, last played first | a pass prefers the player to a `once` joker shoe, so the joker comes after the last hand; hands gathered onto `$` markers are pushed on a stack until the joker is on top; then Burn deals the stack off card by card onto a growing hand, and a marker coming up (top-card War vs `$$`) sends the hand to the desk (20/835) | 9 | new |
+| 2♥ | one-up | One Up | `$$` deja-vu | 1 | **expected**, house cards: for every card, the next card up in its suit (K → A) | two shoes in step deal [x, next-of-x] pairs through the whole deck; the card waits in a loop taking pairs until K2 + Flush find it is x (a Deal and a second K2 tell x from y), then y is paid; a War lets one card in at a time (16/4076) | 7 | new |
 
 Fourth Street (6♣, "the 4th card beats a 10") was replaced outright by Upside
 Down: it was Bottom Dealer's floor again with one more card, and Burn Card
 (3♠) asks the same question with the next croupier.
 
-Ideas not built: "for each spade, pay the next higher spade" (Set can look
-up a card of the same rank, as in Change of Heart, but nothing on the
-palette picks out the *next* rank without a long search loop; Change of
-Heart is the same-rank variant); "pay the ace of the same suit for every
+**Two players.** Mirror Image and Showdown seat their players (`seat` on
+each source, see docs/architecture.md): each player deals only their own
+hands, so a deal's two hands can be paired up by a Gather or a War however
+the machine holds either player up. Mirror Image's tests give each player a
+deck of their own (player B often holds player A's hand reordered, or one
+card off); Showdown deals both from one deck.
+
+**Desks.** Every floor from 7♠ on has its chip desk 2 or 3 hexes from the
+player(s), so the distance never forces passes on a player; the reference
+machines fold round to reach it (Showdown is laid out as a U).
+
+Ideas not built: "pay two-card hands the first time their ranks are seen
+(ignoring suits)". The loop was designed but not built: it comes to about 32
+croupiers before any routing passes. In outline: the hand as a probe of four
+copies of itself (Set on [stored pair, probe, `$`] then leaves only
+advertising cards in rest exactly when the ranks match, pairs included);
+the memory as one stack of stored pairs that Hand(2) deals out a pair at a
+time, each tested against the probe and gathered onto an accumulator seeded
+with the previous scan's `$$ $$` end marker; each test leaves a `$` or `$$`
+token on the probe (Wv, a high War of rest against `$$`), and at the end
+marker Sort brings a `$` to the top if any pair matched. A War gate lets one
+probe in per scan, and a joker flush sent after the end marker (with the new
+hand, if it was new) empties the accumulator into the next stack. A first
+design that rotated the stack in place was smaller (about 29) but its loops
+cross, so it can't be laid out on a hex floor. "Pay the ace of the same suit for every
 king" (Small Change with a suit splitter and four ace Wars, 13 croupiers of
 the same idea).
 
@@ -293,7 +323,13 @@ the same idea).
 * **Random tests.** `makeTests` deals from one deck per test, so hands per
   test ≤ 52 / handSize (5-card: 10; 4-card: 13; 3-card: 17; 2-card: 26). Fixed
   tests carry the edge cases; rare hands (royal flushes, quads, full houses)
-  must be in fixed tests.
+  must be in fixed tests. `makeMixedTests` does the same for floors with
+  `handSize: [min, max]`, drawing each hand's size at random. A floor that
+  needs its own kind of deal (Mirror Image's near matches) passes its deal
+  function to `dealtTests`. Either way the deal function is recorded as
+  `tests.deal`, and the floor's check deals are dealt by it, so it must
+  deal hands the rule is interesting on (`test/levels.js` checks every
+  floor has one).
 * **Stress tests** for every machine that tests a copy, releases a verdict, or
   sends pieces of a hand along different routes: a fixed test of deciding
   hands back to back (all winners, then all losers), one alternating winners
