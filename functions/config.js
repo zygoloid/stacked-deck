@@ -9,6 +9,7 @@ export const REGION = 'us-central1';
 // game sends them (APP_CHECK_SITE_KEY in src/firebase-config.js) and the App
 // Check metrics show its requests are verified.
 export const ENFORCE_APP_CHECK = false;
-// The functions' own service account: Firebase Realtime Database Admin, and
-// Eventarc Event Receiver (needed to receive the database trigger's events).
+// The functions' own service account: Firebase Realtime Database Admin,
+// Eventarc Event Receiver (to deploy the database trigger), and Cloud Run
+// Invoker on the scoresolution service (to receive its events).
 export const RUNTIME_SERVICE_ACCOUNT = `stacked-deck-fn@${PROJECT}.iam.gserviceaccount.com`;
