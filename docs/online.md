@@ -412,8 +412,10 @@ the sign-in popup, `www.google.com` for reCAPTCHA, `*.firebaseio.com` for the
 database's long-polling transport, which loads its responses as scripts: the
 SDK falls back to it, and starts with it on every later load, once a
 WebSocket has failed in that browser), frames only from the auth
-domain and reCAPTCHA, connections only to Google's APIs, the Firebase
-databases and (for the emulators in tests) 127.0.0.1. Pages can't send
+domain, reCAPTCHA and `*.firebaseio.com` (long-polling's "disconnect ping"
+frame, whose removal tells the server the transport has closed),
+connections only to Google's APIs, the Firebase databases and (for the
+emulators in tests) 127.0.0.1. Pages can't send
 headers, so `frame-ancestors` isn't available. The policy is checked against
 the emulators, not the real services, so a violation in production shows as
 a "Content Security Policy" error in the browser console.
@@ -437,6 +439,13 @@ a "Content Security Policy" error in the browser console.
   solutions so far are uploaded (below). The nickname is asked for only when
   the profile was read and has none, not when the read failed (as it does
   during a lockdown). The help screen repeats what is stored.
+* Database reads give up after 15 seconds (`READ_TIMEOUT_MS` in
+  `src/ui/cloud.js`), since the SDK waits for a connection indefinitely: if
+  it can't connect, signing in still finishes (as when the profile read
+  fails, with no nickname shown and none asked for) instead of staying at
+  "Signing in…", the Friends dialog says it couldn't load them, and uploads
+  and cloud save pause until the next trigger. Writes aren't timed: the SDK
+  queues them until it connects.
 * The local save records the account it belongs to (`account: { uid,
   signedIn }`). Signing in to a different account on a browser whose save
   belongs to someone else asks first: add the progress to this account,
