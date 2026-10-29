@@ -1,10 +1,11 @@
 // Checks for src/online.js: which saved solutions upload, what a submission
-// writes, reading stats, and cleaning nicknames.
+// writes, reading stats, cleaning nicknames, merging cloud saves and timing
+// out reads.
 import assert from 'node:assert';
 import { LEVELS, BONUS } from '../src/levels.js';
 import { RULES_VERSION } from '../src/engine.js';
 import { solutionHash } from '../src/score.js';
-import { uploadCandidates, prepareUpload, submission, readStats, cleanName, planMerge, MAX_MACHINE_CHARS } from '../src/online.js';
+import { uploadCandidates, prepareUpload, submission, readStats, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS } from '../src/online.js';
 
 const ALL = [...LEVELS, ...BONUS];
 const level = ALL.find((l) => l.id === 'opening-night');
@@ -91,3 +92,11 @@ console.log('cloud save merges ok');
   assert.strictEqual(planMerge({ ls: { cells: [], workAt: 12, workSynced: 9 }, remote: { work: { cells: '[1]', at: 9 } } }).work, 'push');
 }
 console.log('cloud save: emptied floors ok');
+{
+  // A read that settles in time is passed through; one that doesn't is given up on.
+  assert.strictEqual(await withTimeout(Promise.resolve(7), 50, 'slow'), 7);
+  await assert.rejects(withTimeout(Promise.reject(new Error('denied')), 50, 'slow'), /denied/);
+  const never = new Promise(() => {});
+  await assert.rejects(withTimeout(never, 20, 'no answer'), (e) => e.code === 'timeout' && e.message === 'no answer');
+}
+console.log('read timeouts ok');

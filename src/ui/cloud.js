@@ -15,13 +15,14 @@ import {
 } from '../firebase-config.js';
 import { validateCells, scoreMachine, countCroupiers } from '../score.js';
 import {
-  uploadCandidates, prepareUpload, submission, readStats, cleanName, planMerge, MAX_MACHINE_CHARS,
+  uploadCandidates, prepareUpload, submission, readStats, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS,
 } from '../online.js';
 import { solutionsOf, recomputeBest } from './model.js';
 
 const EMULATOR = typeof location !== 'undefined' && /[?&]emulator\b/.test(location.search);
 const SUBMIT_GAP_MS = 1100; // the rules allow one solution a second per account
 const IDLE_MS = 15000;      // close the database connection when idle this long
+const READ_TIMEOUT_MS = 15000; // give up on a database read after this long
 const PUSH_DELAY_MS = 4000; // save the working machine this long after the last edit
 const RESYNC_MS = 5 * 60000; // on returning to the tab, pull other devices' changes this often at most
 
@@ -99,12 +100,17 @@ export function createCloud({ save, persist, levels, ui }) {
 
   // The database, connected while in use and disconnected once idle (the
   // project pays for connections and downloads, so none are kept open).
+  // Reads give up after READ_TIMEOUT_MS: the SDK waits for a connection
+  // indefinitely, and a read that never finishes would leave signing in at
+  // "Signing in…" and the Friends dialog loading for good. Writes aren't
+  // timed: the SDK queues them and sends them once it connects.
   async function withDb(fn) {
     const { dbM, db } = fb;
+    const timed = { ...dbM, get: (query) => withTimeout(dbM.get(query), READ_TIMEOUT_MS, 'no answer from the database') };
     clearTimeout(idleTimer);
     dbM.goOnline(db);
     try {
-      return await fn(dbM, db);
+      return await fn(timed, db);
     } finally {
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => dbM.goOffline(db), IDLE_MS);

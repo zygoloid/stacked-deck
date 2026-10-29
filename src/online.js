@@ -56,6 +56,17 @@ export function readStats(node) {
   return { points, players };
 }
 
+// `promise`, or a rejection with code 'timeout' if it hasn't settled within
+// `ms` (the database SDK waits for a connection indefinitely, so a read it
+// can't connect for never finishes otherwise).
+export function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error(message), { code: 'timeout' })), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 // A nickname as stored: no control, bidi or zero-width characters, spaces
 // collapsed, at most 40 characters (database.rules.json). '' if nothing is left.
 export function cleanName(name) {
