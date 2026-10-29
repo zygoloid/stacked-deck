@@ -409,9 +409,14 @@ debug token); unenforced, a failed App Check token doesn't block anything.
 
 `index.html` has a Content-Security-Policy `<meta>` tag: scripts only from the
 site and Google's hosts (`www.gstatic.com` for the SDK, `apis.google.com` for
-the sign-in popup, `www.google.com` for reCAPTCHA), frames only from the auth
-domain and reCAPTCHA, connections only to Google's APIs, the Firebase
-databases and (for the emulators in tests) 127.0.0.1. Pages can't send
+the sign-in popup, `www.google.com` for reCAPTCHA, `*.firebaseio.com` for the
+database's long-polling transport, which loads its responses as scripts: the
+SDK falls back to it, and starts with it on every later load, once a
+WebSocket has failed in that browser), frames only from the auth
+domain, reCAPTCHA and `*.firebaseio.com` (long-polling's "disconnect ping"
+frame, whose removal tells the server the transport has closed),
+connections only to Google's APIs, the Firebase databases and (for the
+emulators in tests) 127.0.0.1. Pages can't send
 headers, so `frame-ancestors` isn't available. The policy is checked against
 the emulators, not the real services, so a violation in production shows as
 a "Content Security Policy" error in the browser console.
@@ -435,6 +440,19 @@ a "Content Security Policy" error in the browser console.
   solutions so far are uploaded (below). The nickname is asked for only when
   the profile was read and has none, not when the read failed (as it does
   during a lockdown). The help screen repeats what is stored.
+* Database reads give up after 15 seconds (`READ_TIMEOUT_MS` in
+  `src/ui/cloud.js`; 5 against the emulators), since the SDK waits for a
+  connection indefinitely: if it can't connect, signing in still finishes
+  (as when the profile read fails, with no nickname asked for) instead of
+  staying at "Signing in…", the Friends dialog says it couldn't load them,
+  and uploads and cloud save pause. Writes aren't timed: the SDK queues them
+  until it connects.
+* While reads time out, the account is **offline**: the header shows
+  "⚠ Offline" and the account menu says nothing is being saved to the
+  account or loaded from it (progress stays in this browser), with a **Try
+  again** button. It tries again every minute (`RETRY_MS`) and on returning
+  to the tab; the first read that is answered ends it, reads the nickname if
+  signing in missed it, and catches up cloud save and uploads.
 * The local save records the account it belongs to (`account: { uid,
   signedIn }`). Signing in to a different account on a browser whose save
   belongs to someone else asks first: add the progress to this account,
