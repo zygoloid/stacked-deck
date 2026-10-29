@@ -8,7 +8,9 @@
 //
 // With `?emulator` in the page URL it talks to the Firebase emulators on
 // 127.0.0.1 instead (for tests; see tools/online-smoke.js), and exposes
-// window.stackedDeckTest.signIn(sub, email) to sign in without a popup.
+// window.stackedDeckTest.signIn(sub, email) to sign in without a popup; with
+// sessionStorage 'stacked-deck-test-stall' set to '1', its database reads
+// never answer (as when the database can't be reached).
 import { RULES_VERSION } from '../engine.js';
 import {
   firebaseConfig, DATABASE_URL, FIREBASE_SDK, FUNCTIONS_REGION, APP_CHECK_SITE_KEY, EMULATOR_PROJECT,
@@ -20,9 +22,11 @@ import {
 import { solutionsOf, recomputeBest } from './model.js';
 
 const EMULATOR = typeof location !== 'undefined' && /[?&]emulator\b/.test(location.search);
+const stalled = () => EMULATOR && sessionStorage.getItem('stacked-deck-test-stall') === '1';
 const SUBMIT_GAP_MS = 1100; // the rules allow one solution a second per account
 const IDLE_MS = 15000;      // close the database connection when idle this long
-const READ_TIMEOUT_MS = 15000; // give up on a database read after this long
+const READ_TIMEOUT_MS = EMULATOR ? 5000 : 15000; // give up on a database read after this long
+const RETRY_MS = 60000;     // while the database can't be reached, try again this often
 const PUSH_DELAY_MS = 4000; // save the working machine this long after the last edit
 const RESYNC_MS = 5 * 60000; // on returning to the tab, pull other devices' changes this often at most
 
@@ -33,6 +37,7 @@ const RESYNC_MS = 5 * 60000; // on returning to the tab, pull other devices' cha
 //   ui.cleared() after this browser's progress is cleared
 //   ui.levelsUpdated(ids) after cloud save changed those floors' local saves
 // cloud.state(): 'signed-out' | 'starting' | 'signed-in'; cloud.user(): { uid, name } | null
+// cloud.offline(): signed in, but the database isn't answering
 export function createCloud({ save, persist, levels, ui }) {
   const listeners = new Set();
   let fb = null;         // loaded SDK: { authM, dbM, auth, db }
@@ -56,6 +61,11 @@ export function createCloud({ save, persist, levels, ui }) {
   const friendLoads = new Map(); // level id -> { at, frontiers: promise of friendFrontiers' result }
   let fnM = null, functions = null;
   let handling = null;           // the latest sign-in change being handled
+  let profileRead = false;       // the account's nickname has been read (it may be '')
+  let offline = false;           // the last database read timed out (until one is answered)
+  let answeredAt = 0;            // when the last answered read was asked
+  let retryTimer = 0;
+  let retrying = null;           // retry(), while it runs
   let settle;                    // resolves once the first sign-in state is known
   const settled = new Promise((r) => { settle = r; });
 
@@ -65,7 +75,12 @@ export function createCloud({ save, persist, levels, ui }) {
   const fresh = (entry) => !!entry && Date.now() - entry.at < RESYNC_MS;
 
   const notify = () => listeners.forEach((fn) => { try { fn(); } catch (e) { console.error(e); } });
-  const setState = (s, u = user) => { state = s; user = u; notify(); };
+  const setState = (s, u = user) => {
+    state = s;
+    user = u;
+    if (s !== 'signed-in') { offline = false; clearTimeout(retryTimer); }
+    notify();
+  };
 
   function load() {
     loading ??= (async () => {
@@ -102,11 +117,18 @@ export function createCloud({ save, persist, levels, ui }) {
   // project pays for connections and downloads, so none are kept open).
   // Reads give up after READ_TIMEOUT_MS: the SDK waits for a connection
   // indefinitely, and a read that never finishes would leave signing in at
-  // "Signing in…" and the Friends dialog loading for good. Writes aren't
-  // timed: the SDK queues them and sends them once it connects.
+  // "Signing in…" and the Friends dialog loading for good. Each read's
+  // outcome says whether the database is reachable (see reached()). Writes
+  // aren't timed: the SDK queues them and sends them once it connects.
   async function withDb(fn) {
     const { dbM, db } = fb;
-    const timed = { ...dbM, get: (query) => withTimeout(dbM.get(query), READ_TIMEOUT_MS, 'no answer from the database') };
+    const get = (query) => {
+      const asked = Date.now();
+      return withTimeout(stalled() ? new Promise(() => {}) : dbM.get(query), READ_TIMEOUT_MS, 'no answer from the database').then(
+        (snap) => { reached(true, asked); return snap; },
+        (e) => { reached(e?.code !== 'timeout', asked); throw e; });
+    };
+    const timed = { ...dbM, get };
     clearTimeout(idleTimer);
     dbM.goOnline(db);
     try {
@@ -116,6 +138,56 @@ export function createCloud({ save, persist, levels, ui }) {
       idleTimer = setTimeout(() => dbM.goOffline(db), IDLE_MS);
     }
   }
+
+  // A database read asked at `asked` was answered (`ok`, even if refused) or
+  // timed out. While reads time out the account is shown as offline, and
+  // everything is tried again every RETRY_MS; once one is answered, what was
+  // missed catches up. (A read that times out after a later one was answered
+  // doesn't count: it was asked while offline.)
+  function reached(ok, asked) {
+    if (state === 'signed-out') return;
+    if (!ok) {
+      if (asked < answeredAt) return;
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(retry, RETRY_MS);
+      if (!offline) { offline = true; notify(); }
+      return;
+    }
+    answeredAt = Math.max(answeredAt, asked);
+    if (offline) {
+      offline = false;
+      clearTimeout(retryTimer);
+      notify();
+      retry();
+    }
+  }
+
+  // Read the nickname if it couldn't be read on signing in, then catch up
+  // cloud save and uploads (after any run already under way, which may have
+  // started offline). Resolves when done (or still offline).
+  function retry() {
+    retrying ??= (async () => {
+      if (state !== 'signed-in') return;
+      if (!profileRead) {
+        const uid = user.uid;
+        try {
+          const name = await readName(uid);
+          if (state === 'signed-in' && user.uid === uid && !profileRead) {
+            profileRead = true;
+            setState('signed-in', { ...user, name });
+          }
+        } catch (e) { console.warn('profile:', e); }
+        if (offline) return;
+      }
+      await syncing;
+      await syncAll();
+      await uploading;
+      queueUploads();
+    })().finally(() => { retrying = null; });
+    return retrying;
+  }
+
+  const readName = (uid) => withDb(async (dbM, db) => (await dbM.get(dbM.ref(db, `profiles/${uid}/name`))).val() ?? '');
 
   async function onUser(u) {
     if (!u) {
@@ -136,15 +208,15 @@ export function createCloud({ save, persist, levels, ui }) {
     save.account = { uid: u.uid, signedIn: true };
     persist();
     let name = '';
-    let read = false;
+    profileRead = false;
     try {
-      name = await withDb(async (dbM, db) => (await dbM.get(dbM.ref(db, `profiles/${u.uid}/name`))).val() ?? '');
-      read = true;
+      name = await readName(u.uid);
+      profileRead = true;
     } catch (e) { console.warn('profile:', e); }
     setState('signed-in', { uid: u.uid, name });
     // Ask for a nickname only if there really is none (not if the read
-    // failed, e.g. while the database is locked down).
-    if (read && !name) {
+    // failed, e.g. while the database is locked down or can't be reached).
+    if (profileRead && !name) {
       const chosen = await ui.askName();
       if (chosen) await setName(chosen).catch((e) => console.warn('nickname:', e));
     }
@@ -156,6 +228,7 @@ export function createCloud({ save, persist, levels, ui }) {
     const name = cleanName(raw);
     if (!name || state !== 'signed-in') return false;
     await withDb((dbM, db) => dbM.set(dbM.ref(db, `profiles/${user.uid}`), { name }));
+    profileRead = true;
     setState('signed-in', { ...user, name });
     return true;
   }
@@ -363,12 +436,12 @@ export function createCloud({ save, persist, levels, ui }) {
   }
 
   // Leaving the page: push waiting changes now (best-effort). Returning to it:
-  // pull other devices' changes, now and then.
+  // pull other devices' changes, now and then (at once if offline).
   if (typeof document !== 'undefined') {
     addEventListener('pagehide', () => { for (const id of [...pending.keys()]) flush(id); });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') { for (const id of [...pending.keys()]) flush(id); return; }
-      if (state === 'signed-in' && Date.now() - lastSync > RESYNC_MS) syncAll()?.then(() => queueUploads());
+      if (state === 'signed-in' && (offline || Date.now() - lastSync > RESYNC_MS)) retry();
     });
   }
 
@@ -447,6 +520,8 @@ export function createCloud({ save, persist, levels, ui }) {
   return {
     state: () => state,
     user: () => user,
+    offline: () => offline,
+    retry,
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     // On page load: reconnect if the player was signed in last time.
     start() { if (save.account?.signedIn) load().catch((e) => console.warn('online:', e)); },

@@ -98,13 +98,37 @@ export function confirmOtherAccount() {
   ], { dismissable: false });
 }
 
-// The account menu (signed in): nickname, sign out.
+// The account menu (signed in): nickname, sign out. Offline, it says so and
+// offers to try again.
 export function accountDialog(cloud) {
   return dialog((close) => {
     const u = cloud.user();
+    const status = h('p', { class: 'muted small dlg-status' }, '');
+    // Closes as soon as the server answers (catching up carries on).
+    const retry = h('button', {
+      class: 'btn gold',
+      onclick: async () => {
+        retry.disabled = true;
+        status.textContent = 'Trying…';
+        let done = false;
+        const answered = () => { if (!done && !cloud.offline()) { done = true; off(); close(); } };
+        const off = cloud.onChange(answered);
+        await cloud.retry();
+        answered();
+        if (done) return;
+        off();
+        retry.disabled = false;
+        status.textContent = 'Still no answer.';
+      },
+    }, 'Try again');
+    const offline = cloud.offline();
     return [
       h('h2', {}, u?.name ? `Signed in as ${u.name}` : 'Signed in'),
-      h('p', { class: 'muted' }, 'Your progress is saved to your account, and each floor\'s chart shows everyone\'s scores and your friends\'.'),
+      offline
+        ? h('p', { class: 'offline-note' }, 'The game\'s server isn\'t answering just now, so nothing is being saved to your account or loaded from it. Your progress is kept in this browser, and is sent once the server answers again (it tries every minute).')
+        : h('p', { class: 'muted' }, 'Your progress is saved to your account, and each floor\'s chart shows everyone\'s scores and your friends\'.'),
+      offline ? h('div', { class: 'modal-actions' }, retry) : null,
+      offline ? status : null,
       h('div', { class: 'modal-actions' },
         h('button', { class: 'btn', onclick: () => close('friends') }, 'Friends…'),
         h('button', { class: 'btn', onclick: () => close('name') }, u?.name ? 'Change nickname' : 'Choose a nickname'),
@@ -306,6 +330,10 @@ export async function signOutDialog(cloud) {
 export function accountButton(cloud) {
   const st = cloud.state();
   if (st === 'starting') return h('button', { class: 'btn ghost small account', disabled: true }, 'Signing in…');
+  if (st === 'signed-in' && cloud.offline()) {
+    return h('button', { class: 'btn ghost small account offline', title: 'Signed in, but the server isn\'t answering', onclick: () => accountDialog(cloud) },
+      '⚠ Offline');
+  }
   if (st === 'signed-in') {
     const name = cloud.user()?.name;
     return h('button', { class: 'btn ghost small account signed-in', title: 'Account', onclick: () => accountDialog(cloud) },

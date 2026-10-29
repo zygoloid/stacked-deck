@@ -14,7 +14,9 @@
 // account's data removes it (and the sign-in account) and its stats; cloud
 // save carries progress, edits and deletions between two devices; invites
 // make friends (only after accepting), whose frontiers appear on the plot,
-// and removing a friend ends it both ways.
+// and removing a friend ends it both ways; when the database doesn't answer,
+// signing in still finishes and shows the account as offline, and trying
+// again once it answers catches up.
 import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
@@ -397,6 +399,27 @@ try {
   await sleep(1500);
   const after = await phone.evaluate(() => window.scrollY);
   check(scrolled > 0 && after === scrolled, `the floors list keeps its scroll while a backlog uploads (${scrolled} → ${after})`);
+
+  // The database stops answering (reads never do): signing in on a reload
+  // still finishes, showing the account as offline; once it answers again,
+  // "Try again" reads the nickname that was missed.
+  const flaky = await device();
+  await flaky.goto(`${site}#/`);
+  await signInAs(flaky, 'erin-sub', 'erin@example.com');
+  await flaky.waitForSelector('.modal.dialog .dlg-input', { timeout: 20000 });
+  await flaky.fill('.dlg-input', 'Erin');
+  await flaky.keyboard.press('Enter');
+  await until(async () => (await header(flaky)) === '☺ Erin', 20000);
+  await flaky.evaluate(() => sessionStorage.setItem('stacked-deck-test-stall', '1'));
+  await flaky.reload();
+  const offline = await until(async () => ((await header(flaky).catch(() => '')) === '⚠ Offline'), 20000);
+  check(!!offline, 'signing in finishes when the database doesn\'t answer, showing the account as offline');
+  await flaky.click('.btn.account');
+  check(await flaky.locator('.modal.dialog .offline-note').count() === 1, 'the account menu says the server isn\'t answering');
+  await flaky.evaluate(() => sessionStorage.removeItem('stacked-deck-test-stall'));
+  await flaky.click('.modal.dialog button:has-text("Try again")');
+  const back = await until(async () => (await header(flaky)) === '☺ Erin' && !(await flaky.$('.modal.dialog')), 20000);
+  check(!!back, 'once the database answers, trying again shows the account (and its nickname) again');
 
   check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''}`);
   check(outside.length === 0, `nothing outside this machine was contacted${outside.length ? ': ' + outside.slice(0, 3).join(' ') : ''}`);
