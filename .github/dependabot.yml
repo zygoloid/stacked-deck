@@ -1,0 +1,32 @@
+# Pull requests that keep the workflow's actions (pinned by commit) and the
+# npm lockfiles current. They run the test job like any PR; nothing deploys
+# until one is merged.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /functions
+    schedule:
+      interval: weekly
+    groups:
+      functions:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /test/emulator
+    schedule:
+      interval: weekly
+    groups:
+      emulator-tests:
+        patterns: ['*']
+    ignore:
+      # The browser tests serve this package in place of the CDN's SDK, so it
+      # moves together with FIREBASE_SDK in src/firebase-config.js, by hand.
+      - dependency-name: firebase

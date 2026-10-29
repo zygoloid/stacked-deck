@@ -634,11 +634,35 @@ It can deploy any function in the project, including the kill switch's;
 that is accepted (only `main` of this repository can use it, and the budget
 is the backstop). An IAM condition on function names could narrow it.
 
-Install scripts are skipped in CI (`npm ci --ignore-scripts`; the two the
-functions' dependencies declare only print a notice or read an unused
-environment variable), and `firebase-tools` and the functions' dependencies
-are pinned in lockfiles. The actions are pinned by major version tag;
-pinning them by commit SHA would harden this further.
+**Supply chain.** In the deploy job, everything is installed before it
+signs in to Google, so no install step ever sees the token.
+* **Install scripts are skipped** in CI (`npm ci --ignore-scripts`). The
+  two that the functions' dependencies declare only print a notice or read
+  an unused environment variable.
+* **Dependencies:** `firebase-tools` and the functions' dependencies are
+  pinned in lockfiles.
+* **Actions are pinned by commit** (the version is in a comment).
+  Dependabot (`.github/dependabot.yml`) opens weekly pull requests to bump
+  actions and lockfiles, and the test job checks each one. The `firebase`
+  package in `test/emulator` is excluded: it must match `FIREBASE_SDK`, so
+  bump the two together.
+* **No stray credentials:** checkouts don't keep the GitHub token
+  (`persist-credentials: false`). The workflow uses no caches and no
+  `pull_request_target`, and must not: both are common ways to get a
+  pull request's code into a privileged job.
+* **Egress:** in the deploy job, StepSecurity's harden-runner records every
+  host the job contacts. It starts with `egress-policy: audit`. After the
+  first real deploy:
+  1. open the job's insights page (linked from its log);
+  2. check that `allowed-endpoints` covers what it lists, and that nothing
+     unexpected appears. Wildcard hosts such as `*.googleapis.com` are a
+     guess: list them by name if the insights show they aren't honoured;
+  3. switch to `egress-policy: block`, and add `disable-telemetry: true`,
+     which is allowed in block mode.
+
+  From then on, the job can only reach those hosts, so a compromised
+  dependency can't send the Google token anywhere else. If a later deploy
+  fails with a network error, check the insights for the host it needs.
 
 **One-off setup** (in Cloud Shell, or anywhere with `gcloud`):
 
@@ -677,8 +701,20 @@ Then, in the repository's settings:
 
 * **Secrets and variables → Actions → Variables**: `WIF_PROVIDER`, the
   provider name printed above (not a secret).
-* **Environments**: create `production`; optionally add yourself as a
-  required reviewer, so each deploy waits for approval.
+* **Environments**: create `production`. Under "Deployment branches and
+  tags", allow only `main`; Google's side checks this too, but it's free to
+  check it here. Optionally, add yourself as a required reviewer, so each
+  deploy waits for your approval.
+* **Rules → Rulesets**: a ruleset on `main`, since a push there deploys:
+  * require a pull request with the `test` check passing;
+  * block force pushes and deletion;
+  * keep yourself on the bypass list if you want to push directly in an
+    emergency.
+* **Code security**: turn on Dependabot alerts and security updates. The
+  version updates come from `.github/dependabot.yml`.
+* **Accounts**: anyone who can push to `main`, or who controls the Google
+  account that owns the project, can deploy. So use a passkey or hardware
+  key for both accounts' 2FA.
 * **Pages → Build and deployment → Source**: "GitHub Actions" (instead of
   deploying from the branch).
 
