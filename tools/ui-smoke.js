@@ -370,10 +370,13 @@ try {
     await phone.reload();
     await phone.waitForSelector('svg.board');
     await phone.evaluate(() => window.scrollTo(0, 0));
+    // Playwright scrolls the button into view to click it (by a few pixels
+    // where the fonts make the page taller), so compare with just after.
     await phone.click('.tp.main');
+    const y0 = await phone.evaluate(() => window.scrollY);
     await phone.waitForTimeout(3000);
     const y = await phone.evaluate(() => window.scrollY);
-    check(y === 0, `playing on a phone keeps the page still (scrollY ${y})`);
+    check(y === y0, `playing on a phone keeps the page still (scrollY ${y0} -> ${y})`);
     if (shots) await phone.screenshot({ path: join(shots, '7-phone-playing.png') });
     await phone.waitForSelector('.modal.results', { timeout: 60000 });
     check(await phone.locator('.modal.results .sc-pt').count() === 1, 'phone: results plot shows the solution');
