@@ -408,7 +408,10 @@ debug token); unenforced, a failed App Check token doesn't block anything.
 
 `index.html` has a Content-Security-Policy `<meta>` tag: scripts only from the
 site and Google's hosts (`www.gstatic.com` for the SDK, `apis.google.com` for
-the sign-in popup, `www.google.com` for reCAPTCHA), frames only from the auth
+the sign-in popup, `www.google.com` for reCAPTCHA, `*.firebaseio.com` for the
+database's long-polling transport, which loads its responses as scripts: the
+SDK falls back to it, and starts with it on every later load, once a
+WebSocket has failed in that browser), frames only from the auth
 domain and reCAPTCHA, connections only to Google's APIs, the Firebase
 databases and (for the emulators in tests) 127.0.0.1. Pages can't send
 headers, so `frame-ancestors` isn't available. The policy is checked against
