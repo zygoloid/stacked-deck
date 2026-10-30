@@ -15,6 +15,7 @@ const root = document.getElementById('app');
 const helpHost = document.getElementById('help');
 const save = loadSave();
 let cleanup = null;
+let lastFloor = null; // the floor last opened, shown when coming back to the floors list
 
 const ctx = {
   save,
@@ -80,6 +81,7 @@ function route() {
     if (level && isOpen(save, level)) {
       document.title = `${level.title} · Stacked Deck`;
       document.body.dataset.screen = m[2] ? 'story' : 'editor';
+      lastFloor = level.id;
       cleanup = m[2] ? storyScreen(root, ctx, level) : openEditor(root, ctx, level);
       return;
     }
@@ -87,6 +89,9 @@ function route() {
   document.title = 'Stacked Deck';
   document.body.dataset.screen = 'select';
   levelSelect(root, ctx);
+  // Back from a floor: scrolled so that floor's tile is in view.
+  const tile = lastFloor && [...root.querySelectorAll('.tile[data-level]')].find((t) => t.dataset.level === lastFloor);
+  tile?.scrollIntoView({ block: 'center' });
 }
 
 // An invite link (#invite=<code>): take the code out of the address (so it

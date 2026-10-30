@@ -40,38 +40,43 @@ function axialRound(fq, fr) {
   return [q, r];
 }
 
-const pillWidth = (text) => Math.max(12, [...text].length * 4.6 + 6);
+// Pill text widths at 7px bold: digits and the deal list's separators are
+// narrower than letters.
+const CHAR_W = { '·': 2.2, '-': 2.6, '…': 7 };
+const textWidth = (text) => [...text].reduce((w, ch) => w + (CHAR_W[ch] ?? (/\d/.test(ch) ? 4.1 : 4.6)), 0);
+const pillWidth = (text) => Math.max(12, textWidth(text) + 6);
+
+// A deal port's positions on one side as a pill label: runs of three or more
+// consecutive positions collapse to "1-6"; if that is still wider than
+// `maxW`, the tail is cut to "…". Returns { text, full } (full: uncut).
+export function dealLabel(positions, maxW = Infinity) {
+  const parts = [];
+  for (let i = 0; i < positions.length;) {
+    let j = i;
+    while (j + 1 < positions.length && positions[j + 1] === positions[j] + 1) j++;
+    if (j - i >= 2) parts.push(`${positions[i]}-${positions[j]}`);
+    else for (let k = i; k <= j; k++) parts.push(String(positions[k]));
+    i = j + 1;
+  }
+  const full = parts.join('·');
+  if (pillWidth(full) <= maxW) return { text: full, full };
+  let n = parts.length - 1;
+  while (n > 1 && pillWidth(`${parts.slice(0, n).join('·')}·…`) > maxW) n--;
+  return { text: `${parts.slice(0, n).join('·')}·…`, full };
+}
 
 const CARD_W = 15, CARD_H = 20, CARD_STEP = 11, MAX_SHOWN = 6;
-
-// A hand as little cards centred on (x, y). Live hands are [{c, src}].
-function handSvg(hand, x, y, cls = '') {
-  const cards = hand.map((x) => (typeof x === 'string' ? x : x.c));
-  const house = hand.map((x) => typeof x !== 'string' && x.src === 'house');
-  const shown = cards.length > MAX_SHOWN ? MAX_SHOWN - 1 : cards.length;
-  const n = shown + (cards.length > shown ? 1 : 0);
-  const w = CARD_W + (n - 1) * CARD_STEP;
-  const g = s('g', { class: `hand ${cls}`, transform: `translate(${(x - w / 2).toFixed(1)},${(y - CARD_H / 2).toFixed(1)})` },
-    s('title', {}, cards.map(cardName).join(' ') + (house.some(Boolean) ? '  (house cards dashed)' : '')));
-  if (cls.includes('pending')) {
-    g.append(s('rect', { class: 'hand-glow', x: -3, y: -3, width: w + 6, height: CARD_H + 6, rx: 4 }));
-  }
-  for (let i = 0; i < shown; i++) g.append(cardSvg(cards[i], i * CARD_STEP, house[i]));
-  if (cards.length > shown) {
-    g.append(s('g', { class: 'scard more', transform: `translate(${shown * CARD_STEP},0)` },
-      s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }),
-      s('text', { x: CARD_W / 2, y: 13, 'text-anchor': 'middle' }, `+${cards.length - shown}`)));
-  }
-  return g;
-}
+const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 const JOKER_COLOURS = ['#d62f4b', '#e9a100', '#1f9d55', '#2f6fd6'];
 
-// One little card at (x, 0). Special cards get a centred face and their own
+// One little card at (x, y). Special cards get a centred face and their own
 // colours (style.css: .scard.sp.joker.mono / .joker.colour / .ad.front / .ad.back).
-function cardSvg(c, x, house) {
-  const g = s('g', { class: `scard ${cardClass(c)}${house ? ' house' : ''}`, transform: `translate(${x},0)` },
-    s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }));
+function cardSvg(c, x, house, y = 0, opacity = 1) {
+  const g = s('g', {
+    class: `scard ${cardClass(c)}${house ? ' house' : ''}`, transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`,
+    opacity: opacity < 1 ? opacity.toFixed(2) : undefined,
+  }, s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }));
   if (isSpecialCard(c)) {
     const f = SPECIAL_FACE[c];
     if (c === '$$') g.append(s('rect', { class: 'sp-band', x: 1.5, y: 1.5, width: CARD_W - 3, height: CARD_H - 3, rx: 1.4 }));
@@ -91,6 +96,18 @@ function cardSvg(c, x, house) {
   g.append(s('text', { x: 2, y: 8.6, class: 'rank' }, rankText(c)),
     s('text', { x: CARD_W - 2, y: CARD_H - 2.2, class: 'suit', 'text-anchor': 'end' }, SUIT_GLYPH[c[1]]));
   return g;
+}
+
+// Every hand on a live cell: in its slots, waiting to be placed, or held.
+function liveHands(lc) {
+  const out = [];
+  lc.slots.forEach((hand) => { if (hand) out.push(hand); });
+  for (const [, hand] of lc.pending) out.push(hand);
+  if (lc.held) {
+    if (lc.fn === 'gather') out.push(lc.held[0]);
+    else out.push(...Object.values(lc.held));
+  }
+  return out;
 }
 
 // Position for a hand sitting at side d of a hex, keeping it inside the hex.
@@ -167,11 +184,29 @@ export class Board {
 
   isBuildable(at) { return this.floorKeys.has(hexKey(at)); }
 
-  // state: { cells, selected (key), activePort, hover {at, side, edge}, live (Floor), alert (key), ghost {at, tool} }
+  // state: { cells, selected (key), activePort, hover {at, side, edge}, live (Floor), alert (key), ghost {at, tool},
+  //   anim {from, t} }
+  // anim moves the live cards from where they were drawn before the last step
+  // (`from`: this.positions then) toward where they are now, t from 0 to 1.
   render(state) {
     const { cells, live } = state;
     this.paidNow = state.paidNow;
     this.paidWrong = state.paidWrong;
+    this.anim = live ? state.anim : null;
+    if (this.anim) {
+      // Cards that left the floor in the step (paid or dropped): the chip
+      // desk's hand is matched to them by card, the rest fade out.
+      if (!this.anim.vanished) {
+        const present = new Set();
+        for (const lc of live.cells.values()) for (const hand of liveHands(lc)) hand.forEach((x) => present.add(x));
+        this.anim.vanished = [...this.anim.from].filter(([x]) => !present.has(x)).map(([, p]) => p);
+      }
+      this.pool = [...this.anim.vanished];
+    }
+    // Card object -> where it is drawn (for the next step's animation), and
+    // what a collapsed stack or label holds ([data-peek] indexes this).
+    this.positions = new Map();
+    this.peeks = [];
     const svg = this.svg;
     svg.replaceChildren();
     const gFloor = s('g', { class: 'l-floor' }), gBody = s('g', { class: 'l-body' });
@@ -196,8 +231,12 @@ export class Board {
       gArrow.append(this.arrowsSvg(cell, t, selected ? state.activePort : null));
       if (liveCells) {
         const lc = liveCells.get(k);
-        if (lc) gCards.append(this.liveSvg(lc, t, live));
+        if (lc) gCards.append(this.liveSvg(lc, t, [x, y]));
       }
+    }
+    // Dropped cards fade out where they were.
+    if (this.anim && this.anim.t < 1) {
+      for (const p of this.pool) gCards.append(cardSvg(p.c, p.x, p.house, p.y, 1 - ease(this.anim.t)));
     }
 
     // Selection overlay and edge hints.
@@ -288,7 +327,13 @@ export class Board {
     if (cell.kind === 'shoe') {
       const deck = cell.deck ?? [];
       const prev = deck.slice(0, 3).map(cardText).join(' ') + (deck.length > 3 ? ' …' : '');
-      g.append(s('text', { class: 'shoe-deck', y: CHIP + 11, 'text-anchor': 'middle' }, prev + (cell.once ? ' ¹' : '')));
+      const label = s('text', { class: 'shoe-deck', y: CHIP + 11, 'text-anchor': 'middle' }, prev + (cell.once ? ' ¹' : ''));
+      if (deck.length > 3) {
+        // The whole deck on hover or tap (an invisible hit area: text ignores the pointer).
+        const w = [...label.textContent].length * 4.2 + 6;
+        g.append(s('g', { class: 'peekable', 'data-peek': this.peek({ cards: deck, title: `Shoe deck (${deck.length} cards, top first)` }) },
+          s('rect', { class: 'peek-hit', x: -w / 2, y: CHIP + 4, width: w, height: 9 }), label));
+      } else g.append(label);
     }
     g.append(s('title', {}, `${info.name}: ${info.desc}`));
     return g;
@@ -328,70 +373,173 @@ export class Board {
       const px = -uy * 6, py = ux * 6;
       g.append(s('polygon', { class: 'port-head', fill: st.color, points: `${bx + px},${by + py} ${tx},${ty} ${bx - px},${by - py}` }));
       if (isFixed || (ports.length === 1 && ports[0][0] === 'out')) continue;
-      // One pill per port (deal: one pill listing the deal positions),
-      // laid side by side along the edge.
-      const pills = ports[0][0] === 'to'
-        ? [[ports.map(([, i]) => i).join('·'), st.color, activePort === 'to']]
-        : ports.map(([p]) => [PORT_STYLE[p].short, PORT_STYLE[p].color, p === activePort]);
-      const widths = pills.map(([text]) => pillWidth(text));
+      // One pill per port (deal: one pill listing the deal positions,
+      // collapsed to fit the hex), laid side by side along the edge.
       const horizontal = Math.abs(uy) > 0.1; // tangent mostly horizontal for the slanted sides
+      let pills;
+      if (ports[0][0] === 'to') {
+        const { text, full } = dealLabel(ports.map(([, i]) => i), horizontal ? 40 : 26);
+        const peek = text === full ? null : this.peek({ text: `Deals cards ${full.replace(/·/g, ', ')} to ${SIDE_NAMES[side]}` });
+        pills = [[text, st.color, activePort === 'to', peek]];
+      } else {
+        pills = ports.map(([p]) => [PORT_STYLE[p].short, PORT_STYLE[p].color, p === activePort]);
+      }
+      const widths = pills.map(([text]) => pillWidth(text));
       const gap = 2;
       const along = horizontal ? widths : widths.map(() => 12);
       const total = along.reduce((x, y) => x + y, 0) + gap * (pills.length - 1);
       const rr = AP - 15;
       const cx = ux * rr, cy = uy * rr;
       let off = -total / 2;
-      pills.forEach(([text, color, active], i) => {
+      pills.forEach(([text, color, active, peek], i) => {
         const mid = off + along[i] / 2;
         off += along[i] + gap;
         const x = horizontal ? cx + mid : cx, y = horizontal ? cy : cy + mid;
-        g.append(this.pill(text, color, x, y, active));
+        g.append(this.pill(text, color, x, y, active, peek));
       });
     }
     return g;
   }
 
-  pill(text, color, x, y, active) {
+  pill(text, color, x, y, active, peek = null) {
     const w = pillWidth(text);
-    return s('g', { class: `pill${active ? ' active' : ''}`, transform: `translate(${x.toFixed(1)},${y.toFixed(1)})` },
-      s('rect', { x: -w / 2, y: -5.5, width: w, height: 11, rx: 5.5, fill: color }),
-      s('text', { y: 2.5, 'text-anchor': 'middle' }, text));
+    return s('g', {
+      class: `pill${active ? ' active' : ''}${peek !== null ? ' peekable' : ''}`, transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`,
+      'data-peek': peek ?? undefined,
+    },
+    s('rect', { x: -w / 2, y: -5.5, width: w, height: 11, rx: 5.5, fill: color }),
+    s('text', { y: 2.5, 'text-anchor': 'middle' }, text));
   }
 
-  liveSvg(lc, t, floor) {
+  // Register what a collapsed stack or label holds; returns its [data-peek] index.
+  peek(item) {
+    this.peeks.push(item);
+    return this.peeks.length - 1;
+  }
+
+  // Where a card drawn at (ax, ay) (board coordinates) is during the step
+  // animation: [dx, dy, opacity]. Cards that were on the floor before slide
+  // from there; the chip desk's cards come from cards that left the floor;
+  // new cards fade in.
+  motion(card, c, ax, ay) {
+    const a = this.anim;
+    if (!a || a.t >= 1) return [0, 0, 1];
+    let from = card && typeof card === 'object' ? a.from.get(card) : undefined;
+    if (!from && typeof card === 'string') {
+      const i = this.pool.findIndex((p) => p.c === c);
+      if (i >= 0) [from] = this.pool.splice(i, 1);
+    }
+    if (!from) return [0, 0, ease(a.t)];
+    const k = 1 - ease(a.t);
+    return [(from.x - ax) * k, (from.y - ay) * k, 1];
+  }
+
+  // A hand as little cards centred on (x, y) in a cell at `origin` (board
+  // coordinates). Live hands are [{c, src}]. Long hands show their first
+  // cards and a "+n" card; hovering or tapping it shows them all.
+  handSvg(hand, x, y, cls, [ox, oy]) {
+    const cards = hand.map((v) => (typeof v === 'string' ? v : v.c));
+    const house = hand.map((v) => typeof v !== 'string' && v.src === 'house');
+    const shown = cards.length > MAX_SHOWN ? MAX_SHOWN - 1 : cards.length;
+    const n = shown + (cards.length > shown ? 1 : 0);
+    const w = CARD_W + (n - 1) * CARD_STEP;
+    const x0 = x - w / 2, y0 = y - CARD_H / 2;
+    const collapsed = cards.length > shown;
+    const g = s('g', {
+      class: `hand ${cls}${collapsed ? ' peekable' : ''}`, transform: `translate(${x0.toFixed(1)},${y0.toFixed(1)})`,
+      'data-peek': collapsed ? this.peek({ cards, house, title: `${cards.length} cards, top first` }) : undefined,
+    });
+    if (!collapsed) g.append(s('title', {}, cards.map(cardName).join(' ') + (house.some(Boolean) ? '  (house cards dashed)' : '')));
+    let deco = null;
+    if (cls.includes('pending')) {
+      deco = s('rect', { class: 'hand-glow', x: -3, y: -3, width: w + 6, height: CARD_H + 6, rx: 4 });
+    } else if (cls.includes('slot')) {
+      deco = s('rect', { class: 'hand-tray', x: -2.5, y: -2.5, width: w + 5, height: CARD_H + 5, rx: 3.5 });
+    } else if (cls.includes('held')) {
+      deco = s('rect', { class: 'hand-plate', x: -3, y: -3, width: w + 6, height: CARD_H + 6, rx: 4 });
+    }
+    if (deco) g.append(deco);
+    const place = (i, k, cx) => {
+      const ax = ox + x0 + cx, ay = oy + y0;
+      const [dx, dy, op] = this.motion(hand[i], cards[i], ax, ay);
+      for (let j = i; j < i + k; j++) {
+        if (typeof hand[j] === 'object') this.positions.set(hand[j], { x: ax + dx, y: ay + dy, c: cards[j], house: house[j] });
+      }
+      return [dx, dy, op];
+    };
+    // Whether the hand is arriving: its tray, plate or glow (and what the
+    // cell draws with it, this.arriving) fades in as its cards move.
+    this.arriving = 1;
+    for (let i = 0; i < shown; i++) {
+      const [dx, dy, op] = place(i, 1, i * CARD_STEP);
+      if (i === 0 && (Math.abs(dx) + Math.abs(dy) > 0.5 || op < 1)) this.arriving = ease(this.anim.t);
+      g.append(cardSvg(cards[i], i * CARD_STEP + dx, house[i], dy, op));
+    }
+    if (deco && this.arriving < 1) deco.setAttribute('opacity', this.arriving.toFixed(2));
+    if (collapsed) {
+      // The hidden cards travel with the "+n" card.
+      const [dx, dy, op] = place(shown, cards.length - shown, shown * CARD_STEP);
+      g.append(s('g', { class: 'scard more', transform: `translate(${(shown * CARD_STEP + dx).toFixed(1)},${dy.toFixed(1)})`, opacity: op < 1 ? op.toFixed(2) : undefined },
+        s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }),
+        s('text', { x: CARD_W / 2, y: 13, 'text-anchor': 'middle' }, `+${cards.length - shown}`)));
+    }
+    return g;
+  }
+
+  liveSvg(lc, t, origin) {
     const g = s('g', { transform: t, class: 'live' });
+    const hand = (cards, x, y, cls) => this.handSvg(cards, x, y, cls, origin);
     if (lc.kind === 'payout') {
-      if (this.paidNow) g.append(handSvg(this.paidNow, 0, -2, `paid-now${this.paidWrong ? ' wrong' : ''}`));
+      if (this.paidNow) g.append(hand(this.paidNow, 0, -2, `paid-now${this.paidWrong ? ' wrong' : ''}`));
       return g;
     }
-    lc.slots.forEach((hand, d) => {
-      if (!hand) return;
-      const [x, y] = sidePos(d, hand.length);
-      g.append(handSvg(hand, x, y, 'slot'));
-    });
-    for (const [side, hand] of lc.pending) {
-      if (lc.kind === 'shoe' || !hand.length) {
-        if (lc.kind === 'shoe') {
-          const [x, y] = sidePos(side, 1, 0.62);
-          g.append(handSvg(hand, x, y, 'pending'));
-        }
-        continue;
+    // Hands waiting at an input: on a tray, with a notch pointing at the
+    // croupier that will pick them up.
+    lc.slots.forEach((cards, d) => {
+      if (!cards) return;
+      const [x, y] = sidePos(d, cards.length);
+      const n = Math.min(cards.length, MAX_SHOWN);
+      const w = CARD_W + (n - 1) * CARD_STEP;
+      const [ux, uy] = unit(d);
+      // Where the tray's edge meets the line to the centre, and a notch from there.
+      // (A long hand reaching over the middle has no notch.)
+      const k = Math.min((w / 2 + 2.5) / (Math.abs(ux) || 1e-9), (CARD_H / 2 + 2.5) / (Math.abs(uy) || 1e-9));
+      const tray = hand(cards, x, y, 'slot');
+      if (Math.hypot(x, y) - k >= 6) {
+        const bx = x - ux * k, by = y - uy * k;
+        const px = -uy * 3.2, py = ux * 3.2;
+        g.append(s('polygon', {
+          class: 'tray-notch', opacity: this.arriving < 1 ? this.arriving.toFixed(2) : undefined,
+          points: `${(bx + px).toFixed(1)},${(by + py).toFixed(1)} ${(bx - ux * 4).toFixed(1)},${(by - uy * 4).toFixed(1)} ${(bx - px).toFixed(1)},${(by - py).toFixed(1)}`,
+        }));
       }
-      const [x, y] = sidePos(side, hand.length, 0.62);
-      g.append(handSvg(hand, x, y, 'pending'));
+      g.append(tray);
+    });
+    for (const [side, cards] of lc.pending) {
+      if (!cards.length) continue;
+      const [x, y] = sidePos(side, lc.kind === 'shoe' ? 1 : cards.length, 0.62);
+      g.append(hand(cards, x, y, 'pending'));
     }
+    // Hands a croupier holds while it waits for more: on a plate in the
+    // middle, with a badge saying what it is waiting with.
+    const held = (cards, cls, tag) => {
+      g.append(hand(cards, 0, 4, `held ${cls}`));
+      const w = tag.length * 4.6 + 8;
+      g.append(s('g', { class: 'held-badge', transform: 'translate(0,-10)', opacity: this.arriving < 1 ? this.arriving.toFixed(2) : undefined },
+        s('rect', { x: -w / 2, y: -4.5, width: w, height: 9, rx: 4.5 }),
+        s('text', { class: 'held-tag', y: 2.1, 'text-anchor': 'middle' }, tag)));
+    };
     if (lc.held) {
       if (lc.fn === 'gather') {
-        g.append(handSvg(lc.held[0], 0, 4, 'held'), s('text', { class: 'held-tag', x: 0, y: -8.5, 'text-anchor': 'middle' }, 'held'));
+        held(lc.held[0], '', 'held');
       } else if (lc.fn === 'war') {
         const { player, dealer } = lc.held;
-        if (player) g.append(handSvg(player, 0, 4, 'held'), s('text', { class: 'held-tag', x: 0, y: -8.5, 'text-anchor': 'middle' }, 'player'));
-        if (dealer) g.append(handSvg(dealer, 0, 4, 'held dealer'), s('text', { class: 'held-tag', x: 0, y: -8.5, 'text-anchor': 'middle' }, 'dealer'));
+        if (player) held(player, '', 'player');
+        if (dealer) held(dealer, 'dealer', 'dealer');
       } else if (lc.fn === 'hand' && lc.held.buffer?.length) {
         // The cards a Hand croupier is collecting, with how many it needs.
         const buf = lc.held.buffer, n = lc.n ?? 5;
-        g.append(handSvg(buf, 0, 4, `held hand-buffer${buf.length >= n ? ' full' : ''}`),
-          s('text', { class: 'held-tag', x: 0, y: -8.5, 'text-anchor': 'middle' }, `held ${buf.length}/${n}`));
+        held(buf, `hand-buffer${buf.length >= n ? ' full' : ''}`, `held ${buf.length}/${n}`);
       }
     }
     return g;

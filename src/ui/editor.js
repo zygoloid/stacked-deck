@@ -1,6 +1,6 @@
 // The level editor: palette, board, inspector, simulation and test runs.
 import { runTest, expectedPayouts, MAX_FLOOR_CARDS } from '../engine.js';
-import { h, s, handEl, parseCards, fmtCards } from './dom.js';
+import { h, s, handEl, cardEl, parseCards, fmtCards } from './dom.js';
 import { Board, R } from './board.js';
 import {
   CROUPIERS, PORT_STYLE, SIDE_NAMES, infoFor, newCell, portsOf, getPort, setPort, chipLabel, sampleCell,
@@ -29,8 +29,12 @@ export function openEditor(root, ctx, level) {
   let selected = null;            // hex key of the selected player cell
   let activePort = null;
   let tool = null;                // palette tool
+  const toolCells = new Map();    // palette tool -> the cell it places (params set before placing)
   let hover = null;
-  let drag = null;                // { kind: 'move'|'new', key|tool, x0, y0, active, over, overPalette }
+  let drag = null;                // { kind: 'move'|'new'|'pan'|'pinch', key|tool, x0, y0, active, over, overPalette, id }
+  const pointers = new Map();     // pointers down on the board: id -> [x, y] (two pinch-zoom)
+  let peekAt = null;              // { x, y, tap } where a collapsed stack or label is being looked at
+  let anim = null, animRaf = 0;   // cards moving after a step: { from, start, dur }
   let lastSide = 0;
   const undo = [], redo = [];
   let sim = null, testIndex = 0, playing = false, speed = 1, raf = 0, lastT = 0, acc = 0;
@@ -55,6 +59,7 @@ export function openEditor(root, ctx, level) {
   const modal = h('div', { class: 'modal-host' });
   const specials = specialCardsOf(level);
   const solBtn = h('button', { class: 'btn ghost sol-btn hidden', onclick: () => openSolutions(), title: 'Your saved solutions for this floor' });
+  const peek = h('div', { class: 'peek hidden' });
 
   const par = level.par;
   // `expected` levels list the exact payouts (which may repeat, regroup or
@@ -75,7 +80,7 @@ export function openEditor(root, ctx, level) {
       h('button', { class: 'btn ghost', onclick: () => ctx.go(`#/level/${level.id}/story`), title: 'Read the story again' }, 'Story'),
       h('button', { class: 'btn ghost', onclick: () => ctx.help(), title: 'Help (?)' }, '? Help')),
     palette,
-    h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast,
+    h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast, peek,
       h('div', { class: 'zoom' },
         h('button', { title: 'Zoom in (+)', onclick: () => zoomCenter(1 / 1.25) }, '+'),
         h('button', { title: 'Zoom out (-)', onclick: () => zoomCenter(1.25) }, '−'),
@@ -107,9 +112,22 @@ export function openEditor(root, ctx, level) {
     changed();
   }
 
-  // What a palette entry looks like: War shows its rule when the level allows
-  // only one, plain "WAR" when the player can choose.
+  // The cell a palette tool places: its params (n, War's rule, a shoe's
+  // deck) can be set in the inspector before placing.
+  function toolCell(name) {
+    if (!toolCells.has(name)) {
+      const c = sampleCell(name);
+      if (c.fn === 'war') c.rule = warRules(level)[0];
+      if (c.kind === 'shoe') c.deck = ['AS'];
+      toolCells.set(name, c);
+    }
+    return toolCells.get(name);
+  }
+  // What a palette entry looks like: the tool's settings once picked; until
+  // then War shows its rule when the level allows only one, plain "WAR" when
+  // the player can choose.
   function paletteSample(name) {
+    if (toolCells.has(name)) return toolCells.get(name);
     const cell = sampleCell(name);
     const rules = warRules(level);
     if (name === 'war') cell.rule = rules.length === 1 ? rules[0] : undefined;
@@ -119,11 +137,27 @@ export function openEditor(root, ctx, level) {
     if (!board.isBuildable(at) || cellAt(hexKey(at))) return;
     commit(() => {
       const c = newCell(toolName, at, lastSide);
-      if (c.fn === 'war') c.rule = warRules(level)[0];
+      const t = toolCell(toolName);
+      for (const k of ['n', 'rule', 'once']) if (t[k] !== undefined) c[k] = t[k];
+      if (t.deck) c.deck = [...t.deck];
       cells.push(c);
       selected = hexKey(at);
       activePort = firstOpenPort(c);
     });
+  }
+  // Pick a palette tool (or none). Picking one shows its settings, so it
+  // deselects the selected croupier.
+  function setTool(name) {
+    tool = name;
+    if (name) { selected = null; activePort = null; deckDraft = null; }
+    renderPalette(); renderBoard(); renderInspector();
+  }
+  // Drop the palette tool and the selection (tapping the bare floor, the transport buttons).
+  function dropSelection() {
+    if (!tool && !selected) return;
+    tool = null;
+    select(null);
+    renderPalette();
   }
   function move(key, at) {
     const c = cellAt(key);
@@ -188,13 +222,36 @@ export function openEditor(root, ctx, level) {
   function resetSim() {
     stop();
     sim = null;
+    anim = null;
     hideToast();
+  }
+  // How long cards take to move after a step (s): at the slower speeds and
+  // when stepping by hand; not at all when that would be too quick to see,
+  // or when the player prefers less motion.
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  function animDuration(rate) {
+    if (reducedMotion?.matches) return 0;
+    const d = Math.min(0.32, 0.7 / rate);
+    return d >= 0.06 ? d : 0;
+  }
+  // Animate the cards from where they were drawn before the step just taken.
+  function startAnim(from, dur) {
+    anim = dur && from ? { from, start: performance.now(), dur: dur * 1000 } : null;
+    animate();
+  }
+  // While playing, tick() draws the frames; otherwise this does.
+  function animate() {
+    cancelAnimationFrame(animRaf);
+    const frame = () => { if (anim && !playing) { renderBoard(); if (anim) animRaf = requestAnimationFrame(frame); } };
+    if (anim && !playing) animRaf = requestAnimationFrame(frame);
   }
   function stepOnce() {
     if (running) return;
     if (!sim && !makeSim()) return;
     if (sim.finished) { stop(); return; }
+    const from = board.positions;
     sim.step();
+    startAnim(from, animDuration(2));
     afterStep();
   }
   function afterStep() {
@@ -210,6 +267,7 @@ export function openEditor(root, ctx, level) {
     if (!sim || running) return;
     stop();
     sim.back();
+    anim = null;
     hideToast();
     renderBoard(); renderTests(); renderTransport();
   }
@@ -226,6 +284,7 @@ export function openEditor(root, ctx, level) {
   function stop() {
     playing = false;
     cancelAnimationFrame(raf);
+    animate();
     renderTransport();
   }
   function tick(t) {
@@ -233,6 +292,8 @@ export function openEditor(root, ctx, level) {
     const rate = SPEEDS[speed].rate;
     const dt = Math.min(0.25, (t - lastT) / 1000);
     lastT = t;
+    const from = board.positions;
+    const r0 = sim.round;
     if (rate === Infinity) {
       const t0 = performance.now();
       while (!sim.finished && performance.now() - t0 < 14) sim.step();
@@ -240,8 +301,12 @@ export function openEditor(root, ctx, level) {
       acc += dt * rate;
       while (acc >= 1 && !sim.finished) { sim.step(); acc -= 1; }
     }
+    const stepped = sim.round !== r0;
+    if (stepped) startAnim(sim.round - r0 === 1 ? from : null, animDuration(rate));
     if (sim.finished) { afterStep(); return; }
-    renderBoard(); renderTests(); renderTransport();
+    // Redraw the board for a step or while cards move; the panels only for a step.
+    if (stepped || anim) renderBoard();
+    if (stepped) { renderTests(); renderTransport(); }
     raf = requestAnimationFrame(tick);
   }
   function setTest(i) {
@@ -480,12 +545,50 @@ export function openEditor(root, ctx, level) {
   function renderBoard() {
     const live = sim && sim.round > 0 ? sim.floor : null;
     const desk = level.fixed.find((c) => c.kind === 'payout');
+    const t = anim ? Math.min(1, (performance.now() - anim.start) / anim.dur) : 1;
     board.render({
       cells, selected, activePort, hover, live, tool, drag: drag?.active ? drag : null,
       paidNow: live ? sim.paidNow : null, paidWrong: sim?.paidWrong,
       alert: sim?.status.kind === 'wrong' && desk ? hexKey(desk.at) : null,
+      anim: anim && t < 1 ? Object.assign(anim, { t }) : null,
     });
+    if (t >= 1) anim = null;
     svg.classList.toggle('placing', !!tool);
+    updatePeek();
+  }
+
+  // ---------- peeking at collapsed stacks and labels ----------
+  // A long hand shows its first cards and "+n"; a shoe's deck and a Deal's
+  // positions are cut short. Hovering one (or tapping it) shows it in full.
+  let peekKey = null;
+  function updatePeek() {
+    const el = peekAt && document.elementFromPoint(peekAt.x, peekAt.y)?.closest?.('svg.board [data-peek]');
+    const item = el ? board.peeks[Number(el.dataset.peek)] : null;
+    if (!item) {
+      if (peekAt?.tap) peekAt = null;
+      peek.className = 'peek hidden';
+      peekKey = null;
+      return;
+    }
+    const key = JSON.stringify(item);
+    if (key !== peekKey) {
+      peekKey = key;
+      peek.replaceChildren(...[
+        item.title ? h('div', { class: 'peek-t' }, item.title) : null,
+        item.cards ? h('span', { class: 'hand' }, item.cards.map((c, i) => cardEl(c, item.house?.[i] ? 'house' : ''))) : null,
+        item.text ? h('div', {}, item.text) : null].filter(Boolean));
+    }
+    peek.className = 'peek';
+    // Next to the pointer, inside the board.
+    const wrap = peek.parentElement.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const pw = peek.offsetWidth, ph = peek.offsetHeight;
+    let x = r.left + r.width / 2 - wrap.left - pw / 2;
+    let y = r.top - wrap.top - ph - 8;
+    if (y < 6) y = r.bottom - wrap.top + 8;
+    x = Math.max(6, Math.min(wrap.width - pw - 6, x));
+    y = Math.max(6, Math.min(wrap.height - ph - 6, y));
+    peek.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
   }
 
   function renderPalette() {
@@ -504,7 +607,7 @@ export function openEditor(root, ctx, level) {
         i < 9 ? h('kbd', {}, String(i + 1)) : null);
       }),
       h('div', { class: 'pal-hint' }, tool
-        ? 'Click empty hexes to place. Esc or right-click to stop.'
+        ? 'Tap empty hexes to place; drag to pan. Tap the bare floor or press Esc to stop.'
         : 'Pick a croupier, then click the floor. Or drag it on.'),
       h('div', { class: 'pal-tools' },
         h('button', { class: 'btn small', disabled: !undo.length, onclick: () => undo.length && (redo.push(JSON.stringify(cells)), restoreCells(undo.pop())), title: 'Undo (Ctrl+Z)' }, '↶ Undo'),
@@ -527,8 +630,12 @@ export function openEditor(root, ctx, level) {
       }, '✕') : null);
   }
 
+  // The selected croupier; with none, the palette tool's settings (the cell
+  // it will place); with neither, the floor's brief and how to play.
   function renderInspector() {
-    const c = selCell();
+    let c = selCell();
+    const template = !c && tool ? toolCell(tool) : null;
+    c ??= template;
     if (!c) {
       inspector.replaceChildren(
         h('h3', {}, 'The floor'),
@@ -542,12 +649,23 @@ export function openEditor(root, ctx, level) {
       return;
     }
     const info = infoFor(c);
-    const key = hexKey(c.at);
+    const key = template ? `tool:${tool}` : hexKey(c.at);
+    // Changes to a placed croupier are undoable edits; to the tool, settings
+    // for the croupiers it places next.
+    const edit = template ? (fn) => { fn(); renderInspector(); renderPalette(); } : commit;
+    const toolInfo = tool ? CROUPIERS[tool] : null;
     const parts = [
+      // Placing more with the tool while a placed croupier is selected.
+      !template && toolInfo ? h('div', { class: 'placing-note' },
+        h('span', {}, 'Placing ', h('b', {}, `${toolInfo.name} (${chipLabel(toolCell(tool))})`), ': tap empty hexes.'),
+        h('button', { class: 'btn ghost small', title: 'Settings for the croupiers placed next', onclick: () => select(null) }, 'Settings'),
+        h('button', { class: 'btn ghost small', title: 'Stop placing (Esc)', onclick: () => setTool(null) }, 'Stop')) : null,
       h('div', { class: 'insp-head' },
         h('span', { class: 'pal-chip big', style: { background: info.family } }, h('span', {}, chipLabel(c))),
-        h('div', {}, h('h3', {}, info.name), h('div', { class: 'insp-at' }, `hex ${c.at[0]}, ${c.at[1]}`)),
-        h('button', { class: 'btn small danger', title: 'Remove (Delete)', onclick: () => remove(key) }, 'Remove')),
+        h('div', {}, h('h3', {}, info.name), h('div', { class: 'insp-at' }, template ? 'Tap an empty hex to place' : `hex ${c.at[0]}, ${c.at[1]}`)),
+        template
+          ? h('button', { class: 'btn small', title: 'Stop placing (Esc)', onclick: () => setTool(null) }, 'Done')
+          : h('button', { class: 'btn small danger', title: 'Remove (Delete)', onclick: () => remove(key) }, 'Remove')),
       h('p', { class: 'insp-desc' }, info.desc),
     ];
     // params
@@ -556,7 +674,7 @@ export function openEditor(root, ctx, level) {
       const opts = p.options;
       parts.push(h('div', { class: `param${opts.length > 8 ? ' col' : ''}` }, h('span', { class: 'param-k' }, c.fn === 'kind' ? 'n of a kind' : 'Cards per hand (n)'),
         h('div', { class: `seg${opts.length > 8 ? ' wide' : ''}`, 'data-param': 'n' }, opts.map((n) => h('button', {
-          class: (c.n ?? p.default) === n ? 'on' : '', onclick: () => commit(() => { c.n = n; }),
+          class: (c.n ?? p.default) === n ? 'on' : '', onclick: () => edit(() => { c.n = n; }),
         }, String(n))))));
     }
     if (c.fn === 'war') {
@@ -565,7 +683,7 @@ export function openEditor(root, ctx, level) {
       parts.push(h('div', { class: 'param' }, h('span', { class: 'param-k' }, 'Rule'),
         rules.length > 1
           ? h('div', { class: 'seg' }, rules.map((v) => h('button', {
-            class: (c.rule ?? 'high') === v ? 'on' : '', onclick: () => commit(() => { c.rule = v; }),
+            class: (c.rule ?? 'high') === v ? 'on' : '', onclick: () => edit(() => { c.rule = v; }),
           }, names[v] ?? v)))
           : h('span', { class: 'fixed-rule', title: 'The only War rule on this floor' }, `${names[rules[0]] ?? rules[0]} (house rule)`)));
     }
@@ -578,7 +696,7 @@ export function openEditor(root, ctx, level) {
           const res = parseCards(input.value, specials);
           if (res.error) { deckDraft = { key, text: input.value, error: res.error }; renderInspector(); return; }
           deckDraft = null;
-          if (res.cards.join() !== c.deck.join()) commit(() => { c.deck = res.cards; });
+          if (res.cards.join() !== c.deck.join()) edit(() => { c.deck = res.cards; });
           else renderInspector();
         },
       });
@@ -587,12 +705,21 @@ export function openEditor(root, ctx, level) {
         specials.length ? h('div', { class: 'deck-special muted small' }, 'Special cards on this floor: ', handEl(specials), ' type ',
           specials.map((x, k) => [k ? ' ' : '', h('kbd', {}, x)])) : null,
         h('label', { class: 'check' }, h('input', {
-          type: 'checkbox', checked: !!c.once, onchange: (e) => commit(() => { if (e.target.checked) c.once = true; else delete c.once; }),
+          type: 'checkbox', checked: !!c.once, onchange: (e) => edit(() => { if (e.target.checked) c.once = true; else delete c.once; }),
         }), ' Deal the deck only once')));
     }
     // ports
     const ports = portsOf(c);
-    if (ports.length) {
+    if (template) {
+      // Which ports it has; they are pointed once it is placed.
+      if (ports.length) {
+        parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ' point them once it is placed')),
+          h('div', { class: 'port-list' }, ports.map((p) => {
+            const st = PORT_STYLE[p];
+            return h('span', { class: `port-tag${st.input ? ' input' : ''}`, style: st.input ? { color: st.color, borderColor: st.color } : { background: st.color } }, p === 'to' ? 'deal to' : st.label);
+          })));
+      }
+    } else if (ports.length) {
       parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ' click a row, then an edge of the hex')));
       for (const p of ports) {
         const st = PORT_STYLE[p];
@@ -619,7 +746,7 @@ export function openEditor(root, ctx, level) {
       parts.push(h('p', { class: 'keys' }, 'Keys: ', h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'),
         ' point the port NW NE W E SW SE, ', h('kbd', {}, 'X'), ' floor, ', h('kbd', {}, 'Tab'), ' next port.'));
     }
-    inspector.replaceChildren(...parts);
+    inspector.replaceChildren(...parts.filter(Boolean));
   }
 
   // Expected payouts for a test before any run (cached per test).
@@ -633,6 +760,13 @@ export function openEditor(root, ctx, level) {
     return expectedCache.get(inputs);
   }
 
+  // The test chips are kept while they don't change (so a click isn't lost
+  // when the panel is redrawn between press and release while playing).
+  let chipsKey = null;
+  const testsHead = h('div', { class: 'tests-head' });
+  const chipsEl = h('div', { class: 'test-chips' });
+  const testsBody = h('div', { class: 'tests-body' });
+  testsPanel.append(testsHead, chipsEl, testsBody);
   function renderTests() {
     const tests = allTests();
     const nChecks = level.tests.deal ? CHECK_DEALS : 0;
@@ -644,12 +778,15 @@ export function openEditor(root, ctx, level) {
         title: `${testName(i)}: ${r ? (r.ok ? `passed in ${r.rounds} rounds` : describeFailure(r)) : `${tests[i].length} hands`}`,
       }, isCheck(i) ? `C${i - level.tests.length + 1}` : String(i + 1));
     };
-    const parts = [
-      h('div', { class: 'tests-head' }, h('h3', {}, 'Tests'),
-        running ? h('span', { class: 'muted small' }, `Checking ${runResults?.length ?? 0}/${level.tests.length + nChecks}…`) : null),
-      h('div', { class: 'test-chips' }, tests.map((_, i) => chip(i)),
-        nChecks && !checks ? h('span', { class: 'check-hint muted small', title: CHECK_NOTE }, `+ ${nChecks} check deals`) : null),
-    ];
+    const key = JSON.stringify([tests.length, testIndex, runResults?.map((r) => [r.ok, r.rounds]), !!checks]);
+    if (key !== chipsKey) {
+      chipsKey = key;
+      chipsEl.replaceChildren(...tests.map((_, i) => chip(i)),
+        nChecks && !checks ? h('span', { class: 'check-hint muted small', title: CHECK_NOTE }, `+ ${nChecks} check deals`) : '');
+    }
+    testsHead.replaceChildren(h('h3', {}, 'Tests'),
+      running ? h('span', { class: 'muted small' }, `Checking ${runResults?.length ?? 0}/${level.tests.length + nChecks}…`) : '');
+    const parts = [];
     const inputs = tests[testIndex] ?? [];
     const f = sim?.floor;
     const pos = f ? f.inputPos : 0;
@@ -712,9 +849,9 @@ export function openEditor(root, ctx, level) {
         ? paidRows.map((p, i) => h('div', { class: `p-item ${p.ok ? 'ok' : 'bad'}` }, h('span', { class: 'p-n' }, String(i + 1)), handEl(p.h), h('span', { class: 'p-mark' }, p.ok ? '✓' : '✗')))
         : h('div', { class: 'muted small' }, 'Nothing paid yet. Hands marked $ should be paid.')));
     }
-    testsPanel.replaceChildren(...parts);
+    testsBody.replaceChildren(...parts);
     // Keep the next hand visible by scrolling the queue box only, never the page.
-    const queue = testsPanel.querySelector('.queue');
+    const queue = testsBody.querySelector('.queue');
     const next = queue?.querySelector('.q-item.next');
     if (next && playing && queue.scrollHeight > queue.clientHeight) {
       const top = next.getBoundingClientRect().top - queue.getBoundingClientRect().top + queue.scrollTop;
@@ -724,80 +861,141 @@ export function openEditor(root, ctx, level) {
     }
   }
 
+  // The transport is built once and updated in place: while playing it is
+  // updated every round, and buttons rebuilt between a mouse press and its
+  // release never get the click (so pause didn't work with a mouse).
+  // Its buttons drop the palette tool and the selection.
+  const tp = {
+    reset: h('button', { class: 'tp', title: 'Reset (R)', onclick: () => { dropSelection(); resetSim(); renderAll(); } }, '⟲'),
+    back: h('button', { class: 'tp', title: 'Step back (,)', onclick: () => { dropSelection(); back(); } }, icon('back')),
+    play: h('button', { class: 'tp main', title: 'Play / pause (Space)', onclick: () => { dropSelection(); if (playing) stop(); else play(); } }),
+    step: h('button', { class: 'tp', title: 'Step (.)', onclick: () => { dropSelection(); stepOnce(); } }, icon('step')),
+    speeds: SPEEDS.map((sp, i) => h('button', {
+      class: 'sp', onclick: () => { dropSelection(); speed = i; if (!playing && !running) play(); else renderTransport(); },
+    }, sp.label)),
+    round: h('b'),
+    which: h('span', { class: 'muted' }),
+  };
+  transport.append(
+    h('div', { class: 'tp-group' }, tp.reset, tp.back, tp.play, tp.step),
+    h('div', { class: 'tp-group speeds', title: 'Speed (F cycles)' }, tp.speeds),
+    h('div', { class: 'tp-round' }, h('span', { class: 'muted' }, 'Round '), tp.round, tp.which));
   function renderTransport() {
     const r = sim ? sim.round : 0;
-    const fin = sim?.finished;
-    transport.replaceChildren(
-      h('div', { class: 'tp-group' },
-        h('button', { class: 'tp', title: 'Reset (R)', disabled: !sim || running, onclick: () => { resetSim(); renderAll(); } }, '⟲'),
-        h('button', { class: 'tp', title: 'Step back (,)', disabled: !sim || r === 0 || running, onclick: back }, icon('back')),
-        h('button', { class: `tp main${playing ? ' on' : ''}`, title: 'Play / pause (Space)', disabled: running, onclick: () => (playing ? stop() : play()) }, playing ? '⏸' : '▶'),
-        h('button', { class: 'tp', title: 'Step (.)', disabled: running || fin, onclick: stepOnce }, icon('step'))),
-      h('div', { class: 'tp-group speeds', title: 'Speed (F cycles)' },
-        SPEEDS.map((sp, i) => h('button', {
-          class: `sp${i === speed ? ' on' : ''}`, onclick: () => { speed = i; if (!playing && !running) play(); else renderTransport(); },
-        }, sp.label))),
-      h('div', { class: 'tp-round' }, h('span', { class: 'muted' }, 'Round '), h('b', {}, String(r)),
-        h('span', { class: 'muted' }, ` · ${isCheck(testIndex) ? `${testName(testIndex)}/${checks?.length ?? CHECK_DEALS}` : `Test ${testIndex + 1}/${level.tests.length}`}`)));
+    tp.reset.disabled = !sim || running;
+    tp.back.disabled = !sim || r === 0 || running;
+    tp.play.disabled = running;
+    tp.play.classList.toggle('on', playing);
+    tp.play.textContent = playing ? '⏸' : '▶';
+    tp.step.disabled = running || !!sim?.finished;
+    tp.speeds.forEach((b, i) => b.classList.toggle('on', i === speed));
+    tp.round.textContent = String(r);
+    tp.which.textContent = ` · ${isCheck(testIndex) ? `${testName(testIndex)}/${checks?.length ?? CHECK_DEALS}` : `Test ${testIndex + 1}/${level.tests.length}`}`;
   }
 
   // ---------- board pointer handling ----------
+  // A press on the board: on a croupier, selects it (a drag moves it).
+  // Anywhere else a drag pans the floor, and a tap points the selected
+  // croupier's active port at the edge tapped, places the palette tool's
+  // croupier on an empty hex, or drops the tool and the selection. Two
+  // fingers pinch-zoom.
+  const tapSlop = (e) => (e.pointerType === 'mouse' ? 6 : 10);
   svg.addEventListener('contextmenu', (e) => e.preventDefault());
   svg.addEventListener('pointerdown', (e) => {
-    if (running) return;
+    pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pointers.size === 2) { startPinch(); return; }
+    if (pointers.size > 2 || running) return;
+    if (e.pointerType !== 'mouse' && peekAt?.tap) { peekAt = null; updatePeek(); }
     const loc = board.locate(e.clientX, e.clientY);
     if (!loc) return;
     const key = hexKey(loc.at);
     const c = cellAt(key);
+    const base = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId, slop: tapSlop(e) };
     if (e.button === 2) {
-      if (tool) { tool = null; renderPalette(); renderBoard(); return; }
+      if (tool) { setTool(null); return; }
       if (c) remove(key);
       return;
     }
-    if (e.button === 1) { e.preventDefault(); drag = { kind: 'pan', x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, active: true, middle: true }; return; }
+    if (e.button === 1) { e.preventDefault(); drag = { kind: 'pan', ...base, active: true, middle: true }; return; }
     if (e.button !== 0) return;
-    if (c && key === selected && loc.dist > 0.45) { assign(loc.side); return; }
+    // A tap on a cut-short stack or label shows it in full (a mouse hovers instead).
+    const peekEl = e.target.closest?.('[data-peek]');
+    if (peekEl && e.pointerType !== 'mouse') { drag = { kind: 'pan', ...base, active: false, peek: true }; return; }
+    if (c && key === selected && loc.dist > 0.45) { drag = { kind: 'pan', ...base, active: false, assign: loc.side }; return; }
     if (c) {
+      if (tool && key !== selected) setTool(null);
       select(key);
-      drag = { kind: 'move', key, x0: e.clientX, y0: e.clientY, active: false };
+      drag = { kind: 'move', key, ...base, active: false };
       return;
     }
-    if (tool && board.isBuildable(loc.at)) { place(tool, loc.at); return; }
-    // empty space: a click deselects, a drag pans
-    drag = { kind: 'pan', x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, active: false };
+    // empty space: a tap places (with a tool on a free hex) or deselects; a drag pans
+    drag = { kind: 'pan', ...base, active: false, place: tool && board.isBuildable(loc.at) ? loc.at : null };
   });
   svg.addEventListener('auxclick', (e) => e.preventDefault());
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
     board.zoomAt(e.clientX, e.clientY, Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 100) * 0.0022));
+    updatePeek();
   }, { passive: false });
   function zoomCenter(f) {
     const r = svg.getBoundingClientRect();
     board.zoomAt(r.left + r.width / 2, r.top + r.height / 2, f);
   }
   svg.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse' && !drag) { peekAt = { x: e.clientX, y: e.clientY }; updatePeek(); }
+    if (drag?.kind === 'pinch') return;
     const loc = board.locate(e.clientX, e.clientY);
     const nh = loc ? { at: loc.at, side: loc.side, edge: loc.dist > 0.45 } : null;
     const same = hover && nh && hexKey(hover.at) === hexKey(nh.at) && hover.side === nh.side && hover.edge === nh.edge;
     if (!same) { hover = nh; if (!drag) renderBoard(); }
   });
-  svg.addEventListener('pointerleave', () => { hover = null; if (!drag) renderBoard(); });
+  svg.addEventListener('pointerleave', (e) => {
+    hover = null;
+    if (e.pointerType === 'mouse') peekAt = null;
+    if (!drag) renderBoard();
+  });
+
+  // Two fingers on the board: zoom by how far apart they move, pan with
+  // their midpoint. Whatever the first finger was doing is dropped.
+  function pinchState() {
+    const [[ax, ay], [bx, by]] = [...pointers.values()];
+    return { mx: (ax + bx) / 2, my: (ay + by) / 2, dist: Math.max(1, Math.hypot(ax - bx, ay - by)) };
+  }
+  function startPinch() {
+    if (drag?.kind === 'move' || drag?.kind === 'new') ghost.className = 'drag-ghost hidden';
+    svg.classList.remove('panning');
+    drag = { kind: 'pinch', ...pinchState() };
+    hover = null;
+    renderBoard();
+  }
 
   function startPaletteDrag(e, name) {
     if (e.button !== 0 || running) return;
     e.preventDefault();
-    drag = { kind: 'new', tool: name, x0: e.clientX, y0: e.clientY, active: false };
+    drag = { kind: 'new', tool: name, x0: e.clientX, y0: e.clientY, active: false, id: e.pointerId, slop: tapSlop(e) };
   }
   const ghost = h('div', { class: 'drag-ghost hidden' });
   root.append(ghost);
   function onMove(e) {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, [e.clientX, e.clientY]);
     if (!drag) return;
-    if (!drag.active && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 6) drag.active = true;
+    if (drag.kind === 'pinch') {
+      if (pointers.size < 2) return;
+      const p = pinchState();
+      board.zoomAt(p.mx, p.my, drag.dist / p.dist);
+      board.panBy(p.mx - drag.mx, p.my - drag.my);
+      Object.assign(drag, p);
+      updatePeek();
+      return;
+    }
+    if (drag.id !== undefined && e.pointerId !== drag.id) return;
+    if (!drag.active && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > (drag.slop ?? 6)) drag.active = true;
     if (!drag.active) return;
     if (drag.kind === 'pan') {
       board.panBy(e.clientX - drag.x, e.clientY - drag.y);
       drag.x = e.clientX; drag.y = e.clientY;
       svg.classList.add('panning');
+      updatePeek();
       return;
     }
     const loc = board.locate(e.clientX, e.clientY);
@@ -815,17 +1013,30 @@ export function openEditor(root, ctx, level) {
     renderBoard();
   }
   function onUp(e) {
-    if (!drag) return;
+    const wasPinch = drag?.kind === 'pinch';
+    pointers.delete(e.pointerId);
+    if (wasPinch) {
+      // One finger left: it carries on panning (lifting it doesn't count as a tap).
+      const rest = [...pointers][0];
+      drag = rest ? { kind: 'pan', id: rest[0], x0: rest[1][0], y0: rest[1][1], x: rest[1][0], y: rest[1][1], active: true } : null;
+      return;
+    }
+    if (!drag || (drag.id !== undefined && e.pointerId !== drag.id)) return;
     const d = drag;
     drag = null;
     ghost.className = 'drag-ghost hidden';
+    if (e.type === 'pointercancel') { svg.classList.remove('panning'); renderBoard(); return; }
     if (d.kind === 'pan') {
       svg.classList.remove('panning');
-      if (!d.active) select(null);
+      if (d.active) return;
+      if (d.peek) { peekAt = { x: e.clientX, y: e.clientY, tap: true }; updatePeek(); return; }
+      if (d.assign !== undefined) { assign(d.assign); return; }
+      if (d.place) { place(tool, d.place); return; }
+      dropSelection();
       return;
     }
     if (!d.active) {
-      if (d.kind === 'new') { tool = tool === d.tool ? null : d.tool; renderPalette(); renderBoard(); }
+      if (d.kind === 'new') setTool(tool === d.tool ? null : d.tool);
       return;
     }
     if (d.kind === 'move') {
@@ -835,10 +1046,10 @@ export function openEditor(root, ctx, level) {
       place(d.tool, d.over);
     }
     renderBoard(); // clear the drop marker when nothing changed
-    void e;
   }
   document.addEventListener('pointermove', onMove);
   document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onUp);
 
   // ---------- keyboard ----------
   function onKey(e) {
@@ -872,13 +1083,13 @@ export function openEditor(root, ctx, level) {
     if (lower === 'f') { speed = (speed + 1) % SPEEDS.length; renderTransport(); return; }
     if (lower === 'h') { ctx.help(); return; }
     if (k === 'Escape') {
-      if (tool) { tool = null; renderPalette(); renderBoard(); } else select(null);
+      if (tool) setTool(null); else select(null);
       return;
     }
     if (k === 'Delete' || k === 'Backspace') { if (selected) { e.preventDefault(); remove(selected); } return; }
     if (/^[1-9]$/.test(k)) {
       const name = level.croupiers[Number(k) - 1];
-      if (name) { tool = tool === name ? null : name; renderPalette(); renderBoard(); }
+      if (name) setTool(tool === name ? null : name);
       return;
     }
     const c = selCell();
@@ -906,6 +1117,8 @@ export function openEditor(root, ctx, level) {
     stop();
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    cancelAnimationFrame(animRaf);
     document.removeEventListener('keydown', onKey);
   };
 }
