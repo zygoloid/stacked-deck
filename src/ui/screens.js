@@ -157,7 +157,7 @@ export function helpPanel(close, save) {
       h('h3', {}, 'Keys'),
       h('div', { class: 'keys-grid' },
         [['Space', 'play / pause'], ['.', 'step'], [',', 'step back'], ['R', 'reset the run'], ['F', 'next speed'],
-          ['1–9', 'pick a croupier'], ['Del', 'remove selected'], ['Q E A D Z C', 'point active port NW NE W E SW SE'],
+          ['1–9', 'pick a croupier'], ['Del', 'remove selected'], ['Q E A D Z C', 'point the active port NW NE W E SW SE, then the next'], ['Long-press an edge', 'pick which port points there'],
           ['X', 'active port to floor'], ['Tab', 'next port'], ['Ctrl+Z', 'undo'], ['Wheel / pinch / drag', 'zoom / pan the floor'], ['+ − 0', 'zoom in, out, fit'], ['Esc', 'cancel / deselect'], ['Right-click', 'remove a croupier']]
           .map(([k, v]) => h('div', {}, h('kbd', {}, k), ' ', v)))));
 }

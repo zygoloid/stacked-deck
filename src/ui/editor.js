@@ -3,7 +3,7 @@ import { runTest, expectedPayouts, MAX_FLOOR_CARDS } from '../engine.js';
 import { h, s, handEl, cardEl, parseCards, fmtCards } from './dom.js';
 import { Board, R } from './board.js';
 import {
-  CROUPIERS, PORT_STYLE, SIDE_NAMES, infoFor, newCell, portsOf, getPort, setPort, chipLabel, sampleCell,
+  CROUPIERS, PORT_STYLE, SIDE_NAMES, infoFor, newCell, portsOf, getPort, setPort, isRequired, chipLabel, sampleCell,
 } from './croupiers.js';
 import { floorBadge } from './floors.js';
 import {
@@ -62,6 +62,7 @@ export function openEditor(root, ctx, level) {
   const specials = specialCardsOf(level);
   const solBtn = h('button', { class: 'btn ghost sol-btn hidden', onclick: () => openSolutions(), title: 'Your saved solutions for this floor' });
   const peek = h('div', { class: 'peek hidden' });
+  const radial = h('div', { class: 'radial hidden', role: 'menu' });
 
   const par = level.par;
   // `expected` levels list the exact payouts (which may repeat, regroup or
@@ -81,7 +82,7 @@ export function openEditor(root, ctx, level) {
       solBtn,
       h('button', { class: 'btn ghost', onclick: () => ctx.go(`#/level/${level.id}/story`), title: 'Read the story again' }, 'Story'),
       h('button', { class: 'btn ghost', onclick: () => ctx.help(), title: 'Help (?)' }, '? Help')),
-    h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast, peek,
+    h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast, peek, radial,
       h('div', { class: 'zoom' },
         h('button', { title: 'Zoom in (+)', onclick: () => zoomCenter(1 / 1.25) }, '+'),
         h('button', { title: 'Zoom out (-)', onclick: () => zoomCenter(1.25) }, '−'),
@@ -93,14 +94,20 @@ export function openEditor(root, ctx, level) {
     modal));
 
   // ---------- editing ----------
+  // Undo and redo restore the selection and its active port too, so undoing
+  // a port's side goes back to that port.
+  const editState = () => ({ cells: JSON.stringify(cells), selected, activePort });
   function commit(fn) {
-    undo.push(JSON.stringify(cells));
+    undo.push(editState());
     if (undo.length > 200) undo.shift();
     redo.length = 0;
     fn();
     changed();
   }
+  function undoStep() { if (undo.length) { redo.push(editState()); restoreCells(undo.pop()); } }
+  function redoStep() { if (redo.length) { undo.push(editState()); restoreCells(redo.pop()); } }
   function changed() {
+    closeRadial();
     ls.cells = cells;
     ctx.persist();
     ctx.cloud?.levelChanged(level.id, { work: true });
@@ -111,9 +118,11 @@ export function openEditor(root, ctx, level) {
     if (testIndex >= level.tests.length) testIndex = 0;
     renderAll();
   }
-  function restoreCells(json) {
-    cells = JSON.parse(json);
-    if (selected && !cellAt(selected)) selected = null;
+  function restoreCells(st) {
+    cells = JSON.parse(st.cells);
+    selected = st.selected && cellAt(st.selected) ? st.selected : null;
+    activePort = selected ? st.activePort : null;
+    deckDraft = null;
     changed();
   }
 
@@ -147,7 +156,7 @@ export function openEditor(root, ctx, level) {
       if (t.deck) c.deck = [...t.deck];
       cells.push(c);
       selected = hexKey(at);
-      activePort = firstOpenPort(c);
+      activePort = portsOf(c)[0] ?? null;
     });
   }
   // Pick a palette tool (or none). Picking one shows its settings, so it
@@ -177,36 +186,34 @@ export function openEditor(root, ctx, level) {
       if (selected === key) selected = null;
     });
   }
+  // Selecting a croupier starts at its first port.
   function select(key) {
     if (key) leavePlay();
     if (selected !== key) {
+      closeRadial();
       selected = key;
       deckDraft = null;
       const c = selCell();
-      activePort = c ? firstOpenPort(c) : null;
+      activePort = c ? portsOf(c)[0] ?? null : null;
     }
     renderBoard(); renderInspector();
   }
-  function firstOpenPort(c) {
-    const ports = portsOf(c);
-    return ports.find((p) => p !== 'to' && getPort(c, p) === undefined) ?? ports[0] ?? null;
-  }
-  // Point the active (or given) port of the selected cell at a side.
-  function assign(side, port = activePort) {
+  // Point a port of the selected cell at a side (undefined: the floor, which
+  // required ports don't have), then move on to the next port, so pressing
+  // directions one after another points the ports in order. Deal's list
+  // takes one side per press. With advance false the active port stays.
+  function assign(side, port = activePort, { advance = true } = {}) {
     const c = selCell();
     if (!c || !port) return;
+    if (port === 'to') { commit(() => setPort(c, 'to', side)); return; }
+    if (side === undefined && isRequired(c, port)) return;
+    const ports = portsOf(c);
+    const next = advance ? ports[(ports.indexOf(port) + 1) % ports.length] : activePort;
+    if (getPort(c, port) === side) { activePort = next; renderBoard(); renderInspector(); return; }
     commit(() => {
-      if (port === 'to') { setPort(c, 'to', side); return; }
-      const cur = getPort(c, port);
-      setPort(c, port, cur === side ? undefined : side);
-      if (side !== undefined && cur !== side) {
-        if (portsOf(c)[0] === port) lastSide = side;
-        // advance to the next port that still needs a side
-        const ports = portsOf(c);
-        const i = ports.indexOf(port);
-        const next = [...ports.slice(i + 1), ...ports.slice(0, i)].find((p) => getPort(c, p) === undefined);
-        if (next) activePort = next;
-      }
+      setPort(c, port, side);
+      if (side !== undefined && ports[0] === port) lastSide = side;
+      activePort = next;
     });
   }
 
@@ -624,8 +631,8 @@ export function openEditor(root, ctx, level) {
     palette.replaceChildren(
       h('div', { class: 'pal-head' }, h('div', { class: 'pal-title' }, 'Croupiers'),
         h('div', { class: 'pal-tools' },
-          h('button', { class: 'btn small', disabled: !undo.length, onclick: () => undo.length && (redo.push(JSON.stringify(cells)), restoreCells(undo.pop())), title: 'Undo (Ctrl+Z)' }, '↶ Undo'),
-          h('button', { class: 'btn small', disabled: !redo.length, onclick: () => redo.length && (undo.push(JSON.stringify(cells)), restoreCells(redo.pop())), title: 'Redo (Ctrl+Shift+Z)' }, '↷ Redo'),
+          h('button', { class: 'btn small', disabled: !undo.length, onclick: undoStep, title: 'Undo (Ctrl+Z)' }, '↶ Undo'),
+          h('button', { class: 'btn small', disabled: !redo.length, onclick: redoStep, title: 'Redo (Ctrl+Shift+Z)' }, '↷ Redo'),
           h('button', {
             class: 'btn small danger', disabled: !cells.length, title: 'Remove every croupier',
             onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; }); },
@@ -750,7 +757,7 @@ export function openEditor(root, ctx, level) {
           })));
       }
     } else if (ports.length) {
-      parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ' click a row, then an edge of the hex')));
+      parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ' tap an edge of the hex to point the highlighted one; long-press an edge to pick')));
       for (const p of ports) {
         const st = PORT_STYLE[p];
         if (p === 'to') {
@@ -771,10 +778,10 @@ export function openEditor(root, ctx, level) {
           onclick: () => { activePort = p; renderBoard(); renderInspector(); },
         },
         h('span', { class: `port-tag${st.input ? ' input' : ''}`, style: st.input ? { color: st.color, borderColor: st.color } : { background: st.color } }, st.label),
-        sideButtons(cur, (d) => { activePort = p; if (d === undefined) { if (cur !== undefined) commit(() => setPort(c, p, undefined)); else renderInspector(); } else if (cur !== d) assign(d, p); else renderInspector(); })));
+        sideButtons(cur, (d) => { activePort = p; assign(d, p); }, { floor: !isRequired(c, p) })));
       }
       parts.push(h('p', { class: 'keys' }, 'Keys: ', h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'),
-        ' point the port NW NE W E SW SE, ', h('kbd', {}, 'X'), ' floor, ', h('kbd', {}, 'Tab'), ' next port.'));
+        ' point the port NW NE W E SW SE and go to the next, ', h('kbd', {}, 'X'), ' floor, ', h('kbd', {}, 'Tab'), ' skip, ', h('kbd', {}, 'Ctrl+Z'), ' back.'));
     }
     inspector.replaceChildren(...parts.filter(Boolean));
   }
@@ -934,6 +941,8 @@ export function openEditor(root, ctx, level) {
   const tapSlop = (e) => (e.pointerType === 'mouse' ? 6 : 10);
   svg.addEventListener('contextmenu', (e) => e.preventDefault());
   svg.addEventListener('pointerdown', (e) => {
+    // With the port menu open, a press on the board just closes it.
+    if (radialOpen()) { closeRadial(); return; }
     pointers.set(e.pointerId, [e.clientX, e.clientY]);
     if (pointers.size === 2) { startPinch(); return; }
     if (pointers.size > 2 || running) return;
@@ -953,11 +962,13 @@ export function openEditor(root, ctx, level) {
     // A tap on a cut-short stack or label shows it in full (a mouse hovers instead).
     const peekEl = e.target.closest?.('[data-peek]');
     if (peekEl && e.pointerType !== 'mouse') { drag = { kind: 'pan', ...base, active: false, peek: true }; return; }
-    if (c && key === selected && loc.dist > 0.45) { drag = { kind: 'pan', ...base, active: false, assign: loc.side }; return; }
+    // An edge: a tap points the active port there, a long press opens the port menu.
+    if (c && key === selected && loc.dist > 0.45) { drag = { kind: 'pan', ...base, active: false, assign: loc.side }; holdFor(loc.side); return; }
     if (c) {
       if (tool && key !== selected) setTool(null);
       select(key);
       drag = { kind: 'move', key, ...base, active: false };
+      if (loc.dist > 0.45) holdFor(loc.side);
       return;
     }
     // empty space: a tap places (with a tool on a free hex) or deselects; a drag pans
@@ -994,6 +1005,7 @@ export function openEditor(root, ctx, level) {
     return { mx: (ax + bx) / 2, my: (ay + by) / 2, dist: Math.max(1, Math.hypot(ax - bx, ay - by)) };
   }
   function startPinch() {
+    clearTimeout(drag?.hold);
     if (drag?.kind === 'move' || drag?.kind === 'new') ghost.className = 'drag-ghost hidden';
     svg.classList.remove('panning');
     drag = { kind: 'pinch', ...pinchState() };
@@ -1021,7 +1033,9 @@ export function openEditor(root, ctx, level) {
       return;
     }
     if (drag.id !== undefined && e.pointerId !== drag.id) return;
-    if (!drag.active && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > (drag.slop ?? 6)) drag.active = true;
+    // Still holding after the port menu opened: slide onto a port to pick it on release.
+    if (drag.radial) { radialHover(e.clientX, e.clientY); return; }
+    if (!drag.active && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > (drag.slop ?? 6)) { drag.active = true; clearTimeout(drag.hold); }
     if (!drag.active) return;
     if (drag.kind === 'pan') {
       board.panBy(e.clientX - drag.x, e.clientY - drag.y);
@@ -1056,8 +1070,15 @@ export function openEditor(root, ctx, level) {
     if (!drag || (drag.id !== undefined && e.pointerId !== drag.id)) return;
     const d = drag;
     drag = null;
+    clearTimeout(d.hold);
     ghost.className = 'drag-ghost hidden';
-    if (e.type === 'pointercancel') { svg.classList.remove('panning'); renderBoard(); return; }
+    if (e.type === 'pointercancel') { svg.classList.remove('panning'); closeRadial(); renderBoard(); return; }
+    if (d.radial) {
+      // Released on a port: pick it; anywhere else the menu stays open for a tap.
+      const item = radialHover(e.clientX, e.clientY);
+      if (item) pickRadial(item.dataset.port);
+      return;
+    }
     if (d.kind === 'pan') {
       svg.classList.remove('panning');
       if (d.active) return;
@@ -1083,6 +1104,84 @@ export function openEditor(root, ctx, level) {
   document.addEventListener('pointerup', onUp);
   document.addEventListener('pointercancel', onUp);
 
+  // ---------- port menu ----------
+  // A long press on an edge of a croupier opens a ring of its ports around
+  // the press: pick one (tap it, or slide onto it and let go) to point it at
+  // that side. Ports already pointing there are marked; picking one of those
+  // sends it to the floor (unless it must point somewhere). Deal's entry adds
+  // the side to its list.
+  const HOLD_MS = 450;
+  let radialSide = null;
+  function radialOpen() { return radialSide !== null; }
+  function holdFor(side) {
+    const d = drag;
+    d.hold = setTimeout(() => {
+      if (drag !== d || d.active) return;
+      d.radial = true;
+      openRadial(side, d.x0, d.y0);
+    }, HOLD_MS);
+  }
+  function openRadial(side, x, y) {
+    const c = selCell();
+    const ports = c ? portsOf(c) : [];
+    if (!ports.length) return;
+    radialSide = side;
+    const n = ports.length;
+    const ring = n > 4 ? 64 : 54;
+    const items = ports.map((p, i) => {
+      const st = PORT_STYLE[p];
+      const on = p === 'to' ? (c.out.to ?? []).includes(side) : getPort(c, p) === side;
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+      const fixed = on && isRequired(c, p);
+      return h('button', {
+        class: `radial-item${on ? ' on' : ''}${st.input ? ' input' : ''}`, 'data-port': p, role: 'menuitem',
+        title: p === 'to' ? `Add ${SIDE_NAMES[side]} to the deal list` : on ? (fixed ? `${st.label} already points ${SIDE_NAMES[side]}` : `${st.label}: back to the floor`) : `Point ${st.label} ${SIDE_NAMES[side]}`,
+        style: {
+          left: `${(Math.cos(a) * ring).toFixed(1)}px`, top: `${(Math.sin(a) * ring).toFixed(1)}px`,
+          ...(st.input ? { color: st.color, borderColor: st.color } : { background: st.color }),
+        },
+        onclick: () => pickRadial(p),
+      }, p === 'to' ? 'deal +' : st.label, on ? h('span', { class: 'radial-tick' }, '✓') : null);
+    });
+    radial.replaceChildren(h('button', { class: 'radial-hub', title: 'Close (Esc)', onclick: closeRadial }, h('b', {}, ARROW[side]), h('span', {}, SIDE_NAMES[side])), ...items);
+    // Centred on the press, kept inside the board.
+    const wrap = radial.parentElement.getBoundingClientRect();
+    const m = ring + 34;
+    const cx = Math.max(m, Math.min(wrap.width - m, x - wrap.left));
+    const cy = Math.max(m, Math.min(wrap.height - m, y - wrap.top));
+    radial.style.transform = `translate(${cx.toFixed(0)}px, ${cy.toFixed(0)}px)`;
+    radial.className = 'radial';
+    peekAt = null;
+    hover = null; // no edge tip under the menu
+    renderBoard();
+  }
+  function closeRadial() {
+    if (!radialOpen()) return;
+    radialSide = null;
+    radial.className = 'radial hidden';
+    radial.replaceChildren();
+  }
+  // The port under (x, y), highlighted, or null.
+  function radialHover(x, y) {
+    const item = document.elementFromPoint(x, y)?.closest?.('.radial-item');
+    radial.querySelectorAll('.radial-item').forEach((el) => el.classList.toggle('hot', el === item));
+    return item ?? null;
+  }
+  function pickRadial(p) {
+    const c = selCell();
+    const side = radialSide;
+    closeRadial();
+    if (!c || side === null) return;
+    if (p === 'to') assign(side, 'to');
+    else if (getPort(c, p) === side) assign(isRequired(c, p) ? side : undefined, p, { advance: false });
+    else assign(side, p, { advance: false });
+  }
+  // A press anywhere else on the page closes it (the board handles its own).
+  function onDocDown(e) {
+    if (radialOpen() && !e.target.closest?.('.radial, svg.board')) closeRadial();
+  }
+  document.addEventListener('pointerdown', onDocDown, true);
+
   // ---------- keyboard ----------
   function onKey(e) {
     if (e.target.closest?.('input, textarea, select') || dialogOpen()) return;
@@ -1095,13 +1194,12 @@ export function openEditor(root, ctx, level) {
     const lower = k.length === 1 ? k.toLowerCase() : k;
     if ((e.ctrlKey || e.metaKey) && lower === 'z') {
       e.preventDefault();
-      if (e.shiftKey) { if (redo.length) { undo.push(JSON.stringify(cells)); restoreCells(redo.pop()); } }
-      else if (undo.length) { redo.push(JSON.stringify(cells)); restoreCells(undo.pop()); }
+      if (e.shiftKey) redoStep(); else undoStep();
       return;
     }
     if ((e.ctrlKey || e.metaKey) && lower === 'y') {
       e.preventDefault();
-      if (redo.length) { undo.push(JSON.stringify(cells)); restoreCells(redo.pop()); }
+      redoStep();
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1115,7 +1213,7 @@ export function openEditor(root, ctx, level) {
     if (lower === 'f') { speed = (speed + 1) % SPEEDS.length; renderTransport(); return; }
     if (lower === 'h') { ctx.help(); return; }
     if (k === 'Escape') {
-      if (tool) setTool(null); else select(null);
+      if (radialOpen()) closeRadial(); else if (tool) setTool(null); else select(null);
       return;
     }
     if (k === 'Delete' || k === 'Backspace') { if (selected) { e.preventDefault(); remove(selected); } return; }
@@ -1137,7 +1235,7 @@ export function openEditor(root, ctx, level) {
     if (lower in SIDE_KEYS) { assign(SIDE_KEYS[lower]); return; }
     if (lower === 'x' && activePort) {
       if (activePort === 'to') commit(() => { c.out.to = []; });
-      else if (getPort(c, activePort) !== undefined) commit(() => setPort(c, activePort, undefined));
+      else assign(undefined);
     }
   }
   document.addEventListener('keydown', onKey);
@@ -1150,6 +1248,7 @@ export function openEditor(root, ctx, level) {
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     document.removeEventListener('pointercancel', onUp);
+    document.removeEventListener('pointerdown', onDocDown, true);
     cancelAnimationFrame(animRaf);
     document.removeEventListener('keydown', onKey);
   };
