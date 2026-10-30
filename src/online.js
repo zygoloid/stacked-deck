@@ -56,6 +56,42 @@ export function readStats(node) {
   return { points, players };
 }
 
+// A player's frontier on a floor as stored in scores ({ "<croupiers>_<rounds>":
+// true }) as points [{ croupiers, rounds }].
+export const readFrontier = (node) => readStats({ points: Object.fromEntries(Object.keys(node ?? {}).map((k) => [k, 1])) }).points
+  .map(({ croupiers, rounds }) => ({ croupiers, rounds }));
+
+const AXES = ['croupiers', 'rounds'];
+const minOf = (points, k) => {
+  const vs = points.map((p) => p?.[k]).filter(Number.isFinite);
+  return vs.length ? Math.min(...vs) : null;
+};
+
+// How the player's best on a floor (`best`: the fewest croupiers and the
+// fewest rounds, each on its own; null if unsolved) compares, axis by axis:
+//   record:   the best known score on each axis (everyone's, friends', par and
+//             the player's own), or null when everyone's scores aren't known
+//             (`stats` null: signed out, or not read yet)
+//   top:      the player's best equals the record
+//   beatenBy: [{ name, croupiers, rounds }]: friends who beat the player's
+//             best on some axis, with their best on each axis they beat it on
+//             (else null); for an unsolved floor, every friend who solved it
+export function standing({ best = null, par = null, stats = null, friends = [] }) {
+  const out = { record: null, top: {}, beatenBy: [] };
+  const friendPoints = (friends ?? []).flatMap((f) => f.points ?? []);
+  if (stats) {
+    out.record = Object.fromEntries(AXES.map((k) => [k, minOf([...stats.points, ...friendPoints, par, best], k)]));
+  }
+  for (const k of AXES) out.top[k] = !!out.record && Number.isFinite(best?.[k]) && best[k] === out.record[k];
+  for (const f of friends ?? []) {
+    const theirs = Object.fromEntries(AXES.map((k) => [k, minOf(f.points ?? [], k)]));
+    if (theirs.croupiers === null) continue;
+    const beats = Object.fromEntries(AXES.map((k) => [k, !best || theirs[k] < best[k] ? theirs[k] : null]));
+    if (beats.croupiers !== null || beats.rounds !== null) out.beatenBy.push({ name: f.name ?? null, ...beats });
+  }
+  return out;
+}
+
 // `promise`, or a rejection with code 'timeout' if it hasn't settled within
 // `ms` (the database SDK waits for a connection indefinitely, so a read it
 // can't connect for never finishes otherwise).
