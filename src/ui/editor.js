@@ -35,6 +35,7 @@ export function openEditor(root, ctx, level) {
   const pointers = new Map();     // pointers down on the board: id -> [x, y] (two pinch-zoom)
   let peekAt = null;              // { x, y, tap } where a collapsed stack or label is being looked at
   let anim = null, animRaf = 0;   // cards moving after a step: { from, start, dur }
+  let watching = false;           // play mode: the palette and inspector are hidden, nothing is selected
   let lastSide = 0;
   const undo = [], redo = [];
   let sim = null, testIndex = 0, playing = false, speed = 1, raf = 0, lastT = 0, acc = 0;
@@ -54,6 +55,7 @@ export function openEditor(root, ctx, level) {
   const palette = h('section', { class: 'panel palette' });
   const inspector = h('section', { class: 'panel inspector' });
   const testsPanel = h('section', { class: 'panel tests' });
+  const side = h('aside', { class: 'side' }, palette, inspector, testsPanel);
   const transport = h('div', { class: 'transport' });
   const toast = h('div', { class: 'toast hidden' });
   const modal = h('div', { class: 'modal-host' });
@@ -85,8 +87,9 @@ export function openEditor(root, ctx, level) {
         h('button', { title: 'Zoom out (-)', onclick: () => zoomCenter(1.25) }, '−'),
         h('button', { title: 'Fit the floor (0)', onclick: () => board.fit() }, '⤢'))), transport),
     // The palette sits right above the inspector it switches (beside the
-    // board on a wide screen, under it on a phone).
-    h('aside', { class: 'side' }, palette, inspector, testsPanel),
+    // board on a wide screen, under it on a phone); in play mode both are
+    // hidden, leaving the tests.
+    side,
     modal));
 
   // ---------- editing ----------
@@ -101,6 +104,7 @@ export function openEditor(root, ctx, level) {
     ls.cells = cells;
     ctx.persist();
     ctx.cloud?.levelChanged(level.id, { work: true });
+    leavePlay();
     resetSim();
     runResults = null;
     checks = null;
@@ -149,11 +153,12 @@ export function openEditor(root, ctx, level) {
   // Pick a palette tool (or none). Picking one shows its settings, so it
   // deselects the selected croupier.
   function setTool(name) {
+    if (name) leavePlay();
     tool = name;
     if (name) { selected = null; activePort = null; deckDraft = null; }
     renderPalette(); renderBoard(); renderInspector();
   }
-  // Drop the palette tool and the selection (tapping the bare floor, the transport buttons).
+  // Drop the palette tool and the selection (tapping the bare floor).
   function dropSelection() {
     if (!tool && !selected) return;
     tool = null;
@@ -173,6 +178,7 @@ export function openEditor(root, ctx, level) {
     });
   }
   function select(key) {
+    if (key) leavePlay();
     if (selected !== key) {
       selected = key;
       deckDraft = null;
@@ -246,8 +252,28 @@ export function openEditor(root, ctx, level) {
     const frame = () => { if (anim && !playing) { renderBoard(); if (anim) animRaf = requestAnimationFrame(frame); } };
     if (anim && !playing) animRaf = requestAnimationFrame(frame);
   }
+  // Play mode: watching a test. Playing, stepping or stepping back enters it,
+  // dropping the palette tool and the selection and hiding the palette and
+  // the inspector, so the tests panel has the room. Selecting a croupier,
+  // picking one to place, editing, resetting or the Edit button leave it
+  // (and pause), keeping the run where it is.
+  function enterPlay() {
+    if (watching) return;
+    watching = true;
+    tool = null; selected = null; activePort = null; deckDraft = null;
+    side.classList.add('watching');
+    renderPalette(); renderInspector(); renderBoard(); renderTests();
+  }
+  function leavePlay() {
+    if (!watching) return;
+    watching = false;
+    side.classList.remove('watching');
+    stop();
+    renderTests();
+  }
   function stepOnce() {
     if (running) return;
+    enterPlay();
     if (!sim && !makeSim()) return;
     if (sim.finished) { stop(); return; }
     const from = board.positions;
@@ -266,6 +292,7 @@ export function openEditor(root, ctx, level) {
   }
   function back() {
     if (!sim || running) return;
+    enterPlay();
     stop();
     sim.back();
     anim = null;
@@ -274,6 +301,7 @@ export function openEditor(root, ctx, level) {
   }
   function play() {
     if (running) return;
+    enterPlay();
     if (!sim && !makeSim()) return;
     if (sim.finished) { sim.reset(); hideToast(); }
     playing = true;
@@ -421,7 +449,7 @@ export function openEditor(root, ctx, level) {
             onPick: (i) => { close(); loadSolution(i); }, height: 250,
           })),
         h('div', { class: 'modal-actions' },
-          h('button', { class: 'btn', onclick: close }, 'Keep tinkering'),
+          h('button', { class: 'btn', onclick: () => { close(); leavePlay(); } }, 'Keep tinkering'),
           h('button', { class: 'btn', onclick: () => ctx.go('#/') }, 'All floors'),
           next ? h('button', { class: 'btn gold', autofocus: true, onclick: () => ctx.go(`#/level/${next.id}/story`) }, `Next: ${next.title} →`) : null))));
     modal.querySelector('.btn.gold, .btn')?.focus();
@@ -765,7 +793,10 @@ export function openEditor(root, ctx, level) {
   // The test chips are kept while they don't change (so a click isn't lost
   // when the panel is redrawn between press and release while playing).
   let chipsKey = null;
-  const testsHead = h('div', { class: 'tests-head' });
+  // Its heading is kept too: the Edit button (play mode only) must get its click.
+  const testsCount = h('span', { class: 'muted small' });
+  const editBtn = h('button', { class: 'btn small edit-btn', title: 'Back to building: show the croupiers (the run stays where it is)', onclick: () => leavePlay() }, '✎ Edit');
+  const testsHead = h('div', { class: 'tests-head' }, h('h3', {}, 'Tests'), testsCount, editBtn);
   const chipsEl = h('div', { class: 'test-chips' });
   const testsBody = h('div', { class: 'tests-body' });
   testsPanel.append(testsHead, chipsEl, testsBody);
@@ -786,8 +817,8 @@ export function openEditor(root, ctx, level) {
       chipsEl.replaceChildren(...tests.map((_, i) => chip(i)),
         nChecks && !checks ? h('span', { class: 'check-hint muted small', title: CHECK_NOTE }, `+ ${nChecks} check deals`) : '');
     }
-    testsHead.replaceChildren(h('h3', {}, 'Tests'),
-      running ? h('span', { class: 'muted small' }, `Checking ${runResults?.length ?? 0}/${level.tests.length + nChecks}…`) : '');
+    testsCount.textContent = running ? `Checking ${runResults?.length ?? 0}/${level.tests.length + nChecks}…` : '';
+    editBtn.classList.toggle('hidden', !watching);
     const parts = [];
     const inputs = tests[testIndex] ?? [];
     const f = sim?.floor;
@@ -866,14 +897,13 @@ export function openEditor(root, ctx, level) {
   // The transport is built once and updated in place: while playing it is
   // updated every round, and buttons rebuilt between a mouse press and its
   // release never get the click (so pause didn't work with a mouse).
-  // Its buttons drop the palette tool and the selection.
   const tp = {
-    reset: h('button', { class: 'tp', title: 'Reset (R)', onclick: () => { dropSelection(); resetSim(); renderAll(); } }, '⟲'),
-    back: h('button', { class: 'tp', title: 'Step back (,)', onclick: () => { dropSelection(); back(); } }, icon('back')),
-    play: h('button', { class: 'tp main', title: 'Play / pause (Space)', onclick: () => { dropSelection(); if (playing) stop(); else play(); } }),
-    step: h('button', { class: 'tp', title: 'Step (.)', onclick: () => { dropSelection(); stepOnce(); } }, icon('step')),
+    reset: h('button', { class: 'tp', title: 'Reset (R)', onclick: () => { leavePlay(); resetSim(); renderAll(); } }, '⟲'),
+    back: h('button', { class: 'tp', title: 'Step back (,)', onclick: back }, icon('back')),
+    play: h('button', { class: 'tp main', title: 'Play / pause (Space)', onclick: () => { if (playing) stop(); else play(); } }),
+    step: h('button', { class: 'tp', title: 'Step (.)', onclick: stepOnce }, icon('step')),
     speeds: SPEEDS.map((sp, i) => h('button', {
-      class: 'sp', onclick: () => { dropSelection(); speed = i; if (!playing && !running) play(); else renderTransport(); },
+      class: 'sp', onclick: () => { speed = i; if (!playing && !running) play(); else renderTransport(); },
     }, sp.label)),
     round: h('b'),
     which: h('span', { class: 'muted' }),
@@ -1078,7 +1108,7 @@ export function openEditor(root, ctx, level) {
     if (k === ' ') { e.preventDefault(); if (playing) stop(); else play(); return; }
     if (k === '.') { e.preventDefault(); stop(); stepOnce(); return; }
     if (k === ',') { e.preventDefault(); back(); return; }
-    if (lower === 'r') { resetSim(); renderAll(); return; }
+    if (lower === 'r') { leavePlay(); resetSim(); renderAll(); return; }
     if (k === '+' || k === '=') { zoomCenter(1 / 1.25); return; }
     if (k === '-') { zoomCenter(1.25); return; }
     if (k === '0') { board.fit(); return; }

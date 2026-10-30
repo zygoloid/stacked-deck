@@ -511,6 +511,15 @@ try {
     check(hc?.n === 3, `the Hand is placed with n = 3 (${JSON.stringify(hc)})`);
     await page.keyboard.press('Escape');
     await page.keyboard.press('Delete');
+    // Play mode: stepping hides the palette and the inspector; Edit brings them back.
+    await page.click('.pal-item[data-tool="hand"]');
+    await page.keyboard.press('.');
+    check(!(await page.isVisible('.palette')) && !(await page.isVisible('.inspector')) && await page.locator('.pal-item.on').count() === 0 &&
+      await page.isVisible('.tests .edit-btn'), 'stepping enters play mode: palette and inspector hidden, croupier dropped');
+    await page.click('.tests .edit-btn');
+    check(await page.isVisible('.palette') && await page.isVisible('.inspector') && !(await page.isVisible('.tests .edit-btn')) &&
+      (await page.textContent('.tp-round b')).trim() === '1', 'Edit shows them again, leaving the run where it was');
+    await page.keyboard.press('r');
   }
 
   // Back to the floors list from a floor far down it: that floor's tile is in view.

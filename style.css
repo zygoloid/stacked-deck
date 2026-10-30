@@ -410,7 +410,10 @@ svg.board.placing { cursor: copy; }
 
 /* tests panel */
 .tests { flex: 1; }
-.tests-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.tests-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.tests-head .edit-btn { margin-left: auto; }
+/* Play mode: only the tests are shown beside (or under) the board. */
+.side.watching .palette, .side.watching .inspector { display: none; }
 .test-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
 .test-chip {
   min-width: 30px; height: 28px; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, 0.35); background: #24493a;
