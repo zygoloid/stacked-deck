@@ -6,42 +6,6 @@ import { RANKS } from '../../src/cards.js';
 const SUITED = ['S', 'D', 'C', 'H'];
 const at = ([q, r], [dq, dr]) => [q + dq, r + dr];
 
-// Twice Shy (see the recipe's comment below): node positions and links.
-function twiceShy() {
-  // The store along the top, ending next to the first tester.
-  const nodes = {
-    M: pass([-2, -4], E), J: shoe([-1, -5], '?', { out: SW, once: true }),
-    MK: c([-1, -4], 'gather', { under: SE, out: { out: E } }), S$: shoe([-1, -3], '$', { out: NW }),
-    ST: c([0, -4], 'gather', { under: SE, out: { out: E } }),
-    T: twar([1, -4], { dealer: NW, out: { win: E, lose: SW } }), AC: shoe([1, -5], 'AC', { out: SE }),
-    BK: pass([0, -3], NW), SEED: shoe([-1, -2], '$', { out: NE, once: true }),
-    D: c([2, -4], 'duplicate', { out: { a: E, b: NE } }),
-    Bd: c([4, -5], 'burn', { out: { burn: E, rest: NW } }), BdP: pass([4, -6], SW), BdQ: pass([3, -5], E),
-  };
-  const links = [];
-  // Testers down a diagonal; tester k's Suits at base + k * (-1, 3).
-  const suits = ['S', 'H', 'D', 'C'];
-  suits.forEach((suit, k) => {
-    const [a, b] = [3 - k, -4 + 3 * k];
-    const last = k === suits.length - 1;
-    nodes[`Su${k}`] = c([a, b], 'suits', { out: { [suit]: E, ...Object.fromEntries(suits.slice(k + 1).map((x) => [x, SE])) } });
-    nodes[`Dup${k}`] = c([a + 1, b], 'duplicate', { out: { a: W, b: NE } });
-    nodes[`G${k}`] = c([a + 2, b - 1], 'gather', { under: SW, out: { out: SE } });
-    nodes[`Fl${k}`] = c([a + 2, b], 'flush', { out: { yes: SW, no: SE } });
-    nodes[`K${k}`] = c([a + 1, b + 1], 'kind', { n: 3, out: { no: E } });
-    nodes[`Bu${k}`] = c([a + 2, b + 1], 'burn', { out: { burn: SW } });
-    if (!last) Object.assign(nodes, { [`Ch${k}`]: pass([a, b + 1], SW), [`Ci${k}`]: pass([a - 1, b + 2], SE) });
-  });
-  // The assembler (as in Last In, First Out), below the last tester.
-  Object.assign(nodes, {
-    AG: c([1, 7], 'gather', { under: SW, out: { out: W } }),
-    AT: twar([0, 7], { dealer: NW, out: { win: SE, lose: W } }), A$$: shoe([0, 6], '$$', { out: SE }),
-    AP: pass([0, 8], NE), AS: shoe([1, 8], '$', { out: W, once: true }),
-    ABu: c([-1, 7], 'burn', { out: { burn: SE, rest: W } }), AP2: pass([-1, 8], E),
-    SuF: c([-2, 7], 'suits', { out: { S: W, H: W, D: W, C: W } }),
-  });
-  return { nodes, links };
-}
 
 export const SPECS = {
   'small-change': {
@@ -361,6 +325,54 @@ export const SPECS = {
     ],
   },
 
-  'twice-shy': twiceShy(),
+  'twice-shy': {
+    // The night is stacked (as in Last In, First Out, a joker after the last
+    // hand lets the stack out) and copied: one copy is dealt out again five
+    // cards at a time, the other is kept and copied once per hand. Each
+    // hand is doubled and gathered onto a copy of the whole night, so a card
+    // of the hand played once tonight appears three times, one played twice
+    // four times, and any other card at most twice. Suits splits that by
+    // suit (within a suit a rank is a card) and the piles go one at a time
+    // down one line, the advertising card from the bottom of the night last:
+    // K4 and Set drop the hand's repeated cards, K3 and Set keep the three
+    // copies of each card to pay, and the rest is dropped; the advertising
+    // card goes on (Suits' misc) to end the hand. A hand's piles are
+    // gathered onto a growing hand until it ends; Sort then puts each card's
+    // three copies together and Deal pays one in three. The advertising
+    // card that ended a hand lets the next copy of the night out (a War
+    // gate in its copying loop), so only one hand is in flight at a time,
+    // and then starts the next hand's pile.
+    cells: [
+      // the store
+      pass([-5, 4], E), shoe([-4, 3], '?', { out: SW, once: true }),
+      c([-4, 4], 'gather', { under: SE, out: { out: E } }),
+      twar([-3, 4], { dealer: NW, out: { win: E, lose: SW } }), shoe([-3, 3], 'AC', { out: SE }),
+      pass([-4, 5], NW), shoe([-5, 6], '$', { out: NE, once: true }),
+      c([-2, 4], 'burn', { out: { rest: NE } }),
+      c([-1, 3], 'duplicate', { out: { a: W, b: E } }),
+      // a hand, doubled, on a copy of the night
+      c([-2, 3], 'hand', { n: 5, out: { out: NE } }),
+      c([-1, 2], 'duplicate', { out: { a: E, b: E } }),
+      c([0, 2], 'gather', { under: SE, out: { out: NE } }),
+      c([0, 3], 'duplicate', { out: { a: SW, b: NW } }),
+      war([-1, 4], { dealer: SE, out: { win: NE, lose: NE, dwin: E, dlose: E } }),
+      // by suit, one pile at a time, the advertising card last
+      c([1, 1], 'suits', { out: { S: E, H: NE, D: SE, C: NW, misc: W } }),
+      pass([0, 1], NE), pass([1, 0], E), pass([2, 0], SE), pass([1, 2], NE), pass([2, 1], SE),
+      c([2, 2], 'kind', { n: 4, out: { yes: SE, no: E } }),
+      c([2, 3], 'set', { out: { rest: NE } }),
+      c([3, 2], 'kind', { n: 3, out: { yes: SE, no: E } }),
+      c([3, 3], 'set', { out: { set: SW } }),
+      c([4, 2], 'suits', { out: { misc: SE, S: NE, H: NE, D: NE, C: NE } }),
+      pass([4, 3], SW), pass([3, 4], W), pass([2, 4], W),
+      // collect a hand, then one card in three to the desk
+      c([1, 4], 'gather', { under: W, out: { out: SW } }),
+      twar([0, 5], { dealer: E, out: { win: NW, lose: W } }), shoe([1, 5], '$$', { out: W }),
+      pass([0, 4], E), shoe([1, 3], '$', { out: SW, once: true }),
+      c([-1, 5], 'burn', { out: { burn: NW, rest: SW } }),
+      c([-2, 6], 'sort', { out: { out: SW } }),
+      c([-3, 7], 'deal', { out: { to: Array.from({ length: 16 }, (_, i) => (i % 3 === 1 ? W : SE)) } }),
+    ],
+  },
 
 };

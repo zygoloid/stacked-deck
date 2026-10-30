@@ -34,7 +34,7 @@ const H2 = [source([-2, 1], E), desk([-2, 3])];
 // Three seated players down the left of a 6 x 9 floor, a row apart, and
 // three labelled desks (X, Y, Z from the top) down the right.
 const H4 = [source([-4, 0], E), desk([1, 2])];
-const H5 = [seated([-3, -4], E, 0), seated([-2, -5], SE, 1), desk([-3, 7])];
+const H5 = [seated([-6, 4], E, 0), seated([-5, 3], SE, 1), desk([-4, 7])];
 const labelled = (at, n) => ({ ...desk(at), desk: n });
 const H3 = [
   seated([-2, -2], E, 0), seated([-3, 0], E, 1), seated([-4, 2], E, 2),
@@ -128,14 +128,11 @@ function onceOnly(inputs) {
   return inputs.map((h) => h.filter((c) => n.get(c) === 1)).filter((h) => h.length);
 }
 // Two players, each with a deck of their own: `nDeals` five-card hands each.
-// Every suit turns up at least once over a night (dealt again if not; with
-// 40 cards that is almost never needed).
 function twoDeckDeals(rand, nTests, nDeals) {
   const tests = [];
-  while (tests.length < nTests) {
+  for (let t = 0; t < nTests; t++) {
     const a = shuffled(fullDeck(), rand), b = shuffled(fullDeck(), rand);
-    const test = Array.from({ length: 2 * nDeals }, (_, i) => (i % 2 ? b : a).splice(0, 5));
-    if (new Set(test.flat().map(suitOf)).size === 4) tests.push(test);
+    tests.push(Array.from({ length: 2 * nDeals }, (_, i) => (i % 2 ? b : a).splice(0, 5)));
   }
   return tests;
 }
@@ -642,7 +639,7 @@ export const LEVELS = [
     ],
     brief: 'Two players, five-card hands, one each per deal, each from their own deck. Pay out every hand without the cards played more than once tonight (by either player, in any hand); a hand with nothing left pays nothing.',
     handSize: 5,
-    floor: floorOf(hexRect(-6, 9, -10, 11), H5),
+    floor: floorOf(hexRect(0, 8, -8, 11), H5),
     fixed: H5,
     croupiers: paletteThrough('hand'),
     warRules: ALL,
@@ -718,7 +715,7 @@ const PAR = {
   'one-up': { croupiers: 16, rounds: 4076 },
   'crossed-wires': { croupiers: 14, rounds: 68 },
   'uneven-tables': { croupiers: 18, rounds: 94 },
-  'twice-shy': { croupiers: 51, rounds: 1187 },
+  'twice-shy': { croupiers: 36, rounds: 1145 },
   'rest-of-the-deck': { croupiers: 14, rounds: 1506 },
 };
 // END PAR
