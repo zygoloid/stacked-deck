@@ -679,19 +679,14 @@ signs in to Google, so no install step ever sees the token.
   (`persist-credentials: false`). The workflow uses no caches and no
   `pull_request_target`, and must not: both are common ways to get a
   pull request's code into a privileged job.
-* **Egress:** in the deploy job, StepSecurity's harden-runner records every
-  host the job contacts. It starts with `egress-policy: audit`. After the
-  first real deploy:
-  1. open the job's insights page (linked from its log);
-  2. check that `allowed-endpoints` covers what it lists, and that nothing
-     unexpected appears. Wildcard hosts such as `*.googleapis.com` are a
-     guess: list them by name if the insights show they aren't honoured;
-  3. switch to `egress-policy: block`, and add `disable-telemetry: true`,
-     which is allowed in block mode.
-
-  From then on, the job can only reach those hosts, so a compromised
-  dependency can't send the Google token anywhere else. If a later deploy
-  fails with a network error, check the insights for the host it needs.
+* **Egress:** in the deploy job, StepSecurity's harden-runner, in block
+  mode, allows only the hosts a real deploy was seen to use: Google's APIs
+  (`*.googleapis.com`), `github.com`, the npm registry and this game's
+  database. So a compromised dependency can't send the Google token
+  anywhere else. Telemetry stays on: it feeds the job's insights page
+  (linked from its log), which names any host a failing deploy was refused.
+  Add that host if it's expected (for example, `setup-node`'s download
+  hosts, if a runner image lacks Node 22).
 
 **One-off setup** (in Cloud Shell, or anywhere with `gcloud`):
 
