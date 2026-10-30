@@ -655,7 +655,13 @@ requires the deployer to be able to act as it. That account can't be
 disabled, since it does the builds, so instead the setup reduces it to
 what a build needs: Cloud Build Service Account (`roles/cloudbuild.builds.builder`)
 in place of Editor. Builds run the functions' install steps, so that is
-worth doing whatever deploys them.
+worth doing whatever deploys them. It also drops Eventarc Event Receiver and
+Cloud Run Invoker. The Firebase CLI granted those when the project got its
+first event-triggered function, assuming triggers run as this account; ours
+deliver as the functions' own accounts. A deploy that adds a project's first
+trigger of a new kind may try to grant them again. The deploy account can't
+change project IAM, so that deploy fails; grant the roles to that function's
+own account by hand instead.
 
 **Supply chain.** In the deploy job, everything is installed before it
 signs in to Google, so no install step ever sees the token.
@@ -723,8 +729,10 @@ gcloud projects get-iam-policy $PROJECT --flatten=bindings \
   --filter="bindings.members:serviceAccount:$COMPUTE" --format='value(bindings.role)'
 gcloud projects add-iam-policy-binding $PROJECT --member=serviceAccount:$COMPUTE \
   --role=roles/cloudbuild.builds.builder --condition=None
-gcloud projects remove-iam-policy-binding $PROJECT --member=serviceAccount:$COMPUTE \
-  --role=roles/editor --condition=None
+for role in editor eventarc.eventReceiver run.invoker; do
+  gcloud projects remove-iam-policy-binding $PROJECT --member=serviceAccount:$COMPUTE \
+    --role=roles/$role --condition=None
+done
 gcloud iam service-accounts add-iam-policy-binding $COMPUTE \
   --project=$PROJECT --member=serviceAccount:$SA --role=roles/iam.serviceAccountUser
 
