@@ -629,7 +629,7 @@ export function openEditor(root, ctx, level) {
           h('button', {
             class: 'btn small danger', disabled: !cells.length, title: 'Remove every croupier',
             onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; }); },
-          }, 'Clear'))),
+          }, 'Clear floor'))),
       h('div', { class: 'pal-grid' }, level.croupiers.map((name, i) => {
         const info = CROUPIERS[name];
         if (!info) return null;
