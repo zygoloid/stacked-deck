@@ -51,7 +51,7 @@ export function openEditor(root, ctx, level) {
   svg.setAttribute('class', 'board');
   const board = new Board(svg, level);
   const elCount = h('span', { class: 'stat-v' });
-  const palette = h('aside', { class: 'palette' });
+  const palette = h('section', { class: 'panel palette' });
   const inspector = h('section', { class: 'panel inspector' });
   const testsPanel = h('section', { class: 'panel tests' });
   const transport = h('div', { class: 'transport' });
@@ -79,13 +79,14 @@ export function openEditor(root, ctx, level) {
       solBtn,
       h('button', { class: 'btn ghost', onclick: () => ctx.go(`#/level/${level.id}/story`), title: 'Read the story again' }, 'Story'),
       h('button', { class: 'btn ghost', onclick: () => ctx.help(), title: 'Help (?)' }, '? Help')),
-    palette,
     h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast, peek,
       h('div', { class: 'zoom' },
         h('button', { title: 'Zoom in (+)', onclick: () => zoomCenter(1 / 1.25) }, '+'),
         h('button', { title: 'Zoom out (-)', onclick: () => zoomCenter(1.25) }, '−'),
         h('button', { title: 'Fit the floor (0)', onclick: () => board.fit() }, '⤢'))), transport),
-    h('aside', { class: 'side' }, inspector, testsPanel),
+    // The palette sits right above the inspector it switches (beside the
+    // board on a wide screen, under it on a phone).
+    h('aside', { class: 'side' }, palette, inspector, testsPanel),
     modal));
 
   // ---------- editing ----------
@@ -592,8 +593,16 @@ export function openEditor(root, ctx, level) {
   }
 
   function renderPalette() {
-    palette.replaceChildren(h('div', { class: 'pal-title' }, 'Croupiers'),
-      ...level.croupiers.map((name, i) => {
+    palette.replaceChildren(
+      h('div', { class: 'pal-head' }, h('div', { class: 'pal-title' }, 'Croupiers'),
+        h('div', { class: 'pal-tools' },
+          h('button', { class: 'btn small', disabled: !undo.length, onclick: () => undo.length && (redo.push(JSON.stringify(cells)), restoreCells(undo.pop())), title: 'Undo (Ctrl+Z)' }, '↶ Undo'),
+          h('button', { class: 'btn small', disabled: !redo.length, onclick: () => redo.length && (undo.push(JSON.stringify(cells)), restoreCells(redo.pop())), title: 'Redo (Ctrl+Shift+Z)' }, '↷ Redo'),
+          h('button', {
+            class: 'btn small danger', disabled: !cells.length, title: 'Remove every croupier',
+            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; }); },
+          }, 'Clear'))),
+      h('div', { class: 'pal-grid' }, level.croupiers.map((name, i) => {
         const info = CROUPIERS[name];
         if (!info) return null;
         const sample = paletteSample(name);
@@ -605,17 +614,10 @@ export function openEditor(root, ctx, level) {
         h('span', { class: 'pal-chip', style: { background: info.family } }, h('span', {}, chipLabel(sample))),
         h('span', { class: 'pal-name' }, info.name),
         i < 9 ? h('kbd', {}, String(i + 1)) : null);
-      }),
+      }).filter(Boolean)),
       h('div', { class: 'pal-hint' }, tool
         ? 'Tap empty hexes to place; drag to pan. Tap the bare floor or press Esc to stop.'
-        : 'Pick a croupier, then click the floor. Or drag it on.'),
-      h('div', { class: 'pal-tools' },
-        h('button', { class: 'btn small', disabled: !undo.length, onclick: () => undo.length && (redo.push(JSON.stringify(cells)), restoreCells(undo.pop())), title: 'Undo (Ctrl+Z)' }, '↶ Undo'),
-        h('button', { class: 'btn small', disabled: !redo.length, onclick: () => redo.length && (undo.push(JSON.stringify(cells)), restoreCells(redo.pop())), title: 'Redo (Ctrl+Shift+Z)' }, '↷ Redo'),
-        h('button', {
-          class: 'btn small danger', disabled: !cells.length, title: 'Remove every croupier',
-          onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; }); },
-        }, 'Clear floor')));
+        : 'Pick a croupier, then tap the floor, or drag it on.'));
   }
 
   function sideButtons(current, onPick, { floor = true } = {}) {
