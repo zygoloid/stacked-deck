@@ -4,6 +4,44 @@ import { E, SE, SW, W, NW, NE, c, pass, war, twar, shoe } from './shared.js';
 import { RANKS } from '../../src/cards.js';
 
 const SUITED = ['S', 'D', 'C', 'H'];
+const at = ([q, r], [dq, dr]) => [q + dq, r + dr];
+
+// Twice Shy (see the recipe's comment below): node positions and links.
+function twiceShy() {
+  // The store along the top, ending next to the first tester.
+  const nodes = {
+    M: pass([-2, -4], E), J: shoe([-1, -5], '?', { out: SW, once: true }),
+    MK: c([-1, -4], 'gather', { under: SE, out: { out: E } }), S$: shoe([-1, -3], '$', { out: NW }),
+    ST: c([0, -4], 'gather', { under: SE, out: { out: E } }),
+    T: twar([1, -4], { dealer: NW, out: { win: E, lose: SW } }), AC: shoe([1, -5], 'AC', { out: SE }),
+    BK: pass([0, -3], NW), SEED: shoe([-1, -2], '$', { out: NE, once: true }),
+    D: c([2, -4], 'duplicate', { out: { a: E, b: NE } }),
+    Bd: c([4, -5], 'burn', { out: { burn: E, rest: NW } }), BdP: pass([4, -6], SW), BdQ: pass([3, -5], E),
+  };
+  const links = [];
+  // Testers down a diagonal; tester k's Suits at base + k * (-1, 3).
+  const suits = ['S', 'H', 'D', 'C'];
+  suits.forEach((suit, k) => {
+    const [a, b] = [3 - k, -4 + 3 * k];
+    const last = k === suits.length - 1;
+    nodes[`Su${k}`] = c([a, b], 'suits', { out: { [suit]: E, ...Object.fromEntries(suits.slice(k + 1).map((x) => [x, SE])) } });
+    nodes[`Dup${k}`] = c([a + 1, b], 'duplicate', { out: { a: W, b: NE } });
+    nodes[`G${k}`] = c([a + 2, b - 1], 'gather', { under: SW, out: { out: SE } });
+    nodes[`Fl${k}`] = c([a + 2, b], 'flush', { out: { yes: SW, no: SE } });
+    nodes[`K${k}`] = c([a + 1, b + 1], 'kind', { n: 3, out: { no: E } });
+    nodes[`Bu${k}`] = c([a + 2, b + 1], 'burn', { out: { burn: SW } });
+    if (!last) Object.assign(nodes, { [`Ch${k}`]: pass([a, b + 1], SW), [`Ci${k}`]: pass([a - 1, b + 2], SE) });
+  });
+  // The assembler (as in Last In, First Out), below the last tester.
+  Object.assign(nodes, {
+    AG: c([1, 7], 'gather', { under: SW, out: { out: W } }),
+    AT: twar([0, 7], { dealer: NW, out: { win: SE, lose: W } }), A$$: shoe([0, 6], '$$', { out: SE }),
+    AP: pass([0, 8], NE), AS: shoe([1, 8], '$', { out: W, once: true }),
+    ABu: c([-1, 7], 'burn', { out: { burn: SE, rest: W } }), AP2: pass([-1, 8], E),
+    SuF: c([-2, 7], 'suits', { out: { S: W, H: W, D: W, C: W } }),
+  });
+  return { nodes, links };
+}
 
 export const SPECS = {
   'small-change': {
@@ -267,5 +305,62 @@ export const SPECS = {
       c([-1, 3], 'burn', { out: { burn: W, rest: NW } }),
     ],
   },
+
+  'crossed-wires': {
+    // A crossover network: each pair of streams crosses at a War with the
+    // player's hand sent one way and the dealer's the other, win or lose.
+    // A crosses B, then C, then B and C cross; every War pairs one hand of
+    // each, which works because the players have the same number of hands.
+    cells: [
+      pass([-1, -2], SE), pass([-2, 0], NE),
+      war([-1, -1], { dealer: SW, out: { win: SE, lose: SE, dwin: E, dlose: E } }),
+      pass([-3, 2], NE), pass([-2, 1], NE),
+      war([-1, 0], { dealer: SW, out: { win: SE, lose: SE, dwin: E, dlose: E } }),
+      pass([-1, 1], SE), pass([-1, 2], E), pass([0, 2], E),
+      pass([0, -1], SE),
+      war([0, 0], { dealer: W, out: { win: E, lose: E, dwin: NE, dlose: NE } }),
+      pass([1, 0], E), pass([1, -1], NE), pass([2, -2], E),
+    ],
+  },
+  'uneven-tables': {
+    // Tag A's hands with a joker on top and C's with an advertising card,
+    // merge the three streams, and sort them out with two top-card Wars:
+    // only the joker beats an ace, and only the advertising card fails to
+    // beat another. Burn takes the tags off again.
+    cells: [
+      c([-1, -2], 'gather', { under: W, out: { out: SE } }), shoe([-1, -3], '?', { out: SE }),
+      c([-3, 2], 'gather', { under: W, out: { out: NE } }), shoe([-3, 3], '$', { out: NW }),
+      pass([-2, 0], E), pass([-1, -1], SE), pass([-2, 1], NE),
+      twar([-1, 0], { dealer: SE, out: { win: E, lose: NE } }), shoe([-1, 1], 'AS', { out: NW }),
+      c([0, 0], 'burn', { out: { rest: SE } }), pass([0, 1], SE), pass([0, 2], E),
+      twar([0, -1], { dealer: NW, out: { win: E, lose: NE } }), shoe([0, -2], '$', { out: SE }),
+      pass([1, -1], SE), pass([1, 0], E),
+      c([1, -2], 'burn', { out: { rest: E } }), pass([2, -2], E),
+    ],
+  },
+
+  'rest-of-the-deck': {
+    // A shoe deals the whole deck and then a joker, but a pass prefers the
+    // player's side, so the deck follows the last hand and the joker comes
+    // last of all. Everything is stacked (on a `$` seed) until the joker is
+    // on top: then each suit of the stack holds the cards played twice and
+    // the others once. Split by suit, a suit with a pair (K2) loses its
+    // played cards to Set (whose rest is the unplayed cards); a suit
+    // without one was never played and is paid whole. Hand(1) pays them
+    // one card at a time.
+    cells: [
+      pass([-3, 0], E), shoe([-3, -1], [...SUITED.flatMap((s) => RANKS.map((r) => r + s)), '?'], { out: SE, once: true }),
+      c([-2, 0], 'gather', { under: SE, out: { out: E } }),
+      twar([-1, 0], { dealer: NW, out: { win: E, lose: SW } }), shoe([-1, -1], 'AC', { out: SE }),
+      pass([-2, 1], NW), shoe([-3, 1], '$', { out: E, once: true }),
+      c([0, 0], 'suits', { out: { S: E, H: NE, D: SE, C: NW } }),
+      pass([1, -1], SE), pass([0, 1], NE), pass([0, -1], E),
+      c([1, 0], 'kind', { n: 2, out: { yes: E, no: SE } }),
+      c([2, 0], 'set', { out: { rest: SW } }),
+      c([1, 1], 'hand', { n: 1, out: { out: SE } }),
+    ],
+  },
+
+  'twice-shy': twiceShy(),
 
 };

@@ -401,6 +401,33 @@ try {
     check(label === want, `${id}: palette War chip reads ${label}`);
   }
 
+  // Labelled desks (Uneven Tables): each desk is named and counts its own
+  // payouts, expected payouts name their desk, and a player's missing hands
+  // are left out of the queue.
+  {
+    await page.goto(`${base}?unlockall#/level/uneven-tables`);
+    await page.waitForSelector('svg.board');
+    const labels = await page.$$eval('.cell.payout .fixed-label', (els) => els.map((e) => e.textContent).sort());
+    check(labels.join() === 'DESK X,DESK Y,DESK Z', `desks are labelled (${labels})`);
+    const lv = L.BONUS.find((l) => l.id === 'uneven-tables');
+    const t0 = lv.tests[0];
+    const queue = await page.locator('.queue .q-item').count();
+    check(queue === t0.filter(Boolean).length, `the queue lists only real hands (${queue} of ${t0.length} entries)`);
+    const tags = await page.$$eval('.paid.expected .e-item .desk-tag', (els) => els.map((e) => e.textContent.trim()));
+    check(tags.length === t0.filter(Boolean).length && tags[0] === '→ Z', `expected payouts name their desks (${tags.slice(0, 3)})`);
+    // A line of passes from player A to the desk opposite it fails at the wrong desk.
+    await page.evaluate((cells) => {
+      const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+      s.levels['uneven-tables'] = { ...(s.levels['uneven-tables'] || {}), cells };
+      localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+    }, [-1, 0, 1, 2].map((q) => ({ at: [q, -2], kind: 'croupier', fn: 'pass', out: { out: 0 } })));
+    await page.reload();
+    await page.waitForSelector('svg.board');
+    for (let i = 0; i < 8; i++) await page.keyboard.press('.');
+    const status = await page.textContent('.sim-status');
+    check(/desk X that belongs at desk Z/.test(status), `a hand paid at the wrong desk is flagged: "${status.slice(0, 80)}"`);
+  }
+
   // On a phone-sized screen, playing must not scroll the page away from the floor.
   {
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

@@ -45,7 +45,8 @@ import {
 //      floor is cleared only if the machine also passes its check deals
 //      (random deals seeded from the machine itself; see src/score.js); the
 //      rounds score is the total over the tests, not the rounded average
-// (Seated players, `seat` on a source, and `inOrder` payouts are level
+// (Seated players, `seat` on a source, seats with fewer hands than others,
+// labelled desks, `desk` on a payout, and `inOrder` payouts are level
 // features: no rule changed.)
 export const RULES_VERSION = 9;
 
@@ -210,7 +211,11 @@ export class Floor {
     this.cells = new Map();
     this.round = 0;
     this.paid = [];
-    this.inputs = inputs.map((h) => h.map((c) => ({ c, src: 'player' })));
+    this.paidAt = []; // the desk (its `desk` label) each payout went to
+    // On a seated floor a test may give a player fewer hands than the others:
+    // their missing hands are null (always after their last real hand).
+    this.inputs = inputs.map((h) => h && h.map((c) => ({ c, src: 'player' })));
+    this.total = inputs.filter(Boolean).length; // hands to deal
     this.inputPos = 0; // hands dealt so far (by all players)
     this.live = 0; // player cards on the floor, including ones held by croupiers
     // Seated players (sources with a `seat`) each deal their own hands: with
@@ -284,7 +289,7 @@ export class Floor {
       }
       if (cell.kind === 'source' && !cell.pending.length) {
         const i = this.seats ? (cell.seat ?? 0) + cell.pos * this.seats : this.inputPos;
-        if (i < this.inputs.length) {
+        if (i < this.inputs.length && this.inputs[i]) {
           cell.pending = [[cell.out, this.inputs[i]]];
           cell.pos++;
           this.inputPos++;
@@ -336,6 +341,11 @@ export class Floor {
     if (face !== undefined) cell.facing = face;
   }
 
+  // Every hand has been dealt.
+  allDealt() {
+    return this.inputPos >= this.total;
+  }
+
   // Whether input hand i has been dealt.
   dealt(i) {
     if (!this.seats) return i < this.inputPos;
@@ -352,6 +362,7 @@ export class Floor {
     }
     if (to.kind === 'payout') {
       this.paid.push(cardsOf(hand));
+      this.paidAt.push(to.desk);
       if (!fromSource) this.live -= playerCards(hand);
       return true;
     }
@@ -368,18 +379,18 @@ export class Floor {
       slots: c.slots, pending: c.pending, held: c.held, facing: c.facing, pos: c.pos,
     }));
     return structuredClone({
-      cells, round: this.round, paid: this.paid, inputPos: this.inputPos, live: this.live,
+      cells, round: this.round, paid: this.paid, paidAt: this.paidAt, inputPos: this.inputPos, live: this.live,
     });
   }
 
   restore(snap) {
     const s = structuredClone(snap);
     [...this.cells.values()].forEach((c, i) => Object.assign(c, s.cells[i]));
-    Object.assign(this, { round: s.round, paid: s.paid, inputPos: s.inputPos, live: s.live });
+    Object.assign(this, { round: s.round, paid: s.paid, paidAt: s.paidAt, inputPos: s.inputPos, live: s.live });
   }
 
   done() {
-    return this.inputPos >= this.inputs.length && this.live === 0 &&
+    return this.allDealt() && this.live === 0 &&
       ![...this.cells.values()].some((c) => c.kind === 'source' && c.pending.length);
   }
 }
@@ -387,8 +398,10 @@ export class Floor {
 // What the chip desk should receive for one test. `rule` is either a
 // `pays(hand, earlierHands)` function (pay out a subset of the input hands)
 // or a level-like object with `expected(inputs)` returning the list of hands
-// to pay, which may repeat hands, regroup cards or use house cards; a `pays`
-// field works too.
+// to pay, which may repeat hands, regroup cards or use house cards (on a
+// floor with labelled desks, as { desk, hand }); a `pays` field works too.
+// On a floor whose players have different numbers of hands, `inputs` holds
+// null for each missing hand.
 export function expectedPayouts(rule, inputs) {
   const pays = typeof rule === 'function' ? rule : rule.pays;
   if (typeof rule === 'object' && typeof rule.expected === 'function') return rule.expected(inputs);
@@ -398,11 +411,32 @@ export function expectedPayouts(rule, inputs) {
 // Hands are compared as multisets of cards unless the level says `ordered`.
 export const handKey = (hand, ordered = false) => (ordered ? [...hand] : [...hand].sort()).join(' ');
 
+// On a floor with labelled desks (`desk: 0, 1, ...` on each payout cell) an
+// expected payout is { desk, hand }: that hand, paid at that desk. Elsewhere
+// it is just the hand. These read either form.
+export const payoutHand = (p) => (Array.isArray(p) ? p : p.hand);
+export const payoutDesk = (p) => (Array.isArray(p) ? undefined : p.desk);
+// A payout's key for matching: its hand's key, and its desk if it has one.
+export const payoutKey = (p, ordered = false) => {
+  const desk = payoutDesk(p);
+  return (desk === undefined ? '' : `@${desk} `) + handKey(payoutHand(p), ordered);
+};
+// What a floor actually paid, in the same form: the n-th payout.
+export const paidPayout = (floor, n) => (floor.paidAt[n] === undefined ? floor.paid[n] : { desk: floor.paidAt[n], hand: floor.paid[n] });
+
+// Rounds a run waits for payouts still owed once the player cards are gone
+// (and catches extra payouts after the last one): GRACE, or a level's own
+// `grace` where house cards are paid long after the last player card leaves.
+export const GRACE = 50;
+export const graceOf = (rule) => (typeof rule === 'object' && Number.isInteger(rule?.grace) ? rule.grace : undefined);
+
 // Run one test case against `rule` (see expectedPayouts). Payouts may arrive
-// in any order; each must match a distinct expected hand. A level with
+// in any order; each must match a distinct expected hand (at its desk, on a
+// floor with labelled desks). A level with
 // `inOrder: true` must pay them in the order listed. A run with more than
 // MAX_FLOOR_CARDS cards on the floor stops there and fails (`overflow`).
-export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {}) {
+export function runTest(spec, inputs, rule, { maxRounds = 5000, grace: defaultGrace = GRACE } = {}) {
+  const grace = graceOf(rule) ?? defaultGrace;
   const floor = new Floor(spec, inputs);
   const expected = expectedPayouts(rule, inputs);
   const ordered = typeof rule === 'object' && !!rule.ordered;
@@ -412,12 +446,12 @@ export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {
   // ends `grace` rounds after the last expected payout (catching any extra
   // payouts in that window). If the player cards are gone but payouts are
   // still owed (house cards on their way to the desk), it runs on for up to
-  // `grace` rounds before giving up.
+  // `grace` rounds before giving up (GRACE unless the level sets `grace`).
   let settled = null, drained = null, overflow = false;
   while (floor.round < maxRounds) {
     floor.step();
     if (floor.overflowed()) { overflow = true; break; }
-    const allPaid = floor.inputPos >= inputs.length && floor.paid.length >= expected.length;
+    const allPaid = floor.allDealt() && floor.paid.length >= expected.length;
     if (allPaid) settled ??= floor.round;
     if (floor.done()) {
       if (allPaid) break;
@@ -425,17 +459,18 @@ export function runTest(spec, inputs, rule, { maxRounds = 5000, grace = 50 } = {
       if (floor.round - drained >= grace) break;
     } else if (settled !== null && floor.round - settled >= grace) break;
   }
-  let remaining = expected.map((h) => handKey(h, ordered));
+  let remaining = expected.map((p) => payoutKey(p, ordered));
+  const paid = floor.paid.map((h, n) => payoutKey(paidPayout(floor, n), ordered));
   const wrong = [];
   if (inOrder) {
     // Payouts must come in the listed order: the n-th payout is expected[n].
-    floor.paid.forEach((h, n) => { if (handKey(h, ordered) !== remaining[n]) wrong.push(h); });
-    remaining = remaining.filter((k, n) => !(n < floor.paid.length && handKey(floor.paid[n], ordered) === k));
+    paid.forEach((k, n) => { if (k !== remaining[n]) wrong.push(floor.paid[n]); });
+    remaining = remaining.filter((k, n) => !(n < paid.length && paid[n] === k));
   } else {
-    for (const h of floor.paid) {
-      const i = remaining.indexOf(handKey(h, ordered));
-      if (i < 0) wrong.push(h); else remaining.splice(i, 1);
-    }
+    paid.forEach((k, n) => {
+      const i = remaining.indexOf(k);
+      if (i < 0) wrong.push(floor.paid[n]); else remaining.splice(i, 1);
+    });
   }
   const finished = !overflow && (floor.done() || settled !== null);
   return {

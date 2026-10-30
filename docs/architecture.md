@@ -67,7 +67,7 @@ coordinates: `0 E [1,0]`, `1 SE [0,1]`, `2 SW [-1,1]`, `3 W [-1,0]`,
 | kind | fields |
 |---|---|
 | `source` (card player, fixed by level) | `at, out` (side it hands cards to), `seat?` |
-| `payout` (chip desk, fixed) | `at` |
+| `payout` (chip desk, fixed) | `at, desk?` |
 | `shoe` (croupier dealing a stacked deck) | `at, out, deck: ['AS', ...], once?` |
 | `croupier` | `at, fn, out: {port: side}, facing?, ...params` |
 
@@ -83,6 +83,15 @@ are held up never lets the other get ahead or behind in the queue. The UI
 letters seated players (PLAYER A, PLAYER B) and labels the queue 1A, 1B, 2A,
 .... `floor.inputPos` counts hands dealt by everyone, and `floor.dealt(i)`
 says whether hand i has been dealt (each source counts its own in `pos`).
+On a seated floor a test may give a player fewer hands than the others: their
+missing hands are `null` in the list, always after their last real hand (the
+queue skips them). `floor.total` counts the real hands and `floor.allDealt()`
+says when they have all been dealt.
+
+**Desks.** A floor may label its chip desks (`desk: 0`, `1`, ...; all or
+none), which the UI names DESK X, Y, Z, W. `floor.paidAt[n]` is the label of
+the desk the n-th payout reached (undefined for an unlabelled desk). On such a
+floor every expected payout says where it must be paid (see Payouts).
 
 **Outputs to the same side are stacked** into one hand, earlier outputs on
 top: cut bottom half above top (so both halves to one side complete the cut,
@@ -168,6 +177,8 @@ whenever a rule changes; the level select shows it.
   expected: (inputs) => [hand, ...],       // …or this: the exact payouts (see below)
   ordered: false,                          // compare card order within payouts
   inOrder: false,                          // payouts must come in the listed order
+  grace: 50,                               // rounds to wait for owed payouts once the
+                                           //   player cards are gone (default GRACE)
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays);
                                 //   made by dealtTests (src/levels/shared.js; makeTests and
                                 //   makeMixedTests use it), which also records the deal function
@@ -185,6 +196,11 @@ order, and each must match a distinct expected hand; hands are compared as
 multisets of cards unless `ordered: true`. With `inOrder: true` the payouts
 must also arrive in the order listed: the n-th payout must match the n-th
 expected hand (the UI marks such a floor "payout order matters").
+On a floor with labelled desks an expected payout is `{ desk, hand }`, and a
+payout matches only at that desk (`payoutKey` in `src/engine.js`).
+A test normally gives up `GRACE` (50) rounds after the last player card has
+left the floor if payouts are still owed; a level whose house cards are paid
+long after that sets its own `grace` (The Rest of the Deck: 100).
 `expectedPayouts(rule, inputs)` and
 `runTest(spec, inputs, rule)` in `src/engine.js` accept either a `pays`
 function or the level object.

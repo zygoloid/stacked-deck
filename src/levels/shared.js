@@ -37,7 +37,8 @@ export function hexRect(r0, r1, x0, x1) {
 // (src/score.js) are dealt the same way, from a generator seeded by the
 // machine. Every floor's tests are made by this.
 export function dealtTests({ deal, fixed = [], nRandom = 4, seed = 1 }) {
-  const tests = [...fixed.map((t) => t.map((h) => h.split(' '))), ...deal(rng(seed), nRandom)];
+  // (null: a missing hand, on a floor whose players have different numbers of hands)
+  const tests = [...fixed.map((t) => t.map((h) => h && h.split(' '))), ...deal(rng(seed), nRandom)];
   Object.defineProperty(tests, 'deal', { value: deal });
   return tests;
 }

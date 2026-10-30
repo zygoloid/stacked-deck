@@ -32,6 +32,15 @@ const desc = (val) => (h) => h.map(val).sort((x, y) => y - x);
 const up = (c, k = 1) => RANKS[(RANKS.indexOf(rankOf(c)) + 13 + k) % 13] + c[1];
 const NEW_DECK = ['S', 'D', 'C', 'H'].flatMap((s) => RANKS.map((r) => r + s)).sort((a, b) => newDeckIndex(a) - newDeckIndex(b));
 
+// Crossed Wires variants: seat i % 3's hands go to desk `to(seat)`.
+const atDesks = (to) => (t) => t.flatMap((h, i) => (h ? [{ desk: to(i % 3), hand: h }] : []));
+const crossings = {
+  'straight across': atDesks((s) => s), 'all to desk Y': atDesks(() => 1),
+  'one down': atDesks((s) => (s + 1) % 3), 'one up': atDesks((s) => (s + 2) % 3),
+  'only A crosses': atDesks((s) => (s === 0 ? 2 : s)),
+  'hands in deal order to X, Y, Z': (t) => t.filter(Boolean).map((h, i) => ({ desk: i % 3, hand: h })),
+};
+
 export const MUTANTS = {
   // Expected-payout floors: mutants are (inputs) => payouts.
   'small-change': {
@@ -131,6 +140,24 @@ export const MUTANTS = {
     'next in new deck order': (t) => t.map(([c]) => [NEW_DECK[(NEW_DECK.indexOf(c) + 1) % 52]]),
     'two up': (t) => t.map(([c]) => [up(c, 2)]),
   },
+  'twice-shy': {
+    'every hand whole': (t) => t,
+    // the first copy of a repeated card is paid, the second dropped
+    'only the second copy dropped': (t) => { const seen = new Set(); return t.map((h) => h.filter((c) => !seen.has(c) && seen.add(c))).filter((h) => h.length); },
+    'only within a deal': (t) => deals(t).flatMap(([a, b]) => [a.filter((c) => !b.includes(c)), b.filter((c) => !a.includes(c))]).filter((h) => h.length),
+    'by rank, not card': (t) => t.map((h) => h.filter((c) => t.flat().filter((x) => rankOf(x) === rankOf(c)).length === 1)).filter((h) => h.length),
+    'repeated cards only': (t) => t.map((h) => h.filter((c) => t.flat().filter((x) => x === c).length > 1)).filter((h) => h.length),
+    'whole hands without repeats': (t) => t.filter((h) => h.every((c) => t.flat().filter((x) => x === c).length === 1)),
+  },
+  'rest-of-the-deck': {
+    'the cards played': (t) => t.flat().map((c) => [c]),
+    'unplayed, as one hand': (t) => [NEW_DECK.filter((c) => !t.flat().includes(c))],
+    'unplayed, a hand per suit': (t) => groupBy(NEW_DECK.filter((c) => !t.flat().includes(c)), (c) => c[1]),
+    'unplayed ranks only': (t) => NEW_DECK.filter((c) => !t.flat().some((x) => rankOf(x) === rankOf(c))).map((c) => [c]),
+    'all but the last hand': (t) => NEW_DECK.filter((c) => !t.slice(0, -1).flat().includes(c)).map((c) => [c]),
+  },
+  'crossed-wires': crossings,
+  'uneven-tables': crossings,
 };
 
 export const DOOR = [];

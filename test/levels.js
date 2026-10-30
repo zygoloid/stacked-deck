@@ -32,7 +32,9 @@ import assert from 'node:assert';
 import {
   LEVELS, BONUS, CHAPTERS, CHAPTER_FILES, CHAPTER_SUITS, FINALE_CARDS, BONUS_FILE, BONUS_SUITS,
 } from '../src/levels.js';
-import { runTest, expectedPayouts, handKey, FUNCTIONS, DIRS } from '../src/engine.js';
+import {
+  runTest, expectedPayouts, payoutKey, payoutHand, FUNCTIONS, DIRS,
+} from '../src/engine.js';
 import { RANKS, SUITS, SPECIALS } from '../src/cards.js';
 import { checkDeals, totalRounds } from '../src/score.js';
 
@@ -59,10 +61,12 @@ const check = (cond, msg) => { if (!cond) { failures++; console.log(`   FAIL ${m
 
 // Run every test; a machine "fails the level" if any test is not ok.
 const runAll = (level, cells, opts) => level.tests.map((t) => runTest({ cells }, t, level, opts));
-// A test's payouts as a sorted list of hand keys (compared like runTest does).
-// (In order, for a level whose payouts must come in order.)
+// A test's payouts as a sorted list of hand keys (compared like runTest does;
+// with their desks, on a floor with labelled desks). (In order, for a level
+// whose payouts must come in order.) Null hands (a player's missing hands)
+// are skipped.
 const payoutKeys = (level, hands) => {
-  const keys = hands.map((h) => handKey(h, !!level.ordered));
+  const keys = hands.filter(Boolean).map((p) => payoutKey(p, !!level.ordered));
   return (level.inOrder ? keys : keys.sort()).join(' | ');
 };
 
@@ -168,13 +172,29 @@ for (const level of [...LEVELS, ...BONUS]) {
   for (const s of level.fixed.filter((c) => c.kind === 'source')) {
     check(floor.has(key(step(s.at, s.out))), `source ${s.at} hands cards onto the floor`);
   }
+  // Seats and desk labels: all or none, numbered 0, 1, ...
+  const labels = (kind, field) => level.fixed.filter((c) => c.kind === kind).map((c) => c[field]);
+  for (const [kind, field] of [['source', 'seat'], ['payout', 'desk']]) {
+    const l = labels(kind, field);
+    check(l.every((x) => x === undefined) || l.slice().sort().every((x, i) => x === i), `${kind}s: ${field} on all or none, numbered from 0`);
+  }
+  const seats = labels('source', 'seat').filter((x) => x !== undefined).length;
+  const desks = labels('payout', 'desk').filter((x) => x !== undefined).length;
+  check(desks <= 1 || hasExpected, 'labelled desks only on an expected level');
   check(level.tests.length >= 3, 'at least 3 tests');
   for (const t of level.tests) {
-    check(t.length >= 1, 'test has hands');
+    check(t.some(Boolean), 'test has hands');
+    // A player with fewer hands than the others: null for each missing
+    // hand, only on a seated floor and only after that player's last hand.
+    t.forEach((h, i) => {
+      if (h) return;
+      check(seats > 0, 'missing hands (null) only on a seated floor');
+      check(i + seats >= t.length || !t[i + seats], `test hand ${i} is missing, but the same player has a later hand`);
+    });
     // Fixed tests may reuse cards between hands (the house plays from a
     // multi-deck shoe), but a hand never holds the same card twice. Players
     // only ever hold natural cards.
-    for (const h of t) {
+    for (const h of t.filter(Boolean)) {
       check(h.length >= minSize && h.length <= maxSize, `hand ${h} has ${minSize === maxSize ? minSize : `${minSize}-${maxSize}`} cards`);
       check(new Set(h).size === h.length, `hand ${h} repeats a card`);
       for (const c of h) check(CARDS.has(c), `card ${c}`);
@@ -220,7 +240,10 @@ for (const level of [...LEVELS, ...BONUS]) {
 
   // --- The tests discriminate ---
   const payouts = level.tests.map((t) => expectedPayouts(level, t));
-  check(payouts.every((p) => Array.isArray(p) && p.every((h) => Array.isArray(h) && h.length)), 'payouts are non-empty hands');
+  check(payouts.every((p) => Array.isArray(p) && p.every((x) => Array.isArray(payoutHand(x)) && payoutHand(x).length)), 'payouts are non-empty hands');
+  if (desks > 1) {
+    check(payouts.every((p) => p.every((x) => !Array.isArray(x) && Number.isInteger(x.desk) && x.desk < desks)), 'payouts name their desks');
+  }
   const anyPaid = payouts.some((p) => p.length);
   // "Pay everything" is right only where the payouts are exactly the inputs.
   const anyUnpaid = level.tests.some((t, i) => payoutKeys(level, t) !== payoutKeys(level, payouts[i]));

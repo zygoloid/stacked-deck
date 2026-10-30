@@ -7,7 +7,7 @@
 // everything (every croupier, both War rules, every special card). Mirror
 // Image and Showdown seat two players. See docs/campaign.md.
 import {
-  hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, NE,
+  hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, NE,
   hv, high, one, paletteThrough, finishChapter,
 } from './shared.js';
 import {
@@ -31,6 +31,15 @@ const B12 = [seated([-5, 0], E, 0), seated([-5, 1], NE, 1), desk([-4, 2])];
 const B13 = [seated([-6, -4], E, 0), seated([-6, -3], NE, 1), desk([-7, -1])];
 const H1 = [source([-3, 0], E), desk([-3, 2])];
 const H2 = [source([-2, 1], E), desk([-2, 3])];
+// Three seated players down the left of a 6 x 9 floor, a row apart, and
+// three labelled desks (X, Y, Z from the top) down the right.
+const H4 = [source([-4, 0], E), desk([1, 2])];
+const H5 = [seated([-3, -4], E, 0), seated([-2, -5], SE, 1), desk([-3, 7])];
+const labelled = (at, n) => ({ ...desk(at), desk: n });
+const H3 = [
+  seated([-2, -2], E, 0), seated([-3, 0], E, 1), seated([-4, 2], E, 2),
+  labelled([3, -2], 0), labelled([2, 0], 1), labelled([1, 2], 2),
+];
 
 const ALL = ['high', 'top'];
 const last = (before) => before[before.length - 1];
@@ -87,6 +96,56 @@ function mirrorDeals(rand, nTests, nDeals) {
   }
   return tests;
 }
+// Crossed Wires: each player's hands go to the desk diametrically opposite
+// (player A's, the top seat, to desk Z, the bottom desk). A missing hand
+// (a player with fewer hands) is null.
+const crossed = (inputs) => inputs.flatMap((h, i) => (h ? [{ desk: 2 - (i % 3), hand: h }] : []));
+// Three players with different numbers of hands (0 to 6 each), 1 to 3
+// cards each, from one deck: the deals in turn, null where a player has
+// run out.
+function unevenDeals(rand, nTests) {
+  const tests = [];
+  for (let t = 0; t < nTests; t++) {
+    const counts = shuffled([0, 1, 2, 3, 4, 5, 6], rand).slice(0, 3);
+    const deck = shuffled(fullDeck(), rand);
+    const test = [];
+    for (let i = 0; i < 3 * Math.max(...counts); i++) {
+      test.push(Math.floor(i / 3) < counts[i % 3] ? deck.splice(0, 1 + Math.floor(rand() * 3)) : null);
+    }
+    tests.push(test);
+  }
+  return tests;
+}
+// Fixed tests for Uneven Tables: each player's hands as a list, interleaved.
+const seats3 = (...players) => Array.from({ length: 3 * Math.max(...players.map((p) => p.length)) },
+  (_, i) => players[i % 3][Math.floor(i / 3)] ?? null);
+
+// Twice Shy: every hand, less the cards played more than once tonight (by
+// either player; a hand left with no cards pays nothing).
+function onceOnly(inputs) {
+  const n = new Map();
+  for (const c of inputs.flat()) n.set(c, (n.get(c) ?? 0) + 1);
+  return inputs.map((h) => h.filter((c) => n.get(c) === 1)).filter((h) => h.length);
+}
+// Two players, each with a deck of their own: `nDeals` five-card hands each.
+// Every suit turns up at least once over a night (dealt again if not; with
+// 40 cards that is almost never needed).
+function twoDeckDeals(rand, nTests, nDeals) {
+  const tests = [];
+  while (tests.length < nTests) {
+    const a = shuffled(fullDeck(), rand), b = shuffled(fullDeck(), rand);
+    const test = Array.from({ length: 2 * nDeals }, (_, i) => (i % 2 ? b : a).splice(0, 5));
+    if (new Set(test.flat().map(suitOf)).size === 4) tests.push(test);
+  }
+  return tests;
+}
+
+// The Rest of the Deck: every card of the deck nobody played, one at a time.
+const unplayed = (inputs) => {
+  const played = new Set(inputs.flat());
+  return fullDeck().filter((c) => !played.has(c)).map((c) => [c]);
+};
+
 // Every time the fourth unpaid card of a rank is played, those four.
 function quadsOf(inputs) {
   const piles = {}, out = [];
@@ -516,6 +575,124 @@ export const LEVELS = [
       nRandom: 4, seed: 179,
     }),
   },
+  {
+    id: 'crossed-wires',
+    card: '3H',
+    unlockAfter: 'deja-vu',
+    title: 'Crossed Wires',
+    story: [
+      'The Owner has had the floor rewired: three card tables down one wall, three cash desks down the other, and a note under the tray. Every player is to be paid at the desk diametrically opposite their seat, so that the money is seen to cross the room.',
+      'Player A, at the top, is paid at desk Z, at the bottom; player B, in the middle, at desk Y; player C, at the bottom, at desk X. The Marchetti twins have brought a cousin, and all three are already arguing about the view.',
+    ],
+    brief: 'Three players, hands of 1 to 3 cards. Pay out every hand at the desk diametrically opposite its player: A\'s at Z, B\'s at Y, C\'s at X.',
+    handSize: [1, 3],
+    floor: floorOf(hexRect(-4, 4, -6, 5), H3),
+    fixed: H3,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: crossed,
+    tests: makeMixedTests({
+      minSize: 1, maxSize: 3, handsPerTest: 15,
+      fixed: [
+        ['AS', '2S', '3S', 'AH 2H', 'KH QH', 'JH TH', '4D 5D 6D', '7C', '8C 9C'],
+        // the same hand from every player
+        ['KS QS', 'KS QS', 'KS QS', '2D', '2D', '2D'],
+        ['7H 8H 9H', 'JS', '5C 4C'],
+      ],
+      nRandom: 4, seed: 180,
+    }),
+  },
+  {
+    id: 'uneven-tables',
+    card: '4H',
+    unlockAfter: 'deja-vu',
+    title: 'Uneven Tables',
+    story: [
+      'The wiring stays, and so does the rule: every player is paid at the desk diametrically opposite their seat. But the cousins have stopped playing in step. Tonight each of the three plays as many hands as they like, from none at all to six.',
+      'Each player still plays their own hands in their own order. The cousin at table B says he is only here for the view.',
+    ],
+    brief: 'Three players, hands of 1 to 3 cards, each playing a different number of hands (perhaps none). Pay out every hand at the desk diametrically opposite its player: A\'s at Z, B\'s at Y, C\'s at X.',
+    handSize: [1, 3],
+    floor: floorOf(hexRect(-4, 4, -6, 5), H3),
+    fixed: H3,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: crossed,
+    tests: dealtTests({
+      deal: unevenDeals,
+      fixed: [
+        seats3(['AS', '2S 3S', '4S 5S 6S', '7S'], ['AH 2H'], ['KD', 'QD JD', 'TD', '9D 8D', '7D', '6D 5D 4D']),
+        // a player with no hands, then one with all of them
+        seats3([], ['KS QS', 'JS', 'TS 9S'], ['AC']),
+        seats3(['2C 3C', '4C', '5C 6C 7C', '8C', '9C', 'TC'], [], []),
+      ],
+      nRandom: 4, seed: 181,
+    }),
+  },
+  {
+    id: 'twice-shy',
+    card: '5H',
+    unlockAfter: 'deja-vu',
+    title: 'Twice Shy',
+    story: [
+      'The Marchetti twins have each brought a deck of their own again, and the Owner is tired of paying twice for the same card. Tonight the twins play five-card hands side by side, one each per deal, and every hand is paid out, less any card that turns up more than once over the whole night.',
+      'Both copies of such a card go to the house, whichever twin played them and however many deals apart. A hand that loses all five pays nothing. The twins call it double jeopardy; the Owner calls it bookkeeping.',
+    ],
+    brief: 'Two players, five-card hands, one each per deal, each from their own deck. Pay out every hand without the cards played more than once tonight (by either player, in any hand); a hand with nothing left pays nothing.',
+    handSize: 5,
+    floor: floorOf(hexRect(-6, 9, -10, 11), H5),
+    fixed: H5,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: onceOnly,
+    tests: dealtTests({
+      deal: (rand, n) => twoDeckDeals(rand, n, 4),
+      fixed: [
+        ['AS 2S 3S 4S 5S', '5S 4S 3S 2S AS', 'KD QD JD TD 9D', 'KD QH 7C 2D 9D', '7S 7D 7C 7H 8S', '3C 4H 5D 6S 2C'],
+        // cards played again deals later
+        ['2H 3H 4H 5H 6H', 'JS QS KS AC 2C', '7H 8H 9H TH JH', '9C TC JC QC KC', 'AD 2D 3D 4D 5D', '6H 2H AD 6D 7D',
+          '6C 7C 8C 9S TS', 'JH 8D 5C 4C 3C'],
+        // nothing in common: every hand is paid whole
+        ['AS KH 2D QC 3S', 'JH 4D TC 5S 9H'],
+      ],
+      nRandom: 4, seed: 182,
+    }),
+  },
+  {
+    id: 'rest-of-the-deck',
+    card: '6H',
+    unlockAfter: 'deja-vu',
+    title: 'The Rest of the Deck',
+    story: [
+      'Commissioner Pryce is auditing the house deck. Tonight one deck is played, in hands of one to five cards, and at closing time the house must hand him every card that was not played, one card at a time, so that he can count them.',
+      'The cards played are the guests\' business and leave the floor as usual. The Commissioner counts slowly, and he has brought his own pencil.',
+    ],
+    brief: 'Hands of 1 to 5 cards, from one deck. After the last hand, pay out every card of the deck that was not played, as one-card hands (house cards).',
+    handSize: [1, 5],
+    floor: floorOf(hexRect(-2, 3, -9, 5), H4),
+    fixed: H4,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: unplayed,
+    // The unplayed cards may be paid long after the last player card has
+    // gone (51 of them, one a round, after a one-card night).
+    grace: 100,
+    tests: makeMixedTests({
+      minSize: 1, maxSize: 5, handsPerTest: 6,
+      fixed: [
+        ['AS'],
+        // every spade and every heart played; no diamonds or clubs
+        ['AS 2S 3S 4S 5S', '6S 7S 8S 9S TS', 'JS QS KS', 'AH 2H 3H 4H 5H', '6H 7H 8H 9H TH', 'JH QH KH'],
+        // pairs of every rank, and the last card of each suit
+        ['AD AC', '2D 2C', 'KS', 'KH 3D 3C', '4D 4C 5D 5C', 'AS'],
+      ],
+      nRandom: 4, seed: 183,
+    }),
+  },
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
@@ -539,6 +716,10 @@ const PAR = {
   'showdown': { croupiers: 43, rounds: 296 },
   'last-in-first-out': { croupiers: 20, rounds: 835 },
   'one-up': { croupiers: 16, rounds: 4076 },
+  'crossed-wires': { croupiers: 14, rounds: 68 },
+  'uneven-tables': { croupiers: 18, rounds: 94 },
+  'twice-shy': { croupiers: 51, rounds: 1187 },
+  'rest-of-the-deck': { croupiers: 14, rounds: 1506 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);
