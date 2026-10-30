@@ -626,6 +626,7 @@ roles:
 | Cloud Functions Developer | project | deploy the functions |
 | Service Account User | `stacked-deck-fn` only | deploy functions that run as it |
 | Service Account User | the App Engine default account (`zygoloid-github-io@appspot.gserviceaccount.com`), disabled | the Firebase CLI checks this before every functions deploy, whatever account the functions run as |
+| Service Account User | the Compute Engine default account (`364143983756-compute@developer.gserviceaccount.com`), reduced to Cloud Build Service Account | functions are built as it: the Firebase CLI can't choose another build account |
 | Firebase Realtime Database Admin | project | deploy rules; read `config/rulesVersion` |
 | Service Usage Consumer | project | the Firebase CLI checks the APIs are on |
 | Firebase Viewer | project | the Firebase CLI reads the project |
@@ -647,6 +648,14 @@ its roles first. The Firebase CLI's check is
 [firebase-tools #11227](https://github.com/firebase/firebase-tools/issues/11227);
 if that's fixed so the check only covers the accounts functions run as,
 this grant can go.
+
+Every functions build runs as the Compute Engine default account. The
+Firebase CLI never sets a build account, and the Cloud Functions API
+requires the deployer to be able to act as it. That account can't be
+disabled, since it does the builds, so instead the setup reduces it to
+what a build needs: Cloud Build Service Account (`roles/cloudbuild.builds.builder`)
+in place of Editor. Builds run the functions' install steps, so that is
+worth doing whatever deploys them.
 
 **Supply chain.** In the deploy job, everything is installed before it
 signs in to Google, so no install step ever sees the token.
@@ -704,6 +713,19 @@ gcloud policy-intelligence query-activity --activity-type=serviceAccountLastAuth
   --project=$PROJECT | grep -B2 -A6 appspot
 gcloud iam service-accounts disable $APPSPOT --project=$PROJECT
 gcloud iam service-accounts add-iam-policy-binding $APPSPOT \
+  --project=$PROJECT --member=serviceAccount:$SA --role=roles/iam.serviceAccountUser
+
+# Functions are built as the Compute Engine default account. Give it what a
+# build needs and take away Editor (list its roles first; remove any other
+# broad ones too), then let the deploy account start builds as it.
+COMPUTE=$NUMBER-compute@developer.gserviceaccount.com
+gcloud projects get-iam-policy $PROJECT --flatten=bindings \
+  --filter="bindings.members:serviceAccount:$COMPUTE" --format='value(bindings.role)'
+gcloud projects add-iam-policy-binding $PROJECT --member=serviceAccount:$COMPUTE \
+  --role=roles/cloudbuild.builds.builder --condition=None
+gcloud projects remove-iam-policy-binding $PROJECT --member=serviceAccount:$COMPUTE \
+  --role=roles/editor --condition=None
+gcloud iam service-accounts add-iam-policy-binding $COMPUTE \
   --project=$PROJECT --member=serviceAccount:$SA --role=roles/iam.serviceAccountUser
 
 # One pool for GitHub in this project; one provider per repository.
