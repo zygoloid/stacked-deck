@@ -625,6 +625,7 @@ roles:
 |---|---|---|
 | Cloud Functions Developer | project | deploy the functions |
 | Service Account User | `stacked-deck-fn` only | deploy functions that run as it |
+| Service Account User | the App Engine default account (`zygoloid-github-io@appspot.gserviceaccount.com`), disabled | the Firebase CLI checks this before every functions deploy, whatever account the functions run as |
 | Firebase Realtime Database Admin | project | deploy rules; read `config/rulesVersion` |
 | Service Usage Consumer | project | the Firebase CLI checks the APIs are on |
 | Firebase Viewer | project | the Firebase CLI reads the project |
@@ -633,6 +634,19 @@ roles:
 It can deploy any function in the project, including the kill switch's;
 that is accepted (only `main` of this repository can use it, and the budget
 is the backstop). An IAM condition on function names could narrow it.
+
+Acting as the App Engine default account means the deploy account could
+deploy a function that runs as it, and that account holds Editor and many
+other roles (Google used to grant them automatically). Nothing of ours runs
+as it: the game's functions run as `stacked-deck-fn`, the kill switch's as
+`ops-fn`. So the setup **disables** it before granting. A disabled account
+can't get credentials, so a function deployed as it gets none, and Service
+Account User can't re-enable it. Its roles are left as they are. If
+something ever needs it again (`gcloud iam service-accounts enable`), strip
+its roles first. The Firebase CLI's check is
+[firebase-tools #11227](https://github.com/firebase/firebase-tools/issues/11227);
+if that's fixed so the check only covers the accounts functions run as,
+this grant can go.
 
 **Supply chain.** In the deploy job, everything is installed before it
 signs in to Google, so no install step ever sees the token.
@@ -679,6 +693,17 @@ for role in cloudfunctions.developer firebasedatabase.admin serviceusage.service
     --role=roles/$role --condition=None
 done
 gcloud iam service-accounts add-iam-policy-binding stacked-deck-fn@$PROJECT.iam.gserviceaccount.com \
+  --project=$PROJECT --member=serviceAccount:$SA --role=roles/iam.serviceAccountUser
+
+# The Firebase CLI insists on acting as the App Engine default account too,
+# though nothing runs as it. Check nothing still signs in as it (no recent
+# lastAuthenticatedTime; this may ask to enable the Policy Analyzer API),
+# then disable it, so the grant can't be used to run anything as it.
+APPSPOT=$PROJECT@appspot.gserviceaccount.com
+gcloud policy-intelligence query-activity --activity-type=serviceAccountLastAuthentication \
+  --project=$PROJECT | grep -B2 -A6 appspot
+gcloud iam service-accounts disable $APPSPOT --project=$PROJECT
+gcloud iam service-accounts add-iam-policy-binding $APPSPOT \
   --project=$PROJECT --member=serviceAccount:$SA --role=roles/iam.serviceAccountUser
 
 # One pool for GitHub in this project; one provider per repository.
