@@ -25,6 +25,14 @@ const FRIEND_COLOURS = ['#6fb7ff', '#ff8a65', '#c792ea', '#5fd38d', '#f48fb1', '
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 export const scoreText = (p) => `${plural(p.croupiers, 'croupier')} · ${plural(p.rounds, 'round')}`;
+// A score against par: { cls, text, title } (✓ at par, −2 under, +1 over),
+// or null without both. The classes are coloured in style.css.
+export function parMark(v, parV) {
+  if (!Number.isFinite(v) || !Number.isFinite(parV)) return null;
+  const d = v - parV;
+  if (d === 0) return { cls: 'ts-at', text: '✓', title: 'At par' };
+  return d < 0 ? { cls: 'ts-under', text: `−${-d}`, title: `${-d} under par` } : { cls: 'ts-over', text: `+${d}`, title: `${d} over par` };
+}
 export function dateText(t) {
   if (!t) return '';
   const d = new Date(t);
@@ -122,10 +130,9 @@ export function scatterPlot({
     svg.append(g);
   });
 
-  // par: dashed guides to both axes here, and a diamond drawn over the points
+  // par: a diamond drawn over the points
   const hasPar = par?.croupiers != null && par?.rounds != null;
   const isPar = (p) => hasPar && p.croupiers === par.croupiers && p.rounds === par.rounds;
-  if (hasPar) svg.append(s('path', { class: 'sc-par-guide', d: `M${M.l} ${Y(par.rounds)} H${X(par.croupiers)} V${M.t + ph}` }));
 
   // frontier: a staircase through the unbeaten points, shading what they beat
   const fpts = [...front].map((i) => solutions[i])

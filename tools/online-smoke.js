@@ -13,7 +13,8 @@
 // browser's progress to it; a reload restores the session; deleting an
 // account's data removes it (and the sign-in account) and its stats; cloud
 // save carries progress, edits and deletions between two devices; invites
-// make friends (only after accepting), whose frontiers appear on the plot,
+// make friends (only after accepting), whose frontiers appear on the plot
+// (and in the chart beside a card on the floors list),
 // and removing a friend ends it both ways; when the database doesn't answer,
 // signing in still finishes and shows the account as offline, and trying
 // again once it answers catches up.
@@ -337,6 +338,22 @@ try {
   check(await page.evaluate(() => window.sameSession) && (await page.locator('.modal.results .sc-friend-t').textContent().catch(() => '')) === 'Carol',
     'a friend\'s solve since their scores were last read shows on the plot after clearing that floor');
   await page.keyboard.press('Escape');
+
+  // Back on the floors list (every floor's stats and friends' scores read at
+  // once): hovering that floor's card shows its chart, with Carol's frontier
+  // and the best known scores.
+  await page.evaluate(() => { location.hash = '#/'; });
+  await page.waitForSelector(`a.tile[data-level="${LEVEL2}"]`);
+  const popShows = await until(async () => {
+    await page.mouse.move(2, 2);
+    await page.hover(`a.tile[data-level="${LEVEL2}"]`);
+    await sleep(500);
+    const pop = page.locator('.tile-pop:not(.hidden)');
+    return (await pop.locator('.sc-friend-t').textContent().catch(() => '')) === 'Carol' && /Best known/i.test(await pop.textContent().catch(() => ''));
+  }, 20000);
+  check(popShows && await page.evaluate(() => window.sameSession), 'hovering a card on the floors list shows its chart with a friend\'s frontier and the best known scores');
+  if (shots) await page.screenshot({ path: join(shots, 'o9-floors-chart.png') });
+  await page.mouse.move(2, 2);
 
   // Carol ends the friendship from her Friends list: gone both ways.
   await carolPage.click('.btn.account');

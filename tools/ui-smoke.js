@@ -281,6 +281,22 @@ try {
   check(await page.locator('a.tile.solved[data-level="opening-night"]').count() === 1, 'level select marks opening-night solved');
   check(await page.locator(`a.tile[data-level="${LEVELS[3].id}"]`).count() === 1, `clearing a floor opens ${LEVELS[3].id}`);
   check(await page.locator(`a.tile[data-level="${LEVELS[4].id}"]`).count() === 0, `${LEVELS[4].id} still locked`);
+  {
+    // Every card, open or locked, is the same size, in a playing card's proportions.
+    const sizes = await page.$$eval('.tiles > *', (els) => els.map((e) => { const r = e.getBoundingClientRect(); return `${r.width.toFixed(1)}x${r.height.toFixed(1)}`; }));
+    const [w, hgt] = sizes[0].split('x').map(Number);
+    check(new Set(sizes).size === 1 && Math.abs(w / hgt - 5 / 7) < 0.01, `floor cards are all ${sizes[0]} (${new Set(sizes).size} sizes)`);
+    // The cleared floor's best against par, and its chart on hovering it.
+    const marks = await page.$$eval('a.tile[data-level="opening-night"] .ts-axis', (els) => els.map((e) => e.className));
+    const par = LEVELS[0].par;
+    check(marks.length === 2 && (par.croupiers !== 3 || par.rounds !== 33 || marks.every((c) => c.includes('ts-at'))), `cleared card marks its best against par (${marks.join(', ')})`);
+    await page.hover('a.tile[data-level="opening-night"]');
+    await page.waitForSelector('.tile-pop:not(.hidden) .sc-svg', { timeout: 3000 }).catch(() => {});
+    check(await page.locator('.tile-pop:not(.hidden) .sc-pt').count() >= 1, 'hovering a cleared card shows its chart');
+    await page.mouse.move(2, 2);
+    await page.waitForTimeout(300);
+    check(await page.locator('.tile-pop.hidden').count() === 1, 'the chart goes away on leaving the card');
+  }
   if (shots) await page.screenshot({ path: join(shots, '6-level-select-after.png') });
 
   // Help panel.

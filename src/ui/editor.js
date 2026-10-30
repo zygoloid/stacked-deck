@@ -13,7 +13,7 @@ import {
 import { checkDeals, CHECK_DEALS, totalRounds } from '../score.js';
 import { signInDialog, dialogOpen } from './account.js';
 import { Sim } from './sim.js';
-import { scatterPlot, solutionList, scoreText } from './scatter.js';
+import { scatterPlot, solutionList, scoreText, parMark } from './scatter.js';
 
 const ARROW = ['→', '↘', '↙', '←', '↖', '↗'];
 const SIDE_KEYS = { d: 0, c: 1, z: 2, a: 3, q: 4, e: 5 };
@@ -425,10 +425,15 @@ export function openEditor(root, ctx, level) {
   // ---------- results ----------
   function showResults({ croupiers, rounds, prev, wasSolved, found, isNew }) {
     const next = ctx.nextLevel(level);
-    const row = (label, v, best, parV, prevV) => h('div', { class: 'res-row' },
-      h('div', { class: 'res-k' }, label),
-      h('div', { class: 'res-v' }, String(v), prevV !== undefined && v < prevV ? h('span', { class: 'res-new' }, 'new best') : null),
-      h('div', { class: 'res-sub' }, `best ${best}`, parV !== undefined ? ` · par ${parV}` : ''));
+    // This run's score, marked against par (✓, −1, +1).
+    const row = (label, v, best, parV, prevV) => {
+      const m = parMark(v, parV);
+      return h('div', { class: 'res-row' },
+        h('div', { class: 'res-k' }, label),
+        h('div', { class: 'res-v' }, String(v), m ? h('span', { class: `res-par ${m.cls}`, title: m.title }, m.text) : null,
+          prevV !== undefined && v < prevV ? h('span', { class: 'res-new' }, 'new best') : null),
+        h('div', { class: 'res-sub' }, `best ${best}`, parV != null ? ` · par ${parV}` : ''));
+    };
     const close = () => modal.replaceChildren();
     modal.replaceChildren(h('div', { class: 'modal-back', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
       h('div', { class: 'modal results' },

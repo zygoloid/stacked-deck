@@ -5,7 +5,9 @@ import assert from 'node:assert';
 import { LEVELS, BONUS } from '../src/levels.js';
 import { RULES_VERSION } from '../src/engine.js';
 import { solutionHash } from '../src/score.js';
-import { uploadCandidates, prepareUpload, submission, readStats, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS } from '../src/online.js';
+import {
+  uploadCandidates, prepareUpload, submission, readStats, readFrontier, standing, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS,
+} from '../src/online.js';
 
 const ALL = [...LEVELS, ...BONUS];
 const level = ALL.find((l) => l.id === 'opening-night');
@@ -100,3 +102,32 @@ console.log('cloud save: emptied floors ok');
   await assert.rejects(withTimeout(never, 20, 'no answer'), (e) => e.code === 'timeout' && e.message === 'no answer');
 }
 console.log('read timeouts ok');
+{
+  assert.deepStrictEqual(readFrontier({ '3_40': true, '5_31': true, junk: true }), [{ croupiers: 3, rounds: 40 }, { croupiers: 5, rounds: 31 }]);
+  assert.deepStrictEqual(readFrontier(null), []);
+  const par = { croupiers: 4, rounds: 40 };
+  // Without everyone's scores there is no record.
+  let st = standing({ best: { croupiers: 3, rounds: 45 }, par });
+  assert.strictEqual(st.record, null);
+  assert.deepStrictEqual(st.top, { croupiers: false, rounds: false });
+  // The record counts everyone, friends, par and the player's own best (not uploaded yet).
+  const stats = { points: [{ croupiers: 5, rounds: 38, count: 2 }, { croupiers: 6, rounds: 36, count: 1 }], players: 3 };
+  st = standing({ best: { croupiers: 3, rounds: 45 }, par, stats });
+  assert.deepStrictEqual(st.record, { croupiers: 3, rounds: 36 });
+  assert.deepStrictEqual(st.top, { croupiers: true, rounds: false });
+  st = standing({ best: { croupiers: 4, rounds: 36 }, par, stats: { points: [], players: 0 } });
+  assert.deepStrictEqual(st.record, { croupiers: 4, rounds: 36 });
+  assert.deepStrictEqual(st.top, { croupiers: true, rounds: true });
+  // Friends who beat the player's best on either axis, with their best there.
+  const friends = [
+    { name: 'Ann', points: [{ croupiers: 2, rounds: 50 }, { croupiers: 5, rounds: 30 }] },
+    { name: 'Bob', points: [{ croupiers: 4, rounds: 44 }] },
+    { name: 'Cy', points: [] },
+  ];
+  st = standing({ best: { croupiers: 3, rounds: 45 }, par, stats, friends });
+  assert.deepStrictEqual(st.beatenBy, [{ name: 'Ann', croupiers: 2, rounds: 30 }, { name: 'Bob', croupiers: null, rounds: 44 }]);
+  assert.deepStrictEqual(st.record, { croupiers: 2, rounds: 30 });
+  assert.deepStrictEqual(standing({ best: null, par, stats, friends }).beatenBy.map((f) => f.name), ['Ann', 'Bob'], 'unsolved: every friend who solved it');
+  assert.deepStrictEqual(standing({ best: { croupiers: 2, rounds: 30 }, par, stats, friends }).beatenBy, []);
+}
+console.log('standings ok');

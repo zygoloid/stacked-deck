@@ -531,6 +531,32 @@ staircase. The plot draws each friend's frontier as a staircase in its own
 colour (up to six), labelled with their nickname, with a legend entry each. A friend whose
 data can't be read (they removed you) is skipped.
 
+### Comparison on the floors list
+
+Each cleared floor's card shows the player's best croupiers and rounds marked
+against par (✓ at par, −n under, +n over), for everyone. Signed in, it also
+shows:
+
+* a ★ by each count that ties the **best known** score: the lowest on that
+  count among everyone's points in the stats, friends' frontiers, par and the
+  player's own best (which may not be uploaded yet). One count makes the
+  card gold foil, both make it holographic;
+* "Beaten by *name*" when a friend's frontier beats the player's best on
+  either count ("Cleared by *name*" on a floor the player hasn't cleared).
+
+Hovering a card (or keyboard focus, or its chart button on touch screens)
+shows the floor's plot beside it, with everyone's scores and friends'
+frontiers. `standing()` in `src/online.js` does the comparison.
+
+The data comes from `overview()` in `src/ui/cloud.js`: one read of the whole
+`/stats/v{RULES_VERSION}` (the rules already allow it) and one of each
+friend's `/scores/v{RULES_VERSION}/$friend`, when the floors list is shown, at
+most every five minutes. They fill the same caches as the per-floor reads
+above, so opening a floor's plot soon afterwards reads nothing. Stats hold
+only the points on players' frontiers, so the whole node stays small (a few
+bytes per distinct point). The cards keep showing what was last read while a
+floor is due to be read again, as after one of the player's uploads.
+
 Names are only ever rendered as text (children or `textContent`, never the
 `html:` attribute of `dom.js` or a link `href`), with bidi and zero-width
 control characters stripped.

@@ -88,7 +88,7 @@ function route() {
   }
   document.title = 'Stacked Deck';
   document.body.dataset.screen = 'select';
-  levelSelect(root, ctx);
+  cleanup = levelSelect(root, ctx);
   // Back from a floor: scrolled so that floor's tile is in view.
   const tile = lastFloor && [...root.querySelectorAll('.tile[data-level]')].find((t) => t.dataset.level === lastFloor);
   tile?.scrollIntoView({ block: 'center' });

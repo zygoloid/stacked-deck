@@ -17,7 +17,7 @@ import {
 } from '../firebase-config.js';
 import { validateCells, scoreMachine, countCroupiers } from '../score.js';
 import {
-  uploadCandidates, prepareUpload, submission, readStats, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS,
+  uploadCandidates, prepareUpload, submission, readStats, readFrontier, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS,
 } from '../online.js';
 import { solutionsOf, recomputeBest } from './model.js';
 
@@ -44,7 +44,7 @@ export function createCloud({ save, persist, levels, ui }) {
   let loading = null;    // promise of fb
   let state = 'signed-out';
   let user = null;
-  const stats = new Map();      // level id -> { at, st: { points, players } }
+  const stats = new Map();      // level id -> { at, st: { points, players } } (at 0: due to be read again)
   const statsLoads = new Map(); // level id -> promise
   const skip = new Set();       // solutions not to retry this session
   let uploading = null;          // the upload queue's run, while it runs
@@ -59,6 +59,9 @@ export function createCloud({ save, persist, levels, ui }) {
   const pending = new Map();     // level id -> { timer, solved } waiting to be pushed
   let friendList = null;         // { at, list: promise of [{ uid, name }] }
   const friendLoads = new Map(); // level id -> { at, frontiers: promise of friendFrontiers' result }
+  const friendsSeen = new Map(); // level id -> friendFrontiers' latest result, for the floors list
+  let overviewAt = 0;            // when overview() last read every floor
+  let overviewLoad = null;       // overview()'s read, while it runs
   let fnM = null, functions = null;
   let handling = null;           // the latest sign-in change being handled
   let profileRead = false;       // the account's nickname has been read (it may be '')
@@ -193,7 +196,7 @@ export function createCloud({ save, persist, levels, ui }) {
     if (!u) {
       if (save.account?.signedIn) { save.account.signedIn = false; persist(); }
       friendList = null;
-      friendLoads.clear();
+      forgetScores();
       setState('signed-out', null);
       return;
     }
@@ -286,8 +289,9 @@ export function createCloud({ save, persist, levels, ui }) {
         sol.hash = prep.hash;
         persist();
         // Our point may change the stats, and friends may have solved the
-        // floor since they were read: read both again.
-        stats.delete(level.id);
+        // floor since they were read: read both again (the floors list
+        // keeps showing what was read meanwhile).
+        if (stats.has(level.id)) stats.get(level.id).at = 0;
         friendLoads.delete(level.id);
         uploaded = true;
       }
@@ -477,13 +481,15 @@ export function createCloud({ save, persist, levels, ui }) {
       });
       entry.list.then(async (list) => {
         const old = await before;
-        if (old && friendList === entry && JSON.stringify(old) !== JSON.stringify(list)) { friendLoads.clear(); notify(); }
+        if (old && friendList === entry && JSON.stringify(old) !== JSON.stringify(list)) { forgetFriendScores(); notify(); }
       }, () => { if (friendList === entry) friendList = null; });
       friendList = entry;
     }
     return friendList.list;
   }
-  const friendsChanged = () => { friendList = null; friendLoads.clear(); notify(); };
+  const friendsChanged = () => { friendList = null; forgetFriendScores(); notify(); };
+  function forgetFriendScores() { friendLoads.clear(); friendsSeen.clear(); overviewAt = 0; }
+  function forgetScores() { forgetFriendScores(); stats.clear(); }
 
   // Each friend's frontier on a floor (this rules version): [{ uid, name,
   // points: [{ croupiers, rounds }] }], for friends with any. Read with the
@@ -494,14 +500,47 @@ export function createCloud({ save, persist, levels, ui }) {
       entry.frontiers = friends().then((list) => withDb((dbM, db) => Promise.all(list.map(async (f) => {
         let node = null;
         try { node = (await dbM.get(dbM.ref(db, `scores/v${RULES_VERSION}/${f.uid}/${levelId}`))).val(); } catch { /* they removed us */ }
-        const points = readStats({ points: Object.fromEntries(Object.keys(node ?? {}).map((k) => [k, 1])) }).points
-          .map(({ croupiers, rounds }) => ({ croupiers, rounds }));
-        return { ...f, points };
+        return { ...f, points: readFrontier(node) };
       })))).then((all) => all.filter((f) => f.points.length));
-      entry.frontiers.catch(() => { if (friendLoads.get(levelId) === entry) friendLoads.delete(levelId); });
+      entry.frontiers.then((list) => { if (friendLoads.get(levelId) === entry) friendsSeen.set(levelId, list); },
+        () => { if (friendLoads.get(levelId) === entry) friendLoads.delete(levelId); });
       friendLoads.set(levelId, entry);
     }
     return friendLoads.get(levelId).frontiers;
+  }
+
+  // Every floor's stats and each friend's frontiers on every floor, for the
+  // floors list: one read of stats/v{N} and one of each friend's scores, at
+  // most every RESYNC_MS. They fill the caches statsFor() and
+  // friendFrontiers() use (for the same RESYNC_MS), so opening a floor's plot
+  // afterwards reads nothing more. Resolves to true once something new was
+  // read (false if nothing was, or it failed).
+  function overview() {
+    if (state !== 'signed-in' || Date.now() - overviewAt < RESYNC_MS) return Promise.resolve(false);
+    overviewLoad ??= (async () => {
+      const at = Date.now();
+      const [all, frontiers] = await Promise.all([
+        withDb(async (dbM, db) => (await dbM.get(dbM.ref(db, `stats/v${RULES_VERSION}`))).val() ?? {}),
+        friends().then((list) => withDb((dbM, db) => Promise.all(list.map(async (f) => {
+          let node = null;
+          try { node = (await dbM.get(dbM.ref(db, `scores/v${RULES_VERSION}/${f.uid}`))).val(); } catch { /* they removed us */ }
+          return { ...f, node: node ?? {} };
+        })))),
+      ]);
+      if (state !== 'signed-in') return false;
+      for (const id of levelById.keys()) {
+        // A floor read on its own since this read was asked is newer.
+        if (!(stats.get(id)?.at > at)) stats.set(id, { at, st: readStats(all[id]) });
+        if (!(friendLoads.get(id)?.at > at)) {
+          const list = frontiers.map(({ node, ...f }) => ({ ...f, points: readFrontier(node[id]) })).filter((f) => f.points.length);
+          friendLoads.set(id, { at, frontiers: Promise.resolve(list) });
+          friendsSeen.set(id, list);
+        }
+      }
+      overviewAt = at;
+      return true;
+    })().catch((e) => { console.warn('online: floors overview:', e); return false; }).finally(() => { overviewLoad = null; });
+    return overviewLoad;
   }
 
   // After the account's data is deleted: forget the account here, and clear
@@ -510,8 +549,7 @@ export function createCloud({ save, persist, levels, ui }) {
     delete save.account;
     if (clearLocal) save.levels = {};
     persist();
-    stats.clear();
-    friendLoads.clear();
+    forgetScores();
     deleting = false;
     setState('signed-out', null);
     if (clearLocal) ui.cleared?.();
@@ -554,6 +592,10 @@ export function createCloud({ save, persist, levels, ui }) {
     whenReady: () => handling ?? Promise.resolve(),
     friends,
     friendFrontiers,
+    overview,
+    // What was last read for a floor (even if due to be read again):
+    // { stats: { points, players } | null, friends: [{ uid, name, points }] }.
+    floorScores: (levelId) => ({ stats: stats.get(levelId)?.st ?? null, friends: friendsSeen.get(levelId) ?? [] }),
     createInvite: () => call('createInvite'),
     previewInvite: (code) => call('previewInvite', { code }),
     async acceptInvite(code) { const r = await call('acceptInvite', { code }); friendsChanged(); return r; },
