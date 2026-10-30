@@ -685,6 +685,30 @@ svg.board.panning { cursor: grabbing; }
 .peek-t { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
 .card.house { box-shadow: inset 0 0 0 1px #8a6420; outline: 1px dashed #8a6420; outline-offset: -1px; background: #efe2bd; }
 
+/* Port menu: a ring of a croupier's ports around a long press on an edge. */
+.radial { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 5; }
+.radial::before {
+  content: ''; position: absolute; left: -96px; top: -96px; width: 192px; height: 192px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(4, 30, 17, 0.88) 55%, rgba(4, 30, 17, 0) 72%); pointer-events: none;
+}
+.radial-hub, .radial-item { position: absolute; transform: translate(-50%, -50%); cursor: pointer; }
+.radial-hub {
+  left: 0; top: 0; width: 44px; height: 44px; border-radius: 50%; padding: 0; display: grid; place-items: center; align-content: center;
+  background: rgba(0, 0, 0, 0.45); border: 1px solid var(--gold-soft); color: var(--gold-2); line-height: 1;
+}
+.radial-hub b { font-size: 17px; }
+.radial-hub span { font-size: 9.5px; font-weight: 700; color: var(--ink-2); }
+.radial-item {
+  min-width: 46px; padding: 6px 10px; border-radius: 999px; border: 2px solid rgba(0, 0, 0, 0.45); color: #10241a;
+  font: 800 13px/1 var(--sans); white-space: nowrap; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+  display: inline-flex; align-items: center; gap: 4px; justify-content: center;
+}
+.radial-item.input { background: rgba(4, 30, 17, 0.95); }
+.radial-item.on { border-color: #fff; }
+.radial-item:hover, .radial-item.hot { transform: translate(-50%, -50%) scale(1.12); border-color: #fff; }
+.radial-tick { font-size: 11px; }
+svg.board { -webkit-touch-callout: none; }
+
 /* Inspector: a croupier kind picked in the palette, before placing it. */
 .placing-note {
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; padding: 6px 8px; border-radius: 8px;

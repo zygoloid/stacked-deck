@@ -33,10 +33,12 @@ export const PORT_STYLE = {
 const ROUTE = '#3d5a80', SHAPE = '#6d4c8f', TEST = '#22709a', WAR = '#9b2c3a', SHOE = '#8a6420';
 
 // kind: 'croupier' entries have fn = key. ports: output ports in display
-// order. sides: param sides edited like ports (input markers).
+// order. sides: param sides edited like ports (input markers). required:
+// ports that always point somewhere (without them the croupier does nothing
+// useful): a new croupier gets a side for them, and they have no floor option.
 export const CROUPIERS = {
   pass: {
-    name: 'Pass', abbr: 'PASS', family: ROUTE, ports: ['out'],
+    name: 'Pass', abbr: 'PASS', family: ROUTE, ports: ['out'], required: ['out'],
     desc: 'Passes the hand on unchanged.',
   },
   duplicate: {
@@ -44,7 +46,7 @@ export const CROUPIERS = {
     desc: 'Copies the hand: one copy to A, one to B. Point both at the same side to hand on the two copies stacked, A on top.',
   },
   sort: {
-    name: 'Sort', abbr: 'SORT', family: SHAPE, ports: ['out'],
+    name: 'Sort', abbr: 'SORT', family: SHAPE, ports: ['out'], required: ['out'],
     desc: 'Puts the hand in new deck order (A♠ on top): ♠A–K, ♦A–K, ♣K–A, ♥K–A.',
   },
   cut: {
@@ -52,11 +54,11 @@ export const CROUPIERS = {
     desc: 'Splits the hand: the top ⌊n/2⌋ cards to top, the rest to bottom. A single card goes to bottom. Point both at the same side to complete the cut: the top half ends up underneath.',
   },
   outshuffle: {
-    name: 'Out-shuffle', abbr: 'OUT', family: SHAPE, ports: ['out'],
+    name: 'Out-shuffle', abbr: 'OUT', family: SHAPE, ports: ['out'], required: ['out'],
     desc: 'Perfect riffle that keeps the top card on top (top half is the larger one).',
   },
   inshuffle: {
-    name: 'In-shuffle', abbr: 'IN', family: SHAPE, ports: ['out'],
+    name: 'In-shuffle', abbr: 'IN', family: SHAPE, ports: ['out'], required: ['out'],
     desc: 'Perfect riffle that moves the top card to second place.',
   },
   straight: {
@@ -85,7 +87,7 @@ export const CROUPIERS = {
     desc: 'Takes the top card off: the top card to burn, the rest to rest. Point both at the same side to move the top card to the bottom.',
   },
   hand: {
-    name: 'Hand', abbr: 'HND', family: ROUTE, ports: ['out'],
+    name: 'Hand', abbr: 'HND', family: ROUTE, ports: ['out'], required: ['out'],
     params: { n: { label: 'n', options: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], default: 5 } },
     desc: 'Collects cards until it holds at least n, then deals the first n as one hand; leftovers start the next hand. While it holds n or more it deals without picking anything up.',
   },
@@ -94,16 +96,16 @@ export const CROUPIERS = {
     desc: 'Deals the hand one card at a time, round-robin, to an ordered list of sides, each card on top of its side\'s pile, so every pile comes out in reverse order. A side may repeat: it still gets one pile.',
   },
   gather: {
-    name: 'Gather', abbr: 'GATH', family: ROUTE, ports: ['out'], sides: ['under'],
+    name: 'Gather', abbr: 'GATH', family: ROUTE, ports: ['out'], required: ['out'], sides: ['under'],
     desc: 'Stacks two hands that arrive from different sides. The hand from the under side goes underneath; without one, the first picked up does.',
   },
   war: {
-    name: 'War', abbr: 'WAR', family: WAR, ports: ['win', 'lose', 'dwin', 'dlose'], sides: ['dealer'],
+    name: 'War', abbr: 'WAR', family: WAR, ports: ['win', 'lose', 'dwin', 'dlose'], sides: ['dealer'], required: ['dealer'],
     params: { rule: { label: 'rule', options: ['high', 'top'], default: 'high' } },
     desc: 'Plays the player\'s hand (any side but the dealer side) against the dealer\'s hand (from the dealer side). Rule high compares high cards, rule top the top cards; aces high; ties go to the house. The player hand goes to win/lose, the dealer hand to d-win/d-lose. Outputs pointed at the same side are stacked, the winning hand on top.',
   },
   shoe: {
-    name: 'Shoe', abbr: 'SHOE', family: SHOE, ports: ['out'], shoe: true,
+    name: 'Shoe', abbr: 'SHOE', family: SHOE, ports: ['out'], required: ['out'], shoe: true,
     desc: 'Deals its stacked deck one card per round in one direction, repeating forever, or only once. Counts as a croupier.',
   },
 };
@@ -130,13 +132,19 @@ export function chipLabel(cell) {
   return CROUPIERS[cell.fn]?.abbr ?? cell.fn;
 }
 
-// A fresh cell for a palette tool.
-export function newCell(tool, at, primarySide) {
+// Whether a port must always point somewhere (see `required` above).
+export const isRequired = (cell, port) => !!infoFor(cell)?.required?.includes(port);
+
+// A fresh cell for a palette tool. Only its required ports get a side:
+// outputs toward `primarySide` (where the last croupier's first port
+// pointed), War's dealer side off to one side of that flow. Optional ports
+// start on the floor.
+export function newCell(tool, at, primarySide = 0) {
   if (tool === 'shoe') return { at, kind: 'shoe', out: primarySide, deck: ['AS'] };
   const info = CROUPIERS[tool];
   const cell = { at, kind: 'croupier', fn: tool, out: {} };
   if (info.deal) cell.out = { to: [] };
-  else if (primarySide !== undefined && info.ports.length) cell.out[info.ports[0]] = primarySide;
+  for (const p of info.required ?? []) setPort(cell, p, p === 'dealer' ? (primarySide + 4) % 6 : primarySide);
   for (const [k, p] of Object.entries(info.params ?? {})) cell[k] = p.default;
   return cell;
 }

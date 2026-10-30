@@ -497,6 +497,75 @@ try {
   check(dealLabel([1, 2, 3, 4, 5, 6]).text === '1-6' && dealLabel([1, 2, 4, 5, 6, 9]).text === '1·2·4-6·9' &&
     dealLabel([1, 3, 5, 7, 9, 11], 26).text === '1·3·…' && dealLabel([1, 3, 5, 7, 9, 11], 20).text === '1·…', 'Deal labels collapse runs, then cut the tail');
 
+  // Pointing ports: only required ports start with a side (and have no
+  // floor option); selecting starts at the first port; each direction key
+  // points the active port and moves on; Ctrl+Z goes back a port; a long
+  // press on an edge opens a menu of the ports.
+  {
+    const lv = LEVELS.find((l) => ['straight', 'war', 'pass'].every((t) => l.croupiers.includes(t)));
+    const free = lv.floor.filter((x) => !lv.fixed.some((c) => c.at.join() === x.join()));
+    await page.goto(base);
+    await page.evaluate((id) => {
+      const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+      s.levels[id] = {};
+      localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+    }, lv.id);
+    await page.goto(`${base}?unlockall#/level/${lv.id}`);
+    await page.reload();
+    await page.waitForSelector('svg.board');
+    const cellsNow = () => page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, lv.id);
+    const at = (c) => (x) => x.at.join() === c.join();
+    const place = async (tool, hex) => { await page.click(`.pal-item[data-tool="${tool}"]`); await clickHex(hex); await page.keyboard.press('Escape'); };
+    await place('pass', free[0]);
+    await place('straight', free[1]);
+    await place('war', free[2]);
+    let cs = await cellsNow();
+    const war = cs.find(at(free[2]));
+    check(cs.find(at(free[0]))?.out.out !== undefined && Object.keys(cs.find(at(free[1]))?.out ?? {}).length === 0 &&
+      Object.keys(war?.out ?? {}).length === 0 && war?.dealer !== undefined,
+    `new croupiers: Pass's out and War's dealer have a side, optional ports none (${JSON.stringify(cs.map((c) => [c.fn, c.out, c.dealer]))})`);
+    await clickHex(free[2]);
+    const dealerRow = page.locator('.inspector .port-row', { has: page.locator('.port-tag', { hasText: /^dealer$/ }) });
+    const winRow = page.locator('.inspector .port-row', { has: page.locator('.port-tag', { hasText: /^win$/ }) });
+    check(await dealerRow.locator('.side-btn.floor').count() === 0 && await winRow.locator('.side-btn.floor').count() === 1, 'War: the dealer side has no floor option, its outputs do');
+    await clickHex(free[0]);
+    await page.keyboard.press('x');
+    check((await cellsNow()).find(at(free[0])).out.out !== undefined, 'X leaves a Pass pointing where it was');
+    // Straight: starts at yes; d points yes E and moves to no; a points no W.
+    await clickHex(free[1]);
+    check((await page.textContent('.inspector .port-row.active .port-tag')) === 'yes', 'selecting starts at the first port');
+    await page.keyboard.press('d');
+    check((await page.textContent('.inspector .port-row.active .port-tag')) === 'no', 'a direction key points it and moves on to the next port');
+    await page.keyboard.press('a');
+    cs = await cellsNow();
+    check(JSON.stringify(cs.find(at(free[1])).out) === '{"yes":0,"no":3}', `two keys point both ports (${JSON.stringify(cs.find(at(free[1])).out)})`);
+    await page.keyboard.press('Control+z');
+    cs = await cellsNow();
+    check(JSON.stringify(cs.find(at(free[1])).out) === '{"yes":0}' && (await page.textContent('.inspector .port-row.active .port-tag')) === 'no',
+      'Ctrl+Z goes back to the port it unpointed');
+    // Long press on the SW edge: the menu offers yes and no; picking no points it there.
+    const [ex, ey] = await hexPoint(free[1], 2, 0.85);
+    await page.mouse.move(ex, ey);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    const items = await page.$$eval('.radial:not(.hidden) .radial-item', (els) => els.map((e) => e.dataset.port));
+    await page.mouse.up();
+    check(items.join() === 'yes,no' && await page.isVisible('.radial-hub'), `a long press on an edge opens the port menu (${items.join(', ')}), and it stays open`);
+    if (shots) await page.screenshot({ path: join(shots, '12-port-menu.png'), clip: { x: ex - 150, y: ey - 150, width: 300, height: 300 } });
+    await page.click('.radial-item[data-port="no"]');
+    cs = await cellsNow();
+    check(JSON.stringify(cs.find(at(free[1])).out) === '{"yes":0,"no":2}' && !(await page.isVisible('.radial-hub')), 'picking a port in the menu points it at that edge');
+    // Hold, slide onto a port and let go.
+    await page.mouse.move(ex, ey);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    const yes = await page.locator('.radial-item[data-port="yes"]').boundingBox();
+    await page.mouse.move(yes.x + yes.width / 2, yes.y + yes.height / 2, { steps: 4 });
+    await page.mouse.up();
+    cs = await cellsNow();
+    check(cs.find(at(free[1])).out.yes === 2, 'or hold, slide onto a port and let go');
+  }
+
   // Picking a croupier shows its settings: a Hand set to 3 before placing is placed with n = 3.
   {
     const lv = LEVELS.find((l) => l.croupiers.includes('hand'));
