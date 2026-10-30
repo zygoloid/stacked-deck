@@ -521,11 +521,18 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .scard.spc.ad.house > rect:first-child { stroke: #1d6b3a; }
 .scard.more rect { fill: #31584a; stroke: #fdf8ec; }
 .scard.more text { fill: #fff; font: 800 7.5px var(--sans); }
+/* Hands on the board: waiting to be placed (gold, dashed), waiting at an
+   input (on a tray with a notch pointing at the croupier), held by a
+   croupier waiting for more (on a blue plate in the middle, with a badge). */
 .hand-glow { fill: rgba(242, 193, 78, 0.15); stroke: var(--gold-2); stroke-width: 1.2; stroke-dasharray: 3 2; }
-.hand.held .scard rect { stroke: #6fb7ff; stroke-width: 1; }
-.hand.held .scard rect.sp-band, .hand.held .scard rect.sp-stripe { stroke: none; }
-.hand.hand-buffer.full .scard > rect:first-child { stroke: var(--gold-2); }
-.held-tag { font-size: 6px; font-weight: 800; fill: #cfe7ff; letter-spacing: 0.08em; text-transform: uppercase; paint-order: stroke; stroke: #06231a; stroke-width: 2.5px; }
+.hand-tray { fill: rgba(2, 20, 11, 0.6); stroke: rgba(244, 236, 216, 0.7); stroke-width: 0.9; }
+.tray-notch { fill: #f4ecd8; stroke: #06231a; stroke-width: 0.9; stroke-linejoin: round; }
+.hand-plate { fill: rgba(16, 44, 82, 0.92); stroke: #6fb7ff; stroke-width: 1.6; }
+.hand.hand-buffer.full .hand-plate { stroke: var(--gold-2); }
+.held-badge rect { fill: #6fb7ff; stroke: #06231a; stroke-width: 0.8; }
+.held-tag { font-size: 6px; font-weight: 800; fill: #0b2440; letter-spacing: 0.08em; text-transform: uppercase; }
+.peekable { cursor: zoom-in; }
+.peek-hit { fill: transparent; pointer-events: all; }
 .hand.paid-now.wrong .scard rect { stroke: var(--bad); stroke-width: 2; }
 
 /* ---------- modals ---------- */
@@ -664,6 +671,24 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 }
 .zoom button:hover { border-color: var(--gold); }
 svg.board.panning { cursor: grabbing; }
+
+/* A cut-short stack or label shown in full (hover, or tap on a touch screen). */
+.peek {
+  position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none; max-width: min(420px, calc(100% - 12px));
+  padding: 6px 8px; border-radius: 8px; background: rgba(6, 28, 18, 0.96); border: 1px solid var(--gold-soft);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); font-size: 12.5px;
+}
+.peek .hand { flex-wrap: wrap; }
+.peek-t { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.card.house { box-shadow: inset 0 0 0 1px #8a6420; outline: 1px dashed #8a6420; outline-offset: -1px; background: #efe2bd; }
+
+/* Inspector: a croupier kind picked in the palette, before placing it. */
+.placing-note {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; padding: 6px 8px; border-radius: 8px;
+  background: rgba(212, 175, 55, 0.1); border: 1px solid var(--gold-soft); font-size: 12.5px;
+}
+.placing-note > span { flex: 1 1 140px; }
+.port-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 
 /* Which side a croupier faces (placeholder until croupier art). */
 .board .facing { fill: none; stroke: var(--gold-2, #f2c14e); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; pointer-events: none; }

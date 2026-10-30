@@ -7,7 +7,11 @@
 // on the first level that drops hands pauses the run and can be stepped back,
 // checks floor numbering (playing-card labels), special card faces, the shoe
 // deck parser's special-card rules, and placing Burn and Hand croupiers (with
-// a Hand's held cards drawn on the board). With `?testlevels` the page adds the
+// a Hand's held cards drawn on the board), step animation, pausing with a
+// slow mouse click, touch (drag pans with a croupier picked, tap places,
+// tapping the bare floor deselects, pinch zoom, tap to see a cut-short Deal
+// label), a croupier's settings before placing, and the floors list scrolled
+// back to the floor just left. With `?testlevels` the page adds the
 // fixture floors of test/ui-levels.js to the bonus deck; those cover an
 // `expected` floor (expected-payouts list, clearing), an `ordered` floor
 // (a wrong card order is rejected) and bonus unlocking, saves and Next.
@@ -20,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import * as L from '../src/levels.js';
 import { DIRS } from '../src/engine.js';
 import { floorLabel } from '../src/ui/floors.js';
+import { dealLabel } from '../src/ui/board.js';
 
 const { LEVELS } = L;
 const BONUS_LEVELS = Array.isArray(L.BONUS) ? L.BONUS : [];
@@ -146,6 +151,31 @@ try {
   const cardsOnBoard = await page.locator('.l-cards .scard').count();
   check(cardsOnBoard >= 2, `cards drawn on the board (${cardsOnBoard})`);
   if (shots) await page.screenshot({ path: join(shots, '3-running.png') });
+
+  // Stepping animates the cards from where they were to where they are.
+  {
+    const where = () => page.$$eval('.l-cards .scard', (els) => els.map((e) => e.getAttribute('transform') + (e.getAttribute('opacity') ?? '')).join(' '));
+    await page.keyboard.press('.');
+    const during = await where();
+    await page.waitForTimeout(500);
+    const after = await where();
+    check(during !== after, 'a step animates the cards');
+  }
+
+  // Pause with a real (slow) mouse click while playing: the transport isn't
+  // rebuilt under the pointer, so the click lands.
+  {
+    await page.click('.speeds .sp:first-child'); // 1x, plays
+    await page.waitForTimeout(700);
+    const b = await page.evaluate(() => { const r = document.querySelector('.tp.main').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+    await page.mouse.move(...b);
+    await page.mouse.down();
+    await page.waitForTimeout(200);
+    await page.mouse.up();
+    const r1 = await page.textContent('.tp-round b');
+    await page.waitForTimeout(700);
+    check((await page.textContent('.tp.main')).trim() === '▶' && await page.textContent('.tp-round b') === r1, `a slow mouse click pauses (round ${r1})`);
+  }
 
   // Play one test to the end at full speed.
   await page.click('.speeds .sp:last-child');
@@ -388,6 +418,113 @@ try {
     check(overflow <= 0, `phone: Solutions panel fits the width (overflow ${overflow}px)`);
     if (shots) await phone.screenshot({ path: join(shots, '7c-phone-solutions.png') });
     await phone.close();
+  }
+
+  // Touch on a phone: with a croupier picked, a drag pans and a tap places;
+  // tapping the bare floor drops the tool, two fingers pinch-zoom, the play
+  // button deselects, and tapping a cut-short label shows it in full.
+  {
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    phone.on('pageerror', (e) => errors.push(e.message));
+    const cdp = await phone.context().newCDPSession(phone);
+    const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
+    const tap = async (pt) => { await touch('touchStart', [pt]); await touch('touchEnd', []); };
+    const hexAt = ([q, r]) => phone.evaluate(([q, r]) => {
+      const R = 50, svg = document.querySelector('svg.board');
+      const pt = new DOMPoint(R * Math.sqrt(3) * (q + r / 2), R * 1.5 * r).matrixTransform(svg.getScreenCTM());
+      return [pt.x, pt.y];
+    }, [q, r]);
+    const viewBox = () => phone.getAttribute('svg.board', 'viewBox');
+    const placed = () => phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1'))?.levels?.['opening-night']?.cells?.length ?? 0);
+    await phone.goto(`${base}?unlockall#/level/opening-night`);
+    await phone.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+      s.levels['opening-night'] = { ...s.levels['opening-night'], cells: [] };
+      localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+    });
+    await phone.reload();
+    await phone.waitForSelector('svg.board');
+    await phone.locator('svg.board').scrollIntoViewIfNeeded();
+    const free = LEVELS[0].floor.filter((at) => !LEVELS[0].fixed.some((c) => c.at.join() === at.join()));
+    await phone.tap('.pal-item[data-tool="pass"]');
+    check((await phone.textContent('.inspector h3')) === 'Pass', 'picking a croupier shows its panel');
+    const v0 = await viewBox();
+    const [a, b] = [await hexAt(free[0]), await hexAt(free[1])];
+    await touch('touchStart', [a]);
+    for (let i = 1; i <= 8; i++) await touch('touchMove', [[a[0] + (b[0] - a[0]) * i / 8, a[1] + (b[1] - a[1]) * i / 8]]);
+    await touch('touchEnd', []);
+    check(await viewBox() !== v0 && await placed() === 0, 'a drag with a croupier picked pans the floor, placing nothing');
+    await phone.click('.zoom button:last-child'); // fit
+    await tap(await hexAt(free[0]));
+    check(await placed() === 1 && await phone.locator('.pal-item.on').count() === 1, 'a tap places it, and the croupier stays picked');
+    const box = await phone.locator('svg.board').boundingBox();
+    await tap([box.x + 3, box.y + 3]);
+    check(await phone.locator('.pal-item.on').count() === 0 && await phone.locator('.cell.selected').count() === 0, 'tapping the bare floor drops the croupier and the selection');
+    const w0 = Number((await viewBox()).split(' ')[2]);
+    const [cx, cy] = [box.x + box.width / 2, box.y + box.height / 2];
+    await touch('touchStart', [[cx - 30, cy], [cx + 30, cy]]);
+    for (let i = 1; i <= 8; i++) await touch('touchMove', [[cx - 30 - i * 8, cy], [cx + 30 + i * 8, cy]]);
+    await touch('touchEnd', []);
+    const w1 = Number((await viewBox()).split(' ')[2]);
+    check(w1 < w0 * 0.8 && await placed() === 1, `two fingers pinch-zoom (view ${w0.toFixed(0)} -> ${w1.toFixed(0)} wide)`);
+    await phone.click('.zoom button:last-child');
+    await tap(await hexAt(free[0]));
+    check(await phone.locator('.cell.selected').count() === 1, 'a tap selects a croupier');
+    await phone.tap('.tp.main');
+    check(await phone.locator('.cell.selected').count() === 0, 'pressing play deselects it');
+    await phone.tap('.tp.main');
+    // A Deal croupier with more positions on a side than fit: cut short, shown in full on a tap.
+    const dealer = LEVELS.find((lv) => lv.croupiers.includes('deal'));
+    if (dealer) {
+      const at = dealer.floor.find((x) => !dealer.fixed.some((c) => c.at.join() === x.join()));
+      await phone.evaluate(([id, at]) => {
+        const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+        s.levels[id] = { cells: [{ at, kind: 'croupier', fn: 'deal', out: { to: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1] } }] };
+        localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+      }, [dealer.id, at]);
+      await phone.goto(`${base}?unlockall#/level/${dealer.id}`);
+      await phone.reload();
+      await phone.waitForSelector('svg.board');
+      const pills = await phone.$$eval('.pill text', (els) => els.map((e) => e.textContent));
+      check(pills.includes('1·3·…') && pills.includes('2·4·6·8·…'), `${dealer.id}: Deal labels are cut short to fit (${pills.join(' ')})`);
+      const pb = await phone.locator('.pill.peekable').first().boundingBox();
+      await tap([pb.x + pb.width / 2, pb.y + pb.height / 2]);
+      check(/Deals cards 1, 3, 5, 7, 9, 11 to E/.test(await phone.textContent('.peek:not(.hidden)')), 'tapping a cut-short label shows it in full');
+      if (shots) await phone.screenshot({ path: join(shots, '7d-phone-peek.png') });
+    }
+    await phone.close();
+  }
+  check(dealLabel([1, 2, 3, 4, 5, 6]).text === '1-6' && dealLabel([1, 2, 4, 5, 6, 9]).text === '1·2·4-6·9' &&
+    dealLabel([1, 3, 5, 7, 9, 11], 26).text === '1·3·…' && dealLabel([1, 3, 5, 7, 9, 11], 20).text === '1·…', 'Deal labels collapse runs, then cut the tail');
+
+  // Picking a croupier shows its settings: a Hand set to 3 before placing is placed with n = 3.
+  {
+    const lv = LEVELS.find((l) => l.croupiers.includes('hand'));
+    await page.goto(`${base}?unlockall#/level/${lv.id}`);
+    await page.waitForSelector('svg.board');
+    await page.click('.pal-item[data-tool="hand"]');
+    await page.click('.inspector [data-param="n"] button:nth-child(3)');
+    check((await page.textContent('.pal-item[data-tool="hand"] .pal-chip')).trim() === 'HND3', 'setting n before placing a Hand shows on the palette chip');
+    const at = lv.floor.find((x) => !lv.fixed.some((c) => c.at.join() === x.join()));
+    await clickHex(at);
+    const hc = (await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, lv.id)).find((c) => c.fn === 'hand');
+    check(hc?.n === 3, `the Hand is placed with n = 3 (${JSON.stringify(hc)})`);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Delete');
+  }
+
+  // Back to the floors list from a floor far down it: that floor's tile is in view.
+  {
+    const lv = LEVELS[Math.min(30, LEVELS.length - 1)];
+    await page.goto(`${base}?unlockall#/level/${lv.id}`);
+    await page.waitForSelector('svg.board');
+    await page.click('.topbar .btn.ghost');
+    await page.waitForSelector('.tile');
+    const [top, bottom, vh] = await page.evaluate((id) => {
+      const r = document.querySelector(`.tile[data-level="${id}"]`).getBoundingClientRect();
+      return [r.top, r.bottom, innerHeight];
+    }, lv.id);
+    check(top >= 0 && bottom <= vh, `back on the floors list, ${lv.id}'s tile is in view (${top.toFixed(0)}–${bottom.toFixed(0)} of ${vh})`);
   }
 
 
