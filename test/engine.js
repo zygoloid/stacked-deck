@@ -269,6 +269,36 @@ console.log('deal piles ok');
   assert.deepStrictEqual(dealt(), [true, true, true, true, true, true, true, false, true], 'restore keeps seats');
 }
 console.log('seated players ok');
+// A seat may have fewer hands than the others: its missing hands are null
+// (after its last real one), and the floor is done without them.
+{
+  const spec = { cells: [
+    { at: [-1, 0], kind: 'source', out: 0, seat: 0 },
+    { at: [-1, 2], kind: 'source', out: 0, seat: 1 },
+    { at: [0, 0], kind: 'payout', desk: 0 },
+    { at: [0, 2], kind: 'payout', desk: 1 },
+  ] };
+  const inputs = [['AS'], ['2S'], ['3S'], null, ['5S'], null];
+  const f = new Floor(spec, inputs);
+  for (let i = 0; i < 6; i++) f.step();
+  assert.deepStrictEqual(f.paid.map((h) => h[0]).sort(), ['2S', '3S', '5S', 'AS']);
+  assert.strictEqual(f.inputPos, 4);
+  assert(f.allDealt() && f.done());
+  // Labelled desks: each payout records its desk, and expected payouts
+  // name theirs.
+  assert.deepStrictEqual(f.paid.map((h, n) => `${h[0]}@${f.paidAt[n]}`).sort(), ['2S@1', '3S@0', '5S@0', 'AS@0']);
+  const at = (desks) => ({ expected: (t) => t.map((h, i) => h && { desk: desks[i % 2], hand: h }).filter(Boolean) });
+  const r = runTest(spec, inputs, at([0, 1]));
+  assert(r.ok, JSON.stringify(r));
+  const wrong = runTest(spec, inputs, at([1, 0]));
+  assert(!wrong.ok && wrong.wrong.length === 4 && wrong.missing.length === 4, 'the right hands at the wrong desks fail');
+  const sim = new Sim(spec, inputs, at([1, 0]));
+  while (!sim.finished) sim.step();
+  assert.strictEqual(sim.status.kind, 'wrong');
+  assert(/wrong desk|belongs at desk/.test(sim.status.msg), sim.status.msg);
+  assert(runTest(spec, inputs, { expected: (t) => t.filter(Boolean) }).ok === false, 'a desk where none is expected');
+}
+console.log('uneven seats and labelled desks ok');
 
 // Card limit: two duplicates feeding each other multiply the cards without
 // bound; the run fails (overflow) instead of running out of memory.

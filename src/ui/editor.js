@@ -1,5 +1,7 @@
 // The level editor: palette, board, inspector, simulation and test runs.
-import { runTest, expectedPayouts, MAX_FLOOR_CARDS } from '../engine.js';
+import {
+  runTest, expectedPayouts, payoutHand, payoutDesk, MAX_FLOOR_CARDS,
+} from '../engine.js';
 import { h, s, handEl, cardEl, parseCards, fmtCards } from './dom.js';
 import { Board, R } from './board.js';
 import {
@@ -12,7 +14,7 @@ import {
 } from './model.js';
 import { checkDeals, CHECK_DEALS, totalRounds } from '../score.js';
 import { signInDialog, dialogOpen } from './account.js';
-import { Sim } from './sim.js';
+import { Sim, DESK_NAMES } from './sim.js';
 import { scatterPlot, solutionList, scoreText, parMark } from './scatter.js';
 
 const ARROW = ['→', '↘', '↙', '←', '↖', '↗'];
@@ -585,11 +587,13 @@ export function openEditor(root, ctx, level) {
 
   function renderBoard() {
     const live = sim && sim.round > 0 ? sim.floor : null;
-    const desk = level.fixed.find((c) => c.kind === 'payout');
+    // The desk to flag on a wrong payout: the one it was paid at.
+    const wrongDesk = sim?.status.desk;
+    const desk = level.fixed.find((c) => c.kind === 'payout' && (wrongDesk === undefined || c.desk === wrongDesk));
     const t = anim ? Math.min(1, (performance.now() - anim.start) / anim.dur) : 1;
     board.render({
       cells, selected, activePort, hover, live, tool, drag: drag?.active ? drag : null,
-      paidNow: live ? sim.paidNow : null, paidWrong: sim?.paidWrong,
+      paidNow: live ? sim.paidNow : null, paidNowDesk: sim?.paidNowDesk, paidWrong: sim?.paidWrong,
       alert: sim?.status.kind === 'wrong' && desk ? hexKey(desk.at) : null,
       anim: anim && t < 1 ? Object.assign(anim, { t }) : null,
     });
@@ -791,6 +795,11 @@ export function openEditor(root, ctx, level) {
     inspector.replaceChildren(...parts.filter(Boolean));
   }
 
+  // A payout's desk, on a floor with labelled desks.
+  const deskTag = (d) => (d === undefined ? null : h('span', { class: 'desk-tag', title: `At desk ${DESK_NAMES[d]}` }, `→ ${DESK_NAMES[d]}`));
+  // A payout ({ desk, hand } on a floor with labelled desks), with its desk.
+  const payoutEl = (p) => [handEl(payoutHand(p)), deskTag(payoutDesk(p))];
+
   // Expected payouts for a test before any run (cached per test).
   const expectedCache = new Map();
   function expectedOf(inputs) {
@@ -833,6 +842,8 @@ export function openEditor(root, ctx, level) {
     editBtn.classList.toggle('hidden', !watching);
     const parts = [];
     const inputs = tests[testIndex] ?? [];
+    // (A player with fewer hands than the others has nulls for the rest.)
+    const nHands = inputs.filter(Boolean).length;
     const f = sim?.floor;
     const pos = f ? f.inputPos : 0;
     const t = sim ? sim.tally() : null;
@@ -842,23 +853,23 @@ export function openEditor(root, ctx, level) {
     let sCls = '';
     if (st) {
       if (st.kind === 'ready') status = 'Ready.';
-      else if (st.kind === 'running' || st.kind === 'paused') status = `Round ${sim.round}. ${pos}/${inputs.length} hands dealt, ${f.paid.length} paid.`;
+      else if (st.kind === 'running' || st.kind === 'paused') status = `Round ${sim.round}. ${pos}/${nHands} hands dealt, ${f.paid.length} paid.`;
       else { status = st.msg; sCls = st.kind === 'passed' ? 'good' : 'bad'; }
     }
     parts.push(h('div', { class: `sim-status ${sCls}` }, status));
-    if (st && (st.kind === 'wrong')) parts.push(h('div', { class: 'sim-detail bad' }, 'Paid: ', handEl(st.hand)));
+    if (st && (st.kind === 'wrong')) parts.push(h('div', { class: 'sim-detail bad' }, 'Paid: ', handEl(st.hand), deskTag(st.desk)));
     if (st && st.missing?.length) {
-      parts.push(h('div', { class: 'sim-detail' }, 'Never paid: ', st.missing.slice(0, 6).map((m) => handEl(m)), st.missing.length > 6 ? ` +${st.missing.length - 6}` : ''));
+      parts.push(h('div', { class: 'sim-detail' }, 'Never paid: ', st.missing.slice(0, 6).map((m) => payoutEl(m)), st.missing.length > 6 ? ` +${st.missing.length - 6}` : ''));
     }
     // queue
     // Seated floors: hand i belongs to player A, B, ... (i % seats), each dealing their own.
     const seats = level.fixed.filter((c) => c.kind === 'source' && c.seat !== undefined).length;
     const dealt = (i) => (f ? f.dealt(i) : false);
     const nextIdx = seats ? -1 : pos;
-    parts.push(h('div', { class: 'sub-title' }, seats ? 'Players\' hands' : 'Player\'s hands', h('span', { class: 'muted' }, ` ${Math.max(0, inputs.length - pos)} to come`)));
+    parts.push(h('div', { class: 'sub-title' }, seats ? 'Players\' hands' : 'Player\'s hands', h('span', { class: 'muted' }, ` ${Math.max(0, nHands - pos)} to come`)));
     const winIdx = new Set();
     if (!listed) inputs.forEach((hand, i) => { if (level.pays(hand, inputs.slice(0, i))) winIdx.add(i); });
-    parts.push(h('div', { class: `queue${listed ? ' short' : ''}` }, inputs.map((hand, i) => h('div', {
+    parts.push(h('div', { class: `queue${listed ? ' short' : ''}` }, inputs.map((hand, i) => hand && h('div', {
       class: `q-item${dealt(i) ? ' dealt' : ''}${i === nextIdx || (seats && !dealt(i) && (i < seats || dealt(i - seats))) ? ' next' : ''}${winIdx.has(i) ? ' win' : ''}`,
       title: [seats ? `Player ${'ABCDEF'[i % seats]}` : null, listed ? null : winIdx.has(i) ? 'Should be paid' : 'Should be dropped'].filter(Boolean).join(': ') || null,
     }, h('span', { class: 'q-n' }, seats ? `${Math.floor(i / seats) + 1}${'ABCDEF'[i % seats]}` : String(i + 1)), handEl(hand), listed ? null : h('span', { class: 'q-mark' }, winIdx.has(i) ? '$' : '')))));
@@ -882,9 +893,9 @@ export function openEditor(root, ctx, level) {
       }
       parts.push(h('div', { class: 'paid expected' },
         expected.map((hand, i) => h('div', { class: `p-item e-item${matched[i] ? ' ok' : ''}`, title: matched[i] ? `Paid (payout ${matched[i]})` : 'Not paid yet' },
-          h('span', { class: 'p-n' }, String(i + 1)), handEl(hand), h('span', { class: 'p-mark' }, matched[i] ? '✓' : '$'))),
+          h('span', { class: 'p-n' }, String(i + 1)), payoutEl(hand), h('span', { class: 'p-mark' }, matched[i] ? '✓' : '$'))),
         wrong.map(([p, i]) => h('div', { class: 'p-item bad', title: `Payout ${i + 1} is not an expected payout` },
-          h('span', { class: 'p-n' }, '✗'), handEl(p.h), h('span', { class: 'p-mark' }, 'wrong'))),
+          h('span', { class: 'p-n' }, '✗'), handEl(p.h), deskTag(p.desk), h('span', { class: 'p-mark' }, 'wrong'))),
         expected.length ? null : h('div', { class: 'muted small' }, 'Nothing should be paid in this test.')));
     } else {
       const nWins = winIdx.size;

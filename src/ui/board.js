@@ -4,6 +4,7 @@ import {
   PORT_STYLE, infoFor, chipLabel, arrowsOf, SIDE_NAMES,
 } from './croupiers.js';
 import { hexKey } from './model.js';
+import { DESK_NAMES } from './sim.js';
 
 export const R = 50;                       // hex circumradius
 const AP = R * Math.sqrt(3) / 2;           // apothem
@@ -191,6 +192,7 @@ export class Board {
   render(state) {
     const { cells, live } = state;
     this.paidNow = state.paidNow;
+    this.paidNowDesk = state.paidNowDesk;
     this.paidWrong = state.paidWrong;
     this.anim = live ? state.anim : null;
     if (this.anim) {
@@ -285,7 +287,7 @@ export class Board {
       const seated = cell.seat !== undefined;
       if (live && (seated || this.level.fixed.filter((c) => c.kind === 'source').length === 1)) {
         const st = live.cells.get(hexKey(cell.at));
-        const mine = seated ? live.inputs.filter((_, i) => i % live.seats === cell.seat).length : live.inputs.length;
+        const mine = seated ? live.inputs.filter((x, i) => x && i % live.seats === cell.seat).length : live.total;
         const left = mine - (seated ? st.pos : live.inputPos) + st.pending.length;
         g.append(s('text', { class: 'src-count', y: -3, 'text-anchor': 'middle' }, String(left)));
       }
@@ -298,12 +300,15 @@ export class Board {
         g.append(s('ellipse', { class: 'deskchip', cx: 0, cy: 2 - i * 5, rx: 15, ry: 5.5 }));
       }
       g.append(s('text', { class: 'desk-sign', y: -14, 'text-anchor': 'middle' }, '$'),
-        s('text', { class: 'fixed-label dark', y: 26, 'text-anchor': 'middle' }, 'CHIP DESK'));
-      if (live && live.paid.length) {
+        s('text', { class: 'fixed-label dark', y: 26, 'text-anchor': 'middle' }, cell.desk === undefined ? 'CHIP DESK' : `DESK ${DESK_NAMES[cell.desk]}`));
+      // Hands paid here (on a floor with labelled desks, at this desk).
+      const paid = live ? live.paidAt.filter((d) => d === cell.desk).length : 0;
+      if (paid) {
         g.append(s('circle', { class: 'paid-badge', cx: 24, cy: -22, r: 10 }),
-          s('text', { class: 'paid-badge-t', x: 24, y: -18.5, 'text-anchor': 'middle' }, String(live.paid.length)));
+          s('text', { class: 'paid-badge-t', x: 24, y: -18.5, 'text-anchor': 'middle' }, String(paid)));
       }
-      g.append(s('title', {}, 'Chip desk: hands that reach it are paid out'));
+      g.append(s('title', {}, cell.desk === undefined ? 'Chip desk: hands that reach it are paid out'
+        : `Chip desk ${DESK_NAMES[cell.desk]}: hands that reach it are paid out here (marked → ${DESK_NAMES[cell.desk]} in the expected payouts)`));
       return g;
     }
     const info = infoFor(cell) ?? { family: '#555', name: cell.fn };
@@ -490,7 +495,8 @@ export class Board {
     const g = s('g', { transform: t, class: 'live' });
     const hand = (cards, x, y, cls) => this.handSvg(cards, x, y, cls, origin);
     if (lc.kind === 'payout') {
-      if (this.paidNow) g.append(hand(this.paidNow, 0, -2, `paid-now${this.paidWrong ? ' wrong' : ''}`));
+      // (On a floor with labelled desks, only at the desk it was paid at.)
+      if (this.paidNow && this.paidNowDesk === lc.desk) g.append(hand(this.paidNow, 0, -2, `paid-now${this.paidWrong ? ' wrong' : ''}`));
       return g;
     }
     // Hands waiting at an input: on a tray, with a notch pointing at the

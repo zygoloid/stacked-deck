@@ -199,6 +199,10 @@ campaign's "palette only grows" rule doesn't apply to the bonus deck).
 | K♠ | showdown | Showdown | `$$` deja-vu | 3, two players | **expected**: pay the higher hand of each deal, comparing highest, middle, lowest (aces high); a tie pays neither | stack the hands, Hand(3) deals them out again into one sorter (Deal, three Wars as compare-and-swap, two gathers); Hand(6) and a cut pair them up; three stages of two top-card Wars (both ways round), Burn-rotating both on a tie; laid out as a U so the winners' line ends by the players (43/296) | 9 | new |
 | A♥ | last-in-first-out | Last In, First Out | `$$` deja-vu | 1–5 | **expected**, `inOrder`: every hand, last played first | a pass prefers the player to a `once` joker shoe, so the joker comes after the last hand; hands gathered onto `$` markers are pushed on a stack until the joker is on top; then Burn deals the stack off card by card onto a growing hand, and a marker coming up (top-card War vs `$$`) sends the hand to the desk (20/835) | 9 | new |
 | 2♥ | one-up | One Up | `$$` deja-vu | 1 | **expected**, house cards: for every card, the next card up in its suit (K → A) | two shoes in step deal [x, next-of-x] pairs through the whole deck; the card waits in a loop taking pairs until K2 + Flush find it is x (a Deal and a second K2 tell x from y), then y is paid; a War lets one card in at a time (16/4076) | 7 | new |
+| 3♥ | crossed-wires | Crossed Wires | `$$` deja-vu | 1–3, three players | **expected**, labelled desks: every hand at the desk diametrically opposite its player (A at Z, B at Y, C at X) | a crossover network: every pair of streams crosses at a War, the player's hand sent one way and the dealer's the other, win or lose (A crosses B, then C, then B and C cross) (14/68) | 4 | new |
+| 4♥ | uneven-tables | Uneven Tables | `$$` deja-vu | 1–3, three players | as Crossed Wires, but each player plays a different number of hands (0 to 6) | tags: a joker on top of A's hands, an advertising card on C's; merge, two top-card Wars sort them out (only a joker beats an ace; only an ad card fails to beat one), Burn takes the tags off (18/94). The War network still works if a pass fills a stream's gaps with `$` | 5 | new |
+| 5♥ | twice-shy | Twice Shy | `$$` deja-vu | 5, two players | **expected**: every hand less the cards played more than once over the whole night (both copies, any hands; a hand left empty pays nothing) | the store of Last In, First Out (hands on `$` markers, released by a joker after the last hand) is copied: one copy feeds a chain of four Suits, each keeping one suit as a pool that a Duplicate loop copies on demand; the other is dealt a card at a time down a bus through four testers, each gathering the card on a copy of its pool: Flush (its suit?) then K3 (a card and its twin make three) drops a repeated card with the copy, else Burn passes the card on; the markers regroup the survivors into hands (51/1187). A suit missing all night would leave its tester without a pool, so the deal always has all four | 10 | new |
+| 6♥ | rest-of-the-deck | The Rest of the Deck | `$$` deja-vu | 1–5 | **expected**, house cards: after the last hand, every card of the deck not played, one card a hand | a shoe deals the deck then a joker behind the player (a pass prefers the player); everything is stacked until the joker is on top, so each suit holds the played cards twice and the rest once; Suits, K2 (a pair: Set drops the played cards; none: the whole suit is unplayed) and Hand(1) pays them one at a time (14/1506). Its own `grace` (100 rounds) | 6 | new |
 
 Fourth Street (6♣, "the 4th card beats a 10") was replaced outright by Upside
 Down: it was Bottom Dealer's floor again with one more card, and Burn Card
@@ -210,6 +214,11 @@ hands, so a deal's two hands can be paired up by a Gather or a War however
 the machine holds either player up. Mirror Image's tests give each player a
 deck of their own (player B often holds player A's hand reordered, or one
 card off); Showdown deals both from one deck.
+
+**Labelled desks.** Crossed Wires and Uneven Tables seat three players and
+label their three desks (`desk` on each payout; X, Y, Z from the top): each
+expected payout names its desk. Uneven Tables' tests give the players
+different numbers of hands (`null` for a player's missing hands).
 
 **Desks.** Every floor from 7♠ on has its chip desk 2 or 3 hexes from the
 player(s), so the distance never forces passes on a player; the reference

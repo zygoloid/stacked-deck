@@ -1,15 +1,18 @@
 // Interactive simulation of one test case, with history for stepping back and
 // the same pass/fail rules as runTest in src/engine.js (checked live, so a run
 // can pause at the first wrong payout).
-import { Floor, expectedPayouts, handKey, MAX_FLOOR_CARDS } from '../engine.js';
+import {
+  Floor, GRACE, graceOf, expectedPayouts, handKey, payoutKey, payoutHand, payoutDesk, paidPayout, MAX_FLOOR_CARDS,
+} from '../engine.js';
 
 export const MAX_ROUNDS = 5000;   // as runTest
-export const GRACE = 50;          // as runTest
 export const JAM_ROUNDS = 200;    // no player card moved for this long: jammed
 const KEEP_ALL = 400;             // keep every snapshot for the last N rounds
 const CHECKPOINT = 25;            // older rounds keep one snapshot in N
 
 export const canon = (h) => handKey(h);
+// Labelled desks' names (desk 0, 1, ...), as players are lettered A, B, ...
+export const DESK_NAMES = 'XYZW';
 
 // `rule` is the level (a `pays` level or an `expected` one, optionally
 // `ordered`) or a bare `pays` function, as for runTest.
@@ -20,12 +23,16 @@ export class Sim {
     this.expected = expectedPayouts(rule, inputs);
     this.ordered = typeof rule === 'object' && !!rule?.ordered;
     this.inOrder = typeof rule === 'object' && !!rule?.inOrder;
+    this.grace = graceOf(rule) ?? GRACE;
     // `expected` levels list their payouts; `pays` levels pay input hands.
     this.listed = typeof rule === 'object' && typeof rule?.expected === 'function';
     this.reset();
   }
 
-  key(h) { return handKey(h, this.ordered); }
+  // Keys of an expected payout ({ desk, hand } on a floor with labelled
+  // desks) and of the n-th payout made.
+  key(p) { return payoutKey(p, this.ordered); }
+  paidKey(n) { return this.key(paidPayout(this.floor, n)); }
 
   reset() {
     this.floor = new Floor(this.spec, this.inputs);
@@ -36,6 +43,7 @@ export class Sim {
     this.sig = this.signature();
     this.status = { kind: 'ready' };
     this.paidNow = null;
+    this.paidNowDesk = undefined;
     this.paidWrong = false;
   }
 
@@ -60,30 +68,36 @@ export class Sim {
   tally() {
     if (this.inOrder) {
       // The n-th payout must be expected[n].
-      const matched = this.expected.map((x, i) => (i < this.floor.paid.length && this.key(this.floor.paid[i]) === this.key(x) ? i + 1 : 0));
-      const paid = this.floor.paid.map((h, n) => ({ h, ok: !!matched[n] }));
+      const matched = this.expected.map((x, i) => (i < this.floor.paid.length && this.paidKey(i) === this.key(x) ? i + 1 : 0));
+      const paid = this.floor.paid.map((h, n) => ({ h, desk: this.floor.paidAt[n], ok: !!matched[n] }));
       return { paid, matched, missing: this.expected.filter((x, i) => !matched[i]) };
     }
     const remaining = this.expected.map((h, i) => ({ h, i, k: this.key(h) }));
     const matched = this.expected.map(() => 0);
     const paid = this.floor.paid.map((h, n) => {
-      const j = remaining.findIndex((x) => x.k === this.key(h));
-      if (j < 0) return { h, ok: false };
+      const desk = this.floor.paidAt[n];
+      const j = remaining.findIndex((x) => x.k === this.paidKey(n));
+      if (j < 0) return { h, desk, ok: false };
       matched[remaining[j].i] = n + 1;
       remaining.splice(j, 1);
-      return { h, ok: true };
+      return { h, desk, ok: true };
     });
     return { paid, matched, missing: remaining.map((x) => x.h) };
   }
 
-  // Why a paid hand matched nothing.
-  wrongReason(hand) {
-    const k = this.key(hand);
+  // Why a paid hand (paid at `desk`) matched nothing.
+  wrongReason(hand, desk) {
+    const k = this.key(desk === undefined ? hand : { desk, hand });
     const dup = this.expected.some((x) => this.key(x) === k);
+    if (desk !== undefined && !dup) {
+      const same = (x) => handKey(payoutHand(x), this.ordered) === handKey(hand, this.ordered);
+      const there = this.expected.find(same);
+      if (there) return `Paid out a hand at desk ${DESK_NAMES[desk]} that belongs at desk ${DESK_NAMES[payoutDesk(there)]}.`;
+    }
     if (!this.listed) return dup ? 'Paid out a winning hand a second time.' : 'Paid out a hand that should have been dropped.';
     if (this.inOrder && dup) return 'Paid out a hand out of turn (payouts must come in the order listed).';
     if (dup) return 'Paid out that hand more times than expected.';
-    if (this.ordered && this.expected.some((x) => canon(x) === canon(hand))) return 'Paid out a hand with its cards in the wrong order (card order matters here).';
+    if (this.ordered && this.expected.some((x) => canon(payoutHand(x)) === canon(hand))) return 'Paid out a hand with its cards in the wrong order (card order matters here).';
     return 'Paid out a hand that isn\'t one of the expected payouts.';
   }
 
@@ -95,6 +109,7 @@ export class Sim {
     f.step();
     this.status = { kind: 'running' };
     this.paidNow = null;
+    this.paidNowDesk = undefined;
     this.paidWrong = false;
     this.store();
     const sig = this.signature();
@@ -108,22 +123,24 @@ export class Sim {
     if (f.paid.length > before) {
       const t = this.tally();
       this.paidNow = f.paid[f.paid.length - 1];
+      this.paidNowDesk = f.paidAt[f.paidAt.length - 1];
       const bad = t.paid.slice(before).find((x) => !x.ok);
       if (bad) {
         this.paidWrong = true;
         this.paidNow = bad.h;
-        this.status = { kind: 'wrong', hand: bad.h, msg: this.wrongReason(bad.h) };
+        this.paidNowDesk = bad.desk;
+        this.status = { kind: 'wrong', hand: bad.h, desk: bad.desk, msg: this.wrongReason(bad.h, bad.desk) };
         return this.status.kind;
       }
     }
-    const allPaid = f.inputPos >= this.inputs.length && f.paid.length >= this.expected.length;
+    const allPaid = f.allDealt() && f.paid.length >= this.expected.length;
     if (allPaid) this.settled ??= f.round;
     // Player cards all gone but payouts still owed: house cards may still be
-    // on their way to the desk, so allow GRACE rounds (as runTest does).
+    // on their way to the desk, so allow the grace rounds (as runTest does).
     if (f.done() && !allPaid) this.drained ??= f.round;
     const t = () => this.tally();
-    if ((f.done() && (allPaid || f.round - this.drained >= GRACE)) ||
-        (!f.done() && this.settled !== null && f.round - this.settled >= GRACE)) {
+    if ((f.done() && (allPaid || f.round - this.drained >= this.grace)) ||
+        (!f.done() && this.settled !== null && f.round - this.settled >= this.grace)) {
       const { missing } = t();
       this.status = missing.length
         ? { kind: 'missing', missing, msg: `Every card has left the floor, but ${missing.length} ${this.listed ? 'expected payout' : 'winning hand'}${missing.length > 1 ? 's were' : ' was'} never paid.` }
@@ -161,6 +178,7 @@ export class Sim {
     this.sig = this.signature();
     this.status = { kind: target === 0 ? 'ready' : 'paused' };
     this.paidNow = null;
+    this.paidNowDesk = undefined;
     this.paidWrong = false;
   }
 }

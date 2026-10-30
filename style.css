@@ -532,6 +532,7 @@ svg.board.placing { cursor: copy; }
 .q-item, .p-item { display: flex; align-items: center; gap: 6px; padding: 2px 6px; border-radius: 6px; }
 .q-n, .p-n { width: 20px; text-align: right; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .q-mark, .p-mark { margin-left: auto; font-weight: 800; color: var(--gold-2); }
+.desk-tag { font-size: 11px; font-weight: 700; color: var(--gold-2); white-space: nowrap; }
 .q-item.dealt { opacity: 0.38; }
 .q-item.next { background: rgba(212, 175, 55, 0.14); outline: 1px solid var(--gold-soft); }
 .p-item.ok .p-mark { color: var(--good); }
