@@ -68,24 +68,19 @@ jobs:
       PROJECT: zygoloid-github-io
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
     steps:
-      # Watches (and, with egress-policy: block, limits) the hosts this job
-      # contacts, so a compromised dependency can't send the Google token
-      # anywhere else. It starts in audit mode: after the first real deploy,
-      # check the job's insights page (linked from its log) against
-      # allowed-endpoints, then switch to block (docs/online.md, "Deploying").
-      # allowed-endpoints only applies in block mode.
+      # Only these hosts can be reached from this job, so a compromised
+      # dependency can't send the Google token anywhere else. The list is
+      # what StepSecurity observed a real deploy using. A deploy that fails
+      # on a blocked host needs it added: the job's insights page (linked
+      # from its log) names it. For example, if a runner image lacks Node 22,
+      # setup-node will need its download hosts.
       - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
-          egress-policy: audit
+          egress-policy: block
           allowed-endpoints: >
-            github.com:443
-            api.github.com:443
-            *.actions.githubusercontent.com:443
-            objects.githubusercontent.com:443
-            release-assets.githubusercontent.com:443
-            nodejs.org:443
-            registry.npmjs.org:443
             *.googleapis.com:443
+            github.com:443
+            registry.npmjs.org:443
             zygoloid-stacked-deck.firebaseio.com:443
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
