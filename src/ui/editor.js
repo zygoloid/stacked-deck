@@ -158,6 +158,9 @@ export function openEditor(root, ctx, level) {
       for (const k of ['n', 'rule', 'once']) if (t[k] !== undefined) c[k] = t[k];
       if (t.deck) c.deck = [...t.deck];
       cells.push(c);
+      // Placing one is the usual end of it: the new croupier is selected,
+      // ready to point its ports, and the palette tool is put down.
+      tool = null;
       selected = hexKey(at);
       activePort = portsOf(c)[0] ?? null;
     });
@@ -661,7 +664,7 @@ export function openEditor(root, ctx, level) {
         i < 9 ? h('kbd', {}, String(i + 1)) : null);
       }).filter(Boolean)),
       h('div', { class: 'pal-hint' }, tool
-        ? 'Tap empty hexes to place; drag to pan. Tap the bare floor or press Esc to stop.'
+        ? 'Tap an empty hex to place it; drag to pan. Tap the bare floor or press Esc to cancel.'
         : 'Pick a croupier, then tap the floor, or drag it on.'));
   }
 
@@ -703,13 +706,7 @@ export function openEditor(root, ctx, level) {
     // Changes to a placed croupier are undoable edits; to the tool, settings
     // for the croupiers it places next.
     const edit = template ? (fn) => { fn(); renderInspector(); renderPalette(); } : commit;
-    const toolInfo = tool ? CROUPIERS[tool] : null;
     const parts = [
-      // Placing more with the tool while a placed croupier is selected.
-      !template && toolInfo ? h('div', { class: 'placing-note' },
-        h('span', {}, 'Placing ', h('b', {}, `${toolInfo.name} (${chipLabel(toolCell(tool))})`), ': tap empty hexes.'),
-        h('button', { class: 'btn ghost small', title: 'Settings for the croupiers placed next', onclick: () => select(null) }, 'Settings'),
-        h('button', { class: 'btn ghost small', title: 'Stop placing (Esc)', onclick: () => setTool(null) }, 'Stop')) : null,
       h('div', { class: 'insp-head' },
         h('span', { class: 'pal-chip big', style: { background: info.family } }, h('span', {}, chipLabel(c))),
         h('div', {}, h('h3', {}, info.name), h('div', { class: 'insp-at' }, template ? 'Tap an empty hex to place' : `hex ${c.at[0]}, ${c.at[1]}`)),
@@ -1076,7 +1073,7 @@ export function openEditor(root, ctx, level) {
     ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
     ghost.replaceChildren(h('span', { class: 'pal-chip', style: { background: info?.family } },
       h('span', {}, drag.kind === 'new' ? chipLabel(paletteSample(name)) : chipLabel(cellAt(drag.key)))),
-    overPalette && drag.kind === 'move' ? h('span', { class: 'ghost-t' }, 'remove') : null);
+    ...(overPalette && drag.kind === 'move' ? [h('span', { class: 'ghost-t' }, 'remove')] : []));
     renderBoard();
   }
   function onUp(e) {

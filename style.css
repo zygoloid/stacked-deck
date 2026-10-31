@@ -757,7 +757,11 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 }
 .insp-head .done-btn { display: none; } /* a phone's way back from a selected croupier */
 @media (max-width: 900px) {
-  .editor { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto 62vh auto; grid-template-areas: 'top' 'stage' 'side'; }
+  .editor { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto auto; grid-template-areas: 'top' 'stage' 'side'; }
+  /* The floor keeps its size whatever shows under it (the play controls
+     step aside for a selected croupier): a floor that grew into their place
+     would take a tap meant for them. */
+  .board-wrap { flex: none; height: 50vh; }
   .topbar { flex-wrap: wrap; }
   .brief { flex-basis: 100%; order: 5; }
   .pal-item kbd { display: none; }
@@ -813,11 +817,6 @@ svg.board.panning { cursor: grabbing; }
 svg.board { -webkit-touch-callout: none; }
 
 /* Inspector: a croupier kind picked in the palette, before placing it. */
-.placing-note {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; padding: 6px 8px; border-radius: 8px;
-  background: rgba(212, 175, 55, 0.1); border: 1px solid var(--gold-soft); font-size: 12.5px;
-}
-.placing-note > span { flex: 1 1 140px; }
 .port-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 
 /* Which side a croupier faces (placeholder until croupier art). */

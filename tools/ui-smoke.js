@@ -124,9 +124,8 @@ try {
   // (for 'opening-night': [-1,0] [0,0] [1,0], out -> E), derived from level.fixed.
   const line1 = passLine(LEVELS[0]);
   const buildLine = async (line) => {
-    await page.click('.pal-item[data-tool="pass"]');
-    for (const [at] of line) await clickHex(at);
-    await page.keyboard.press('Escape'); // drop the tool
+    for (const [at] of line) { await page.click('.pal-item[data-tool="pass"]'); await clickHex(at); } // placing one puts the tool down
+    await page.keyboard.press('Escape'); // deselect the last
     for (const [at, d] of line) {
       await clickHex(at);                 // select
       await page.keyboard.press('x');     // port to the floor
@@ -140,6 +139,19 @@ try {
   const cells = saved?.levels?.['opening-night']?.cells ?? [];
   check(cells.length === line1.length && line1.every(([at, d]) => cells.some((c) => c.at.join() === at.join() && c.fn === 'pass' && c.out.out === d)),
     `machine autosaved: ${line1.map(([at, d]) => `[${at}]->${'E SE SW W NW NE'.split(' ')[d]}`).join(' ')}`);
+  // Placing a croupier selects it and puts the palette tool down.
+  check(await page.locator('.pal-item.on').count() === 0, 'placing a croupier puts the croupier type down');
+  // Dragging a croupier: the ghost shows its chip (and nothing else).
+  {
+    const [gx, gy] = await hexPoint(line1[0][0]);
+    await page.mouse.move(gx, gy);
+    await page.mouse.down();
+    await page.mouse.move(gx + 30, gy + 30, { steps: 3 });
+    const ghostText = (await page.textContent('.drag-ghost')).trim();
+    await page.mouse.move(gx, gy, { steps: 3 });
+    await page.mouse.up();
+    check(ghostText === 'PASS', `dragging a croupier shows just its chip ("${ghostText}")`);
+  }
   await clickHex(line1[Math.floor(line1.length / 2)][0]);
   if (shots) await page.screenshot({ path: join(shots, '2-editor.png') });
 
@@ -261,8 +273,7 @@ try {
     await page.goto(`${base}?unlockall#/level/${wrongLevel.id}`);
     await page.waitForSelector('svg.board');
     const line = passLine(wrongLevel);
-    await page.click('.pal-item[data-tool="pass"]');
-    for (const [at] of line) await clickHex(at);
+    for (const [at] of line) { await page.click('.pal-item[data-tool="pass"]'); await clickHex(at); }
     await page.keyboard.press('Escape');
     for (const [at, d] of line) { await clickHex(at); await page.keyboard.press('x'); await page.keyboard.press('dczaqe'[d]); }
     await page.keyboard.press('Escape');
@@ -500,10 +511,14 @@ try {
     check(await viewBox() !== v0 && await placed() === 0, 'a drag with a croupier picked pans the floor, placing nothing');
     await phone.click('.zoom button:last-child'); // fit
     await tap(await hexAt(free[0]));
-    check(await placed() === 1 && await phone.locator('.pal-item.on').count() === 1, 'a tap places it, and the croupier stays picked');
+    check(await placed() === 1 && await phone.locator('.pal-item.on').count() === 0 && await phone.locator('.cell.selected').count() === 1,
+      'a tap places it, selected, and puts the croupier type down');
     const box = await phone.locator('svg.board').boundingBox();
     await tap([box.x + 3, box.y + 3]);
-    check(await phone.locator('.pal-item.on').count() === 0 && await phone.locator('.cell.selected').count() === 0, 'tapping the bare floor drops the croupier and the selection');
+    check(await phone.locator('.cell.selected').count() === 0, 'tapping the bare floor drops the selection');
+    await phone.tap('.pal-item[data-tool="pass"]');
+    await tap([box.x + 3, box.y + 3]);
+    check(await phone.locator('.pal-item.on').count() === 0, 'and a picked croupier type');
     const w0 = Number((await viewBox()).split(' ')[2]);
     const [cx, cy] = [box.x + box.width / 2, box.y + box.height / 2];
     await touch('touchStart', [[cx - 30, cy], [cx + 30, cy]]);
@@ -512,6 +527,8 @@ try {
     const w1 = Number((await viewBox()).split(' ')[2]);
     check(w1 < w0 * 0.8 && await placed() === 1, `two fingers pinch-zoom (view ${w0.toFixed(0)} -> ${w1.toFixed(0)} wide)`);
     await phone.click('.zoom button:last-child');
+    const boardH = (await phone.locator('.board-wrap').boundingBox()).height;
+    const playAt = await phone.locator('.tp.main').boundingBox();
     await tap(await hexAt(free[0]));
     check(await phone.locator('.cell.selected').count() === 1, 'a tap selects a croupier');
     // Its panel comes right under the floor: the palette and the play controls step aside.
@@ -519,6 +536,14 @@ try {
     check(!(await phone.isVisible('.palette')) && !(await phone.isVisible('.transport')) && gap >= 0 && gap < 4,
       `phone: a selected croupier's panel sits right under the floor (gap ${gap.toFixed(0)}px)`);
     if (shots) await phone.screenshot({ path: join(shots, '7e-phone-selected.png') });
+    // The floor keeps its size, so a tap where the play button was lands on
+    // the croupier's panel, not on a floor that grew into its place (which
+    // deselected and let the tap's click start playing).
+    const selH = (await phone.locator('.board-wrap').boundingBox()).height;
+    check(Math.abs(selH - boardH) < 1, `phone: selecting a croupier leaves the floor its size (${boardH.toFixed(0)} -> ${selH.toFixed(0)}px)`);
+    await tap([playAt.x + playAt.width / 2, playAt.y + playAt.height / 2]);
+    check((await phone.textContent('.tp.main')).trim() === '▶' && await phone.locator('.cell.selected').count() === 1,
+      'phone: a tap where the play button was neither plays nor deselects');
     await phone.tap('.inspector .done-btn');
     check(await phone.locator('.cell.selected').count() === 0 && await phone.isVisible('.palette') && await phone.isVisible('.transport'),
       'Done deselects it and brings them back');
@@ -656,8 +681,7 @@ try {
     await clickHex(at);
     const hc = (await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, lv.id)).find((c) => c.fn === 'hand');
     check(hc?.n === 3, `the Hand is placed with n = 3 (${JSON.stringify(hc)})`);
-    await page.keyboard.press('Escape');
-    await page.keyboard.press('Delete');
+    await page.keyboard.press('Delete'); // it is selected
     // Play mode: stepping hides the palette and the inspector; Edit brings them back.
     await page.click('.pal-item[data-tool="hand"]');
     await page.keyboard.press('.');
