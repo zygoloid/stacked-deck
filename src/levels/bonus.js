@@ -3,9 +3,11 @@
 // deck: A..K of spades, then of hearts, of a second deck, in this list's order (which follows
 // the unlockAfter floors' order in the campaign). Some are floors cut from
 // the campaign to make room (their ids are unchanged, since saves are keyed
-// by id); the others are extra floors, from 7♠ on for players who have
-// everything (every croupier, both War rules, every special card). Mirror
-// Image and Showdown seat two players. See docs/campaign.md.
+// by id); the others are extra floors, from 6♠ on for players who have
+// everything (every croupier, both War rules, every special card), roughly
+// easiest first. Crossed Wires and Uneven Tables seat three players (and
+// label three desks); Mirror Image, Showdown and Twice Shy seat two. See
+// docs/campaign.md.
 import {
   hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, NE,
   hv, high, one, paletteThrough, finishChapter,
@@ -285,37 +287,8 @@ export const LEVELS = [
   
   },
   {
-    id: 'four-of-a-kind',
-    card: '6S',
-    unlockAfter: 'deja-vu',
-    title: 'Four of a Kind',
-    story: [
-      'The city has learned your game, and asks for one more: single cards all night, and every time the fourth card of a rank turns up, the house pays out all four of them together, as one four of a kind, however long ago the first was played.',
-      'Then that rank starts again from nothing. Cards still waiting for their fourth at closing time stay with the house.',
-    ],
-    brief: 'Single cards. Every time four cards of one rank have been played (since that rank last paid), pay out those four as one hand.',
-    handSize: 1,
-    floor: floorOf(hexRect(-3, 2, -7, 4), B6, [[-1, 1]]),
-    fixed: B6,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    specialCards: ['?', '??', '$', '$$'],
-    expected: quadsOf,
-    tests: makeTests({
-      handSize: 1, handsPerTest: 26,
-      fixed: [
-        one('7S 7D 2C 7H 2S KD 7C 2H AS 2D KH'),
-        one('AS 2S 3S 4S 5S 6S 7S 8S 9S TS JS QS KS AD 2D 3D 4D 5D 6D 7D 8D 9D TD JD QD KD ' +
-          'AC 2C 3C 4C 5C 6C 7C 8C 9C TC JC QC KC AH 2H 3H 4H 5H 6H 7H 8H 9H TH JH QH KH'),
-        one('QH QS QD QC QH QS QD QC QH'),
-        one('5C 9D 5H'),
-      ],
-      nRandom: 4, seed: 166,
-    }),
-  },
-  {
     id: 'two-apart',
-    card: '7S',
+    card: '6S',
     unlockAfter: 'deja-vu',
     title: 'Two Apart',
     story: [
@@ -343,7 +316,7 @@ export const LEVELS = [
   },
   {
     id: 'three-apart',
-    card: '8S',
+    card: '7S',
     unlockAfter: 'deja-vu',
     title: 'Three Apart',
     story: [
@@ -370,8 +343,93 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'counting-up',
+    id: 'crossed-wires',
+    card: '8S',
+    unlockAfter: 'deja-vu',
+    title: 'Crossed Wires',
+    story: [
+      'The Owner has had the floor rewired: three card tables down one wall, three cash desks down the other, and a note under the tray. Every player is to be paid at the desk diametrically opposite their seat, so that the money is seen to cross the room.',
+      'Player A, at the top, is paid at desk Z, at the bottom; player B, in the middle, at desk Y; player C, at the bottom, at desk X. The Marchetti twins have brought a cousin, and all three are already arguing about the view.',
+    ],
+    brief: 'Three players, hands of 1 to 3 cards. Pay out every hand at the desk diametrically opposite its player: A\'s at Z, B\'s at Y, C\'s at X.',
+    handSize: [1, 3],
+    floor: floorOf(hexRect(-4, 4, -6, 5), H3),
+    fixed: H3,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: crossed,
+    tests: makeMixedTests({
+      minSize: 1, maxSize: 3, handsPerTest: 15,
+      fixed: [
+        ['AS', '2S', '3S', 'AH 2H', 'KH QH', 'JH TH', '4D 5D 6D', '7C', '8C 9C'],
+        // the same hand from every player
+        ['KS QS', 'KS QS', 'KS QS', '2D', '2D', '2D'],
+        ['7H 8H 9H', 'JS', '5C 4C'],
+      ],
+      nRandom: 4, seed: 180,
+    }),
+  },
+  {
+    id: 'uneven-tables',
     card: '9S',
+    unlockAfter: 'deja-vu',
+    title: 'Uneven Tables',
+    story: [
+      'The wiring stays, and so does the rule: every player is paid at the desk diametrically opposite their seat. But the cousins have stopped playing in step. Tonight each of the three plays as many hands as they like, from none at all to six.',
+      'Each player still plays their own hands in their own order. The cousin at table B says he is only here for the view.',
+    ],
+    brief: 'Three players, hands of 1 to 3 cards, each playing a different number of hands (perhaps none). Pay out every hand at the desk diametrically opposite its player: A\'s at Z, B\'s at Y, C\'s at X.',
+    handSize: [1, 3],
+    floor: floorOf(hexRect(-4, 4, -6, 5), H3),
+    fixed: H3,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: crossed,
+    tests: dealtTests({
+      deal: unevenDeals,
+      fixed: [
+        seats3(['AS', '2S 3S', '4S 5S 6S', '7S'], ['AH 2H'], ['KD', 'QD JD', 'TD', '9D 8D', '7D', '6D 5D 4D']),
+        // a player with no hands, then one with all of them
+        seats3([], ['KS QS', 'JS', 'TS 9S'], ['AC']),
+        seats3(['2C 3C', '4C', '5C 6C 7C', '8C', '9C', 'TC'], [], []),
+      ],
+      nRandom: 4, seed: 181,
+    }),
+  },
+  {
+    id: 'four-of-a-kind',
+    card: 'TS',
+    unlockAfter: 'deja-vu',
+    title: 'Four of a Kind',
+    story: [
+      'The city has learned your game, and asks for one more: single cards all night, and every time the fourth card of a rank turns up, the house pays out all four of them together, as one four of a kind, however long ago the first was played.',
+      'Then that rank starts again from nothing. Cards still waiting for their fourth at closing time stay with the house.',
+    ],
+    brief: 'Single cards. Every time four cards of one rank have been played (since that rank last paid), pay out those four as one hand.',
+    handSize: 1,
+    floor: floorOf(hexRect(-3, 2, -7, 4), B6, [[-1, 1]]),
+    fixed: B6,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: quadsOf,
+    tests: makeTests({
+      handSize: 1, handsPerTest: 26,
+      fixed: [
+        one('7S 7D 2C 7H 2S KD 7C 2H AS 2D KH'),
+        one('AS 2S 3S 4S 5S 6S 7S 8S 9S TS JS QS KS AD 2D 3D 4D 5D 6D 7D 8D 9D TD JD QD KD ' +
+          'AC 2C 3C 4C 5C 6C 7C 8C 9C TC JC QC KC AH 2H 3H 4H 5H 6H 7H 8H 9H TH JH QH KH'),
+        one('QH QS QD QC QH QS QD QC QH'),
+        one('5C 9D 5H'),
+      ],
+      nRandom: 4, seed: 166,
+    }),
+  },
+  {
+    id: 'counting-up',
+    card: 'JS',
     unlockAfter: 'deja-vu',
     title: 'Counting Up',
     story: [
@@ -403,7 +461,7 @@ export const LEVELS = [
   },
   {
     id: 'rising',
-    card: 'TS',
+    card: 'QS',
     unlockAfter: 'deja-vu',
     title: 'Rising',
     story: [
@@ -431,8 +489,63 @@ export const LEVELS = [
     }),
   },
   {
+    id: 'rest-of-the-deck',
+    card: 'KS',
+    unlockAfter: 'deja-vu',
+    title: 'The Rest of the Deck',
+    story: [
+      'Commissioner Pryce is auditing the house deck. Tonight one deck is played, in hands of one to five cards, and at closing time the house must hand him every card that was not played, one card at a time, so that he can count them.',
+      'The cards played are the guests\' business and leave the floor as usual. The Commissioner counts slowly, and he has brought his own pencil.',
+    ],
+    brief: 'Hands of 1 to 5 cards, from one deck. After the last hand, pay out every card of the deck that was not played, as one-card hands (house cards).',
+    handSize: [1, 5],
+    floor: floorOf(hexRect(-2, 3, -9, 5), H4),
+    fixed: H4,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: unplayed,
+    // The unplayed cards may be paid long after the last player card has
+    // gone (51 of them, one a round, after a one-card night).
+    grace: 100,
+    tests: makeMixedTests({
+      minSize: 1, maxSize: 5, handsPerTest: 6,
+      fixed: [
+        ['AS'],
+        // every spade and every heart played; no diamonds or clubs
+        ['AS 2S 3S 4S 5S', '6S 7S 8S 9S TS', 'JS QS KS', 'AH 2H 3H 4H 5H', '6H 7H 8H 9H TH', 'JH QH KH'],
+        // pairs of every rank, and the last card of each suit
+        ['AD AC', '2D 2C', 'KS', 'KH 3D 3C', '4D 4C 5D 5C', 'AS'],
+      ],
+      nRandom: 4, seed: 183,
+    }),
+  },
+  {
+    id: 'one-up',
+    card: 'AH',
+    unlockAfter: 'deja-vu',
+    title: 'One Up',
+    story: [
+      'Old Thursday has one trick left, and he insists it is the best one. You show him a card, and he produces the next card up in the same suit: a 7 of clubs for a 6 of clubs, the ace for the king.',
+      'The house pays out his card and keeps yours. He says he has a whole deck up his sleeve, and the house would be wise to keep one too.',
+    ],
+    brief: 'Single cards. For every card, pay out the next card up in the same suit (a house card; after the king comes the ace).',
+    handSize: 1,
+    floor: floorOf(hexRect(-3, 5, -7, 9), H2),
+    fixed: H2,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => inputs.map(([c]) => [oneUp(c)]),
+    tests: makeTests({
+      handSize: 1, handsPerTest: 6,
+      fixed: [one('KS AS KH AH QD KD'), one('AD 2D KC AC QC JC'), one('7H'), one('2S 3S 4S 5S')],
+      nRandom: 4, seed: 179,
+    }),
+  },
+  {
     id: 'head-count',
-    card: 'JS',
+    card: '2H',
     unlockAfter: 'deja-vu',
     title: 'Head Count',
     story: [
@@ -461,7 +574,7 @@ export const LEVELS = [
   },
   {
     id: 'mirror-image',
-    card: 'QS',
+    card: '3H',
     unlockAfter: 'deja-vu',
     title: 'Mirror Image',
     story: [
@@ -489,8 +602,37 @@ export const LEVELS = [
     }),
   },
   {
+    id: 'last-in-first-out',
+    card: '4H',
+    unlockAfter: 'deja-vu',
+    title: 'Last In, First Out',
+    story: [
+      'The cloakroom has a new attendant, and a new rule: tickets are for amateurs. Guests hand over hands of one to five cards on the way in, and at the end of the night the house pays every one of them back, the last hand handed in first, then the one before it, and so on back to the first.',
+      'The cards of a hand may come back in any order, but the hands must come back in exactly that order. The attendant knows the night is over when the guests stop arriving.',
+    ],
+    brief: 'Hands of 1 to 5 cards. Pay out every hand, in the reverse of the order they were played: the last hand first.',
+    handSize: [1, 5],
+    floor: floorOf(hexRect(-3, 5, -9, 9), H1),
+    fixed: H1,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => [...inputs].reverse(),
+    inOrder: true,
+    tests: makeMixedTests({
+      minSize: 1, maxSize: 5, handsPerTest: 8,
+      fixed: [
+        ['AS', '2D 3C', '4H 5S 6D', '7C 8H 9S TD', 'JC QH KS AD 2C'],
+        // the same cards twice, single cards back to back, and one hand alone
+        ['KS QS', '3H', '3D', '9D 9C 9H 9S', 'KS QS', '5C 6C 7C 8C TC', 'AH', '2S 4S'],
+        ['7D 8D 9D'],
+      ],
+      nRandom: 4, seed: 178,
+    }),
+  },
+  {
     id: 'showdown',
-    card: 'KS',
+    card: '5H',
     unlockAfter: 'deja-vu',
     title: 'Showdown',
     story: [
@@ -521,116 +663,8 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'last-in-first-out',
-    card: 'AH',
-    unlockAfter: 'deja-vu',
-    title: 'Last In, First Out',
-    story: [
-      'The cloakroom has a new attendant, and a new rule: tickets are for amateurs. Guests hand over hands of one to five cards on the way in, and at the end of the night the house pays every one of them back, the last hand handed in first, then the one before it, and so on back to the first.',
-      'The cards of a hand may come back in any order, but the hands must come back in exactly that order. The attendant knows the night is over when the guests stop arriving.',
-    ],
-    brief: 'Hands of 1 to 5 cards. Pay out every hand, in the reverse of the order they were played: the last hand first.',
-    handSize: [1, 5],
-    floor: floorOf(hexRect(-3, 5, -9, 9), H1),
-    fixed: H1,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    specialCards: ['?', '??', '$', '$$'],
-    expected: (inputs) => [...inputs].reverse(),
-    inOrder: true,
-    tests: makeMixedTests({
-      minSize: 1, maxSize: 5, handsPerTest: 8,
-      fixed: [
-        ['AS', '2D 3C', '4H 5S 6D', '7C 8H 9S TD', 'JC QH KS AD 2C'],
-        // the same cards twice, single cards back to back, and one hand alone
-        ['KS QS', '3H', '3D', '9D 9C 9H 9S', 'KS QS', '5C 6C 7C 8C TC', 'AH', '2S 4S'],
-        ['7D 8D 9D'],
-      ],
-      nRandom: 4, seed: 178,
-    }),
-  },
-  {
-    id: 'one-up',
-    card: '2H',
-    unlockAfter: 'deja-vu',
-    title: 'One Up',
-    story: [
-      'Old Thursday has one trick left, and he insists it is the best one. You show him a card, and he produces the next card up in the same suit: a 7 of clubs for a 6 of clubs, the ace for the king.',
-      'The house pays out his card and keeps yours. He says he has a whole deck up his sleeve, and the house would be wise to keep one too.',
-    ],
-    brief: 'Single cards. For every card, pay out the next card up in the same suit (a house card; after the king comes the ace).',
-    handSize: 1,
-    floor: floorOf(hexRect(-3, 5, -7, 9), H2),
-    fixed: H2,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    specialCards: ['?', '??', '$', '$$'],
-    expected: (inputs) => inputs.map(([c]) => [oneUp(c)]),
-    tests: makeTests({
-      handSize: 1, handsPerTest: 6,
-      fixed: [one('KS AS KH AH QD KD'), one('AD 2D KC AC QC JC'), one('7H'), one('2S 3S 4S 5S')],
-      nRandom: 4, seed: 179,
-    }),
-  },
-  {
-    id: 'crossed-wires',
-    card: '3H',
-    unlockAfter: 'deja-vu',
-    title: 'Crossed Wires',
-    story: [
-      'The Owner has had the floor rewired: three card tables down one wall, three cash desks down the other, and a note under the tray. Every player is to be paid at the desk diametrically opposite their seat, so that the money is seen to cross the room.',
-      'Player A, at the top, is paid at desk Z, at the bottom; player B, in the middle, at desk Y; player C, at the bottom, at desk X. The Marchetti twins have brought a cousin, and all three are already arguing about the view.',
-    ],
-    brief: 'Three players, hands of 1 to 3 cards. Pay out every hand at the desk diametrically opposite its player: A\'s at Z, B\'s at Y, C\'s at X.',
-    handSize: [1, 3],
-    floor: floorOf(hexRect(-4, 4, -6, 5), H3),
-    fixed: H3,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    specialCards: ['?', '??', '$', '$$'],
-    expected: crossed,
-    tests: makeMixedTests({
-      minSize: 1, maxSize: 3, handsPerTest: 15,
-      fixed: [
-        ['AS', '2S', '3S', 'AH 2H', 'KH QH', 'JH TH', '4D 5D 6D', '7C', '8C 9C'],
-        // the same hand from every player
-        ['KS QS', 'KS QS', 'KS QS', '2D', '2D', '2D'],
-        ['7H 8H 9H', 'JS', '5C 4C'],
-      ],
-      nRandom: 4, seed: 180,
-    }),
-  },
-  {
-    id: 'uneven-tables',
-    card: '4H',
-    unlockAfter: 'deja-vu',
-    title: 'Uneven Tables',
-    story: [
-      'The wiring stays, and so does the rule: every player is paid at the desk diametrically opposite their seat. But the cousins have stopped playing in step. Tonight each of the three plays as many hands as they like, from none at all to six.',
-      'Each player still plays their own hands in their own order. The cousin at table B says he is only here for the view.',
-    ],
-    brief: 'Three players, hands of 1 to 3 cards, each playing a different number of hands (perhaps none). Pay out every hand at the desk diametrically opposite its player: A\'s at Z, B\'s at Y, C\'s at X.',
-    handSize: [1, 3],
-    floor: floorOf(hexRect(-4, 4, -6, 5), H3),
-    fixed: H3,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    specialCards: ['?', '??', '$', '$$'],
-    expected: crossed,
-    tests: dealtTests({
-      deal: unevenDeals,
-      fixed: [
-        seats3(['AS', '2S 3S', '4S 5S 6S', '7S'], ['AH 2H'], ['KD', 'QD JD', 'TD', '9D 8D', '7D', '6D 5D 4D']),
-        // a player with no hands, then one with all of them
-        seats3([], ['KS QS', 'JS', 'TS 9S'], ['AC']),
-        seats3(['2C 3C', '4C', '5C 6C 7C', '8C', '9C', 'TC'], [], []),
-      ],
-      nRandom: 4, seed: 181,
-    }),
-  },
-  {
     id: 'twice-shy',
-    card: '5H',
+    card: '6H',
     unlockAfter: 'deja-vu',
     title: 'Twice Shy',
     story: [
@@ -658,38 +692,6 @@ export const LEVELS = [
       nRandom: 4, seed: 182,
     }),
   },
-  {
-    id: 'rest-of-the-deck',
-    card: '6H',
-    unlockAfter: 'deja-vu',
-    title: 'The Rest of the Deck',
-    story: [
-      'Commissioner Pryce is auditing the house deck. Tonight one deck is played, in hands of one to five cards, and at closing time the house must hand him every card that was not played, one card at a time, so that he can count them.',
-      'The cards played are the guests\' business and leave the floor as usual. The Commissioner counts slowly, and he has brought his own pencil.',
-    ],
-    brief: 'Hands of 1 to 5 cards, from one deck. After the last hand, pay out every card of the deck that was not played, as one-card hands (house cards).',
-    handSize: [1, 5],
-    floor: floorOf(hexRect(-2, 3, -9, 5), H4),
-    fixed: H4,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    specialCards: ['?', '??', '$', '$$'],
-    expected: unplayed,
-    // The unplayed cards may be paid long after the last player card has
-    // gone (51 of them, one a round, after a one-card night).
-    grace: 100,
-    tests: makeMixedTests({
-      minSize: 1, maxSize: 5, handsPerTest: 6,
-      fixed: [
-        ['AS'],
-        // every spade and every heart played; no diamonds or clubs
-        ['AS 2S 3S 4S 5S', '6S 7S 8S 9S TS', 'JS QS KS', 'AH 2H 3H 4H 5H', '6H 7H 8H 9H TH', 'JH QH KH'],
-        // pairs of every rank, and the last card of each suit
-        ['AD AC', '2D 2C', 'KS', 'KH 3D 3C', '4D 4C 5D 5C', 'AS'],
-      ],
-      nRandom: 4, seed: 183,
-    }),
-  },
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
@@ -703,20 +705,20 @@ const PAR = {
   'every-other': { croupiers: 4, rounds: 90 },
   'after-a-pair': { croupiers: 13, rounds: 171 },
   'bookends': { croupiers: 5, rounds: 134 },
-  'four-of-a-kind': { croupiers: 6, rounds: 533 },
   'two-apart': { croupiers: 5, rounds: 120 },
   'three-apart': { croupiers: 7, rounds: 125 },
-  'counting-up': { croupiers: 9, rounds: 290 },
-  'rising': { croupiers: 12, rounds: 214 },
-  'head-count': { croupiers: 19, rounds: 676 },
-  'mirror-image': { croupiers: 25, rounds: 383 },
-  'showdown': { croupiers: 43, rounds: 296 },
-  'last-in-first-out': { croupiers: 20, rounds: 835 },
-  'one-up': { croupiers: 16, rounds: 4076 },
   'crossed-wires': { croupiers: 14, rounds: 68 },
   'uneven-tables': { croupiers: 18, rounds: 94 },
-  'twice-shy': { croupiers: 36, rounds: 1145 },
+  'four-of-a-kind': { croupiers: 6, rounds: 533 },
+  'counting-up': { croupiers: 9, rounds: 290 },
+  'rising': { croupiers: 12, rounds: 214 },
   'rest-of-the-deck': { croupiers: 14, rounds: 1506 },
+  'one-up': { croupiers: 16, rounds: 4076 },
+  'head-count': { croupiers: 19, rounds: 676 },
+  'mirror-image': { croupiers: 25, rounds: 383 },
+  'last-in-first-out': { croupiers: 20, rounds: 835 },
+  'showdown': { croupiers: 43, rounds: 296 },
+  'twice-shy': { croupiers: 36, rounds: 1145 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);
