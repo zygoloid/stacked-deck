@@ -192,7 +192,20 @@ regulation; Ace Count does).
 | 3♠ | Every Other | Ace Count | the string quartet's game for the bar |
 | 4♠ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
 | 5♠ | Bookends | Change of Heart | the doormen's game, hand against hand |
-| 6♠ | Four of a Kind | Déjà Vu | the city asks for one more game |
+| 6♠ | Two Apart | Déjà Vu | the doormen's new game for their break |
+| 7♠ | Three Apart | Déjà Vu | the cloakroom plays it one better |
+| 8♠ | Crossed Wires | Déjà Vu | the Owner rewires the floor; the twins bring a cousin |
+| 9♠ | Uneven Tables | Déjà Vu | the cousins stop playing in step |
+| 10♠ | Four of a Kind | Déjà Vu | the city asks for one more game |
+| J♠ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
+| Q♠ | Rising | Déjà Vu | the string quartet takes up scales |
+| K♠ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
+| A♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
+| 2♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
+| 3♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
+| 4♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
+| 5♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
+| 6♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
 
 ## Notes for writers
 
