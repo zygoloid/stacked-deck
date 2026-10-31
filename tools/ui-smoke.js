@@ -537,6 +537,14 @@ try {
     await touch('touchEnd', []);
     await phone.waitForTimeout(200);
     check(await phone.isVisible('.radial-hub'), 'phone: the port menu stays open after a long press');
+    // On Android the browser's own long press (it lands on the menu, under the
+    // finger) can cancel the touch while it is still held: the menu stays open.
+    await phone.keyboard.press('Escape');
+    await touch('touchStart', [await edgeAt(4)]);
+    await phone.waitForTimeout(500);
+    await touch('touchCancel', []);
+    await phone.waitForTimeout(100);
+    check(await phone.isVisible('.radial-hub'), 'phone: the port menu stays open when the browser cancels the held touch');
     const outItem = await phone.locator('.radial-item[data-port="out"]').boundingBox();
     await tap([outItem.x + outItem.width / 2, outItem.y + outItem.height / 2]);
     check(!(await phone.isVisible('.radial-hub')) &&
