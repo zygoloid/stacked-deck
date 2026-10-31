@@ -522,6 +522,27 @@ try {
     await phone.tap('.inspector .done-btn');
     check(await phone.locator('.cell.selected').count() === 0 && await phone.isVisible('.palette') && await phone.isVisible('.transport'),
       'Done deselects it and brings them back');
+    // A long press on an edge opens the port menu, which stays open after the
+    // finger lifts (lifting it clicks whatever is under it: the menu's centre);
+    // then a tap on a port points it there.
+    await tap(await hexAt(free[0]));
+    const edgeAt = (d) => phone.evaluate(([[q, r], d]) => {
+      const R = 50, svg = document.querySelector('svg.board');
+      const x = R * Math.sqrt(3) * (q + r / 2) + Math.cos(d * Math.PI / 3) * R * 0.74, y = R * 1.5 * r + Math.sin(d * Math.PI / 3) * R * 0.74;
+      const pt = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+      return [pt.x, pt.y];
+    }, [free[0], d]);
+    await touch('touchStart', [await edgeAt(4)]);
+    await phone.waitForTimeout(500);
+    await touch('touchEnd', []);
+    await phone.waitForTimeout(200);
+    check(await phone.isVisible('.radial-hub'), 'phone: the port menu stays open after a long press');
+    const outItem = await phone.locator('.radial-item[data-port="out"]').boundingBox();
+    await tap([outItem.x + outItem.width / 2, outItem.y + outItem.height / 2]);
+    check(!(await phone.isVisible('.radial-hub')) &&
+      (await phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells[0].out.out)) === 4,
+    'phone: tapping a port in it points the port there');
+    await tap([box.x + 3, box.y + 3]); // deselect
     // A Deal croupier with more positions on a side than fit: cut short, shown in full on a tap.
     const dealer = LEVELS.find((lv) => lv.croupiers.includes('deal'));
     if (dealer) {

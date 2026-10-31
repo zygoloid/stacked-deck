@@ -1093,10 +1093,11 @@ export function openEditor(root, ctx, level) {
     drag = null;
     clearTimeout(d.hold);
     ghost.className = 'drag-ghost hidden';
-    if (e.type === 'pointercancel') { svg.classList.remove('panning'); closeRadial(); renderBoard(); return; }
+    // (The press that opened the port menu leaves it open even if the browser cancels it.)
+    if (e.type === 'pointercancel' && !d.radial) { svg.classList.remove('panning'); renderBoard(); return; }
     if (d.radial) {
       // Released on a port: pick it; anywhere else the menu stays open for a tap.
-      const item = radialHover(e.clientX, e.clientY);
+      const item = e.type === 'pointerup' && radialHover(e.clientX, e.clientY);
       if (item) pickRadial(item.dataset.port);
       return;
     }
@@ -1131,8 +1132,14 @@ export function openEditor(root, ctx, level) {
   // that side. Ports already pointing there are marked; picking one of those
   // sends it to the floor (unless it must point somewhere). Deal's entry adds
   // the side to its list.
-  const HOLD_MS = 450;
+  const HOLD_MS = 300;
   let radialSide = null;
+  // Taps on the menu count only once a press starts on it: lifting the finger
+  // that opened it makes a touch screen click whatever is under it now (the
+  // centre, which closes it).
+  let radialArmed = false;
+  radial.addEventListener('pointerdown', () => { radialArmed = true; });
+  radial.addEventListener('contextmenu', (e) => e.preventDefault());
   function radialOpen() { return radialSide !== null; }
   function holdFor(side) {
     const d = drag;
@@ -1161,10 +1168,11 @@ export function openEditor(root, ctx, level) {
           left: `${(Math.cos(a) * ring).toFixed(1)}px`, top: `${(Math.sin(a) * ring).toFixed(1)}px`,
           ...(st.input ? { color: st.color, borderColor: st.color } : { background: st.color }),
         },
-        onclick: () => pickRadial(p),
+        onclick: () => { if (radialArmed) pickRadial(p); },
       }, p === 'to' ? 'deal +' : st.label, on ? h('span', { class: 'radial-tick' }, '✓') : null);
     });
-    radial.replaceChildren(h('button', { class: 'radial-hub', title: 'Close (Esc)', onclick: closeRadial }, h('b', {}, ARROW[side]), h('span', {}, SIDE_NAMES[side])), ...items);
+    radialArmed = false;
+    radial.replaceChildren(h('button', { class: 'radial-hub', title: 'Close (Esc)', onclick: () => { if (radialArmed) closeRadial(); } }, h('b', {}, ARROW[side]), h('span', {}, SIDE_NAMES[side])), ...items);
     // Centred on the press, kept inside the board.
     const wrap = radial.parentElement.getBoundingClientRect();
     const m = ring + 34;
