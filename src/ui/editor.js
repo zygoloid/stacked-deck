@@ -70,7 +70,7 @@ export function openEditor(root, ctx, level) {
   // `expected` levels list the exact payouts (which may repeat, regroup or
   // reorder cards); `pays` levels pay out some of the input hands.
   const listed = typeof level.expected === 'function';
-  root.replaceChildren(h('div', { class: 'editor' },
+  const editorEl = h('div', { class: 'editor' },
     h('header', { class: 'topbar' },
       h('button', { class: 'btn ghost', onclick: () => ctx.go('#/'), title: 'Level select' }, '← Floors'),
       h('div', { class: 'title' },
@@ -93,7 +93,8 @@ export function openEditor(root, ctx, level) {
     // board on a wide screen, under it on a phone); in play mode both are
     // hidden, leaving the tests.
     side,
-    modal));
+    modal);
+  root.replaceChildren(editorEl);
 
   // ---------- editing ----------
   // Undo and redo restore the selection and its active port too, so undoing
@@ -679,6 +680,9 @@ export function openEditor(root, ctx, level) {
   // The selected croupier; with none, the palette tool's settings (the cell
   // it will place); with neither, the floor's brief and how to play.
   function renderInspector() {
+    // On a phone, a selected croupier's panel goes right under the floor:
+    // the palette and the play controls step aside (style.css).
+    editorEl.classList.toggle('cell-selected', !!selCell());
     let c = selCell();
     const template = !c && tool ? toolCell(tool) : null;
     c ??= template;
@@ -711,7 +715,8 @@ export function openEditor(root, ctx, level) {
         h('div', {}, h('h3', {}, info.name), h('div', { class: 'insp-at' }, template ? 'Tap an empty hex to place' : `hex ${c.at[0]}, ${c.at[1]}`)),
         template
           ? h('button', { class: 'btn small', title: 'Stop placing (Esc)', onclick: () => setTool(null) }, 'Done')
-          : h('button', { class: 'btn small danger', title: 'Remove (Delete)', onclick: () => remove(key) }, 'Remove')),
+          : [h('button', { class: 'btn small danger', title: 'Remove (Delete)', onclick: () => remove(key) }, 'Remove'),
+            h('button', { class: 'btn small done-btn', title: 'Deselect (Esc)', onclick: dropSelection }, 'Done')]),
       h('p', { class: 'insp-desc' }, info.desc),
     ];
     // params

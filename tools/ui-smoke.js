@@ -9,7 +9,8 @@
 // deck parser's special-card rules, and placing Burn and Hand croupiers (with
 // a Hand's held cards drawn on the board), step animation, pausing with a
 // slow mouse click, touch (drag pans with a croupier picked, tap places,
-// tapping the bare floor deselects, pinch zoom, tap to see a cut-short Deal
+// tapping the bare floor deselects, pinch zoom, a selected croupier's panel
+// right under the floor on a phone, tap to see a cut-short Deal
 // label), a croupier's settings before placing, and the floors list scrolled
 // back to the floor just left. With `?testlevels` the page adds the
 // fixture floors of test/ui-levels.js to the bonus deck; those cover an
@@ -513,9 +514,14 @@ try {
     await phone.click('.zoom button:last-child');
     await tap(await hexAt(free[0]));
     check(await phone.locator('.cell.selected').count() === 1, 'a tap selects a croupier');
-    await phone.tap('.tp.main');
-    check(await phone.locator('.cell.selected').count() === 0, 'pressing play deselects it');
-    await phone.tap('.tp.main');
+    // Its panel comes right under the floor: the palette and the play controls step aside.
+    const gap = await phone.evaluate(() => document.querySelector('.inspector').getBoundingClientRect().top - document.querySelector('.board-wrap').getBoundingClientRect().bottom);
+    check(!(await phone.isVisible('.palette')) && !(await phone.isVisible('.transport')) && gap >= 0 && gap < 4,
+      `phone: a selected croupier's panel sits right under the floor (gap ${gap.toFixed(0)}px)`);
+    if (shots) await phone.screenshot({ path: join(shots, '7e-phone-selected.png') });
+    await phone.tap('.inspector .done-btn');
+    check(await phone.locator('.cell.selected').count() === 0 && await phone.isVisible('.palette') && await phone.isVisible('.transport'),
+      'Done deselects it and brings them back');
     // A Deal croupier with more positions on a side than fit: cut short, shown in full on a tap.
     const dealer = LEVELS.find((lv) => lv.croupiers.includes('deal'));
     if (dealer) {

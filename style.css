@@ -755,6 +755,7 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   .editor { grid-template-columns: minmax(0, 1fr) 310px; }
   .brief { font-size: 12.5px; }
 }
+.insp-head .done-btn { display: none; } /* a phone's way back from a selected croupier */
 @media (max-width: 900px) {
   .editor { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto 62vh auto; grid-template-areas: 'top' 'stage' 'side'; }
   .topbar { flex-wrap: wrap; }
@@ -762,6 +763,9 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   .pal-item kbd { display: none; }
   .side { border-left: 0; }
   .story-card { padding: 28px 22px; }
+  /* A selected croupier: its panel right under the floor, Done to go back. */
+  .editor.cell-selected .transport, .editor.cell-selected .palette { display: none; }
+  .insp-head .done-btn { display: inline-flex; }
 }
 .fixed-rule { font-size: 12.5px; font-weight: 700; color: var(--gold-2); }
 
