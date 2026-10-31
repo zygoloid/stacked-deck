@@ -65,6 +65,10 @@ export function openEditor(root, ctx, level) {
   const solBtn = h('button', { class: 'btn ghost sol-btn hidden', onclick: () => openSolutions(), title: 'Your saved solutions for this floor' });
   const peek = h('div', { class: 'peek hidden' });
   const radial = h('div', { class: 'radial hidden', role: 'menu' });
+  // Undo and redo sit on the floor, so they stay in reach whatever is
+  // selected (undo restores the selection, which on a phone hides the palette).
+  const undoBtn = h('button', { title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => undoStep() }, '↶');
+  const redoBtn = h('button', { title: 'Redo (Ctrl+Shift+Z)', 'aria-label': 'Redo', onclick: () => redoStep() }, '↷');
 
   const par = level.par;
   // `expected` levels list the exact payouts (which may repeat, regroup or
@@ -85,6 +89,7 @@ export function openEditor(root, ctx, level) {
       h('button', { class: 'btn ghost', onclick: () => ctx.go(`#/level/${level.id}/story`), title: 'Read the story again' }, 'Story'),
       h('button', { class: 'btn ghost', onclick: () => ctx.help(), title: 'Help (?)' }, '? Help')),
     h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast, peek, radial,
+      h('div', { class: 'history' }, undoBtn, redoBtn),
       h('div', { class: 'zoom' },
         h('button', { title: 'Zoom in (+)', onclick: () => zoomCenter(1 / 1.25) }, '+'),
         h('button', { title: 'Zoom out (-)', onclick: () => zoomCenter(1.25) }, '−'),
@@ -586,6 +591,8 @@ export function openEditor(root, ctx, level) {
     const nSol = ls.solutions?.length ?? 0;
     solBtn.textContent = `Solutions (${nSol})`;
     solBtn.classList.toggle('hidden', !nSol);
+    undoBtn.disabled = !undo.length;
+    redoBtn.disabled = !redo.length;
     renderPalette(); renderBoard(); renderInspector(); renderTests(); renderTransport();
   }
 
@@ -644,8 +651,6 @@ export function openEditor(root, ctx, level) {
     palette.replaceChildren(
       h('div', { class: 'pal-head' }, h('div', { class: 'pal-title' }, 'Croupiers'),
         h('div', { class: 'pal-tools' },
-          h('button', { class: 'btn small', disabled: !undo.length, onclick: undoStep, title: 'Undo (Ctrl+Z)' }, '↶ Undo'),
-          h('button', { class: 'btn small', disabled: !redo.length, onclick: redoStep, title: 'Redo (Ctrl+Shift+Z)' }, '↷ Redo'),
           h('button', {
             class: 'btn small danger', disabled: !cells.length, title: 'Remove every croupier',
             onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; }); },

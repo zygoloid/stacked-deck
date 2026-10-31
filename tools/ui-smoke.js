@@ -576,6 +576,21 @@ try {
       (await phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells[0].out.out)) === 4,
     'phone: tapping a port in it points the port there');
     await tap([box.x + 3, box.y + 3]); // deselect
+    // Undo on the floor: it restores the selection (which hides the palette on
+    // a phone) and stays in reach, so several steps undo in a row.
+    const passOut = () => phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells[0].out.out);
+    await tap(await hexAt(free[0]));
+    await tap(await edgeAt(0));
+    await tap(await edgeAt(1));
+    await tap([box.x + 3, box.y + 3]);
+    const undoAt = async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; };
+    check(await passOut() === 1, 'phone: two edge taps point the Pass (out 1)');
+    await tap(await undoAt());
+    const after1 = await passOut();
+    const visible = await phone.isVisible('.history button[aria-label="Undo"]') && await phone.locator('.cell.selected').count() === 1;
+    await tap(await undoAt());
+    check(after1 === 0 && visible && await passOut() === 4, `phone: undo stays in reach with the restored selection; two taps undo two steps (1 -> ${after1} -> ${await passOut()})`);
+    await tap([box.x + 3, box.y + 3]);
     // A Deal croupier with more positions on a side than fit: cut short, shown in full on a tap.
     const dealer = LEVELS.find((lv) => lv.croupiers.includes('deal'));
     if (dealer) {
