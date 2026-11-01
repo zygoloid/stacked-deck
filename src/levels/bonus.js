@@ -140,18 +140,18 @@ function twoDeckDeals(rand, nTests, nDeals) {
   return tests;
 }
 
-// Casino numbers: no zero; the digits are the ace (one) to the ten, so ten
-// is T, eleven A A, twenty A T, twenty-one 2 A. Paid in spades, the
-// leading digit on top.
+// Casino numbers: base thirteen with no zero; the digits are the cards ace
+// (one) to king (thirteen), so thirteen is K, fourteen A A, twenty-six A K,
+// twenty-seven 2 A. Paid in spades, the leading digit on top.
 const SPADE = (v) => `${RANKS[v - 1]}S`;
 export function casino(n) {
   const digits = [];
-  for (let v = n; v > 0; v = Math.floor((v - 1) / 10)) digits.unshift(SPADE(((v - 1) % 10) + 1));
+  for (let v = n; v > 0; v = Math.floor((v - 1) / 13)) digits.unshift(SPADE(((v - 1) % 13) + 1));
   return digits;
 }
-// Two players' one-card hands of spades A..9, `nDeals` deals a test.
+// Two players' one-card hands of spades A..K, `nDeals` deals a test.
 function digitDeals(rand, nTests, nDeals) {
-  return Array.from({ length: nTests }, () => Array.from({ length: 2 * nDeals }, () => [SPADE(1 + Math.floor(rand() * 9))]));
+  return Array.from({ length: nTests }, () => Array.from({ length: 2 * nDeals }, () => [SPADE(1 + Math.floor(rand() * 13))]));
 }
 
 // The Rest of the Deck: every card of the deck nobody played, one at a time.
@@ -622,10 +622,10 @@ export const LEVELS = [
     unlockAfter: 'deja-vu',
     title: 'Casino Numbers',
     story: [
-      'The Owner has a new way of counting, and it has no zero in it: nobody at the Stacked Deck has ever been paid nothing. The digits are the cards ace to ten, so ten is a ten, eleven is an ace and an ace, twenty is an ace and a ten, and twenty-one a two and an ace.',
-      'Tonight two players each play one spade, ace to nine, per deal, and the house pays the total in casino numbers, in its own spades, the leading digit on top. Dmitri is converting his spreadsheet.',
+      'The Owner has a new way of counting, and it has no zero in it: nobody at the Stacked Deck has ever been paid nothing. The digits are the cards, ace to king, so a jack is eleven and a king thirteen; fourteen is an ace and an ace, twenty-six an ace and a king, and twenty-seven a two and an ace.',
+      'Tonight two players each play one spade, ace to king, per deal, and the house pays the total in casino numbers, in its own spades, the leading digit on top. Dmitri is converting his spreadsheet, and has asked for a bigger one.',
     ],
-    brief: 'Two players, one spade each per deal, ace (1) to 9. Pay the sum in casino numbers, house spades with the leading digit on top: 2 to 10 as one card (10 is the ten), 11 to 18 as the ace on top of the card for the rest (11 is A♠ A♠, 18 is A♠ 8♠).',
+    brief: 'Two players, one spade each per deal, ace (1) to king (13). Pay the sum in casino numbers, house spades with the leading digit on top: 2 to 13 as one card (13 is the king), 14 to 26 as the ace on top of the card for the rest (14 is A♠ A♠, 26 is A♠ K♠).',
     handSize: 1,
     floor: floorOf(hexRect(-6, 2, -5, 12), H6),
     fixed: H6,
@@ -637,9 +637,9 @@ export const LEVELS = [
     tests: dealtTests({
       deal: (rand, n) => digitDeals(rand, n, 8),
       fixed: [
-        // the smallest and largest sums, and either side of ten
-        one('AS AS 9S 9S 5S 5S AS 9S 9S 2S 3S 9S 8S AS 2S 8S'),
-        one('4S 7S 6S 5S 7S 7S 2S 9S 9S 3S 8S 3S'),
+        // the smallest and largest sums, and either side of thirteen
+        one('AS AS KS KS 5S 5S AS QS QS AS 6S 7S 7S 7S KS AS 9S 4S TS 4S 8S 6S'),
+        one('4S 7S JS 2S 6S 8S QS 2S 9S 9S 3S TS KS 9S JS JS'),
         one('3S 4S'),
       ],
       nRandom: 4, seed: 184,
@@ -760,7 +760,7 @@ const PAR = {
   'one-up': { croupiers: 16, rounds: 4076 },
   'head-count': { croupiers: 19, rounds: 676 },
   'mirror-image': { croupiers: 25, rounds: 383 },
-  'casino-numbers': { croupiers: 27, rounds: 927 },
+  'casino-numbers': { croupiers: 27, rounds: 1574 },
   'last-in-first-out': { croupiers: 20, rounds: 835 },
   'showdown': { croupiers: 43, rounds: 296 },
   'twice-shy': { croupiers: 36, rounds: 1145 },

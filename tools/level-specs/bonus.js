@@ -5,34 +5,35 @@ import { RANKS } from '../../src/cards.js';
 
 const SUITED = ['S', 'D', 'C', 'H'];
 
-// Casino Numbers. A shoe's cards are stacked (in chunks of 13, released by
-// a joker, as in the store of Last In, First Out) and split by suit into a
-// table (hearts and clubs) and a ruler (spades).
-//  * The table holds eight cards of each rank r, r - 1 of them hearts. Set on
-//    a player's spade and a copy of the table keeps the nine cards of its
-//    rank, and Suits keeps the spade and the hearts: r cards. The players'
-//    cards are looked up separately (on a pair, Set would keep one group).
+// Casino Numbers (base 13: digits and players' cards ace to king). A
+// shoe's cards are stacked (in chunks of 13, released by a joker, as in the
+// store of Last In, First Out) and split by suit into a table (hearts and
+// clubs) and a ruler (spades).
+//  * The table holds twelve cards of each rank r, r - 1 of them hearts. Set
+//    on a player's spade and a copy of the table keeps the thirteen cards of
+//    its rank, and Suits keeps the spade and the hearts: r cards. The
+//    players' cards are looked up separately (on a pair, Set would keep one
+//    group).
 //  * Both counts are stacked on a copy of the ruler, so the ruler sits one
 //    card lower for every unit of the sum, and Deal pays the cards at two
-//    fixed places: card 18, the units card for the sum (ruler[18 - s]), and
-//    card L + 10, which is there only when the sum is 11 or more (one of the
-//    ruler's last eight cards, the tens aces), dealt on top.
+//    fixed places: card 26, the units card for the sum (ruler[26 - s]), and
+//    card L + 13, which is there only when the sum is 14 or more (one of the
+//    ruler's last thirteen cards, the leading aces), dealt on top.
 // `base` is the number base (digits ace to its value, no zero) and `top`
-// the highest card a player holds. (With an advertising card for zero
-// instead, the machine is the same size, but the zero shares Suits' misc
-// with the store's padding. In base 13, digits and players' cards ace to
-// king, the shoe grows (a 156-card table, a 38-card ruler) and so do the
-// table's copies: up to seven are on the floor at once, about 1250 cards
-// (past the card limit when it was 1000; it is 2000 now). Gating the
-// table's loop with the players' cards, a War per player whose dealer is
-// the card, keeps it to about three copies, for two more croupiers.)
-function casinoDeck({ base = 10, top = 9 } = {}) {
+// the highest card a player holds. (In base 10 with cards ace to nine, the
+// machine is the same, with a 104-card shoe instead of 208. With an
+// advertising card for zero instead it is the same size too, but the zero
+// shares Suits' misc with the store's padding. In base 13 up to seven copies
+// of the 156-card table are on the floor at once, about 1250 cards; gating
+// the table's loop with the players' cards, a War per player whose dealer
+// is the card, would keep it to about three copies for two more croupiers.)
+function casinoDeck({ base = 13, top = 13 } = {}) {
   const max = 2 * top;
   const units = (s) => `${RANKS[(s - 1) % base]}S`;
-  // The table: for each rank r, eight cards of rank r, r - 1 of them hearts.
+  // The table: for each rank r, top - 1 cards of rank r, r - 1 of them hearts.
   const table = [];
   for (let r = 1; r <= top; r++) for (let i = 0; i < top - 1; i++) table.push(RANKS[r - 1] + (i < r - 1 ? 'H' : 'C'));
-  // The ruler: the units card of the sum s at 18 - s, then the tens aces.
+  // The ruler: the units card of the sum s at max - s, then the leading aces.
   const L = (max - 1) + (max - base);
   const ruler = Array.from({ length: L }, (_, i) => (i <= max - 2 ? units(max - i) : 'AS'));
   const order = ['?', ...ruler, ...table];
