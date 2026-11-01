@@ -758,6 +758,10 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 }
 .insp-head .done-btn { display: none; } /* a phone's way back from a selected croupier */
 .phone-only { display: none; } /* shown by the phone layout below */
+/* Keyboard shortcuts only where there is a mouse (so likely a keyboard),
+   touch gestures only where there is a touch screen. */
+@media not (any-pointer: fine) { .kbd-only, .pal-item kbd, .picker-item kbd { display: none !important; } }
+@media not (any-pointer: coarse) { .touch-only { display: none !important; } }
 @media (max-width: 900px) {
   .editor { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto auto; grid-template-areas: 'top' 'stage' 'side'; }
   /* The floor keeps its size whatever shows under it (the play controls
@@ -770,7 +774,7 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   /* Croupiers are placed by tapping an empty hex (the picker), so no palette. */
   .side .palette { display: none; }
   .phone-only { display: block; }
-  .picker-item kbd { display: none; }
+  .btn.phone-only { display: inline-flex; }
   .side { border-left: 0; }
   .story-card { padding: 28px 22px; }
   /* A selected croupier: its panel right under the floor (in play mode, under the play controls), Done to go back. */
@@ -804,6 +808,7 @@ svg.board.panning { cursor: grabbing; }
 }
 .peek .hand { flex-wrap: wrap; }
 .peek-t { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.peek.type-info { z-index: 6; max-width: min(300px, calc(100% - 8px)); }
 .card.house { box-shadow: inset 0 0 0 1px #8a6420; outline: 1px dashed #8a6420; outline-offset: -1px; background: #efe2bd; }
 
 /* Port menu: a ring of a croupier's ports around a long press on an edge. */
@@ -877,7 +882,13 @@ svg.board { -webkit-touch-callout: none; }
 
 /* Inspector: a croupier kind picked in the palette, before placing it. */
 .port-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
-/* The floor panel's list of the floor's croupiers. */
+/* The floor panel: its heading (with Clear floor on a phone), and its
+   foldable list of the floor's croupiers. */
+.floor-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.roster-box > summary { cursor: pointer; list-style: none; user-select: none; }
+.roster-box > summary::-webkit-details-marker { display: none; }
+.roster-box > summary::before { content: '▸'; display: inline-block; width: 1em; transition: transform 0.15s; }
+.roster-box[open] > summary::before { transform: rotate(90deg); }
 .roster { display: flex; flex-direction: column; gap: 8px; margin: 2px 0 6px; }
 .roster-row { display: flex; align-items: flex-start; gap: 9px; }
 .roster-row .pal-chip { width: 30px; height: 30px; border-width: 2.5px; margin-top: 1px; }

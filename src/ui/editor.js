@@ -642,6 +642,7 @@ export function openEditor(root, ctx, level) {
   // positions are cut short. Hovering one (or tapping it) shows it in full.
   let peekKey = null;
   function updatePeek() {
+    if (typeInfo) return; // the picker's croupier details have the popover
     const el = peekAt && document.elementFromPoint(peekAt.x, peekAt.y)?.closest?.('svg.board [data-peek]');
     const item = el ? board.peeks[Number(el.dataset.peek)] : null;
     if (!item) {
@@ -709,6 +710,19 @@ export function openEditor(root, ctx, level) {
       }, '✕') : null);
   }
 
+  // Whether the floor panel's list of croupiers is unfolded: as the player
+  // last left it (on any floor), else unfolded on a phone (no palette there).
+  const ROSTER_KEY = 'stacked-deck-roster-open';
+  function rosterOpen() {
+    try {
+      const v = localStorage.getItem(ROSTER_KEY);
+      if (v === 'true' || v === 'false') return v === 'true';
+    } catch { /* storage blocked */ }
+    return !!window.matchMedia?.('(max-width: 900px)').matches;
+  }
+  function saveRosterOpen(open) {
+    try { localStorage.setItem(ROSTER_KEY, String(open)); } catch { /* storage blocked */ }
+  }
   // A port's coloured tag (input sides outlined).
   function portTag(p) {
     const st = PORT_STYLE[p];
@@ -728,7 +742,7 @@ export function openEditor(root, ctx, level) {
           h('li', {}, 'Drag one of them to move them all. Tap a croupier to add it or leave it out.'),
           h('li', {}, h('b', {}, '⟲ ⟳'), ' turn, ', h('b', {}, '⇋'), ' mirrors, ', h('b', {}, '⧉'), ' copies, ', h('b', {}, '🗑'), ' deletes.'),
           h('li', {}, h('b', {}, '✓'), ' puts them down, ', h('b', {}, '✕'), ' puts them back.')),
-        h('p', { class: 'keys' }, h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'), ' move  ',
+        h('p', { class: 'keys kbd-only' }, h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'), ' move  ',
           h('kbd', {}, '['), h('kbd', {}, ']'), ' turn  ', h('kbd', {}, 'M'), ' mirror  ', h('kbd', {}, 'Enter'), ' put down  ', h('kbd', {}, 'Esc'), ' put back  ', h('kbd', {}, 'Del'), ' delete'));
       return;
     }
@@ -736,17 +750,13 @@ export function openEditor(root, ctx, level) {
     const template = !c && tool ? toolCell(tool) : null;
     c ??= template;
     if (!c) {
-      inspector.replaceChildren(
-        h('h3', {}, 'The floor'),
-        h('p', { class: 'brief-big' }, level.brief ?? ''),
-        h('ul', { class: 'howto' },
-          h('li', {}, 'Tap an empty hex to place a croupier there.'),
-          h('li', {}, 'Select a croupier, then tap the edges of its hex to point its ports.'),
-          h('li', {}, 'Long-press (or Shift-drag) to pick up croupiers.'),
-          h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
-        // The floor's croupiers, so what each does can be read before placing one.
-        h('div', { class: 'sub-title' }, 'Croupiers on this floor'),
-        h('div', { class: 'roster' }, level.croupiers.map((name) => {
+      // The floor's croupiers, so what each does can be read before placing
+      // one: folded away or not as the player last left it (at first open on
+      // a phone, where there is no palette, and folded on a wide screen).
+      const roster = h('details', { class: 'roster-box', open: rosterOpen() },
+        // (Saved on the click, not on `toggle`, which also fires for the default.)
+        h('summary', { class: 'sub-title', onclick: (e) => saveRosterOpen(!e.currentTarget.parentElement.open) }, 'Croupiers on this floor'),
+      h('div', { class: 'roster' }, level.croupiers.map((name) => {
           const info = CROUPIERS[name];
           if (!info) return null;
           return h('div', { class: 'roster-row', 'data-tool': name },
@@ -754,14 +764,24 @@ export function openEditor(root, ctx, level) {
             h('div', {},
               h('div', { class: 'roster-head' }, h('b', {}, info.name), h('span', { class: 'port-list' }, portsOf(sampleCell(name)).map(portTag))),
               h('div', { class: 'roster-desc' }, info.desc)));
-        }).filter(Boolean)),
-        h('p', { class: 'keys' }, h('kbd', {}, 'Space'), ' play  ', h('kbd', {}, '.'), ' step  ', h('kbd', {}, ','), ' back  ',
-          h('kbd', {}, '1'), '–', h('kbd', {}, '9'), ' place at the pointer  ', h('kbd', {}, 'Del'), ' remove  ', h('kbd', {}, '?'), ' help'),
-        // On a phone the palette (and its Clear floor) is hidden.
-        h('p', { class: 'phone-only' }, h('button', {
-          class: 'btn small danger', disabled: !cells.length, title: 'Remove every croupier',
-          onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; }); },
-        }, 'Clear floor')));
+        }).filter(Boolean)));
+      inspector.replaceChildren(
+        h('div', { class: 'floor-head' }, h('h3', {}, 'The floor'),
+          // On a phone the palette (and its Clear floor) is hidden.
+          h('button', {
+            class: 'btn small danger phone-only', disabled: !cells.length, title: 'Remove every croupier',
+            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; }); },
+          }, 'Clear floor')),
+        h('p', { class: 'brief-big' }, level.brief ?? ''),
+        h('ul', { class: 'howto' },
+          h('li', {}, 'Tap an empty hex to place a croupier there.'),
+          h('li', {}, 'Select a croupier, then tap the edges of its hex to point its ports.'),
+          h('li', { class: 'touch-only' }, 'Long-press to pick up croupiers.'),
+          h('li', { class: 'kbd-only' }, 'Shift-drag to pick up croupiers.'),
+          h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
+        roster,
+        h('p', { class: 'keys kbd-only' }, h('kbd', {}, 'Space'), ' play  ', h('kbd', {}, '.'), ' step  ', h('kbd', {}, ','), ' back  ',
+          h('kbd', {}, '1'), '–', h('kbd', {}, '9'), ' place at the pointer  ', h('kbd', {}, 'Del'), ' remove  ', h('kbd', {}, '?'), ' help'));
       return;
     }
     const info = infoFor(c);
@@ -854,7 +874,7 @@ export function openEditor(root, ctx, level) {
         h('span', { class: `port-tag${st.input ? ' input' : ''}`, style: st.input ? { color: st.color, borderColor: st.color } : { background: st.color } }, st.label),
         sideButtons(cur, (d) => { activePort = p; assign(d, p); }, { floor: !isRequired(c, p) })));
       }
-      parts.push(h('p', { class: 'keys' }, 'Keys: ', h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'),
+      parts.push(h('p', { class: 'keys kbd-only' }, 'Keys: ', h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'),
         ' point the port NW NE W E SW SE, ', h('kbd', {}, 'X'), ' floor, ', h('kbd', {}, 'Tab'), ' next port.'));
     }
     inspector.replaceChildren(...parts.filter(Boolean));
@@ -1352,6 +1372,7 @@ export function openEditor(root, ctx, level) {
   function onDocDown(e) {
     if (radialOpen() && !e.target.closest?.('.radial, svg.board')) closeRadial();
     if (pick && !e.target.closest?.('.picker-item, svg.board')) { closePicker(); renderBoard(); }
+    hideTypeInfo();
   }
   document.addEventListener('pointerdown', onDocDown, true);
 
@@ -1372,13 +1393,27 @@ export function openEditor(root, ctx, level) {
       h('div', { class: 'picker-grid', style: { gridTemplateColumns: `repeat(${Math.min(4, level.croupiers.length)}, 64px)` } }, level.croupiers.map((name, i) => {
         const info = CROUPIERS[name];
         if (!info) return null;
-        return h('button', {
-          class: 'picker-item', 'data-tool': name, role: 'menuitem', title: `${info.name}${i < 9 ? ` (${i + 1})` : ''}: ${info.desc}`,
-          onclick: () => { if (pickerArmed) pickPlace(name); },
+        const item = h('button', {
+          class: 'picker-item', 'data-tool': name, role: 'menuitem', 'aria-label': info.name,
+          onclick: () => { if (pickerArmed && performance.now() >= noPickUntil) pickPlace(name); },
         },
         h('span', { class: 'pal-chip', style: { background: info.family } }, h('span', {}, chipLabel(paletteSample(name)))),
         h('span', { class: 'picker-name' }, info.name),
         i < 9 ? h('kbd', {}, String(i + 1)) : null);
+        // What it does: on a long press (letting go doesn't place it), or with a mouse over it.
+        let hold;
+        item.addEventListener('pointerdown', (e) => {
+          noPickUntil = -Infinity; // a new press: its own click counts
+          if (e.pointerType !== 'mouse') hold = setTimeout(() => showTypeInfo(name, item), HOLD_MS);
+        });
+        item.addEventListener('pointerup', () => {
+          clearTimeout(hold);
+          if (typeInfo === item) { hideTypeInfo(); noPickUntil = performance.now() + 700; }
+        });
+        item.addEventListener('pointercancel', () => clearTimeout(hold));
+        item.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') showTypeInfo(name, item); });
+        item.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && typeInfo === item) hideTypeInfo(); });
+        return item;
       }).filter(Boolean)));
     picker.className = 'picker';
     placePicker();
@@ -1401,7 +1436,32 @@ export function openEditor(root, ctx, level) {
     const [, x, y] = spots.find(([ok]) => ok) ?? spots[0];
     picker.style.transform = `translate(${clamp(x, 4, W - pw - 4).toFixed(0)}px, ${clamp(y, 4, H - ph - 4).toFixed(0)}px)`;
   }
+  // A croupier's details beside it in the picker (in the peek popover).
+  let typeInfo = null;          // the picker item they show for
+  let noPickUntil = -Infinity;  // a long press's release doesn't place it
+  function showTypeInfo(name, el) {
+    const info = CROUPIERS[name];
+    typeInfo = el;
+    peekKey = null;
+    peek.replaceChildren(
+      h('div', { class: 'roster-head' }, h('b', {}, info.name), h('span', { class: 'port-list' }, portsOf(sampleCell(name)).map(portTag))),
+      h('div', { class: 'roster-desc' }, info.desc));
+    peek.className = 'peek type-info';
+    // Above the croupier (below if there's no room), in the board.
+    const wrap = peek.parentElement.getBoundingClientRect(), r = el.getBoundingClientRect();
+    const pw = peek.offsetWidth, ph = peek.offsetHeight;
+    let y = r.top - wrap.top - ph - 6;
+    if (y < 4) y = r.bottom - wrap.top + 6;
+    const x = Math.max(4, Math.min(wrap.width - pw - 4, r.left + r.width / 2 - wrap.left - pw / 2));
+    peek.style.transform = `translate(${x.toFixed(0)}px, ${Math.max(4, Math.min(wrap.height - ph - 4, y)).toFixed(0)}px)`;
+  }
+  function hideTypeInfo() {
+    if (!typeInfo) return;
+    typeInfo = null;
+    peek.className = 'peek hidden';
+  }
   function closePicker() {
+    hideTypeInfo();
     if (!pick) return;
     pick = null;
     picker.className = 'picker hidden';
