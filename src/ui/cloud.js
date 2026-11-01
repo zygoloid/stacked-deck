@@ -17,7 +17,7 @@ import {
 } from '../firebase-config.js';
 import { validateCells, scoreMachine, countCroupiers } from '../score.js';
 import {
-  uploadCandidates, prepareUpload, submission, readStats, readFrontier, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS,
+  uploadCandidates, prepareUpload, submission, readStats, readFrontier, readRecord, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS,
 } from '../online.js';
 import { solutionsOf, recomputeBest } from './model.js';
 
@@ -60,6 +60,7 @@ export function createCloud({ save, persist, levels, ui }) {
   let friendList = null;         // { at, list: promise of [{ uid, name }] }
   const friendLoads = new Map(); // level id -> { at, frontiers: promise of friendFrontiers' result }
   const friendsSeen = new Map(); // level id -> friendFrontiers' latest result, for the floors list
+  let records = null;            // level id -> { croupiers, rounds }: best/v{N}, as last read
   let overviewAt = 0;            // when overview() last read every floor
   let overviewLoad = null;       // overview()'s read, while it runs
   let fnM = null, functions = null;
@@ -489,7 +490,7 @@ export function createCloud({ save, persist, levels, ui }) {
   }
   const friendsChanged = () => { friendList = null; forgetFriendScores(); notify(); };
   function forgetFriendScores() { friendLoads.clear(); friendsSeen.clear(); overviewAt = 0; }
-  function forgetScores() { forgetFriendScores(); stats.clear(); }
+  function forgetScores() { forgetFriendScores(); stats.clear(); records = null; }
 
   // Each friend's frontier on a floor (this rules version): [{ uid, name,
   // points: [{ croupiers, rounds }] }], for friends with any. Read with the
@@ -509,18 +510,19 @@ export function createCloud({ save, persist, levels, ui }) {
     return friendLoads.get(levelId).frontiers;
   }
 
-  // Every floor's stats and each friend's frontiers on every floor, for the
-  // floors list: one read of stats/v{N} and one of each friend's scores, at
-  // most every RESYNC_MS. They fill the caches statsFor() and
-  // friendFrontiers() use (for the same RESYNC_MS), so opening a floor's plot
-  // afterwards reads nothing more. Resolves to true once something new was
-  // read (false if nothing was, or it failed).
+  // Every floor's best known score and each friend's frontiers on every
+  // floor, for the floors list: one read of best/v{N} (two numbers a floor,
+  // however many players there are) and one of each friend's scores, at most
+  // every RESYNC_MS. The friends' frontiers fill the cache friendFrontiers()
+  // uses (for the same RESYNC_MS). A floor's full stats are read only when its
+  // chart is shown (statsFor). Resolves to true once something new was read
+  // (false if nothing was, or it failed).
   function overview() {
     if (state !== 'signed-in' || Date.now() - overviewAt < RESYNC_MS) return Promise.resolve(false);
     overviewLoad ??= (async () => {
       const at = Date.now();
-      const [all, frontiers] = await Promise.all([
-        withDb(async (dbM, db) => (await dbM.get(dbM.ref(db, `stats/v${RULES_VERSION}`))).val() ?? {}),
+      const [best, frontiers] = await Promise.all([
+        withDb(async (dbM, db) => (await dbM.get(dbM.ref(db, `best/v${RULES_VERSION}`))).val() ?? {}),
         friends().then((list) => withDb((dbM, db) => Promise.all(list.map(async (f) => {
           let node = null;
           try { node = (await dbM.get(dbM.ref(db, `scores/v${RULES_VERSION}/${f.uid}`))).val(); } catch { /* they removed us */ }
@@ -528,9 +530,9 @@ export function createCloud({ save, persist, levels, ui }) {
         })))),
       ]);
       if (state !== 'signed-in') return false;
+      records = new Map([...levelById.keys()].map((id) => [id, readRecord(best[id])]));
       for (const id of levelById.keys()) {
         // A floor read on its own since this read was asked is newer.
-        if (!(stats.get(id)?.at > at)) stats.set(id, { at, st: readStats(all[id]) });
         if (!(friendLoads.get(id)?.at > at)) {
           const list = frontiers.map(({ node, ...f }) => ({ ...f, points: readFrontier(node[id]) })).filter((f) => f.points.length);
           friendLoads.set(id, { at, frontiers: Promise.resolve(list) });
@@ -541,6 +543,21 @@ export function createCloud({ save, persist, levels, ui }) {
       return true;
     })().catch((e) => { console.warn('online: floors overview:', e); return false; }).finally(() => { overviewLoad = null; });
     return overviewLoad;
+  }
+
+  // What was last read for a floor (even if due to be read again):
+  // { everyone: its best known score ({} if nobody has one; null if not read
+  // yet), stats: { points, players } | null, friends: [{ uid, name, points }] }.
+  // The floor's stats, if read too, may be newer than best/v{N}: the lower
+  // of the two counts.
+  function floorScores(levelId) {
+    const st = stats.get(levelId)?.st ?? null;
+    let everyone = records ? records.get(levelId) ?? {} : null;
+    if (everyone && st?.points.length) {
+      const low = (k) => Math.min(everyone[k] ?? Infinity, ...st.points.map((p) => p[k]));
+      everyone = { croupiers: low('croupiers'), rounds: low('rounds') };
+    }
+    return { everyone, stats: st, friends: friendsSeen.get(levelId) ?? [] };
   }
 
   // After the account's data is deleted: forget the account here, and clear
@@ -593,9 +610,7 @@ export function createCloud({ save, persist, levels, ui }) {
     friends,
     friendFrontiers,
     overview,
-    // What was last read for a floor (even if due to be read again):
-    // { stats: { points, players } | null, friends: [{ uid, name, points }] }.
-    floorScores: (levelId) => ({ stats: stats.get(levelId)?.st ?? null, friends: friendsSeen.get(levelId) ?? [] }),
+    floorScores,
     createInvite: () => call('createInvite'),
     previewInvite: (code) => call('previewInvite', { code }),
     async acceptInvite(code) { const r = await call('acceptInvite', { code }); friendsChanged(); return r; },

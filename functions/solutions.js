@@ -1,10 +1,12 @@
-// Scoring submitted solutions, and keeping each player's frontier and the
-// per-floor stats. See docs/online.md ("Functions").
+// Scoring submitted solutions, and keeping each player's frontier, the
+// per-floor stats and each floor's best known score. See docs/online.md
+// ("Functions").
 import { Worker } from 'node:worker_threads';
 import { ServerValue } from 'firebase-admin/database';
 import { RULES_VERSION } from './game/engine.js';
 import { LEVELS, BONUS } from './game/levels.js';
 import { validateCells, solutionHash } from './game/score.js';
+import { recordOf, readRecord } from './game/online.js';
 
 const LEVEL_BY_ID = new Map([...LEVELS, ...BONUS].map((l) => [l.id, l]));
 
@@ -68,7 +70,51 @@ export async function addPoint(db, version, uid, level, point) {
   for (const k of diff.removed) update[`points/${k}`] = ServerValue.increment(-1);
   if (diff.first) update.players = ServerValue.increment(1);
   await db.ref(`stats/v${version}/${level}`).update(update);
+  // The points it replaced were the player's own and it beats them, so the
+  // record can only fall.
+  await lowerRecord(db, version, level, point);
   return diff;
+}
+
+// Each floor's best known score, best/v{N}/{level}: { croupiers, rounds },
+// each the lowest over everyone's frontiers (so the floors list needn't read
+// every floor's stats). Always updated after the stats.
+
+// A new point can only lower the record. It is read first, and only a point
+// that lowers it takes a transaction, which keeps the lower of the two on
+// each count, so lowerings never undo each other.
+export async function lowerRecord(db, version, level, point) {
+  const ref = db.ref(`best/v${version}/${level}`);
+  const have = readRecord((await ref.get()).val());
+  if (have && have.croupiers <= point.croupiers && have.rounds <= point.rounds) return false;
+  await ref.transaction((current) => {
+    const r = readRecord(current);
+    return {
+      croupiers: Math.min(r?.croupiers ?? Infinity, point.croupiers),
+      rounds: Math.min(r?.rounds ?? Infinity, point.rounds),
+    };
+  });
+  return true;
+}
+
+// After points (keys) were taken out of a floor's stats: if one held the
+// record on either count, recompute the record from the stats. The stats
+// are read again after writing, and it is written again if they changed
+// meanwhile (another removal, or a new point), so the last write always
+// matches the stats.
+export async function recomputeRecord(db, version, level, removedKeys) {
+  const ref = db.ref(`best/v${version}/${level}`);
+  const have = readRecord((await ref.get()).val());
+  const held = (p) => p.croupiers === have.croupiers || p.rounds === have.rounds;
+  if (have && !removedKeys.map(parseKey).some(held)) return;
+  const fromStats = async () => recordOf((await db.ref(`stats/v${version}/${level}`).get()).val());
+  let want = await fromStats();
+  for (let tries = 0; tries < 5; tries++) {
+    await ref.set(want);
+    const now = await fromStats();
+    if (JSON.stringify(now) === JSON.stringify(want)) return;
+    want = now;
+  }
 }
 
 // (A transaction's first run often sees a cached null rather than the
@@ -88,6 +134,7 @@ export async function removeFrontier(db, version, uid, level) {
   const update = { players: ServerValue.increment(-1) };
   for (const k of removed) update[`points/${k}`] = ServerValue.increment(-1);
   await db.ref(`stats/v${version}/${level}`).update(update);
+  await recomputeRecord(db, version, level, removed);
   return removed;
 }
 
@@ -108,6 +155,7 @@ export async function removePoint(db, version, uid, level, point) {
   const update = { [`points/${key}`]: ServerValue.increment(-1) };
   if (emptied) update.players = ServerValue.increment(-1);
   await db.ref(`stats/v${version}/${level}`).update(update);
+  await recomputeRecord(db, version, level, [key]);
   return true;
 }
 
