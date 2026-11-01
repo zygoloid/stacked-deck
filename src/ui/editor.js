@@ -734,7 +734,7 @@ export function openEditor(root, ctx, level) {
         h('ul', { class: 'howto' },
           h('li', {}, 'Tap an empty hex to place a croupier there.'),
           h('li', {}, 'Select a croupier, then tap the edges of its hex to point its ports.'),
-          h('li', {}, 'Long-press the bare floor (or Shift-drag) to pick up a group.'),
+          h('li', {}, 'Long-press (or Shift-drag) to pick up croupiers.'),
           h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
         h('p', { class: 'keys' }, h('kbd', {}, 'Space'), ' play  ', h('kbd', {}, '.'), ' step  ', h('kbd', {}, ','), ' back  ',
           h('kbd', {}, '1'), '–', h('kbd', {}, '9'), ' place at the pointer  ', h('kbd', {}, 'Del'), ' remove  ', h('kbd', {}, '?'), ' help'),
@@ -1007,6 +1007,18 @@ export function openEditor(root, ctx, level) {
   // on one of it moves it, a tap on another croupier adds that one, and a tap
   // elsewhere puts it down. Two fingers pinch-zoom.
   const tapSlop = (e) => (e.pointerType === 'mouse' ? 6 : 10);
+  // The side of the selected croupier a point is by, if it is in that
+  // side's edge zone: from halfway out to a little past the hex (but short of
+  // a neighbour's middle, where a tap selects the neighbour). Else null.
+  function selectedEdge(x, y) {
+    const c = selCell(), m = svg.getScreenCTM();
+    if (!c || !m) return null;
+    const p = new DOMPoint(x, y).matrixTransform(m.inverse());
+    const [cx, cy] = center(c.at);
+    const dx = p.x - cx, dy = p.y - cy, dist = Math.hypot(dx, dy) / R;
+    if (dist <= 0.45 || dist >= 1.2) return null;
+    return ((Math.round(Math.atan2(dy, dx) / (Math.PI / 3)) % 6) + 6) % 6;
+  }
   svg.addEventListener('contextmenu', (e) => e.preventDefault());
   svg.addEventListener('pointerdown', (e) => {
     // With the port menu open, a press on the board just closes it.
@@ -1041,22 +1053,26 @@ export function openEditor(root, ctx, level) {
       if (e.shiftKey) { drag = { kind: 'box', ...base, active: false }; return; }
       const other = staying().find((x) => hexKey(x.at) === key);
       drag = { kind: 'pan', ...base, active: false, ...(other ? { add: key } : { putDown: true }) };
-      holdBox();
+      holdBox(other ? key : undefined);
       return;
     }
     // Shift with a mouse: a click adds a croupier to a group (with the
-    // selected one), a drag draws a box.
+    // selected one), a drag draws a box (taking in a croupier it starts on).
     if (e.shiftKey && e.pointerType === 'mouse') {
-      drag = c ? { kind: 'pan', ...base, active: false, add: key } : { kind: 'box', ...base, active: false };
+      drag = { kind: 'box', ...base, active: false, ...(c ? { seed: key, add: key } : {}) };
       return;
     }
-    // An edge: a tap points the active port there, a long press opens the port menu.
-    if (c && key === selected && loc.dist > 0.45) { drag = { kind: 'pan', ...base, active: false, assign: loc.side }; holdFor(loc.side); return; }
+    // An edge of the selected croupier (reaching a little past its hex): a
+    // tap points the active port there, a long press opens the port menu.
+    const edgeSide = selectedEdge(e.clientX, e.clientY);
+    if (edgeSide !== null) { drag = { kind: 'pan', ...base, active: false, assign: edgeSide }; holdFor(edgeSide); return; }
+    // A croupier: a tap selects it, a drag moves it, a long press picks it
+    // up (and a drag then grows a box from it).
     if (c) {
       if (tool && key !== selected) setTool(null);
       select(key);
       drag = { kind: 'move', key, ...base, active: false };
-      if (loc.dist > 0.45) holdFor(loc.side);
+      holdBox(key);
       return;
     }
     // Empty space: a tap places the tool's croupier, or opens the picker, on
@@ -1085,7 +1101,8 @@ export function openEditor(root, ctx, level) {
     if (e.pointerType === 'mouse' && !drag) { peekAt = { x: e.clientX, y: e.clientY }; updatePeek(); }
     if (drag?.kind === 'pinch') return;
     const loc = board.locate(e.clientX, e.clientY);
-    const nh = loc ? { at: loc.at, side: loc.side, edge: loc.dist > 0.45 } : null;
+    const edgeSide = selectedEdge(e.clientX, e.clientY);
+    const nh = edgeSide !== null ? { at: selCell().at, side: edgeSide, edge: true } : loc ? { at: loc.at, side: loc.side, edge: loc.dist > 0.45 } : null;
     const same = hover && nh && hexKey(hover.at) === hexKey(nh.at) && hover.side === nh.side && hover.edge === nh.edge;
     if (!same) { hover = nh; if (!drag) renderBoard(); }
   });
@@ -1194,7 +1211,13 @@ export function openEditor(root, ctx, level) {
       if (item) pickRadial(item.dataset.port);
       return;
     }
-    if (d.kind === 'box') { if (e.type === 'pointerup') boxSelect(d); else boxSel.className = 'box-select hidden'; return; }
+    if (d.kind === 'box') {
+      boxSel.className = 'box-select hidden';
+      if (e.type !== 'pointerup') return;
+      if (!d.active && d.add) startLift([...(selected ? [selected] : []), d.add]); // a Shift-click
+      else boxSelect(d);
+      return;
+    }
     if (d.kind === 'group') {
       if (!d.active) dropMember(d.item);
       else renderAll();
@@ -1490,17 +1513,19 @@ export function openEditor(root, ctx, level) {
     const inBox = staying().filter((c) => {
       const p = new DOMPoint(...center(c.at)).matrixTransform(m);
       return p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1;
-    }).map((c) => hexKey(c.at)).filter((k) => !liftKeys().has(k));
-    if (inBox.length) startLift([...liftKeys(), ...inBox]);
+    }).map((c) => hexKey(c.at));
+    const add = [...(d.seed ? [d.seed] : []), ...inBox].filter((k) => !liftKeys().has(k));
+    if (add.length) startLift([...liftKeys(), ...add]);
   }
-  // A long press on the bare floor starts a box (on a touch screen: a mouse
-  // Shift-drags, and a slow click should still be a click).
-  function holdBox() {
+  // A long press (off the selected croupier's edges) starts a box, taking
+  // in the croupier pressed on (`seed`), if any. On a touch screen: a mouse
+  // Shift-drags, and a slow click should still be a click.
+  function holdBox(seed) {
     const d = drag;
     if (!d.touch) return;
     d.hold = setTimeout(() => {
       if (drag !== d || d.active) return;
-      Object.assign(d, { kind: 'box', active: true });
+      Object.assign(d, { kind: 'box', active: true, seed });
       closePicker();
       showMarquee(d);
       boxSel.classList.add('armed');

@@ -644,6 +644,27 @@ try {
       `phone: ⟳ then ✓ turns it, ports and all, facing left alone (out ${before.out.out} -> ${turnedPass.out.out}, facing ${turnedPass.facing})`);
     await tap(await (async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; })());
     check(JSON.stringify(await passCell()) === JSON.stringify(before), 'phone: one undo puts the group back as it was');
+    // A long press on a croupier picks it up; held and dragged, a box grows
+    // from it (so croupiers packed together can be picked up).
+    const btnX = async () => { const r = await phone.locator('.lift-bar [data-act="cancel"]').boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
+    await tap([box.x + 3, box.y + 3]);
+    await touch('touchStart', [await hexAt(free[0])]);
+    await phone.waitForTimeout(450);
+    await touch('touchEnd', []);
+    check(/^1 croupier/.test(await phone.textContent('.lift-bar').catch(() => '')), 'phone: a long press on a croupier picks it up');
+    await btnX();
+    const nb = free.find((x) => [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]].some(([dq, dr]) => x[0] === free[0][0] + dq && x[1] === free[0][1] + dr));
+    await tap(await hexAt(nb));
+    await tapItem('pass');
+    await tap([box.x + 3, box.y + 3]);
+    const [p0, p1] = [await hexAt(free[0]), await hexAt(nb)];
+    await touch('touchStart', [p0]);
+    await phone.waitForTimeout(450);
+    for (let i = 1; i <= 5; i++) await touch('touchMove', [[p0[0] + (p1[0] - p0[0]) * i / 4, p0[1] + (p1[1] - p0[1]) * i / 4]]);
+    await touch('touchEnd', []);
+    check(/^2 croupiers/.test(await phone.textContent('.lift-bar').catch(() => '')), `phone: a long press on a croupier, then a drag over its neighbour, picks up both ("${await phone.textContent('.lift-bar').catch(() => '')}")`);
+    await btnX();
+    await tap(await (async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; })());
     // A Deal croupier with more positions on a side than fit: cut short, shown in full on a tap.
     const dealer = LEVELS.find((lv) => lv.croupiers.includes('deal'));
     if (dealer) {
@@ -735,6 +756,20 @@ try {
     await page.mouse.up();
     cs = await cellsNow();
     check(cs.find(at(free[1])).out.yes === 2, 'or hold, slide onto a port and let go');
+    // The edge zones reach a little past the hex: just outside its east edge
+    // (in the next hex) a click points the active port east, and a long press
+    // opens the menu for that side.
+    const [ox, oy] = await hexPoint(free[1], 0, 1.2);
+    const portBefore = await page.textContent('.inspector .port-row.active .port-tag');
+    await page.mouse.click(ox, oy);
+    cs = await cellsNow();
+    check(cs.find(at(free[1])).out[portBefore] === 0, `a click just outside the selected croupier's edge points its port that way (${portBefore} -> ${cs.find(at(free[1])).out[portBefore]})`);
+    await page.mouse.move(ox, oy);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    check(await page.isVisible('.radial-hub') && /E/.test(await page.textContent('.radial-hub')), 'and a long press there opens the port menu for that side');
+    await page.keyboard.press('Escape');
   }
 
   // Placing from the floor with a mouse and keys: a click on an empty hex
@@ -865,6 +900,19 @@ try {
     check((await cellsNow()).length === 0, 'Delete deletes the group');
     await page.keyboard.press('Control+z');
     check((await cellsNow()).length === 3, 'and undo brings it back');
+    // A Shift-drag that starts on a croupier takes it in too.
+    {
+      const [ax, ay] = await hexPoint(row[0]);
+      const [bx, by] = await hexPoint(row[1]);
+      await page.keyboard.down('Shift');
+      await page.mouse.move(ax, ay);
+      await page.mouse.down();
+      await page.mouse.move(bx + 10, by + 10, { steps: 4 });
+      await page.mouse.up();
+      await page.keyboard.up('Shift');
+      check(/^2 croupiers/.test(await page.textContent('.lift-bar')), `a Shift-drag from a croupier picks it up with the ones in the box ("${await page.textContent('.lift-bar')}")`);
+      await page.keyboard.press('Escape');
+    }
     // [ ] on one selected croupier.
     await clickHex(row[2]);
     await page.keyboard.press(']');
