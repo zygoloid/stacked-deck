@@ -952,6 +952,7 @@ try {
     let steps = 0;
     while (!(await page.locator('.lift-bar.bad').count()) && steps++ < 12) await page.keyboard.press('a');
     check(await page.locator('.lift-bar.bad').count() === 1 && await page.locator('.lift-bar [data-act="place"]').isDisabled() &&
+      await page.locator('.lift-bar [data-act="copy"]').isDisabled() &&
       await page.locator('.board .cell.lifted.bad').count() > 0, 'moved where it clashes, the group shows red and ✓ is off');
     await page.keyboard.press('Enter');
     check(await page.isVisible('.lift-bar'), 'Enter does nothing there');
@@ -964,6 +965,24 @@ try {
     await page.click('.lift-bar [data-act="place"]');
     check(copyOk && (await cellsNow()).length === 6, `⧉ then ✓ copies the group (${(await cellsNow()).length} croupiers)`);
     await page.keyboard.press('Control+z');
+    // Moved, then copied: put down where it was moved to (not back where it
+    // came from), with a copy floating; ⧉ again stamps another.
+    {
+      await shiftBox();
+      await page.keyboard.press('c'); // a hex south-east
+      await page.click('.lift-bar [data-act="copy"]');
+      const placed = await cellsNow();
+      const movedTo = row.map(([q, r]) => `${q},${r + 1}`).sort().join(' ');
+      check(placed.length === 3 && placed.map((c) => c.at.join()).sort().join(' ') === movedTo && /Copy of 3/.test(await page.textContent('.lift-bar')),
+        `moved then ⧉: the group goes down where it was moved, and a copy floats (${placed.map((c) => c.at.join()).join(' ')})`);
+      await page.click('.lift-bar [data-act="copy"]');
+      check((await cellsNow()).length === 6 && /Copy of 3/.test(await page.textContent('.lift-bar')), `⧉ again stamps another copy (${(await cellsNow()).length} croupiers)`);
+      await page.keyboard.press('Escape');
+      check((await cellsNow()).length === 6 && !(await page.isVisible('.lift-bar')), 'Esc drops the floating copy, keeping the ones put down');
+      await page.keyboard.press('Control+z');
+      await page.keyboard.press('Control+z');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'two undos put it all back');
+    }
     // A mouse drag on one of them moves them all.
     await shiftBox();
     const [sx, sy] = await hexPoint(row[1]);
