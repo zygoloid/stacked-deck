@@ -849,11 +849,11 @@ svg.board { -webkit-touch-callout: none; }
 .board .pick-edge { stroke: var(--gold-2); stroke-width: 4; stroke-linecap: round; pointer-events: none; }
 
 /* Groups: the box being drawn, the picked-up croupiers, their toolbar. */
-.marquee {
+.box-select {
   position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none; border-radius: 3px;
   border: 1.5px dashed #6fb7ff; background: rgba(111, 183, 255, 0.12);
 }
-.marquee.armed { width: 0; height: 0; box-shadow: 0 0 0 6px rgba(111, 183, 255, 0.35); border-radius: 50%; }
+.box-select.armed { width: 0; height: 0; box-shadow: 0 0 0 6px rgba(111, 183, 255, 0.35); border-radius: 50%; }
 .board .cell.lifted { filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.55)); }
 .board .cell.lifted .hex.table { stroke: #6fb7ff; stroke-width: 2.4; stroke-dasharray: 6 3; }
 .board .cell.lifted.bad .hex.table { fill: rgba(140, 38, 50, 0.85); stroke: var(--bad); }
