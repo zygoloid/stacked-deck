@@ -665,6 +665,54 @@ try {
     check(/^2 croupiers/.test(await phone.textContent('.lift-bar').catch(() => '')), `phone: a long press on a croupier, then a drag over its neighbour, picks up both ("${await phone.textContent('.lift-bar').catch(() => '')}")`);
     await btnX();
     await tap(await (async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; })());
+    // With nothing selected, the floor's panel has Clear floor (no palette on a phone).
+    check(await phone.locator('.cell.selected').count() === 0 && await phone.isVisible('.inspector .phone-only .btn.danger') &&
+      (await phone.textContent('.inspector .phone-only .btn.danger')) === 'Clear floor', 'phone: the floor panel offers Clear floor');
+    // Play mode: a tap on a cut-short stack shows it all (before anything
+    // else); a croupier can be selected without leaving play mode, until it
+    // is edited.
+    {
+      const lvH = LEVELS.find((l) => l.croupiers.includes('hand') && l.croupiers.includes('shoe'));
+      const fixedH = new Set(lvH.fixed.map((c) => c.at.join()));
+      const freeH = lvH.floor.filter((x) => !fixedH.has(x.join()));
+      const [sa, sb] = (() => {
+        for (const x of freeH) {
+          const y = [x[0] + 1, x[1]];
+          if (freeH.some((z) => z.join() === y.join())) return [x, y];
+        }
+        return [];
+      })();
+      await phone.evaluate(([id, sa, sb]) => {
+        const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+        s.levels[id] = { cells: [
+          { at: sa, kind: 'shoe', out: 0, deck: ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S'] },
+          { at: sb, kind: 'croupier', fn: 'hand', n: 13, out: { out: 0 } }] };
+        localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+      }, [lvH.id, sa, sb]);
+      await phone.goto(`${base}?unlockall#/level/${lvH.id}`);
+      await phone.reload();
+      await phone.waitForSelector('svg.board');
+      await phone.locator('svg.board').scrollIntoViewIfNeeded();
+      for (let i = 0; i < 10; i++) await phone.tap('.tp:nth-child(4)'); // step
+      const watching = () => phone.evaluate(() => document.querySelector('.side').classList.contains('watching'));
+      const more = await phone.evaluate(() => {
+        const r = document.querySelector('.l-cards [data-peek] .scard.more')?.getBoundingClientRect();
+        return r ? [r.x + r.width / 2, r.y + r.height / 2] : null;
+      });
+      check(!!more && await watching(), 'play mode: the Hand\'s collected cards are cut short');
+      if (more) {
+        await tap(more);
+        await phone.waitForTimeout(100);
+        check(/9 cards/.test(await phone.textContent('.peek:not(.hidden)').catch(() => '')) && await phone.locator('.cell.selected').count() === 0 && await watching(),
+          'play mode: a tap on a cut-short stack shows it all, and selects nothing');
+      }
+      const shoeAt = await hexAt(sa);
+      await tap([shoeAt[0], shoeAt[1] - 12]); // the shoe's chip, above its deck label
+      check(await phone.locator('.cell.selected').count() === 1 && await watching() && await phone.isVisible('.inspector h3') && await phone.isVisible('.transport'),
+        'play mode: a tap selects a croupier and shows its panel, staying in play mode with the play controls');
+      await phone.tap('.inspector [aria-label="Turn clockwise"]');
+      check(!(await watching()), 'editing it leaves play mode');
+    }
     // A Deal croupier with more positions on a side than fit: cut short, shown in full on a tap.
     const dealer = LEVELS.find((lv) => lv.croupiers.includes('deal'));
     if (dealer) {
