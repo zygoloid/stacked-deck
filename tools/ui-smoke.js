@@ -520,6 +520,8 @@ try {
         await y('.inspector .floor-head .btn.danger') < await y('.inspector .howto'), 'phone: the floor panel starts with Clear floor, and lists the floor\'s croupiers unfolded');
       check(!(await phone.isVisible('.inspector .keys')) && await phone.isVisible('.inspector .howto .touch-only') && !(await phone.isVisible('.inspector .howto .kbd-only')),
         'phone: touch hints, no keyboard shortcuts');
+      const phoneText = await phone.innerText('.inspector');
+      check(/Tap an empty hex/.test(phoneText) && !/\bclick/i.test(phoneText), 'phone: the floor panel says tap, not click');
       await phone.tap('.roster-box > summary');
       await phone.reload();
       await phone.waitForSelector('svg.board');
@@ -883,6 +885,8 @@ try {
     check(await page.locator('.roster-box').count() === 1 && await page.locator('.roster-box[open]').count() === 0 &&
       await page.isVisible('.inspector .keys') && !(await page.isVisible('.inspector .howto .touch-only')),
       'desktop: the floor panel\'s croupier list starts folded; keyboard shortcuts, no touch hints');
+    const deskText = await page.innerText('.inspector');
+    check(/Click an empty hex/.test(deskText) && !/\btap/i.test(deskText), 'desktop: the floor panel says click, not tap');
     await clickHex(row[0]);
     check(await page.isVisible('.picker') && await page.locator('.picker-item').count() === lv.croupiers.length, 'a click on an empty hex opens the croupier picker');
     await page.hover('.picker-item[data-tool="straight"]');

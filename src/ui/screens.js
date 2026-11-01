@@ -357,7 +357,8 @@ export function helpPanel(close, save) {
       // Keyboard and mouse controls only where there is a mouse, touch ones
       // only where there is a touch screen (style.css: .kbd-only, .touch-only).
       h('div', { class: 'keys-grid' },
-        [['Tap an empty hex', 'pick a croupier to place there'], ['Long-press a croupier in the picker', 'read about it', 'touch'],
+        [['Tap an empty hex', 'pick a croupier to place there', 'touch'], ['Long-press a croupier in the picker', 'read about it', 'touch'],
+          ['Click an empty hex', 'pick a croupier to place there', 'kbd'], ['Point at a croupier in the picker', 'read about it', 'kbd'],
           ['Long-press an edge', 'pick which port points there'], ['Long-press', 'pick up croupiers (drag for more)', 'touch'],
           ['Pinch / drag', 'zoom / pan the floor', 'touch'],
           ['Space', 'play / pause', 'kbd'], ['.', 'step', 'kbd'], [',', 'step back', 'kbd'], ['R', 'reset the run', 'kbd'], ['F', 'next speed', 'kbd'],
