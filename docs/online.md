@@ -317,11 +317,13 @@ quadruple the cards every four rounds, and reach millions within 40 rounds,
 which runs Node (or a browser tab) out of memory. `maxRounds` doesn't help.
 
 So the engine has a rule: **a run fails once more than `MAX_FLOOR_CARDS`
-(1,000) cards are on the floor** (`overflow: true` from `runTest`;
-`Floor.overflowed()`). The most any reference solution ever has on the floor
-is 70, and no test has more than 52 input cards. This is `RULES_VERSION` 9.
-The editor and the step-by-step simulator report it as a failure ("more than
-1000 cards on the floor in round N"). It protects the browser as well as the
+(2,000) cards are on the floor** (`overflow: true` from `runTest`;
+`Floor.overflowed()`). It was 1,000 when introduced (`RULES_VERSION` 9),
+and doubled once a correct machine came near it: the most a reference
+solution has on the floor is about 600, and no test has more than 52 input
+cards. Raising it only lets more machines finish, so it didn't need a new
+rules version. The editor and the step-by-step simulator report it as a
+failure ("more than 2000 cards on the floor in round N"). It protects the browser as well as the
 server.
 
 ## Check deals (built)
@@ -364,7 +366,7 @@ and their helpers (moved from `src/ui/model.js` and `src/ui/scatter.js`;
   each kind and `fn` and the known ports (`PORTS`, checked against the
   editor's table by `test/score.js`); requires integer coordinates on
   buildable hexes, one cell per hex, sides that are integers 0–5, parameters
-  within the editor's ranges (`kind` n 2–8, `hand` n 1–13, War rule and
+  within the editor's ranges (`kind` n 2–8, `hand` n 1–52, War rule and
   special cards allowed by the level), at most `MAX_DECK` (1,000) cards in a
   shoe and `MAX_DEAL_SIDES` (60) entries in a deal's list. It returns
   `{cells}` (a copy) or `{error}`.

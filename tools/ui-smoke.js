@@ -693,7 +693,7 @@ try {
     await page.waitForSelector('.modal.help');
     const txt = await page.textContent('.modal.help');
     check(anyOpen || (!(await page.locator('.help-special').count()) && !/joker|advertising/i.test(txt)), 'help hides special cards before they are unlocked');
-    check(/Burn/.test(txt) && /Hand/.test(txt) && /n \(1–13, default 5\)/.test(txt), 'help documents Burn and Hand (n 1–13, default 5)');
+    check(/Burn/.test(txt) && /Hand/.test(txt) && /n \(1–52, default 5\)/.test(txt), 'help documents Burn and Hand (n 1–52, default 5)');
     await page.keyboard.press('Escape');
   }
 
@@ -797,6 +797,17 @@ try {
     let cells = await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, lv.id);
     const hc = cells.find((c) => c.fn === 'hand');
     check(hc?.n === 4 && (await page.textContent(`.cell[data-at="${key(spot.b)}"] .chip-t`)) === 'HND4', `Hand placed with n = 4 (${JSON.stringify(hc)})`);
+    // Any n up to 52 in the field; out of range is refused; a button goes back.
+    await page.fill('.inspector [data-param="n-any"]', '28');
+    await page.press('.inspector [data-param="n-any"]', 'Enter');
+    const hn = async () => (await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, lv.id)).find((c) => c.fn === 'hand')?.n;
+    check(await hn() === 28 && await page.locator('.inspector [data-param="n"] button.on').count() === 0 &&
+      await page.locator('.inspector .n-in.on').count() === 1, 'Hand: n = 28 from the field');
+    await page.fill('.inspector [data-param="n-any"]', '53');
+    await page.press('.inspector [data-param="n-any"]', 'Enter');
+    check(await hn() === 28 && await page.inputValue('.inspector [data-param="n-any"]') === '28', 'Hand: n = 53 is refused');
+    await page.click('.inspector [data-param="n"] button:nth-child(4)');
+    check(await hn() === 4, 'Hand: back to n = 4 with a button');
     // Burn croupier: two ports.
     await placeAt('burn', spot.c);
     const ports = await page.$$eval('.inspector .port-row .port-tag', (els) => els.map((e) => e.textContent));

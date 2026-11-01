@@ -1,6 +1,7 @@
 // The croupier table: what every function does, its ports and parameters.
 // The help panel, the palette and the inspector are generated from this, so
 // keep it in sync with the fn table in docs/architecture.md.
+import { MAX_HAND } from '../score.js';
 
 // Port styles: one colour and label per port name, used everywhere.
 export const PORT_STYLE = {
@@ -88,7 +89,8 @@ export const CROUPIERS = {
   },
   hand: {
     name: 'Hand', abbr: 'HND', family: ROUTE, ports: ['out'], required: ['out'],
-    params: { n: { label: 'n', options: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], default: 5 } },
+    // n from 1 to MAX_HAND: buttons for the usual sizes, and a field for any.
+    params: { n: { label: 'n', options: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], max: MAX_HAND, default: 5 } },
     desc: 'Collects cards until it holds at least n, then deals the first n as one hand; leftovers start the next hand. While it holds n or more it deals without picking anything up.',
   },
   deal: {

@@ -36,7 +36,7 @@ import {
   runTest, expectedPayouts, payoutKey, payoutHand, FUNCTIONS, DIRS,
 } from '../src/engine.js';
 import { RANKS, SUITS, SPECIALS } from '../src/cards.js';
-import { checkDeals, totalRounds } from '../src/score.js';
+import { checkDeals, totalRounds, MAX_HAND } from '../src/score.js';
 
 const MUTANTS = {}, DOOR = [];
 for (const name of [...Object.values(CHAPTER_FILES), BONUS_FILE]) {
@@ -220,7 +220,7 @@ for (const level of [...LEVELS, ...BONUS]) {
     check(level.croupiers.includes(name), `cell ${c.at}: ${name} is in the palette`);
     if (c.fn === 'war') check(warRules.includes(c.rule ?? 'high'), `cell ${c.at}: war rule ${c.rule} allowed`);
     if (c.fn === 'kind') check(Number.isInteger(c.n) && c.n >= 2 && c.n <= 8, `cell ${c.at}: kind n`);
-    if (c.fn === 'hand') check(Number.isInteger(c.n) && c.n >= 1 && c.n <= 13, `cell ${c.at}: hand n`);
+    if (c.fn === 'hand') check(Number.isInteger(c.n) && c.n >= 1 && c.n <= MAX_HAND, `cell ${c.at}: hand n`);
     if (c.kind === 'shoe') {
       check(c.deck.length && c.deck.every((x) => CARDS.has(x) || specials.includes(x)),
         `cell ${c.at}: shoe deck ${c.deck} uses natural cards${specials.length ? ` and ${specials}` : ''}`);

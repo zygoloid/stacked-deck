@@ -22,10 +22,10 @@ const SUITED = ['S', 'D', 'C', 'H'];
 // instead, the machine is the same size, but the zero shares Suits' misc
 // with the store's padding. In base 13, digits and players' cards ace to
 // king, the shoe grows (a 156-card table, a 38-card ruler) and so do the
-// table's copies: up to seven are on the floor at once, past the 1000-card
-// limit. Gating the table's loop with the players' cards, a War per player
-// whose dealer is the card, keeps it to about three copies, for two more
-// croupiers.)
+// table's copies: up to seven are on the floor at once, about 1250 cards
+// (past the card limit when it was 1000; it is 2000 now). Gating the
+// table's loop with the players' cards, a War per player whose dealer is
+// the card, keeps it to about three copies, for two more croupiers.)
 function casinoDeck({ base = 10, top = 9 } = {}) {
   const max = 2 * top;
   const units = (s) => `${RANKS[(s - 1) % base]}S`;

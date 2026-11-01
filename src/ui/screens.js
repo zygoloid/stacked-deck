@@ -365,7 +365,7 @@ export function helpPanel(close, save) {
 function optionText(p) {
   const o = p.options;
   const numeric = o.every((x, k) => typeof x === 'number' && (k === 0 || x === o[k - 1] + 1));
-  const range = numeric && o.length > 3 ? `${o[0]}–${o[o.length - 1]}` : o.join(' / ');
+  const range = numeric && o.length > 3 ? `${o[0]}–${p.max ?? o[o.length - 1]}` : o.join(' / ');
   return `${p.label} (${range}${p.default !== undefined && numeric ? `, default ${p.default}` : ''})`;
 }
 
