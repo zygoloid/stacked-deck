@@ -102,6 +102,13 @@ try {
   check(await page.locator('a.tile[data-level="opening-night"]').count() === 1, 'level select lists opening-night');
   check(await page.locator(`a.tile[data-level="${LEVELS[2].id}"]`).count() === 1, 'first three levels are open');
   check(await page.locator(`a.tile[data-level="${LEVELS[3].id}"]`).count() === 0, 'fourth level is locked');
+  // Nothing covers the floors list's header (the editor's styles once took it out of the page flow).
+  const covered = await page.$$eval('header.marquee button', (bs) => bs.filter((b) => {
+    const r = b.getBoundingClientRect();
+    const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return !(top === b || b.contains(top));
+  }).map((b) => b.textContent));
+  check(!covered.length && await page.locator('header.marquee button').count() > 0, `the floors list's header buttons are on top${covered.length ? ` (covered: ${covered.join(', ')})` : ''}`);
   if (shots) await page.screenshot({ path: join(shots, '1-level-select.png') });
 
   await page.click('a.tile[data-level="opening-night"]');

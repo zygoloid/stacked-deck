@@ -69,7 +69,7 @@ export function openEditor(root, ctx, level) {
   const peek = h('div', { class: 'peek hidden' });
   const radial = h('div', { class: 'radial hidden', role: 'menu' });
   const picker = h('div', { class: 'picker hidden', role: 'menu' });
-  const marquee = h('div', { class: 'marquee hidden' });
+  const boxSel = h('div', { class: 'box-select hidden' });
   const liftBar = h('div', { class: 'lift-bar hidden' });
   // Undo and redo sit on the floor, so they stay in reach whatever is
   // selected (undo restores the selection, which on a phone hides the palette).
@@ -94,7 +94,7 @@ export function openEditor(root, ctx, level) {
       solBtn,
       h('button', { class: 'btn ghost', onclick: () => ctx.go(`#/level/${level.id}/story`), title: 'Read the story again' }, 'Story'),
       h('button', { class: 'btn ghost', onclick: () => ctx.help(), title: 'Help (?)' }, '? Help')),
-    h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast, peek, radial, picker, marquee, liftBar,
+    h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast, peek, radial, picker, boxSel, liftBar,
       h('div', { class: 'history' }, undoBtn, redoBtn),
       h('div', { class: 'zoom' },
         h('button', { title: 'Zoom in (+)', onclick: () => zoomCenter(1 / 1.25) }, '+'),
@@ -1103,7 +1103,7 @@ export function openEditor(root, ctx, level) {
   }
   function startPinch() {
     clearTimeout(drag?.hold);
-    marquee.className = 'marquee hidden';
+    boxSel.className = 'box-select hidden';
     if (drag?.kind === 'move' || drag?.kind === 'new') ghost.className = 'drag-ghost hidden';
     svg.classList.remove('panning');
     drag = { kind: 'pinch', ...pinchState() };
@@ -1137,7 +1137,7 @@ export function openEditor(root, ctx, level) {
     if (!drag.active) return;
     if (drag.kind === 'box') {
       drag.x = e.clientX; drag.y = e.clientY;
-      marquee.classList.remove('armed');
+      boxSel.classList.remove('armed');
       showMarquee(drag);
       return;
     }
@@ -1187,14 +1187,14 @@ export function openEditor(root, ctx, level) {
     clearTimeout(d.hold);
     ghost.className = 'drag-ghost hidden';
     // (The press that opened the port menu leaves it open even if the browser cancels it.)
-    if (e.type === 'pointercancel' && !d.radial) { svg.classList.remove('panning'); marquee.className = 'marquee hidden'; renderBoard(); return; }
+    if (e.type === 'pointercancel' && !d.radial) { svg.classList.remove('panning'); boxSel.className = 'box-select hidden'; renderBoard(); return; }
     if (d.radial) {
       // Released on a port: pick it; anywhere else the menu stays open for a tap.
       const item = e.type === 'pointerup' && radialHover(e.clientX, e.clientY);
       if (item) pickRadial(item.dataset.port);
       return;
     }
-    if (d.kind === 'box') { if (e.type === 'pointerup') boxSelect(d); else marquee.className = 'marquee hidden'; return; }
+    if (d.kind === 'box') { if (e.type === 'pointerup') boxSelect(d); else boxSel.className = 'box-select hidden'; return; }
     if (d.kind === 'group') {
       if (!d.active) dropMember(d.item);
       else renderAll();
@@ -1473,14 +1473,14 @@ export function openEditor(root, ctx, level) {
   }
   // The box being drawn, in client coordinates.
   function showMarquee(d) {
-    const wrap = marquee.parentElement.getBoundingClientRect();
+    const wrap = boxSel.parentElement.getBoundingClientRect();
     const x = Math.min(d.x0, d.x) - wrap.left, y = Math.min(d.y0, d.y) - wrap.top;
-    Object.assign(marquee.style, { transform: `translate(${x}px, ${y}px)`, width: `${Math.abs(d.x - d.x0)}px`, height: `${Math.abs(d.y - d.y0)}px` });
-    marquee.className = 'marquee';
+    Object.assign(boxSel.style, { transform: `translate(${x}px, ${y}px)`, width: `${Math.abs(d.x - d.x0)}px`, height: `${Math.abs(d.y - d.y0)}px` });
+    boxSel.className = 'box-select';
   }
   // Pick up the croupiers whose middles are in the box (adding to a group already up).
   function boxSelect(d) {
-    marquee.className = 'marquee hidden';
+    boxSel.className = 'box-select hidden';
     const m = svg.getScreenCTM();
     if (!m) return;
     const [x0, x1] = [Math.min(d.x0, d.x), Math.max(d.x0, d.x)], [y0, y1] = [Math.min(d.y0, d.y), Math.max(d.y0, d.y)];
@@ -1500,7 +1500,7 @@ export function openEditor(root, ctx, level) {
       Object.assign(d, { kind: 'box', active: true });
       closePicker();
       showMarquee(d);
-      marquee.classList.add('armed');
+      boxSel.classList.add('armed');
     }, HOLD_MS);
   }
 
