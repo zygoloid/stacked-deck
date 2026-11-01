@@ -216,7 +216,7 @@ export function openEditor(root, ctx, level) {
   }
   // Selecting a croupier starts at its first port.
   function select(key) {
-    if (key) { leavePlay(); lift = null; }
+    if (key) lift = null;
     if (selected !== key) {
       closeRadial();
       selected = key;
@@ -289,21 +289,24 @@ export function openEditor(root, ctx, level) {
   }
   // Play mode: watching a test. Playing, stepping or stepping back enters it,
   // dropping the palette tool and the selection and hiding the palette and
-  // the inspector, so the tests panel has the room. Selecting a croupier,
-  // picking one to place, editing, resetting or the Edit button leave it
-  // (and pause), keeping the run where it is.
+  // the inspector, so the tests panel has the room. A croupier can be
+  // selected and looked at without leaving it (its panel shows, the play
+  // controls stay); editing, picking one to place, resetting or the Edit
+  // button leave it (and pause), keeping the run where it is.
   function enterPlay() {
     if (watching) return;
     watching = true;
     tool = null; selected = null; activePort = null; deckDraft = null; lift = null;
     closePicker();
     side.classList.add('watching');
+    editorEl.classList.add('watching');
     renderPalette(); renderInspector(); renderBoard(); renderTests();
   }
   function leavePlay() {
     if (!watching) return;
     watching = false;
     side.classList.remove('watching');
+    editorEl.classList.remove('watching');
     stop();
     renderTests();
   }

@@ -510,8 +510,8 @@ svg.board.placing { cursor: copy; }
 .tests { flex: 1; }
 .tests-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .tests-head .edit-btn { margin-left: auto; }
-/* Play mode: only the tests are shown beside (or under) the board. */
-.side.watching .palette, .side.watching .inspector { display: none; }
+/* Play mode: only the tests (and a selected croupier's panel) beside or under the board. */
+.side.watching .palette, .editor:not(.cell-selected) .side.watching .inspector { display: none; }
 .test-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
 .test-chip {
   min-width: 30px; height: 28px; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, 0.35); background: #24493a;
@@ -602,6 +602,7 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .hex.drop.bad { fill: rgba(255, 107, 107, 0.12); stroke: var(--bad); }
 
 .l-cards { pointer-events: none; }
+.l-cards .peekable { pointer-events: auto; } /* a cut-short stack: hover or tap to see it all */
 .scard rect { fill: var(--card); stroke: rgba(0, 0, 0, 0.55); stroke-width: 0.6; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
 .scard text { font-family: var(--serif); font-weight: 700; }
 .scard .rank { font-size: 8.4px; }
@@ -756,6 +757,7 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   .brief { font-size: 12.5px; }
 }
 .insp-head .done-btn { display: none; } /* a phone's way back from a selected croupier */
+.phone-only { display: none; } /* shown by the phone layout below */
 @media (max-width: 900px) {
   .editor { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto auto; grid-template-areas: 'top' 'stage' 'side'; }
   /* The floor keeps its size whatever shows under it (the play controls
@@ -771,8 +773,8 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   .picker-item kbd { display: none; }
   .side { border-left: 0; }
   .story-card { padding: 28px 22px; }
-  /* A selected croupier: its panel right under the floor, Done to go back. */
-  .editor.cell-selected .transport, .editor.cell-selected .palette { display: none; }
+  /* A selected croupier: its panel right under the floor (in play mode, under the play controls), Done to go back. */
+  .editor.cell-selected:not(.watching) .transport, .editor.cell-selected .palette { display: none; }
   .insp-head .done-btn { display: inline-flex; }
 }
 .fixed-rule { font-size: 12.5px; font-weight: 700; color: var(--gold-2); }
@@ -872,7 +874,6 @@ svg.board { -webkit-touch-callout: none; }
 .lift-bar button:disabled { opacity: 0.35; cursor: default; }
 .lift-bar button.ok { background: linear-gradient(180deg, #f6d77a, #d4af37); color: #2a1d02; border-color: #f6e19c; font-weight: 800; }
 .insp-head .turn-btn { padding: 3px 7px; font-size: 15px; line-height: 1; }
-.phone-only { display: none; }
 
 /* Inspector: a croupier kind picked in the palette, before placing it. */
 .port-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
