@@ -17,25 +17,33 @@ const SUITED = ['S', 'D', 'C', 'H'];
 //    fixed places: card 18, the units card for the sum (ruler[18 - s]), and
 //    card L + 10, which is there only when the sum is 11 or more (one of the
 //    ruler's last eight cards, the tens aces), dealt on top.
-// `units` maps a sum to its units card, `tens` is the smallest sum with two
-// digits. (With an advertising card for zero instead, the machine is the
-// same size, but the zero shares Suits' misc with the store's padding.)
-function casinoDeck({ units, tens, L }) {
+// `base` is the number base (digits ace to its value, no zero) and `top`
+// the highest card a player holds. (With an advertising card for zero
+// instead, the machine is the same size, but the zero shares Suits' misc
+// with the store's padding. In base 13, digits and players' cards ace to
+// king, the shoe grows (a 156-card table, a 38-card ruler) and so do the
+// table's copies: up to seven are on the floor at once, past the 1000-card
+// limit. Gating the table's loop with the players' cards, a War per player
+// whose dealer is the card, keeps it to about three copies, for two more
+// croupiers.)
+function casinoDeck({ base = 10, top = 9 } = {}) {
+  const max = 2 * top;
+  const units = (s) => `${RANKS[(s - 1) % base]}S`;
   // The table: for each rank r, eight cards of rank r, r - 1 of them hearts.
   const table = [];
-  for (let r = 1; r <= 9; r++) for (let i = 0; i < 8; i++) table.push(RANKS[r - 1] + (i < r - 1 ? 'H' : 'C'));
+  for (let r = 1; r <= top; r++) for (let i = 0; i < top - 1; i++) table.push(RANKS[r - 1] + (i < r - 1 ? 'H' : 'C'));
   // The ruler: the units card of the sum s at 18 - s, then the tens aces.
-  const ruler = Array.from({ length: L }, (_, i) => (i <= 16 ? units(18 - i) : 'AS'));
+  const L = (max - 1) + (max - base);
+  const ruler = Array.from({ length: L }, (_, i) => (i <= max - 2 ? units(max - i) : 'AS'));
   const order = ['?', ...ruler, ...table];
   while (order.length % 13) order.push('$');
   // Chunks of 13 are stacked as they come, so the last chunk dealt is on top.
   const chunks = [];
   for (let i = 0; i < order.length; i += 13) chunks.push(order.slice(i, i + 13));
-  return { deck: chunks.reverse().flat(), at: [18, L + tens - 1] };
+  return { deck: chunks.reverse().flat(), at: [max, L + base] };
 }
-function casinoSums() {
-  // Casino digits: the units card of the sum s is RANKS[(s - 1) % 10].
-  const k = casinoDeck({ units: (s) => RANKS[(s - 1) % 10] + 'S', tens: 11, L: 25 });
+export function casinoSums(digits) {
+  const k = casinoDeck(digits);
   const nodes = {
     SH: shoe([6, -3], k.deck, { once: true }), H13: c([5, -3], 'hand', { n: 13 }),
     ST: c([4, -3], 'gather'), TW: war([3, -3]), AC: shoe([3, -4], 'AC'),
