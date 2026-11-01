@@ -1,6 +1,7 @@
 // The croupier table: what every function does, its ports and parameters.
-// The help panel, the palette and the inspector are generated from this, so
-// keep it in sync with the fn table in docs/architecture.md.
+// The help panel, the palette and the inspector are generated from this.
+// The descriptions are deliberately brief (true, but leaving the details
+// for the player to find out); docs/architecture.md has the full rules.
 
 // Port styles: one colour and label per port name, used everywhere.
 export const PORT_STYLE = {
@@ -39,31 +40,31 @@ const ROUTE = '#3d5a80', SHAPE = '#6d4c8f', TEST = '#22709a', WAR = '#9b2c3a', S
 export const CROUPIERS = {
   pass: {
     name: 'Pass', abbr: 'PASS', family: ROUTE, ports: ['out'], required: ['out'],
-    desc: 'Passes the hand on unchanged.',
+    desc: 'Passes the hand on.',
   },
   duplicate: {
     name: 'Duplicate', abbr: 'DUP', family: ROUTE, ports: ['a', 'b'],
-    desc: 'Copies the hand: one copy to A, one to B. Point both at the same side to hand on the two copies stacked, A on top.',
+    desc: 'Copies the hand: one copy to A, one to B.',
   },
   sort: {
     name: 'Sort', abbr: 'SORT', family: SHAPE, ports: ['out'], required: ['out'],
-    desc: 'Puts the hand in new deck order (A♠ on top): ♠A–K, ♦A–K, ♣K–A, ♥K–A.',
+    desc: 'Puts the hand in new deck order: ♠A–K, ♦A–K, ♣K–A, ♥K–A.',
   },
   cut: {
     name: 'Cut', abbr: 'CUT', family: SHAPE, ports: ['top', 'bottom'],
-    desc: 'Splits the hand: the top ⌊n/2⌋ cards to top, the rest to bottom. A single card goes to bottom. Point both at the same side to complete the cut: the top half ends up underneath.',
+    desc: 'Cuts the hand: the top half to top, the rest to bottom.',
   },
   outshuffle: {
     name: 'Out-shuffle', abbr: 'OUT', family: SHAPE, ports: ['out'], required: ['out'],
-    desc: 'Perfect riffle that keeps the top card on top (top half is the larger one).',
+    desc: 'A perfect riffle shuffle that keeps the top card on top.',
   },
   inshuffle: {
     name: 'In-shuffle', abbr: 'IN', family: SHAPE, ports: ['out'], required: ['out'],
-    desc: 'Perfect riffle that moves the top card to second place.',
+    desc: 'A perfect riffle shuffle that moves the top card to second.',
   },
   straight: {
     name: 'Straight', abbr: 'STR', family: TEST, ports: ['yes', 'no'],
-    desc: 'Is the hand a run of consecutive distinct ranks? Aces play high or low (no wrap). One card is a straight.',
+    desc: 'Is the hand a straight?',
   },
   flush: {
     name: 'Flush', abbr: 'FL', family: TEST, ports: ['yes', 'no'],
@@ -72,41 +73,41 @@ export const CROUPIERS = {
   kind: {
     name: 'N of a kind', abbr: 'K', family: TEST, ports: ['yes', 'no'],
     params: { n: { label: 'n', options: [2, 3, 4, 5, 6, 7, 8], default: 2 } },
-    desc: 'Does some rank appear at least n times? (n from 2 to 8; reference cards from a shoe can push a hand past four of a kind.)',
+    desc: 'Does some rank appear at least n times?',
   },
   set: {
     name: 'Set', abbr: 'SET', family: SHAPE, ports: ['set', 'rest'],
-    desc: 'Cards of the most common rank(s) go to set, the others to rest (rest may be empty). Point both at the same side to restack the hand with the set on top.',
+    desc: 'The cards of the most common rank go to set, the rest to rest.',
   },
   suits: {
     name: 'Suits', abbr: 'SUIT', family: SHAPE, ports: ['S', 'H', 'D', 'C', 'misc'],
-    desc: 'Each card goes to its suit\'s pile. Suits without a side go to misc (or the floor). Suits sharing a side form one pile, in hand order.',
+    desc: 'Deals each card to its suit\'s pile. Cards without a side go to misc.',
   },
   burn: {
     name: 'Burn', abbr: 'BURN', family: SHAPE, ports: ['burn', 'rest'],
-    desc: 'Takes the top card off: the top card to burn, the rest to rest. Point both at the same side to move the top card to the bottom.',
+    desc: 'The top card goes to burn, the rest to rest.',
   },
   hand: {
     name: 'Hand', abbr: 'HND', family: ROUTE, ports: ['out'], required: ['out'],
     params: { n: { label: 'n', options: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], default: 5 } },
-    desc: 'Collects cards until it holds at least n, then deals the first n as one hand; leftovers start the next hand. While it holds n or more it deals without picking anything up.',
+    desc: 'Collects cards and deals them out in hands of n.',
   },
   deal: {
     name: 'Deal', abbr: 'DEAL', family: ROUTE, ports: [], deal: true,
-    desc: 'Deals the hand one card at a time, round-robin, to an ordered list of sides, each card on top of its side\'s pile, so every pile comes out in reverse order. A side may repeat: it still gets one pile.',
+    desc: 'Deals the hand out a card at a time to a list of sides, in turn.',
   },
   gather: {
     name: 'Gather', abbr: 'GATH', family: ROUTE, ports: ['out'], required: ['out'], sides: ['under'],
-    desc: 'Stacks two hands that arrive from different sides. The hand from the under side goes underneath; without one, the first picked up does.',
+    desc: 'Stacks two hands from different sides. The hand from the under side goes underneath.',
   },
   war: {
     name: 'War', abbr: 'WAR', family: WAR, ports: ['win', 'lose', 'dwin', 'dlose'], sides: ['dealer'], required: ['dealer'],
     params: { rule: { label: 'rule', options: ['high', 'top'], default: 'high' } },
-    desc: 'Plays the player\'s hand (any side but the dealer side) against the dealer\'s hand (from the dealer side). Rule high compares high cards, rule top the top cards; aces high; ties go to the house. The player hand goes to win/lose, the dealer hand to d-win/d-lose. Outputs pointed at the same side are stacked, the winning hand on top.',
+    desc: 'Plays a player\'s hand against a dealer\'s hand from the dealer side; ties go to the house. The player\'s hand goes to win or lose, the dealer\'s to d-win or d-lose.',
   },
   shoe: {
     name: 'Shoe', abbr: 'SHOE', family: SHOE, ports: ['out'], required: ['out'], shoe: true,
-    desc: 'Deals its stacked deck one card per round in one direction, repeating forever, or only once. Counts as a croupier.',
+    desc: 'Deals its deck a card per round, over and over, or once.',
   },
 };
 

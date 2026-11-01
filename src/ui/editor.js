@@ -88,7 +88,7 @@ export function openEditor(root, ctx, level) {
         h('span', { class: 'lvl-title' }, level.title)),
       h('div', { class: 'brief', title: 'The goal for this floor' }, level.brief ?? ''),
       h('div', { class: 'stats' },
-        h('span', { class: 'stat', title: 'Croupiers placed (shoes included)' }, h('span', { class: 'stat-k' }, 'Croupiers'), elCount),
+        h('span', { class: 'stat', title: 'Croupiers placed' }, h('span', { class: 'stat-k' }, 'Croupiers'), elCount),
         par ? h('span', { class: 'stat par', title: 'Par from the reference solution' }, h('span', { class: 'stat-k' }, 'Par'),
           h('span', { class: 'stat-v' }, `${par.croupiers ?? '–'} / ${par.rounds ?? '–'}`)) : null),
       solBtn,
@@ -717,11 +717,9 @@ export function openEditor(root, ctx, level) {
       inspector.replaceChildren(
         h('h3', {}, `${lift.copy ? 'A copy of ' : ''}${n} croupier${n === 1 ? '' : 's'}`),
         h('ul', { class: 'howto' },
-          h('li', {}, 'Drag one of them to move them all.'),
-          h('li', {}, h('b', {}, '⟲ ⟳'), ' turn them and ', h('b', {}, '⇋'), ' mirrors them, ports and all (each croupier still starts looking for cards to its east, so they may behave differently); ',
-            h('b', {}, '⧉'), ' copies them; ', h('b', {}, '🗑'), ' deletes them.'),
-          h('li', {}, 'Tap another croupier to add it, or one of them to leave it out.'),
-          h('li', {}, h('b', {}, '✓'), ' or a tap on the floor puts them down (not where they show red); ', h('b', {}, '✕'), ' puts them back.')),
+          h('li', {}, 'Drag one of them to move them all. Tap a croupier to add it or leave it out.'),
+          h('li', {}, h('b', {}, '⟲ ⟳'), ' turn, ', h('b', {}, '⇋'), ' mirrors, ', h('b', {}, '⧉'), ' copies, ', h('b', {}, '🗑'), ' deletes.'),
+          h('li', {}, h('b', {}, '✓'), ' puts them down, ', h('b', {}, '✕'), ' puts them back.')),
         h('p', { class: 'keys' }, h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'), ' move  ',
           h('kbd', {}, '['), h('kbd', {}, ']'), ' turn  ', h('kbd', {}, 'M'), ' mirror  ', h('kbd', {}, 'Enter'), ' put down  ', h('kbd', {}, 'Esc'), ' put back  ', h('kbd', {}, 'Del'), ' delete'));
       return;
@@ -734,11 +732,10 @@ export function openEditor(root, ctx, level) {
         h('h3', {}, 'The floor'),
         h('p', { class: 'brief-big' }, level.brief ?? ''),
         h('ul', { class: 'howto' },
-          h('li', {}, 'Tap an empty hex to place a croupier there; tap near an edge to point its first port that way.'),
-          h('li', {}, 'Select one, then tap an edge of its hex to point the highlighted port there (long-press an edge to choose the port). Ports left on ', h('b', {}, '✕ floor'), ' drop their cards.'),
-          h('li', {}, 'To move, turn or mirror a group, long-press the bare floor (or Shift-drag) and drag a box around it.'),
-          h('li', {}, 'Winning hands must reach the chip desk; everything else must be dropped.'),
-          h('li', {}, 'Press play to watch a test. When it passes, every other test is checked; pass them all to clear the floor.')),
+          h('li', {}, 'Tap an empty hex to place a croupier there.'),
+          h('li', {}, 'Select a croupier, then tap the edges of its hex to point its ports.'),
+          h('li', {}, 'Long-press the bare floor (or Shift-drag) to pick up a group.'),
+          h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
         h('p', { class: 'keys' }, h('kbd', {}, 'Space'), ' play  ', h('kbd', {}, '.'), ' step  ', h('kbd', {}, ','), ' back  ',
           h('kbd', {}, '1'), '–', h('kbd', {}, '9'), ' place at the pointer  ', h('kbd', {}, 'Del'), ' remove  ', h('kbd', {}, '?'), ' help'),
         // On a phone the palette (and its Clear floor) is hidden.
@@ -818,7 +815,7 @@ export function openEditor(root, ctx, level) {
           })));
       }
     } else if (ports.length) {
-      parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ' tap an edge of the hex to point the highlighted one; long-press an edge to pick')));
+      parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ' tap an edge of the hex; long-press to choose a port')));
       for (const p of ports) {
         const st = PORT_STYLE[p];
         if (p === 'to') {
@@ -842,7 +839,7 @@ export function openEditor(root, ctx, level) {
         sideButtons(cur, (d) => { activePort = p; assign(d, p); }, { floor: !isRequired(c, p) })));
       }
       parts.push(h('p', { class: 'keys' }, 'Keys: ', h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'),
-        ' point the port NW NE W E SW SE and go to the next, ', h('kbd', {}, 'X'), ' floor, ', h('kbd', {}, 'Tab'), ' skip, ', h('kbd', {}, 'Ctrl+Z'), ' back.'));
+        ' point the port NW NE W E SW SE, ', h('kbd', {}, 'X'), ' floor, ', h('kbd', {}, 'Tab'), ' next port.'));
     }
     inspector.replaceChildren(...parts.filter(Boolean));
   }
