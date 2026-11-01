@@ -877,6 +877,15 @@ svg.board { -webkit-touch-callout: none; }
 
 /* Inspector: a croupier kind picked in the palette, before placing it. */
 .port-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+/* The floor panel's list of the floor's croupiers. */
+.roster { display: flex; flex-direction: column; gap: 8px; margin: 2px 0 6px; }
+.roster-row { display: flex; align-items: flex-start; gap: 9px; }
+.roster-row .pal-chip { width: 30px; height: 30px; border-width: 2.5px; margin-top: 1px; }
+.roster-row .pal-chip span { width: 19px; height: 19px; font-size: 6.5px; }
+.roster-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 13px; }
+.roster-head .port-list { margin: 0; gap: 3px; }
+.roster-head .port-tag { min-width: 0; padding: 0 6px; font-size: 10px; line-height: 1.5; }
+.roster-desc { color: var(--ink-2); font-size: 12.5px; line-height: 1.35; }
 
 /* Which side a croupier faces (placeholder until croupier art). */
 .board .facing { fill: none; stroke: var(--gold-2, #f2c14e); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; pointer-events: none; }
