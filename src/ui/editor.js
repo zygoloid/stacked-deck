@@ -1308,8 +1308,11 @@ export function openEditor(root, ctx, level) {
     else assign(side, p, { advance: false });
   }
   // A press anywhere else on the page closes it (the board handles its own).
+  // So does the croupier picker, on a press anywhere but one of its
+  // croupiers: its own blank parts too.
   function onDocDown(e) {
     if (radialOpen() && !e.target.closest?.('.radial, svg.board')) closeRadial();
+    if (pick && !e.target.closest?.('.picker-item, svg.board')) { closePicker(); renderBoard(); }
   }
   document.addEventListener('pointerdown', onDocDown, true);
 

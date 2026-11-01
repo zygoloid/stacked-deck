@@ -523,6 +523,14 @@ try {
     check(await phone.isVisible('.picker') && await phone.locator('.picker-item').count() === LEVELS[0].croupiers.length,
       'a tap on an empty hex opens the croupier picker');
     if (shots) await phone.screenshot({ path: join(shots, '7a-phone-picker.png') });
+    // It closes on a tap on its blank parts, or anywhere off the board.
+    const tapOn = async (sel) => { const r = await phone.locator(sel).boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
+    await tapOn('.picker-head');
+    const closedInside = !(await phone.isVisible('.picker'));
+    await tap(await hexAt(free[0]));
+    await tapOn('.inspector h3');
+    check(closedInside && !(await phone.isVisible('.picker')) && await placed() === 0, 'a tap on the picker\'s blank part, or off the board, closes it');
+    await tap(await hexAt(free[0]));
     await tapItem('pass');
     check(await placed() === 1 && await phone.locator('.cell.selected').count() === 1 && !(await phone.isVisible('.picker')),
       'picking one places it there, selected');
