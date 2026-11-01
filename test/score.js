@@ -71,7 +71,6 @@ console.log(`reference solutions valid and scored as par (${ALL.length})`);
   accept('kind n', (c) => { c[0] = { at: c[0].at, kind: 'croupier', fn: 'kind', n: 3, out: {} }; });
   accept('a pass', (c) => { c[0] = { at: c[0].at, kind: 'croupier', fn: 'pass', out: {} }; });
   accept('deal', (c) => { c.push({ at: free, kind: 'croupier', fn: 'deal', out: { to: [0, 0, 3] } }); });
-  accept('facing', (c) => { c[0].facing = 5; });
   reject('not a list', () => ({}));
   reject('unknown field', (c) => { c[0].junk = 1; });
   reject('__proto__ field', () => JSON.parse(JSON.stringify(base).replace('"kind":', '"__proto__":{"x":1},"kind":')));
@@ -90,7 +89,7 @@ console.log(`reference solutions valid and scored as par (${ALL.length})`);
   reject('out not an object', (c) => { c[dup].out = 'x'; });
   reject('deal out a string', (c) => { c.push({ at: free, kind: 'croupier', fn: 'deal', out: 'x' }); });
   reject('deal to a string', (c) => { c.push({ at: free, kind: 'croupier', fn: 'deal', out: { to: 'ab' } }); });
-  reject('bad facing', (c) => { c[0].facing = 7; });
+  reject('facing (the editor never sets it)', (c) => { c[0].facing = 5; });
 }
 {
   // Shoes and War rules, on a floor that has both but not special cards.
@@ -146,7 +145,7 @@ console.log('solution hashes ok');
   const shuffled = [...cells].reverse().map((c) => Object.fromEntries(Object.entries(c).reverse()));
   assert.deepStrictEqual(await checkDeals(level, shuffled), deals);
   const moved = structuredClone(cells);
-  moved[0].facing = ((moved[0].facing ?? 0) + 1) % 6;
+  moved[0].at = [moved[0].at[0] + 1, moved[0].at[1]];
   assert.notDeepStrictEqual(await checkDeals(level, moved), deals);
   assert.notDeepStrictEqual(await checkDeals({ ...level, id: 'another-floor' }, cells), deals);
   assert(!deals.some((d) => level.tests.some((t) => JSON.stringify(t) === JSON.stringify(d))), 'not the published tests');

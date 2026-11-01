@@ -1,8 +1,7 @@
 // Turning and mirroring machines (the editor's group tools, src/ui/croupiers.js):
 // every port still points at the same neighbour, moved with it; six turns
-// or two mirrors give the machine back; a croupier's facing is left alone
-// (it isn't something the player sets, so a turned or mirrored machine can
-// behave differently).
+// or two mirrors give the machine back; no facing is set (it isn't something
+// the player sets, so a turned or mirrored machine can behave differently).
 import assert from 'node:assert';
 import { readdirSync } from 'node:fs';
 import { DIRS } from '../src/engine.js';
@@ -27,7 +26,7 @@ const transforms = [
 let n = 0;
 for (const file of readdirSync(new URL('../solutions/levels/', import.meta.url))) {
   const { default: sol } = await import(`../solutions/levels/${file}`);
-  const cells = sol.cells.map((c) => ({ ...structuredClone(c), facing: 2 }));
+  const cells = structuredClone(sol.cells);
   const before = links(cells);
   for (const [name, moveAt, turn] of transforms) {
     const after = cells.map((c0) => { const c = structuredClone(c0); c.at = moveAt(c.at); turn(c); return c; });
@@ -36,7 +35,7 @@ for (const file of readdirSync(new URL('../solutions/levels/', import.meta.url))
       const want = before.get(key(c.at)).map(([p, k]) => [p, key(moveAt(k.split(',').map(Number)))]);
       assert.deepStrictEqual(got.get(key(moveAt(c.at))), want, `${file} ${name}: ${c.fn ?? c.kind} at ${key(c.at)} points elsewhere`);
     }
-    assert(after.every((c) => c.facing === 2), `${file} ${name}: facing changed`);
+    assert(after.every((c) => !('facing' in c)), `${file} ${name}: facing set`);
   }
   // Six turns, or two mirrors, give it back.
   const six = structuredClone(cells), two = structuredClone(cells);

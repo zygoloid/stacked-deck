@@ -41,6 +41,7 @@ export function sanitizeCells(level, cells) {
     }
     if (cell.fn === 'hand' && !(Number.isInteger(cell.n) && cell.n >= 1 && cell.n <= 13)) cell.n = 5;
     if (cell.kind === 'croupier') cell.out ??= {};
+    delete cell.facing; // the engine's, not the player's (see cellError)
     if (cell.fn === 'deal') cell.out.to ??= [];
     if (cell.fn === 'war' && !warRules(level).includes(cell.rule)) cell.rule = warRules(level)[0];
     out.push(cell);
@@ -60,8 +61,10 @@ export const PORTS = {
   burn: ['burn', 'rest'], hand: ['out'], deal: ['to'], gather: ['out'],
   war: ['win', 'lose', 'dwin', 'dlose'],
 };
-// Parameters of each function besides `out` and `facing`, with their ranges
-// (as the editor offers them).
+// Parameters of each function besides `out`, with their ranges (as the
+// editor offers them). A croupier's `facing` (where it starts looking for
+// input) is the engine's: the editor never sets it, so a machine from
+// elsewhere can't either.
 const isSide = (v) => Number.isInteger(v) && v >= 0 && v < 6;
 const inRange = (lo, hi) => (v) => Number.isInteger(v) && v >= lo && v <= hi;
 const PARAMS = {
@@ -93,9 +96,8 @@ function cellError(level, c) {
   if (c.kind !== 'croupier') return 'unknown kind';
   if (typeof c.fn !== 'string' || !Object.hasOwn(PORTS, c.fn) || !level.croupiers.includes(c.fn)) return 'function not on this floor';
   const params = PARAMS[c.fn] ?? {};
-  const k = extra(['at', 'kind', 'fn', 'out', 'facing', ...Object.keys(params)]);
+  const k = extra(['at', 'kind', 'fn', 'out', ...Object.keys(params)]);
   if (k !== undefined) return `unknown field ${k}`;
-  if (c.facing !== undefined && !isSide(c.facing)) return 'bad facing';
   for (const [name, ok] of Object.entries(params)) {
     if (c[name] !== undefined && !ok(c[name], level)) return `bad ${name}`;
   }
