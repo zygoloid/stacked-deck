@@ -203,9 +203,10 @@ regulation; Ace Count does).
 | A♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
 | 2♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
 | 3♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
-| 4♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
-| 5♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
-| 6♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
+| 4♥ | Casino Numbers | Déjà Vu | the Owner's counting has no zero |
+| 5♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
+| 6♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
+| 7♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
 
 ## Notes for writers
 

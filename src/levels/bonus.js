@@ -6,10 +6,10 @@
 // by id); the others are extra floors, from 6♠ on for players who have
 // everything (every croupier, both War rules, every special card), roughly
 // easiest first. Crossed Wires and Uneven Tables seat three players (and
-// label three desks); Mirror Image, Showdown and Twice Shy seat two. See
-// docs/campaign.md.
+// label three desks); Mirror Image, Casino Numbers, Showdown and Twice Shy
+// seat two. See docs/campaign.md.
 import {
-  hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, NE,
+  hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, W, NE,
   hv, high, one, paletteThrough, finishChapter,
 } from './shared.js';
 import {
@@ -37,6 +37,7 @@ const H2 = [source([-2, 1], E), desk([-2, 3])];
 // three labelled desks (X, Y, Z from the top) down the right.
 const H4 = [source([-4, 0], E), desk([1, 2])];
 const H5 = [seated([-6, 4], E, 0), seated([-5, 3], SE, 1), desk([-4, 7])];
+const H6 = [seated([5, -1], W, 0), seated([4, 1], W, 1), desk([-2, 0])];
 const labelled = (at, n) => ({ ...desk(at), desk: n });
 const H3 = [
   seated([-2, -2], E, 0), seated([-3, 0], E, 1), seated([-4, 2], E, 2),
@@ -137,6 +138,20 @@ function twoDeckDeals(rand, nTests, nDeals) {
     tests.push(Array.from({ length: 2 * nDeals }, (_, i) => (i % 2 ? b : a).splice(0, 5)));
   }
   return tests;
+}
+
+// Casino numbers: no zero; the digits are the ace (one) to the ten, so ten
+// is T, eleven A A, twenty A T, twenty-one 2 A. Paid in spades, the
+// leading digit on top.
+const SPADE = (v) => `${RANKS[v - 1]}S`;
+export function casino(n) {
+  const digits = [];
+  for (let v = n; v > 0; v = Math.floor((v - 1) / 10)) digits.unshift(SPADE(((v - 1) % 10) + 1));
+  return digits;
+}
+// Two players' one-card hands of spades A..9, `nDeals` deals a test.
+function digitDeals(rand, nTests, nDeals) {
+  return Array.from({ length: nTests }, () => Array.from({ length: 2 * nDeals }, () => [SPADE(1 + Math.floor(rand() * 9))]));
 }
 
 // The Rest of the Deck: every card of the deck nobody played, one at a time.
@@ -602,8 +617,37 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'last-in-first-out',
+    id: 'casino-numbers',
     card: '4H',
+    unlockAfter: 'deja-vu',
+    title: 'Casino Numbers',
+    story: [
+      'The Owner has a new way of counting, and it has no zero in it: nobody at the Stacked Deck has ever been paid nothing. The digits are the cards ace to ten, so ten is a ten, eleven is an ace and an ace, twenty is an ace and a ten, and twenty-one a two and an ace.',
+      'Tonight two players each play one spade, ace to nine, per deal, and the house pays the total in casino numbers, in its own spades, the leading digit on top. Dmitri is converting his spreadsheet.',
+    ],
+    brief: 'Two players, one spade each per deal, ace (1) to 9. Pay the sum in casino numbers, house spades with the leading digit on top: 2 to 10 as one card (10 is the ten), 11 to 18 as the ace on top of the card for the rest (11 is A♠ A♠, 18 is A♠ 8♠).',
+    handSize: 1,
+    floor: floorOf(hexRect(-6, 2, -5, 12), H6),
+    fixed: H6,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => deals(inputs).map(([[a], [b]]) => casino(rankValue(a) + rankValue(b))),
+    ordered: true,
+    tests: dealtTests({
+      deal: (rand, n) => digitDeals(rand, n, 8),
+      fixed: [
+        // the smallest and largest sums, and either side of ten
+        one('AS AS 9S 9S 5S 5S AS 9S 9S 2S 3S 9S 8S AS 2S 8S'),
+        one('4S 7S 6S 5S 7S 7S 2S 9S 9S 3S 8S 3S'),
+        one('3S 4S'),
+      ],
+      nRandom: 4, seed: 184,
+    }),
+  },
+  {
+    id: 'last-in-first-out',
+    card: '5H',
     unlockAfter: 'deja-vu',
     title: 'Last In, First Out',
     story: [
@@ -632,7 +676,7 @@ export const LEVELS = [
   },
   {
     id: 'showdown',
-    card: '5H',
+    card: '6H',
     unlockAfter: 'deja-vu',
     title: 'Showdown',
     story: [
@@ -664,7 +708,7 @@ export const LEVELS = [
   },
   {
     id: 'twice-shy',
-    card: '6H',
+    card: '7H',
     unlockAfter: 'deja-vu',
     title: 'Twice Shy',
     story: [
@@ -716,6 +760,7 @@ const PAR = {
   'one-up': { croupiers: 16, rounds: 4076 },
   'head-count': { croupiers: 19, rounds: 676 },
   'mirror-image': { croupiers: 25, rounds: 383 },
+  'casino-numbers': { croupiers: 27, rounds: 927 },
   'last-in-first-out': { croupiers: 20, rounds: 835 },
   'showdown': { croupiers: 43, rounds: 296 },
   'twice-shy': { croupiers: 36, rounds: 1145 },

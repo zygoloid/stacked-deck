@@ -4,6 +4,64 @@ import { E, SE, SW, W, NW, NE, c, pass, war, twar, shoe } from './shared.js';
 import { RANKS } from '../../src/cards.js';
 
 const SUITED = ['S', 'D', 'C', 'H'];
+
+// Casino Numbers. A shoe's cards are stacked (in chunks of 13, released by
+// a joker, as in the store of Last In, First Out) and split by suit into a
+// table (hearts and clubs) and a ruler (spades).
+//  * The table holds eight cards of each rank r, r - 1 of them hearts. Set on
+//    a player's spade and a copy of the table keeps the nine cards of its
+//    rank, and Suits keeps the spade and the hearts: r cards. The players'
+//    cards are looked up separately (on a pair, Set would keep one group).
+//  * Both counts are stacked on a copy of the ruler, so the ruler sits one
+//    card lower for every unit of the sum, and Deal pays the cards at two
+//    fixed places: card 18, the units card for the sum (ruler[18 - s]), and
+//    card L + 10, which is there only when the sum is 11 or more (one of the
+//    ruler's last eight cards, the tens aces), dealt on top.
+// `units` maps a sum to its units card, `tens` is the smallest sum with two
+// digits. (With an advertising card for zero instead, the machine is the
+// same size, but the zero shares Suits' misc with the store's padding.)
+function casinoDeck({ units, tens, L }) {
+  // The table: for each rank r, eight cards of rank r, r - 1 of them hearts.
+  const table = [];
+  for (let r = 1; r <= 9; r++) for (let i = 0; i < 8; i++) table.push(RANKS[r - 1] + (i < r - 1 ? 'H' : 'C'));
+  // The ruler: the units card of the sum s at 18 - s, then the tens aces.
+  const ruler = Array.from({ length: L }, (_, i) => (i <= 16 ? units(18 - i) : 'AS'));
+  const order = ['?', ...ruler, ...table];
+  while (order.length % 13) order.push('$');
+  // Chunks of 13 are stacked as they come, so the last chunk dealt is on top.
+  const chunks = [];
+  for (let i = 0; i < order.length; i += 13) chunks.push(order.slice(i, i + 13));
+  return { deck: chunks.reverse().flat(), at: [18, L + tens - 1] };
+}
+function casinoSums() {
+  // Casino digits: the units card of the sum s is RANKS[(s - 1) % 10].
+  const k = casinoDeck({ units: (s) => RANKS[(s - 1) % 10] + 'S', tens: 11, L: 25 });
+  const nodes = {
+    SH: shoe([6, -3], k.deck, { once: true }), H13: c([5, -3], 'hand', { n: 13 }),
+    ST: c([4, -3], 'gather'), TW: war([3, -3]), AC: shoe([3, -4], 'AC'),
+    BK: pass([4, -4]), SEED: shoe([5, -5], '$', { once: true }),
+    SP: c([3, -2], 'suits'),
+    DT1: c([3, 0], 'duplicate'), DT2: c([4, 0], 'duplicate'),
+    GA: c([4, -1], 'gather'), SA: c([3, -1], 'set'), UA: c([2, -1], 'suits'),
+    GB: c([3, 1], 'gather'), SB: c([2, 1], 'set'), UB: c([1, 1], 'suits'),
+    G3: c([1, 0], 'gather'), G4: c([0, 0], 'gather'),
+    DR: c([0, -1], 'duplicate'), PR: pass([1, -2]),
+    // Deal: every card but the two paid goes SE, onto the floor.
+    DL: c([-1, 0], 'deal', { out: { to: Array(k.at[1] + 1).fill(SE) } }),
+  };
+  for (const n of [nodes.BK, nodes.PR]) delete n.out.out;
+  const links = [
+    ['SH', null, 'H13'], ['H13', 'out', 'ST'], ['BK', 'out', 'ST', 'under'], ['SEED', null, 'BK'],
+    ['AC', null, 'TW', 'dealer'], ['ST', 'out', 'TW'], ['TW', 'lose', 'BK'], ['TW', 'win', 'SP'],
+    ['SP', ['H', 'C'], 'DT2'], ['DT1', 'a', 'DT2'], ['DT2', 'a', 'DT1'],
+    ['DT1', 'b', 'GA', 'under'], ['DT2', 'b', 'GB', 'under'],
+    ['GA', 'out', 'SA'], ['SA', 'set', 'UA'], ['UA', ['S', 'H'], 'G3'],
+    ['GB', 'out', 'SB'], ['SB', 'set', 'UB'], ['UB', ['S', 'H'], 'G3'],
+    ['SP', 'S', 'PR'], ['DR', 'a', 'PR'], ['PR', 'out', 'DR'], ['DR', 'b', 'G4', 'under'],
+    ['G3', 'out', 'G4'], ['G4', 'out', 'DL'], ['DL', k.at, 'desk'],
+  ];
+  return { nodes, links };
+}
 const at = ([q, r], [dq, dr]) => [q + dq, r + dr];
 
 
@@ -374,5 +432,7 @@ export const SPECS = {
       c([-3, 7], 'deal', { out: { to: Array.from({ length: 16 }, (_, i) => (i % 3 === 1 ? W : SE)) } }),
     ],
   },
+
+  'casino-numbers': casinoSums(),
 
 };
