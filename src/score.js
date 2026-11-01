@@ -61,6 +61,12 @@ export const PORTS = {
   burn: ['burn', 'rest'], hand: ['out'], deal: ['to'], gather: ['out'],
   war: ['win', 'lose', 'dwin', 'dlose'],
 };
+// Ports that must point somewhere (as `required` in src/ui/croupiers.js: the
+// editor gives them a side and has no floor option for them). A shoe's `out`
+// is required too.
+export const REQUIRED = {
+  pass: ['out'], sort: ['out'], outshuffle: ['out'], inshuffle: ['out'], hand: ['out'], gather: ['out'], war: ['dealer'],
+};
 // Parameters of each function besides `out`, with their ranges (as the
 // editor offers them). A croupier's `facing` (where it starts looking for
 // input) is the engine's: the editor never sets it, so a machine from
@@ -86,7 +92,7 @@ function cellError(level, c) {
     if (!level.croupiers.includes('shoe')) return 'no shoes on this floor';
     const k = extra(['at', 'kind', 'out', 'deck', 'once']);
     if (k !== undefined) return `unknown field ${k}`;
-    if (c.out !== undefined && !isSide(c.out)) return 'bad side';
+    if (!isSide(c.out)) return 'bad side';
     if (c.once !== undefined && typeof c.once !== 'boolean') return 'bad once';
     const allowed = specialCardsOf(level);
     if (!Array.isArray(c.deck) || !c.deck.length || c.deck.length > MAX_DECK) return 'bad deck';
@@ -102,6 +108,8 @@ function cellError(level, c) {
     if (c[name] !== undefined && !ok(c[name], level)) return `bad ${name}`;
   }
   if (c.fn === 'war' && c.rule === undefined && !warRules(level).includes('high')) return 'bad rule';
+  const need = REQUIRED[c.fn] ?? [];
+  if (need.some((p) => (p === 'dealer' ? c.dealer : isPlain(c.out) ? c.out[p] : undefined) === undefined)) return 'a required port has no side';
   if (c.out === undefined) return null;
   if (!isPlain(c.out)) return 'bad out';
   const p = Object.keys(c.out).find((x) => !PORTS[c.fn].includes(x));

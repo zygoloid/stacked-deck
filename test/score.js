@@ -3,7 +3,7 @@
 import assert from 'node:assert';
 import { LEVELS, BONUS } from '../src/levels.js';
 import {
-  PORTS, validateCells, canonicalCells, solutionHash, scoreMachine, MAX_DECK, checkDeals, CHECK_DEALS, toSpec,
+  PORTS, REQUIRED, validateCells, canonicalCells, solutionHash, scoreMachine, MAX_DECK, checkDeals, CHECK_DEALS, toSpec,
 } from '../src/score.js';
 import { runTest } from '../src/engine.js';
 import { makeTests } from '../src/levels/shared.js';
@@ -24,6 +24,8 @@ for (const [fn, info] of Object.entries(CROUPIERS)) {
   assert.deepStrictEqual(PORTS[fn], info.deal ? ['to'] : info.ports, fn);
 }
 assert.deepStrictEqual(Object.keys(PORTS).sort(), Object.keys(CROUPIERS).filter((k) => k !== 'shoe').sort());
+assert.deepStrictEqual(REQUIRED, Object.fromEntries(Object.entries(CROUPIERS).filter(([k, c]) => k !== 'shoe' && c.required).map(([k, c]) => [k, c.required])));
+assert.deepStrictEqual(CROUPIERS.shoe.required, ['out']);
 console.log('ports ok');
 
 // Every reference solution is valid, unchanged by validation, and (via JSON,
@@ -69,7 +71,9 @@ console.log(`reference solutions valid and scored as par (${ALL.length})`);
     assert(res.cells, `rejected: ${why}: ${res.error}`);
   };
   accept('kind n', (c) => { c[0] = { at: c[0].at, kind: 'croupier', fn: 'kind', n: 3, out: {} }; });
-  accept('a pass', (c) => { c[0] = { at: c[0].at, kind: 'croupier', fn: 'pass', out: {} }; });
+  accept('a pass', (c) => { c[0] = { at: c[0].at, kind: 'croupier', fn: 'pass', out: { out: 2 } }; });
+  reject('a pass pointing nowhere (the editor always gives it a side)', (c) => { c[0] = { at: c[0].at, kind: 'croupier', fn: 'pass', out: {} }; });
+  reject('a pass with no out', (c) => { c[0] = { at: c[0].at, kind: 'croupier', fn: 'pass' }; });
   accept('deal', (c) => { c.push({ at: free, kind: 'croupier', fn: 'deal', out: { to: [0, 0, 3] } }); });
   reject('not a list', () => ({}));
   reject('unknown field', (c) => { c[0].junk = 1; });
@@ -99,7 +103,7 @@ console.log(`reference solutions valid and scored as par (${ALL.length})`);
   const free = level.floor.find((at) => ![...level.fixed, ...cells].some((c) => c.at[0] === at[0] && c.at[1] === at[1]));
   const ok = (extra) => validateCells(level, [...cells, extra]);
   assert(ok({ at: free, kind: 'shoe', out: 0, deck: ['AS', 'KH'], once: true }).cells);
-  assert(ok({ at: free, kind: 'shoe', deck: ['AS'] }).cells, 'a shoe without a side');
+  assert(ok({ at: free, kind: 'shoe', deck: ['AS'] }).error, 'a shoe without a side');
   assert(ok({ at: free, kind: 'shoe', out: 0, deck: ['AS', '?'] }).error, 'special card not allowed here');
   assert(ok({ at: free, kind: 'shoe', out: 0, deck: ['1S'] }).error, 'not a card');
   assert(ok({ at: free, kind: 'shoe', out: 0, deck: [] }).error, 'empty deck');
@@ -108,6 +112,7 @@ console.log(`reference solutions valid and scored as par (${ALL.length})`);
   const rule = (level.warRules ?? ['high'])[0];
   const other = rule === 'high' ? 'top' : 'high';
   assert(ok({ at: free, kind: 'croupier', fn: 'war', rule, dealer: 4, out: { win: 0 } }).cells);
+  assert(ok({ at: free, kind: 'croupier', fn: 'war', rule, out: { win: 0 } }).error, 'War without a dealer side');
   assert(ok({ at: free, kind: 'croupier', fn: 'war', rule: other, out: {} }).error, 'War rule not allowed here');
   if (rule === 'top') assert(ok({ at: free, kind: 'croupier', fn: 'war', out: {} }).error, 'default rule not allowed here');
 }
