@@ -765,6 +765,10 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   .topbar { flex-wrap: wrap; }
   .brief { flex-basis: 100%; order: 5; }
   .pal-item kbd { display: none; }
+  /* Croupiers are placed by tapping an empty hex (the picker), so no palette. */
+  .side .palette { display: none; }
+  .phone-only { display: block; }
+  .picker-item kbd { display: none; }
   .side { border-left: 0; }
   .story-card { padding: 28px 22px; }
   /* A selected croupier: its panel right under the floor, Done to go back. */
@@ -823,6 +827,52 @@ svg.board.panning { cursor: grabbing; }
 .radial-item:hover, .radial-item.hot { transform: translate(-50%, -50%) scale(1.12); border-color: #fff; }
 .radial-tick { font-size: 11px; }
 svg.board { -webkit-touch-callout: none; }
+
+/* Croupier picker: a grid of the floor's croupiers beside an empty hex. */
+.picker {
+  position: absolute; left: 0; top: 0; z-index: 5; padding: 6px; border-radius: 12px; max-width: calc(100% - 8px);
+  background: rgba(4, 30, 17, 0.96); border: 1px solid var(--gold-soft); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.picker-head { font-size: 11px; color: var(--muted); margin: 0 4px 5px; }
+.picker-grid { display: grid; grid-template-columns: repeat(4, 64px); gap: 3px; }
+.picker-item {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 2px 4px;
+  border-radius: 9px; border: 1px solid transparent; background: rgba(255, 255, 255, 0.04); cursor: pointer;
+}
+.picker-item:hover { background: rgba(212, 175, 55, 0.14); border-color: var(--gold-soft); }
+.picker-item .pal-chip { width: 32px; height: 32px; border-width: 2.5px; }
+.picker-item .pal-chip span { width: 21px; height: 21px; font-size: 6.6px; }
+.picker-name { font-size: 10.5px; font-weight: 600; line-height: 1.1; text-align: center; }
+.picker-item kbd { position: absolute; top: 2px; right: 2px; min-width: 0; padding: 0 2px; border: 0; background: none; font-size: 8.5px; opacity: 0.5; }
+.board .pick-hex { fill: rgba(242, 193, 78, 0.16); stroke: var(--gold-2); stroke-width: 2; stroke-dasharray: 5 3; pointer-events: none; }
+.board .pick-edge { stroke: var(--gold-2); stroke-width: 4; stroke-linecap: round; pointer-events: none; }
+
+/* Groups: the box being drawn, the picked-up croupiers, their toolbar. */
+.marquee {
+  position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none; border-radius: 3px;
+  border: 1.5px dashed #6fb7ff; background: rgba(111, 183, 255, 0.12);
+}
+.marquee.armed { width: 0; height: 0; box-shadow: 0 0 0 6px rgba(111, 183, 255, 0.35); border-radius: 50%; }
+.board .cell.lifted { filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.55)); }
+.board .cell.lifted .hex.table { stroke: #6fb7ff; stroke-width: 2.4; stroke-dasharray: 6 3; }
+.board .cell.lifted.bad .hex.table { fill: rgba(140, 38, 50, 0.85); stroke: var(--bad); }
+.lift-bar {
+  position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 4px;
+  padding: 4px 6px 4px 12px; border-radius: 12px; background: rgba(4, 30, 17, 0.94); border: 1px solid #6fb7ff;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5); white-space: nowrap; max-width: calc(100% - 12px);
+}
+.lift-bar.bad { border-color: var(--bad); }
+.lift-n { font-size: 12.5px; font-weight: 700; margin-right: 4px; overflow: hidden; text-overflow: ellipsis; }
+.lift-bar button {
+  width: 34px; height: 32px; flex: none; border-radius: 8px; border: 1px solid var(--gold-soft); background: rgba(0, 0, 0, 0.3);
+  cursor: pointer; font-size: 16px; line-height: 1; display: grid; place-items: center; padding: 0;
+}
+.lift-bar button:hover:not(:disabled) { border-color: var(--gold); }
+.lift-bar button:disabled { opacity: 0.35; cursor: default; }
+.lift-bar button.ok { background: linear-gradient(180deg, #f6d77a, #d4af37); color: #2a1d02; border-color: #f6e19c; font-weight: 800; }
+.insp-head .turn-btn { padding: 3px 7px; font-size: 15px; line-height: 1; }
+.phone-only { display: none; }
 
 /* Inspector: a croupier kind picked in the palette, before placing it. */
 .port-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }

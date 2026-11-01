@@ -192,3 +192,23 @@ export function arrowsOf(cell) {
   if (!info) return [];
   return info.ports.filter((p) => cell.out?.[p] !== undefined).map((p) => [cell.out[p], p]);
 }
+
+// Turn a cell by k sixths of a turn clockwise (negative: anticlockwise): its
+// output sides, input sides (dealer, under) and facing. Croupiers get an
+// explicit facing, since the default (east) would not turn with them: they
+// look for input clockwise from their facing, so a turned machine behaves
+// exactly as before.
+export function rotateCell(cell, k) {
+  const turn = (s) => (typeof s === 'number' ? (((s + k) % 6) + 6) % 6 : s);
+  if (cell.kind === 'shoe') { cell.out = turn(cell.out); return; }
+  for (const p of Object.keys(cell.out ?? {})) cell.out[p] = p === 'to' ? cell.out.to.map(turn) : turn(cell.out[p]);
+  for (const p of ['dealer', 'under']) if (cell[p] !== undefined) cell[p] = turn(cell[p]);
+  if (cell.kind === 'croupier') cell.facing = turn(cell.facing ?? 0);
+}
+
+// The hex `at` turned by k sixths clockwise about `pivot` (axial coordinates).
+export function rotateAt([q, r], [pq, pr], k) {
+  let x = q - pq, z = r - pr, y = -x - z;
+  for (let i = 0; i < (((k % 6) + 6) % 6); i++) [x, y, z] = [-z, -x, -y];
+  return [pq + x, pr + z];
+}
