@@ -19,6 +19,10 @@ import { Sim, DESK_NAMES } from './sim.js';
 import { scatterPlot, solutionList, scoreText, parMark } from './scatter.js';
 
 const ARROW = ['→', '↘', '↙', '←', '↖', '↗'];
+// The instructions say "click" where there is a mouse, "tap" on a touch-only screen.
+const hasMouse = () => !!window.matchMedia?.('(any-pointer: fine)').matches;
+const tap = () => (hasMouse() ? 'click' : 'tap');
+const Tap = () => (hasMouse() ? 'Click' : 'Tap');
 const SIDE_KEYS = { d: 0, c: 1, z: 2, a: 3, q: 4, e: 5 };
 const SPEEDS = [
   { label: '1×', rate: 2 }, { label: '4×', rate: 8 }, { label: '16×', rate: 30 },
@@ -694,8 +698,8 @@ export function openEditor(root, ctx, level) {
         i < 9 ? h('kbd', {}, String(i + 1)) : null);
       }).filter(Boolean)),
       h('div', { class: 'pal-hint' }, tool
-        ? 'Tap an empty hex to place it; drag to pan. Tap the bare floor or press Esc to cancel.'
-        : 'Tap an empty hex to place one there, or pick one here and tap the floor, or drag it on.'));
+        ? `${Tap()} an empty hex to place it; drag to pan. ${Tap()} the bare floor or press Esc to cancel.`
+        : `${Tap()} an empty hex to place one there, or pick one here and ${tap()} the floor, or drag it on.`));
   }
 
   function sideButtons(current, onPick, { floor = true } = {}) {
@@ -739,7 +743,7 @@ export function openEditor(root, ctx, level) {
       inspector.replaceChildren(
         h('h3', {}, `${lift.copy ? 'A copy of ' : ''}${n} croupier${n === 1 ? '' : 's'}`),
         h('ul', { class: 'howto' },
-          h('li', {}, 'Drag one of them to move them all. Tap a croupier to add it or leave it out.'),
+          h('li', {}, `Drag one of them to move them all. ${Tap()} a croupier to add it or leave it out.`),
           h('li', {}, h('b', {}, '⟲ ⟳'), ' turn, ', h('b', {}, '⇋'), ' mirrors, ', h('b', {}, '⧉'), ' copies, ', h('b', {}, '🗑'), ' deletes.'),
           h('li', {}, h('b', {}, '✓'), ' puts them down, ', h('b', {}, '✕'), ' puts them back.')),
         h('p', { class: 'keys kbd-only' }, h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'), ' move  ',
@@ -774,8 +778,8 @@ export function openEditor(root, ctx, level) {
           }, 'Clear floor')),
         h('p', { class: 'brief-big' }, level.brief ?? ''),
         h('ul', { class: 'howto' },
-          h('li', {}, 'Tap an empty hex to place a croupier there.'),
-          h('li', {}, 'Select a croupier, then tap the edges of its hex to point its ports.'),
+          h('li', {}, `${Tap()} an empty hex to place a croupier there.`),
+          h('li', {}, `Select a croupier, then ${tap()} the edges of its hex to point its ports.`),
           h('li', { class: 'touch-only' }, 'Long-press to pick up croupiers.'),
           h('li', { class: 'kbd-only' }, 'Shift-drag to pick up croupiers.'),
           h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
@@ -792,7 +796,7 @@ export function openEditor(root, ctx, level) {
     const parts = [
       h('div', { class: 'insp-head' },
         h('span', { class: 'pal-chip big', style: { background: info.family } }, h('span', {}, chipLabel(c))),
-        h('div', {}, h('h3', {}, info.name), h('div', { class: 'insp-at' }, template ? 'Tap an empty hex to place' : `hex ${c.at[0]}, ${c.at[1]}`)),
+        h('div', {}, h('h3', {}, info.name), h('div', { class: 'insp-at' }, template ? `${Tap()} an empty hex to place` : `hex ${c.at[0]}, ${c.at[1]}`)),
         template
           ? h('button', { class: 'btn small', title: 'Stop placing (Esc)', onclick: () => setTool(null) }, 'Done')
           : [h('button', { class: 'btn small turn-btn', title: 'Turn anticlockwise, ports and all ([)', 'aria-label': 'Turn anticlockwise', onclick: () => commit(() => rotateCell(c, -1)) }, '⟲'),
@@ -851,7 +855,7 @@ export function openEditor(root, ctx, level) {
           h('div', { class: 'port-list' }, ports.map(portTag)));
       }
     } else if (ports.length) {
-      parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ' tap an edge of the hex; long-press to choose a port')));
+      parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ` ${tap()} an edge of the hex; long-press to choose a port`)));
       for (const p of ports) {
         const st = PORT_STYLE[p];
         if (p === 'to') {
