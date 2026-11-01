@@ -709,6 +709,11 @@ export function openEditor(root, ctx, level) {
       }, '✕') : null);
   }
 
+  // A port's coloured tag (input sides outlined).
+  function portTag(p) {
+    const st = PORT_STYLE[p];
+    return h('span', { class: `port-tag${st.input ? ' input' : ''}`, style: st.input ? { color: st.color, borderColor: st.color } : { background: st.color } }, p === 'to' ? 'deal to' : st.label);
+  }
   // The selected croupier; with none, the palette tool's settings (the cell
   // it will place); with neither, the floor's brief and how to play.
   function renderInspector() {
@@ -739,6 +744,17 @@ export function openEditor(root, ctx, level) {
           h('li', {}, 'Select a croupier, then tap the edges of its hex to point its ports.'),
           h('li', {}, 'Long-press (or Shift-drag) to pick up croupiers.'),
           h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
+        // The floor's croupiers, so what each does can be read before placing one.
+        h('div', { class: 'sub-title' }, 'Croupiers on this floor'),
+        h('div', { class: 'roster' }, level.croupiers.map((name) => {
+          const info = CROUPIERS[name];
+          if (!info) return null;
+          return h('div', { class: 'roster-row', 'data-tool': name },
+            h('span', { class: 'pal-chip', style: { background: info.family } }, h('span', {}, chipLabel(paletteSample(name)))),
+            h('div', {},
+              h('div', { class: 'roster-head' }, h('b', {}, info.name), h('span', { class: 'port-list' }, portsOf(sampleCell(name)).map(portTag))),
+              h('div', { class: 'roster-desc' }, info.desc)));
+        }).filter(Boolean)),
         h('p', { class: 'keys' }, h('kbd', {}, 'Space'), ' play  ', h('kbd', {}, '.'), ' step  ', h('kbd', {}, ','), ' back  ',
           h('kbd', {}, '1'), '–', h('kbd', {}, '9'), ' place at the pointer  ', h('kbd', {}, 'Del'), ' remove  ', h('kbd', {}, '?'), ' help'),
         // On a phone the palette (and its Clear floor) is hidden.
@@ -812,10 +828,7 @@ export function openEditor(root, ctx, level) {
       // Which ports it has; they are pointed once it is placed.
       if (ports.length) {
         parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ' point them once it is placed')),
-          h('div', { class: 'port-list' }, ports.map((p) => {
-            const st = PORT_STYLE[p];
-            return h('span', { class: `port-tag${st.input ? ' input' : ''}`, style: st.input ? { color: st.color, borderColor: st.color } : { background: st.color } }, p === 'to' ? 'deal to' : st.label);
-          })));
+          h('div', { class: 'port-list' }, ports.map(portTag)));
       }
     } else if (ports.length) {
       parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ' tap an edge of the hex; long-press to choose a port')));
