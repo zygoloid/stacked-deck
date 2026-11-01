@@ -1444,7 +1444,7 @@ export function openEditor(root, ctx, level) {
   // can drop the click of the first tap after a long-press drag (the box).
   const barButton = (attrs, label, fn) => {
     const b = h('button', attrs, label);
-    let touched = 0;
+    let touched = -Infinity; // (performance.now() starts at 0 when the page loads)
     b.addEventListener('pointerup', (e) => {
       if (e.pointerType === 'mouse' || b.disabled) return;
       touched = performance.now();
