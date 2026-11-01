@@ -357,7 +357,7 @@ export function helpPanel(close, save) {
       h('div', { class: 'keys-grid' },
         [['Space', 'play / pause'], ['.', 'step'], [',', 'step back'], ['R', 'reset the run'], ['F', 'next speed'],
           ['Click an empty hex', 'pick a croupier to place there'], ['1–9', 'place a croupier at the pointer'], ['Del', 'remove selected'],
-          ['[ ]', 'turn the selected croupier or group'], ['Shift-drag / long-press', 'pick up a group in a box'], ['Enter / Esc', 'put a group down / back'], ['Q E A D Z C', 'point the active port NW NE W E SW SE, then the next'], ['Long-press an edge', 'pick which port points there'],
+          ['[ ] M', 'turn / mirror the selected croupier or group'], ['Shift-drag / long-press', 'pick up a group in a box'], ['Enter / Esc', 'put a group down / back'], ['Q E A D Z C', 'point the active port NW NE W E SW SE, then the next'], ['Long-press an edge', 'pick which port points there'],
           ['X', 'active port to floor'], ['Tab', 'next port'], ['Ctrl+Z', 'undo'], ['Wheel / pinch / drag', 'zoom / pan the floor'], ['+ − 0', 'zoom in, out, fit'], ['Esc', 'cancel / deselect'], ['Right-click', 'remove a croupier']]
           .map(([k, v]) => h('div', {}, h('kbd', {}, k), ' ', v)))));
 }

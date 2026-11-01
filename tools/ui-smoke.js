@@ -625,8 +625,8 @@ try {
     await btn('cw');
     await btn('place');
     const turnedPass = await passCell();
-    check(!(await phone.isVisible('.lift-bar')) && turnedPass.out.out === (before.out.out + 1) % 6 && turnedPass.facing === 1,
-      `phone: ⟳ then ✓ turns it, ports and facing too (out ${before.out.out} -> ${turnedPass.out.out}, facing ${turnedPass.facing})`);
+    check(!(await phone.isVisible('.lift-bar')) && turnedPass.out.out === (before.out.out + 1) % 6 && turnedPass.facing === undefined,
+      `phone: ⟳ then ✓ turns it, ports and all, facing left alone (out ${before.out.out} -> ${turnedPass.out.out}, facing ${turnedPass.facing})`);
     await tap(await (async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; })());
     check(JSON.stringify(await passCell()) === JSON.stringify(before), 'phone: one undo puts the group back as it was');
     // A Deal croupier with more positions on a side than fit: cut short, shown in full on a tap.
@@ -725,11 +725,11 @@ try {
   // Placing from the floor with a mouse and keys: a click on an empty hex
   // opens the picker (a number key or a click picks); pointing at an empty
   // hex near an edge and pressing a number places that croupier pointing
-  // there. Then groups: a Shift-drag box picks them up; ] turns them (ports
-  // and facing too: turning a machine doesn't change what it does, see
-  // test/rotate.js); direction keys move them; they can't go down where they
-  // clash; copy, delete, a mouse drag; each put-down is one undo step. [ ]
-  // turn a single selected croupier.
+  // there. Then groups: a Shift-drag box picks them up; ] turns them and M
+  // mirrors them (positions and ports; facing is left alone, see
+  // test/transform.js); direction keys move them; they can't go down where
+  // they clash; copy, delete, a mouse drag; each put-down is one undo step.
+  // [ ] and M turn and mirror a single selected croupier.
   {
     // The first floor with these croupiers and room for the checks below.
     const key = ([q, r]) => `${q},${r}`;
@@ -798,10 +798,20 @@ try {
     const off = (list, f1, f2) => { const p = findFn(list, f1).at, q = findFn(list, f2).at; return [q[0] - p[0], q[1] - p[1]]; };
     check(off(cs, 'straight', 'war').join() === turnedBy(off(orig, 'straight', 'war')).join() &&
       findFn(cs, 'pass').out.out === 1 && findFn(cs, 'war').out.win === 3 && findFn(cs, 'war').dealer === (findFn(orig, 'war').dealer + 1) % 6 &&
-      findFn(cs, 'war').facing === 1 && !(await page.isVisible('.lift-bar')),
-    `] then Enter turns the group a sixth clockwise, positions, ports and facing (${JSON.stringify(cs.map((c) => [c.fn, c.at, c.out]))})`);
+      findFn(cs, 'war').facing === undefined && !(await page.isVisible('.lift-bar')),
+    `] then Enter turns the group a sixth clockwise, positions and ports (${JSON.stringify(cs.map((c) => [c.fn, c.at, c.out]))})`);
     await page.keyboard.press('Control+z');
     check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'one undo puts the whole turn back');
+    // M mirrors the group left to right: E and W swap, SE and SW, NE and NW.
+    await shiftBox();
+    await page.keyboard.press('m');
+    await page.keyboard.press('Enter');
+    cs = await cellsNow();
+    const mirrored = (v) => [-v[0] - v[1], v[1]];
+    check(off(cs, 'straight', 'war').join() === mirrored(off(orig, 'straight', 'war')).join() &&
+      findFn(cs, 'pass').out.out === 3 && findFn(cs, 'war').out.win === 1 && findFn(cs, 'war').dealer === (9 - findFn(orig, 'war').dealer) % 6,
+    `M then Enter mirrors the group, positions and ports (${JSON.stringify(cs.map((c) => [c.fn, c.at, c.out]))})`);
+    await page.keyboard.press('Control+z');
     // Moved onto the player (west, a hex at a time): it shows red and won't go down there.
     await shiftBox();
     let steps = 0;
@@ -844,7 +854,10 @@ try {
     await clickHex(row[2]);
     await page.keyboard.press(']');
     const war1 = (await cellsNow()).find(at(row[2]));
-    check(war1.out.win === (war0.out.win + 1) % 6 && war1.dealer === (war0.dealer + 1) % 6 && war1.facing === 1, `] turns a selected croupier (${JSON.stringify(war1)})`);
+    check(war1.out.win === (war0.out.win + 1) % 6 && war1.dealer === (war0.dealer + 1) % 6 && war1.facing === undefined, `] turns a selected croupier (${JSON.stringify(war1)})`);
+    await page.click('.inspector [aria-label="Mirror"]');
+    const war2 = (await cellsNow()).find(at(row[2]));
+    check(war2.out.win === (9 - war1.out.win) % 6 && war2.dealer === (9 - war1.dealer) % 6, `⇋ mirrors a selected croupier (${JSON.stringify(war2)})`);
     await page.keyboard.press('Escape');
   }
 

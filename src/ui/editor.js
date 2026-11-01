@@ -6,7 +6,7 @@ import { h, s, handEl, cardEl, parseCards, fmtCards } from './dom.js';
 import { Board, R, center, axialRound } from './board.js';
 import {
   CROUPIERS, PORT_STYLE, SIDE_NAMES, infoFor, newCell, portsOf, getPort, setPort, isRequired, chipLabel, sampleCell,
-  rotateCell, rotateAt,
+  rotateCell, rotateAt, mirrorCell, mirrorAt,
 } from './croupiers.js';
 import { floorBadge } from './floors.js';
 import {
@@ -718,11 +718,12 @@ export function openEditor(root, ctx, level) {
         h('h3', {}, `${lift.copy ? 'A copy of ' : ''}${n} croupier${n === 1 ? '' : 's'}`),
         h('ul', { class: 'howto' },
           h('li', {}, 'Drag one of them to move them all.'),
-          h('li', {}, h('b', {}, '⟲ ⟳'), ' turn them, ports and all; ', h('b', {}, '⧉'), ' copies them; ', h('b', {}, '🗑'), ' deletes them.'),
+          h('li', {}, h('b', {}, '⟲ ⟳'), ' turn them and ', h('b', {}, '⇋'), ' mirrors them, ports and all (each croupier still starts looking for cards to its east, so they may behave differently); ',
+            h('b', {}, '⧉'), ' copies them; ', h('b', {}, '🗑'), ' deletes them.'),
           h('li', {}, 'Tap another croupier to add it, or one of them to leave it out.'),
           h('li', {}, h('b', {}, '✓'), ' or a tap on the floor puts them down (not where they show red); ', h('b', {}, '✕'), ' puts them back.')),
         h('p', { class: 'keys' }, h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'), ' move  ',
-          h('kbd', {}, '['), h('kbd', {}, ']'), ' turn  ', h('kbd', {}, 'Enter'), ' put down  ', h('kbd', {}, 'Esc'), ' put back  ', h('kbd', {}, 'Del'), ' delete'));
+          h('kbd', {}, '['), h('kbd', {}, ']'), ' turn  ', h('kbd', {}, 'M'), ' mirror  ', h('kbd', {}, 'Enter'), ' put down  ', h('kbd', {}, 'Esc'), ' put back  ', h('kbd', {}, 'Del'), ' delete'));
       return;
     }
     let c = selCell();
@@ -735,7 +736,7 @@ export function openEditor(root, ctx, level) {
         h('ul', { class: 'howto' },
           h('li', {}, 'Tap an empty hex to place a croupier there; tap near an edge to point its first port that way.'),
           h('li', {}, 'Select one, then tap an edge of its hex to point the highlighted port there (long-press an edge to choose the port). Ports left on ', h('b', {}, '✕ floor'), ' drop their cards.'),
-          h('li', {}, 'To move or turn a group, long-press the bare floor (or Shift-drag) and drag a box around it.'),
+          h('li', {}, 'To move, turn or mirror a group, long-press the bare floor (or Shift-drag) and drag a box around it.'),
           h('li', {}, 'Winning hands must reach the chip desk; everything else must be dropped.'),
           h('li', {}, 'Press play to watch a test. When it passes, every other test is checked; pass them all to clear the floor.')),
         h('p', { class: 'keys' }, h('kbd', {}, 'Space'), ' play  ', h('kbd', {}, '.'), ' step  ', h('kbd', {}, ','), ' back  ',
@@ -760,6 +761,7 @@ export function openEditor(root, ctx, level) {
           ? h('button', { class: 'btn small', title: 'Stop placing (Esc)', onclick: () => setTool(null) }, 'Done')
           : [h('button', { class: 'btn small turn-btn', title: 'Turn anticlockwise, ports and all ([)', 'aria-label': 'Turn anticlockwise', onclick: () => commit(() => rotateCell(c, -1)) }, '⟲'),
             h('button', { class: 'btn small turn-btn', title: 'Turn clockwise, ports and all (])', 'aria-label': 'Turn clockwise', onclick: () => commit(() => rotateCell(c, 1)) }, '⟳'),
+            h('button', { class: 'btn small turn-btn', title: 'Mirror left to right, ports and all (M)', 'aria-label': 'Mirror', onclick: () => commit(() => mirrorCell(c)) }, '⇋'),
             h('button', { class: 'btn small danger', title: 'Remove (Delete)', onclick: () => remove(key) }, 'Remove'),
             h('button', { class: 'btn small done-btn', title: 'Deselect (Esc)', onclick: dropSelection }, 'Done')]),
       h('p', { class: 'insp-desc' }, info.desc),
@@ -1416,13 +1418,16 @@ export function openEditor(root, ctx, level) {
   }
   const shiftLift = (dq, dr) => { for (const { cell } of lift.items) cell.at = [cell.at[0] + dq, cell.at[1] + dr]; };
   function moveLift(dq, dr) { shiftLift(dq, dr); renderAll(); }
-  // Turn the group about the hex nearest its middle: positions and every side.
-  function turnLift(k) {
+  // Turn or mirror the group about the hex nearest its middle: positions and
+  // every side (not facing: see croupiers.js).
+  function transformLift(moveAt, change) {
     const n = lift.items.length;
     const pivot = axialRound(lift.items.reduce((a, i) => a + i.cell.at[0], 0) / n, lift.items.reduce((a, i) => a + i.cell.at[1], 0) / n);
-    for (const { cell } of lift.items) { cell.at = rotateAt(cell.at, pivot, k); rotateCell(cell, k); }
+    for (const { cell } of lift.items) { cell.at = moveAt(cell.at, pivot); change(cell); }
     renderAll();
   }
+  const turnLift = (k) => transformLift((at, p) => rotateAt(at, p, k), (c) => rotateCell(c, k));
+  const mirrorLift = () => transformLift(mirrorAt, mirrorCell);
   // A copy floats off the originals, nudged to the nearest place it fits.
   function copyLift() {
     lift.copy = true;
@@ -1455,6 +1460,7 @@ export function openEditor(root, ctx, level) {
     h('span', { class: 'lift-n' }),
     barButton({ title: 'Turn anticlockwise ([)', 'data-act': 'ccw' }, '⟲', () => turnLift(-1)),
     barButton({ title: 'Turn clockwise (])', 'data-act': 'cw' }, '⟳', () => turnLift(1)),
+    barButton({ title: 'Mirror left to right (M)', 'data-act': 'mirror' }, '⇋', () => mirrorLift()),
     barButton({ title: 'Copy them', 'data-act': 'copy' }, '⧉', () => copyLift()),
     barButton({ title: 'Delete them (Delete)', 'data-act': 'delete' }, '🗑', () => deleteLift()),
     barButton({ title: 'Put them back (Esc)', 'data-act': 'cancel' }, '✕', () => endLift()),
@@ -1538,6 +1544,7 @@ export function openEditor(root, ctx, level) {
       else if (k === 'Enter') placeLift();
       else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); deleteLift(); }
       else if (k === '[' || k === ']') turnLift(k === ']' ? 1 : -1);
+      else if (lower === 'm') mirrorLift();
       else if (lower in SIDE_KEYS) moveLift(...DIRS[SIDE_KEYS[lower]]);
       return;
     }
@@ -1559,8 +1566,9 @@ export function openEditor(root, ctx, level) {
     }
     const c = selCell();
     if (!c) return;
-    // [ ] turn the selected croupier (all its sides) a sixth of a turn.
+    // [ ] turn the selected croupier (all its sides) a sixth of a turn; M mirrors it.
     if (k === '[' || k === ']') { commit(() => rotateCell(c, k === ']' ? 1 : -1)); return; }
+    if (lower === 'm') { commit(() => mirrorCell(c)); return; }
     if (k === 'Tab') {
       e.preventDefault();
       const ports = portsOf(c);
