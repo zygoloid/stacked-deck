@@ -32,7 +32,7 @@ function edge(d, r = R, shrink = 1) {
   return [[k * Math.cos(a1), k * Math.sin(a1)], [k * Math.cos(a2), k * Math.sin(a2)]];
 }
 
-function axialRound(fq, fr) {
+export function axialRound(fq, fr) {
   let q = Math.round(fq), r = Math.round(fr);
   const sx = Math.round(-fq - fr);
   const dq = Math.abs(q - fq), dr = Math.abs(r - fr), ds = Math.abs(sx - (-fq - fr));
@@ -229,7 +229,10 @@ export class Board {
       const [x, y] = center(cell.at);
       const t = `translate(${x.toFixed(2)},${y.toFixed(2)})`;
       const selected = state.selected === k;
-      gBody.append(this.bodySvg(cell, t, selected, state.alert === k, live));
+      const body = this.bodySvg(cell, t, selected, state.alert === k, live);
+      // A picked-up group floats over the floor, red where it can't go.
+      if (state.lifted?.cells.has(cell)) body.classList.add('lifted', ...(state.lifted.bad.has(k) ? ['bad'] : []));
+      gBody.append(body);
       gArrow.append(this.arrowsSvg(cell, t, selected ? state.activePort : null));
       if (liveCells) {
         const lc = liveCells.get(k);
@@ -241,6 +244,16 @@ export class Board {
       for (const p of this.pool) gCards.append(cardSvg(p.c, p.x, p.house, p.y, 1 - ease(this.anim.t)));
     }
 
+    // The empty hex the croupier picker is open for, and the edge its first port will point at.
+    if (state.pick) {
+      const [x, y] = center(state.pick.at);
+      const g = s('g', { class: 'pick', transform: `translate(${x},${y})` }, s('polygon', { class: 'hex pick-hex', points: HEX_IN }));
+      if (state.pick.side !== undefined) {
+        const [[x1, y1], [x2, y2]] = edge(state.pick.side, R - 5, 0.7);
+        g.append(s('line', { class: 'pick-edge', x1, y1, x2, y2 }));
+      }
+      gOver.append(g);
+    }
     // Selection overlay and edge hints.
     if (state.selected) {
       const cell = cells.find((c) => hexKey(c.at) === state.selected);
