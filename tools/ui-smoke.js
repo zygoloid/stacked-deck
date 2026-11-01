@@ -511,6 +511,23 @@ try {
     await phone.locator('svg.board').scrollIntoViewIfNeeded();
     const free = LEVELS[0].floor.filter((at) => !LEVELS[0].fixed.some((c) => c.at.join() === at.join()));
     check(!(await phone.isVisible('.palette')), 'phone: no palette');
+    // The floor panel: Clear floor at its top; its list of the floor's
+    // croupiers unfolded at first (folding it is remembered); touch hints,
+    // no keyboard ones.
+    {
+      const y = async (sel) => (await phone.locator(sel).boundingBox()).y;
+      check(await phone.locator('.roster-box[open]').count() === 1 && await phone.isVisible('.roster-row[data-tool="pass"] .roster-desc') &&
+        await y('.inspector .floor-head .btn.danger') < await y('.inspector .howto'), 'phone: the floor panel starts with Clear floor, and lists the floor\'s croupiers unfolded');
+      check(!(await phone.isVisible('.inspector .keys')) && await phone.isVisible('.inspector .howto .touch-only') && !(await phone.isVisible('.inspector .howto .kbd-only')),
+        'phone: touch hints, no keyboard shortcuts');
+      await phone.tap('.roster-box > summary');
+      await phone.reload();
+      await phone.waitForSelector('svg.board');
+      const folded = await phone.locator('.roster-box[open]').count() === 0;
+      await phone.tap('.roster-box > summary');
+      check(folded && await phone.locator('.roster-box[open]').count() === 1, 'phone: folding the list is remembered');
+      await phone.locator('svg.board').scrollIntoViewIfNeeded();
+    }
     const v0 = await viewBox();
     const [a, b] = [await hexAt(free[0]), await hexAt(free[1])];
     await touch('touchStart', [a]);
@@ -523,6 +540,17 @@ try {
     check(await phone.isVisible('.picker') && await phone.locator('.picker-item').count() === LEVELS[0].croupiers.length,
       'a tap on an empty hex opens the croupier picker');
     if (shots) await phone.screenshot({ path: join(shots, '7a-phone-picker.png') });
+    // A long press on a croupier in it shows what it does, without placing it.
+    {
+      const r = await phone.locator('.picker-item[data-tool="pass"]').boundingBox();
+      await touch('touchStart', [[r.x + r.width / 2, r.y + r.height / 2]]);
+      await phone.waitForTimeout(500);
+      const info = await phone.textContent('.peek.type-info').catch(() => '');
+      await touch('touchEnd', []);
+      await phone.waitForTimeout(100);
+      check(/Pass/.test(info) && /Passes the hand on/.test(info) && !(await phone.isVisible('.peek.type-info')) && await placed() === 0 && await phone.isVisible('.picker'),
+        `phone: a long press on a croupier in the picker shows what it does, and letting go places nothing ("${info}")`);
+    }
     // It closes on a tap on its blank parts, or anywhere off the board.
     const tapOn = async (sel) => { const r = await phone.locator(sel).boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
     await tapOn('.picker-head');
@@ -666,8 +694,8 @@ try {
     await btnX();
     await tap(await (async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; })());
     // With nothing selected, the floor's panel has Clear floor (no palette on a phone).
-    check(await phone.locator('.cell.selected').count() === 0 && await phone.isVisible('.inspector .phone-only .btn.danger') &&
-      (await phone.textContent('.inspector .phone-only .btn.danger')) === 'Clear floor', 'phone: the floor panel offers Clear floor');
+    check(await phone.locator('.cell.selected').count() === 0 && await phone.isVisible('.inspector .floor-head .btn.danger') &&
+      (await phone.textContent('.inspector .floor-head .btn.danger')) === 'Clear floor', 'phone: the floor panel offers Clear floor');
     // Play mode: a tap on a cut-short stack shows it all (before anything
     // else); a croupier can be selected without leaving play mode, until it
     // is edited.
@@ -852,8 +880,13 @@ try {
     const at = (c) => (x) => x.at.join() === c.join();
     // Three free hexes in a row (west to east) whose neighbours are free too (room to turn and move).
     const row = freeRow(lv);
+    check(await page.locator('.roster-box').count() === 1 && await page.locator('.roster-box[open]').count() === 0 &&
+      await page.isVisible('.inspector .keys') && !(await page.isVisible('.inspector .howto .touch-only')),
+      'desktop: the floor panel\'s croupier list starts folded; keyboard shortcuts, no touch hints');
     await clickHex(row[0]);
     check(await page.isVisible('.picker') && await page.locator('.picker-item').count() === lv.croupiers.length, 'a click on an empty hex opens the croupier picker');
+    await page.hover('.picker-item[data-tool="straight"]');
+    check(/Is the hand a straight\?/.test(await page.textContent('.peek.type-info').catch(() => '')), 'with a mouse over a croupier in the picker, what it does shows');
     if (shots) await page.screenshot({ path: join(shots, '13-picker.png') });
     await page.keyboard.press(digit('straight'));
     let cs = await cellsNow();
