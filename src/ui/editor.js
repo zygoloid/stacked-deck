@@ -1531,10 +1531,18 @@ export function openEditor(root, ctx, level) {
   }
   const turnLift = (k) => transformLift((at, p) => rotateAt(at, p, k), (c) => rotateCell(c, k));
   const mirrorLift = () => transformLift(mirrorAt, mirrorCell);
-  // A copy floats off the originals, nudged to the nearest place it fits.
+  // Copy: put the group down where it is (as ✓ does, so only where it
+  // fits), and float a copy of it, nudged to the nearest place it fits; again
+  // and again, to stamp out more.
   function copyLift() {
-    lift.copy = true;
-    lift.items = lift.items.map((i) => ({ key: i.key, cell: structuredClone(i.cell) }));
+    if (!lift || liftClashes().size) return;
+    const keep = staying(), placed = lift.items.map((i) => i.cell);
+    const copies = placed.map((c) => structuredClone(c));
+    const next = [...keep, ...placed];
+    const same = (a, b) => JSON.stringify(a.map((c) => JSON.stringify(c)).sort()) === JSON.stringify(b.map((c) => JSON.stringify(c)).sort());
+    lift = null;
+    if (!same(next, cells)) commit(() => { cells = next; }); // (not moved: nothing to undo)
+    lift = { copy: true, items: copies.map((c) => ({ key: hexKey(c.at), cell: c })) };
     if (liftClashes().size) {
       nudge: for (let dist = 1; dist <= 6; dist++) {
         for (const [dq, dr] of DIRS) {
@@ -1564,7 +1572,7 @@ export function openEditor(root, ctx, level) {
     barButton({ title: 'Turn anticlockwise ([)', 'data-act': 'ccw' }, '⟲', () => turnLift(-1)),
     barButton({ title: 'Turn clockwise (])', 'data-act': 'cw' }, '⟳', () => turnLift(1)),
     barButton({ title: 'Mirror left to right (M)', 'data-act': 'mirror' }, '⇋', () => mirrorLift()),
-    barButton({ title: 'Copy them', 'data-act': 'copy' }, '⧉', () => copyLift()),
+    barButton({ title: 'Put them down here, and copy them', 'data-act': 'copy' }, '⧉', () => copyLift()),
     barButton({ title: 'Delete them (Delete)', 'data-act': 'delete' }, '🗑', () => deleteLift()),
     barButton({ title: 'Put them back (Esc)', 'data-act': 'cancel' }, '✕', () => endLift()),
     barButton({ class: 'ok', title: 'Put them down here (Enter)', 'data-act': 'place' }, '✓', () => placeLift()));
@@ -1574,7 +1582,7 @@ export function openEditor(root, ctx, level) {
     const bad = liftClashes().size > 0;
     liftBar.querySelector('.lift-n').textContent = `${lift.copy ? 'Copy of ' : ''}${lift.items.length} croupier${lift.items.length === 1 ? '' : 's'}`;
     liftBar.querySelector('[data-act="place"]').disabled = bad;
-    liftBar.querySelector('[data-act="copy"]').disabled = lift.copy;
+    liftBar.querySelector('[data-act="copy"]').disabled = bad;
     liftBar.classList.toggle('bad', bad);
   }
   // The box being drawn, in client coordinates.
