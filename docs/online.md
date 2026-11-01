@@ -83,6 +83,7 @@ place before launch.
 /solutions/$uid/$level/$hash  {cells, at, rules, score?}  or tombstone {invalid, rules, at}
 /scores/v$N/$uid/$level       {"<croupiers>_<rounds>": true, ...}
 /stats/v$N/$level             {points: {"<croupiers>_<rounds>": count, ...}, players}
+/best/v$N/$level              {croupiers, rounds}
 /saves/$uid/$level            {work: {cells, at}, solved, deleted: {$hash: true}}
 /profiles/$uid                {name}
 /friends/$uid/$other          true
@@ -97,6 +98,7 @@ place before launch.
 | `solutions` | the player, once per machine; functions add `score` or replace it with a tombstone | the player |
 | `scores` | functions | the player and anyone they list as a friend |
 | `stats` | functions | any player signed in with Google |
+| `best` | functions (and the deploy workflow's repair) | any player signed in with Google |
 | `saves` | the player | the player |
 | `profiles` | the player | the player and their friends |
 
@@ -137,6 +139,11 @@ verified solutions. Deleting a solution from the local list (and
 contains it; `players` counts players with a non-empty frontier on that floor.
 The overall frontier is computed in the browser from the points with a count.
 
+`best/v$N/$level` is the floor's **best known score**: the lowest croupiers
+and the lowest rounds (each on its own) among the points in its stats, so the
+floors list can read two numbers a floor instead of every floor's stats. It
+is absent while nobody has a point there.
+
 ## Rules versions
 
 Scores depend on the engine, so everything derived from them is keyed by the
@@ -152,14 +159,15 @@ Deploying a new rules version (say 8 to 9):
    submissions tagged 9, so no new solution is ever tagged 8. A client that
    read the old value gets "permission denied", re-reads it and retries.
 3. **Run `rescore.js`.** It re-scores every solution tagged below 9 under the
-   v9 engine, retags it 9, and adds its point to `scores/v9` and `stats/v9`. It
+   v9 engine, retags it 9, and adds its point to `scores/v9`, `stats/v9` and
+   `best/v9`. It
    then sweeps any solution tagged 9 that is still unscored. It uses the same
    add-a-point operation as the trigger (below), which is commutative and
    idempotent, so it can run while live submissions are being scored.
-4. **Deploy the site.** v9 clients read `stats/v9`. Clients still running
-   cached v8 code read `stats/v8`, frozen but consistent with their engine,
-   until they reload.
-5. Delete `scores/v8` and `stats/v8` at the next version bump.
+4. **Deploy the site.** v9 clients read `stats/v9` and `best/v9`. Clients
+   still running cached v8 code read `stats/v8` and `best/v8`, frozen but
+   consistent with their engine, until they reload.
+5. Delete `scores/v8`, `stats/v8` and `best/v8` at the next version bump.
 
 Deploys that don't change `RULES_VERSION` skip steps 2, 3 and 5. Those are done by the
 deploy workflow on every push to `main` ("Deploying (GitHub Actions)" below).
@@ -249,7 +257,14 @@ the work is `processSolution` and `addPoint` in `functions/solutions.js`).
    against a missing cached value). If the frontier changed, apply it to
    `/stats/v{N}/{level}` in one `update()` with `ServerValue.increment(±1)` on
    each added or removed point, and on `players` if the frontier was empty.
-   No transaction ever covers a shared node.
+   Then **lower the floor's record** (`lowerRecord`): read
+   `/best/v{N}/{level}`, and only if the new point is lower on either count,
+   a transaction that keeps the lower of the two on each count. The points
+   the new one replaced were the player's own and it beats them, so the
+   record can only fall. That transaction is the one exception to "no
+   transaction on a shared node": it runs only when a record falls, and
+   taking minimums is commutative and idempotent, so lowerings never undo
+   each other. Everything else on shared nodes is increments.
 6. Write `score` last, in a transaction that writes only if the solution still
    exists (tombstones too): if the player deleted their data meanwhile,
    nothing is written back and the point is taken out again (`removePoint`).
@@ -283,7 +298,8 @@ with a code the client shows):
 * **`deleteMyData()`** (built; `functions/account.js`): for a caller signed
   in with Google, deletes their `solutions` first (so nothing new is scored),
   then for every rules version their frontiers and their points in each
-  floor's `stats` (`removeFrontier`), then their `saves`, `profile`, `limits`,
+  floor's `stats` (`removeFrontier`, which also recomputes a floor's `best`
+  if one of their points held it), then their `saves`, `profile`, `limits`,
   invite and both directions of every friendship. Safe to repeat. The client
   then deletes the sign-in account itself (`deleteUser`), so the functions
   never need rights over the project's users; if Google wants a recent
@@ -302,7 +318,8 @@ above, it can:
 
 * **remove a banned account's results** (the inverse of adding a point for
   each, then delete its data, as `deleteMyData`);
-* **rebuild** `scores/v$N` and `stats/v$N` from `solutions` to repair drift:
+* **rebuild** `scores/v$N`, `stats/v$N` and `best/v$N` from `solutions` to
+  repair drift:
   set `/config/scoringPaused`, recompute everything, write it, clear the flag,
   then sweep unscored solutions.
 
@@ -549,13 +566,29 @@ shows the floor's plot beside it, with everyone's scores and friends'
 frontiers. `standing()` in `src/online.js` does the comparison.
 
 The data comes from `overview()` in `src/ui/cloud.js`: one read of the whole
-`/stats/v{RULES_VERSION}` (the rules already allow it) and one of each
-friend's `/scores/v{RULES_VERSION}/$friend`, when the floors list is shown, at
-most every five minutes. They fill the same caches as the per-floor reads
-above, so opening a floor's plot soon afterwards reads nothing. Stats hold
-only the points on players' frontiers, so the whole node stays small (a few
-bytes per distinct point). The cards keep showing what was last read while a
-floor is due to be read again, as after one of the player's uploads.
+`/best/v{RULES_VERSION}` (about 3 KB for every floor, however many players
+there are) and one of each friend's `/scores/v{RULES_VERSION}/$friend`, when
+the floors list is shown, at most every five minutes. The friends' frontiers
+fill the same cache as the per-floor reads above. A floor's full stats (which
+grow with the number of players) are read only when its chart is shown,
+through the same per-floor read and cache as the editor's plot; the record
+used is then the lower of `best` and those stats, whichever is newer. The
+cards keep showing what was last read while a floor is due to be read again,
+as after one of the player's uploads.
+
+**Keeping `best` right.** The functions lower a record when a new point beats
+it (`lowerRecord`, step 5 of `scoreSolution`). Removing points
+(`removeFrontier` for `deleteMyData`, `removePoint`) recomputes the floor's
+record from its stats if a removed point held it on either count
+(`recomputeRecord`); it reads the stats again after writing and writes again
+if they changed meanwhile, so a removal alongside another removal or a new
+point still ends at what the stats show. The deploy workflow then fills in
+and repairs `best` at every deploy (`tools/repair-best.js`; `bestRepairs()` in
+`src/online.js`): it reads `stats/v$N` and `best/v$N` with the Firebase CLI
+and writes the floors whose record is missing or higher than their stats
+show. It only ever lowers a record, so it is safe while solutions are being
+scored. Its first run fills in `best/v9` for the scores from before `best`
+existed.
 
 Names are only ever rendered as text (children or `textContent`, never the
 `html:` attribute of `dom.js` or a link `href`), with bidi and zero-width
@@ -622,7 +655,9 @@ deployed by hand except a rules version change (below) and the kill switch
   rules version change: it stops, deploying nothing), then deploys the
   functions, then the database rules: in that order, so the functions know
   every floor and feature the new rules accept. Unchanged functions are
-  skipped by the Firebase CLI.
+  skipped by the Firebase CLI. Last, it fills in and repairs each floor's
+  best known score (`tools/repair-best.js`, above); a dry run only reports
+  what it would write.
 * **pages**, after that: builds `_site/` (`index.html`, `privacy.html`,
   `style.css`, `src/`; `tools/build-site.js` checks every import stays
   inside it) and publishes it. The site goes live last, after the server

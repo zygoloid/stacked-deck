@@ -67,20 +67,54 @@ const minOf = (points, k) => {
   return vs.length ? Math.min(...vs) : null;
 };
 
+// The best known score on each count over a floor's stats node: { croupiers,
+// rounds } (each the lowest on its own), or null if nobody has a point there.
+export function recordOf(statsNode) {
+  const { points } = readStats(statsNode);
+  return points.length ? Object.fromEntries(AXES.map((k) => [k, minOf(points, k)])) : null;
+}
+
+// A floor's record as stored in best/v{N}/{level} ({ croupiers, rounds },
+// written by the functions), or null if there is none or it is malformed.
+export function readRecord(node) {
+  const ok = (v) => Number.isInteger(v) && v >= 0;
+  return ok(node?.croupiers) && ok(node?.rounds) ? { croupiers: node.croupiers, rounds: node.rounds } : null;
+}
+
+// What to write to best/v{N} so that each floor's record is no higher than
+// its stats show, on either count: { [level]: { croupiers, rounds } } for the
+// floors that are missing or too high (the lower of the two on each count).
+// It only ever lowers a record, so it can be written while solutions are
+// being scored (tools/repair-best.js, at each deploy). `stats` and `best` are
+// the whole stats/v{N} and best/v{N} nodes.
+export function bestRepairs(stats, best) {
+  const out = {};
+  for (const [level, node] of Object.entries(stats ?? {})) {
+    const fromStats = recordOf(node);
+    if (!fromStats) continue;
+    const have = readRecord(best?.[level]);
+    const want = have ? Object.fromEntries(AXES.map((k) => [k, Math.min(have[k], fromStats[k])])) : fromStats;
+    if (!have || AXES.some((k) => want[k] !== have[k])) out[level] = want;
+  }
+  return out;
+}
+
 // How the player's best on a floor (`best`: the fewest croupiers and the
 // fewest rounds, each on its own; null if unsolved) compares, axis by axis:
 //   record:   the best known score on each axis (everyone's, friends', par and
 //             the player's own), or null when everyone's scores aren't known
-//             (`stats` null: signed out, or not read yet)
+//             (`everyone` null: signed out, or not read yet)
 //   top:      the player's best equals the record
 //   beatenBy: [{ name, croupiers, rounds }]: friends who beat the player's
 //             best on some axis, with their best on each axis they beat it on
 //             (else null); for an unsolved floor, every friend who solved it
-export function standing({ best = null, par = null, stats = null, friends = [] }) {
+// `everyone` is the floor's record from best/v{N} ({} when nobody has a
+// verified score there yet).
+export function standing({ best = null, par = null, everyone = null, friends = [] }) {
   const out = { record: null, top: {}, beatenBy: [] };
   const friendPoints = (friends ?? []).flatMap((f) => f.points ?? []);
-  if (stats) {
-    out.record = Object.fromEntries(AXES.map((k) => [k, minOf([...stats.points, ...friendPoints, par, best], k)]));
+  if (everyone) {
+    out.record = Object.fromEntries(AXES.map((k) => [k, minOf([everyone, ...friendPoints, par, best], k)]));
   }
   for (const k of AXES) out.top[k] = !!out.record && Number.isFinite(best?.[k]) && best[k] === out.record[k];
   for (const f of friends ?? []) {

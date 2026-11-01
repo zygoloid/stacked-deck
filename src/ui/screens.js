@@ -26,11 +26,11 @@ export function levelSelect(root, ctx) {
 
   // Everyone's and friends' scores on a floor, as last read (signed in only),
   // and how the player's best compares with them and with par.
-  const scoresOf = (lv) => (signedIn ? cloud.floorScores(lv.id) : { stats: null, friends: [] });
+  const scoresOf = (lv) => (signedIn ? cloud.floorScores(lv.id) : { everyone: null, stats: null, friends: [] });
   const bestOf = (lv) => (save.levels[lv.id]?.solved ? save.levels[lv.id].best ?? null : null);
   const standingOf = (lv) => {
     const sc = scoresOf(lv);
-    return standing({ best: bestOf(lv), par: lv.par, stats: sc.stats, friends: sc.friends });
+    return standing({ best: bestOf(lv), par: lv.par, everyone: sc.everyone, friends: sc.friends });
   };
 
   const page = h('div', { class: 'select' });
@@ -140,7 +140,9 @@ export function levelSelect(root, ctx) {
     }
     // The score chart, once there are scores: on hovering the card, on
     // keyboard focus, or from the chart button (for touch).
-    if (!(st.solutions ?? []).some((p) => !p.broken) && !scoresOf(lv).stats?.points.length) return h('div', { class: 'tile-slot' }, el);
+    const sc = scoresOf(lv);
+    const scored = (st.solutions ?? []).some((p) => !p.broken) || sc.everyone?.croupiers != null || sc.stats?.points.length || sc.friends.length;
+    if (!scored) return h('div', { class: 'tile-slot' }, el);
     el.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') hoverPop(lv, el); });
     el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') leavePop(); });
     el.addEventListener('focus', () => { if (el.matches(':focus-visible')) showPop(lv, el); });
@@ -193,6 +195,11 @@ export function levelSelect(root, ctx) {
     }
     pop.style.left = `${Math.max(8, Math.min(vw - pw - 8, left))}px`;
     pop.style.top = `${Math.max(8, Math.min(vh - ph - 8, top))}px`;
+    // Everyone's scores on this floor are read when its chart is first shown
+    // (the floors list reads only each floor's best): shown again with them.
+    if (signedIn && !cloud.cachedStats(lv.id)) {
+      cloud.statsFor(lv.id).then(() => { if (popFor === lv && page.isConnected) showPop(lv, anchor, popPinned); }, () => {});
+    }
   }
   function hidePop() {
     clearTimeout(popTimer);

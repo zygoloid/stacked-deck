@@ -103,6 +103,18 @@ jobs:
         run: $FIREBASE deploy --only functions:stacked-deck --project $PROJECT --non-interactive $DRY_RUN
       - name: Deploy database rules
         run: $FIREBASE deploy --only database:stacked-deck --project $PROJECT --non-interactive $DRY_RUN
+      # Each floor's best known score, read by the floors list: filled in from
+      # the stats (the first time), and lowered where it has drifted above them.
+      - name: Fill in and repair the best known scores
+        run: |
+          V=$(node tools/repair-best.js version)
+          DB="--instance zygoloid-stacked-deck --project $PROJECT"
+          $FIREBASE database:get /stats/v$V $DB > "$RUNNER_TEMP/stats.json"
+          $FIREBASE database:get /best/v$V $DB > "$RUNNER_TEMP/best.json"
+          node tools/repair-best.js "$RUNNER_TEMP/stats.json" "$RUNNER_TEMP/best.json" "$RUNNER_TEMP/update.json"
+          if [ -z "$DRY_RUN" ] && [ "$(cat "$RUNNER_TEMP/update.json")" != '{}' ]; then
+            $FIREBASE database:update /best/v$V "$RUNNER_TEMP/update.json" $DB --force
+          fi
 
   pages:
     needs: firebase

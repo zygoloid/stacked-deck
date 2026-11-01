@@ -73,16 +73,20 @@ const fresh = () => `u${++n}`; // a new user, so the one-a-second limit never in
   await assertSucceeds(as(u).ref('config').get());
   await assertFails(anonDb.ref(`stats/v${RULES_VERSION}`).get());
   await assertSucceeds(as(u).ref(`stats/v${RULES_VERSION}/${LEVEL}`).get());
+  await assertFails(anonDb.ref(`best/v${RULES_VERSION}`).get());
+  await assertSucceeds(as(u).ref(`best/v${RULES_VERSION}`).get());
+  await assertFails(as(u).ref(`best/v${RULES_VERSION}/${LEVEL}`).set({ croupiers: 1, rounds: 1 }));
   await assertFails(as(u).ref('/').get());
   // Signing in with Google is the opt-in: other kinds of account get nothing.
   for (const provider of ['anonymous', 'password', 'custom']) {
     await assertFails(as(u, provider).ref('config').get());
     await assertFails(as(u, provider).ref(`stats/v${RULES_VERSION}/${LEVEL}`).get());
+    await assertFails(as(u, provider).ref(`best/v${RULES_VERSION}`).get());
   }
   await assertFails(as(u).ref('anything').set(1));
   await assertFails(as(u).ref('config/rulesVersion').set(RULES_VERSION + 1));
 }
-console.log('rules: config and stats ok');
+console.log('rules: config, stats and best ok');
 
 {
   // A valid submission, by a player signed in with Google, and the same
@@ -210,6 +214,7 @@ const key = `${PAR.croupiers}_${PAR.rounds}`;
   assert.deepStrictEqual((await direct.ref(`solutions/p1/${LEVEL}/${HASH}/score`).get()).val(), { croupiers: PAR.croupiers, rounds: PAR.rounds });
   assert.deepStrictEqual((await direct.ref(`scores/v${RULES_VERSION}/p1/${LEVEL}`).get()).val(), { [key]: true });
   assert.deepStrictEqual(await stats(), { points: { [key]: 1 }, players: 1 });
+  assert.deepStrictEqual((await direct.ref(`best/v${RULES_VERSION}/${LEVEL}`).get()).val(), { croupiers: PAR.croupiers, rounds: PAR.rounds });
   // Repeating changes nothing.
   assert.strictEqual(await processSolution(direct, { uid: 'p1', level: LEVEL, hash: HASH }), 'done already');
   await direct.ref(`solutions/p1/${LEVEL}/${HASH}/score`).remove();
@@ -288,6 +293,34 @@ const key = `${PAR.croupiers}_${PAR.rounds}`;
   assert.deepStrictEqual(await s(), { points: { '10_50': 0, '12_40': 0, '9_39': 0, '8_39': 1 }, players: 1 });
 }
 console.log('processSolution and addPoint ok');
+
+{
+  // Each floor's best known score: lowered by new points (also when they
+  // arrive together), recomputed from the stats when a point holding it
+  // goes (also when two go together), and gone when nobody has a point.
+  const { removePoint, removeFrontier } = await import('../../functions/solutions.js');
+  const lvl = 'two-tables';
+  const rec = async () => (await direct.ref(`best/v2/${lvl}`).get()).val();
+  await addPoint(direct, 2, 'a', lvl, { croupiers: 6, rounds: 50 });
+  assert.deepStrictEqual(await rec(), { croupiers: 6, rounds: 50 });
+  await addPoint(direct, 2, 'b', lvl, { croupiers: 8, rounds: 40 });
+  assert.deepStrictEqual(await rec(), { croupiers: 6, rounds: 40 });
+  await addPoint(direct, 2, 'c', lvl, { croupiers: 9, rounds: 60 });
+  assert.deepStrictEqual(await rec(), { croupiers: 6, rounds: 40 });
+  await Promise.all([[5, 70], [7, 35], [4, 90]].map(([croupiers, rounds], i) => addPoint(direct, 2, `d${i}`, lvl, { croupiers, rounds })));
+  assert.deepStrictEqual(await rec(), { croupiers: 4, rounds: 35 });
+  await removeFrontier(direct, 2, 'c', lvl);
+  assert.deepStrictEqual(await rec(), { croupiers: 4, rounds: 35 }, 'a point not holding the record changes nothing');
+  await removeFrontier(direct, 2, 'd2', lvl);
+  assert.deepStrictEqual(await rec(), { croupiers: 5, rounds: 35 });
+  assert.strictEqual(await removePoint(direct, 2, 'd1', lvl, { croupiers: 7, rounds: 35 }), true);
+  assert.deepStrictEqual(await rec(), { croupiers: 5, rounds: 40 });
+  await Promise.all([removeFrontier(direct, 2, 'a', lvl), removeFrontier(direct, 2, 'd0', lvl)]);
+  assert.deepStrictEqual(await rec(), { croupiers: 8, rounds: 40 });
+  await removeFrontier(direct, 2, 'b', lvl);
+  assert.strictEqual(await rec(), null);
+}
+console.log('best known scores ok');
 
 {
   // Deleting a player's data: their solutions, frontiers (every rules
