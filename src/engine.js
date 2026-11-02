@@ -216,6 +216,11 @@ export class Floor {
     this.round = 0;
     this.paid = [];
     this.paidAt = []; // the desk (its `desk` label) each payout went to
+    // For drawing the last step (not part of the state): the hands (card
+    // objects, not just cards) paid in it, in order, and each card Duplicate
+    // made in it -> the card it is a copy of.
+    this.justPaid = [];
+    this.copiedFrom = new Map();
     // On a seated floor a test may give a player fewer hands than the others:
     // their missing hands are null (always after their last real hand).
     this.inputs = inputs.map((h) => h && h.map((c) => ({ c, src: 'player' })));
@@ -266,6 +271,8 @@ export class Floor {
 
   step() {
     this.round++;
+    this.justPaid = [];
+    this.copiedFrom = new Map();
     // Phases 1 and 2: read and act.
     for (const cell of this.cells.values()) {
       if (cell.kind !== 'croupier' || cell.pending.length) continue;
@@ -321,6 +328,10 @@ export class Floor {
         break;
       }
     }
+    if (cell.fn === 'duplicate') {
+      const [[, a], [, b]] = outs;
+      b.forEach((x, i) => this.copiedFrom.set(x, a[i]));
+    }
     const ports = cell.fn === 'deal' ? (cell.out.to ?? []) : cell.out;
     let face;
     for (const [port, h] of outs) {
@@ -367,6 +378,7 @@ export class Floor {
     if (to.kind === 'payout') {
       this.paid.push(cardsOf(hand));
       this.paidAt.push(to.desk);
+      this.justPaid.push(hand);
       if (!fromSource) this.live -= playerCards(hand);
       return true;
     }
