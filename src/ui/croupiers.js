@@ -2,6 +2,7 @@
 // The help panel, the palette and the inspector are generated from this.
 // The descriptions are deliberately brief (true, but leaving the details
 // for the player to find out); docs/architecture.md has the full rules.
+import { MAX_HAND } from '../score.js';
 
 // Port styles: one colour and label per port name, used everywhere.
 export const PORT_STYLE = {
@@ -89,7 +90,8 @@ export const CROUPIERS = {
   },
   hand: {
     name: 'Hand', abbr: 'HND', family: ROUTE, ports: ['out'], required: ['out'],
-    params: { n: { label: 'n', options: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], default: 5 } },
+    // n from 1 to MAX_HAND: buttons for the usual sizes, and a field for any.
+    params: { n: { label: 'n', options: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], max: MAX_HAND, default: 5 } },
     desc: 'Collects cards and deals them out in hands of n.',
   },
   deal: {

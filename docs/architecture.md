@@ -53,7 +53,7 @@ floor.cells                  // Map "q,r" -> cell with live state:
                              //   facing
                              // A hand in the live state is an array of {c: 'AS', src: 'player'|'house'}.
 floor.cardCount()            // cards in slots, held, or waiting to be placed by croupiers
-floor.overflowed()           // cardCount() > MAX_FLOOR_CARDS (1000): the run has failed
+floor.overflowed()           // cardCount() > MAX_FLOOR_CARDS (2000): the run has failed
 runTest({ cells }, inputs, pays) -> { ok, rounds, croupiers, wrong, missing, timeout, overflow }
 ```
 
@@ -131,7 +131,7 @@ scanning on clockwise from the first), so they keep up with a line of passes.
 | `deal` | `out: {to: [sides…]}` | | one card at a time, round-robin, each onto the top of its side's pile (one pile per side, even if listed twice), so piles come out in reverse deal order |
 | `gather` | `out` | `under?` (side) | stacks two hands from different sides; the hand from `under` goes underneath (else the first picked up does) |
 | `burn` | `burn`, `rest` | | top card / the rest; both to one side moves the top card to the bottom |
-| `hand` | `out` | `n` (1–13) | collects cards until it holds ≥ n, deals the first n as a hand; leftovers start the next; holding ≥ n it deals without picking up |
+| `hand` | `out` | `n` (1–52) | collects cards until it holds ≥ n, deals the first n as a hand; leftovers start the next; holding ≥ n it deals without picking up |
 | `war` | `win`,`lose` (player hand), `dwin`,`dlose` (dealer hand) | `dealer` (side), `rule: 'high'|'top'` | player hand (any other side) vs dealer hand; aces high; ties go to the house |
 
 A shoe counts as a croupier for scoring.

@@ -3,7 +3,7 @@
 import assert from 'node:assert';
 import { LEVELS, BONUS } from '../src/levels.js';
 import {
-  PORTS, REQUIRED, validateCells, canonicalCells, solutionHash, scoreMachine, MAX_DECK, checkDeals, CHECK_DEALS, toSpec,
+  PORTS, REQUIRED, validateCells, canonicalCells, solutionHash, scoreMachine, MAX_DECK, MAX_HAND, checkDeals, CHECK_DEALS, toSpec,
 } from '../src/score.js';
 import { runTest } from '../src/engine.js';
 import { makeTests } from '../src/levels/shared.js';
@@ -115,6 +115,16 @@ console.log(`reference solutions valid and scored as par (${ALL.length})`);
   assert(ok({ at: free, kind: 'croupier', fn: 'war', rule, out: { win: 0 } }).error, 'War without a dealer side');
   assert(ok({ at: free, kind: 'croupier', fn: 'war', rule: other, out: {} }).error, 'War rule not allowed here');
   if (rule === 'top') assert(ok({ at: free, kind: 'croupier', fn: 'war', out: {} }).error, 'default rule not allowed here');
+}
+{
+  // Hand: n from 1 to MAX_HAND.
+  const level = ALL.find((l) => l.croupiers.includes('hand'));
+  const cells = await reference(level);
+  const free = level.floor.find((at) => ![...level.fixed, ...cells].some((c) => c.at[0] === at[0] && c.at[1] === at[1]));
+  const ok = (n) => validateCells(level, [...cells, { at: free, kind: 'croupier', fn: 'hand', n, out: { out: 0 } }]);
+  assert(ok(1).cells && ok(13).cells && ok(MAX_HAND).cells, 'Hand n 1 to MAX_HAND');
+  assert(ok(0).error && ok(MAX_HAND + 1).error && ok(2.5).error, 'Hand n out of range');
+  assert.strictEqual(MAX_HAND, 52);
 }
 console.log('validation rejects ok');
 

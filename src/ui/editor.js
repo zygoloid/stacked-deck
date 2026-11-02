@@ -813,7 +813,19 @@ export function openEditor(root, ctx, level) {
       parts.push(h('div', { class: `param${opts.length > 8 ? ' col' : ''}` }, h('span', { class: 'param-k' }, c.fn === 'kind' ? 'n of a kind' : 'Cards per hand (n)'),
         h('div', { class: `seg${opts.length > 8 ? ' wide' : ''}`, 'data-param': 'n' }, opts.map((n) => h('button', {
           class: (c.n ?? p.default) === n ? 'on' : '', onclick: () => edit(() => { c.n = n; }),
-        }, String(n))))));
+        }, String(n)))),
+        // Hand: any size up to p.max in a field (it shows n when it is bigger
+        // than the buttons go).
+        p.max ? h('label', { class: 'param-more' }, `Or any number up to ${p.max}: `, h('input', {
+          class: `n-in${(c.n ?? p.default) > opts[opts.length - 1] ? ' on' : ''}`, type: 'number', min: 1, max: p.max, step: 1,
+          value: String(c.n ?? p.default), 'data-param': 'n-any',
+          onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); e.stopPropagation(); },
+          onchange: (e) => {
+            const n = Math.round(Number(e.target.value));
+            if (Number.isInteger(n) && n >= 1 && n <= p.max) edit(() => { c.n = n; });
+            else e.target.value = String(c.n ?? p.default);
+          },
+        })) : null));
     }
     if (c.fn === 'war') {
       const names = { high: 'High card', top: 'Top card' };

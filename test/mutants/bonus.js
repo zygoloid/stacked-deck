@@ -30,6 +30,8 @@ const showdown = (key, { ties = [] } = {}) => (t) => deals(t).flatMap(([a, b]) =
 });
 const desc = (val) => (h) => h.map(val).sort((x, y) => y - x);
 const up = (c, k = 1) => RANKS[(RANKS.indexOf(rankOf(c)) + 13 + k) % 13] + c[1];
+// Casino numbers (as src/levels/bonus.js): digits ace up to the base, no zero.
+const casinoOf = (n, base = 13) => { const d = []; for (let v = n; v > 0; v = Math.floor((v - 1) / base)) d.unshift(RANKS[(v - 1) % base] + 'S'); return d; };
 const NEW_DECK = ['S', 'D', 'C', 'H'].flatMap((s) => RANKS.map((r) => r + s)).sort((a, b) => newDeckIndex(a) - newDeckIndex(b));
 
 // Crossed Wires variants: seat i % 3's hands go to desk `to(seat)`.
@@ -148,6 +150,15 @@ export const MUTANTS = {
     'by rank, not card': (t) => t.map((h) => h.filter((c) => t.flat().filter((x) => rankOf(x) === rankOf(c)).length === 1)).filter((h) => h.length),
     'repeated cards only': (t) => t.map((h) => h.filter((c) => t.flat().filter((x) => x === c).length > 1)).filter((h) => h.length),
     'whole hands without repeats': (t) => t.filter((h) => h.every((c) => t.flat().filter((x) => x === c).length === 1)),
+  },
+  'casino-numbers': {
+    'base 10 (ace to ten)': (t) => deals(t).map(([[a], [b]]) => casinoOf(rv(a) + rv(b), 10)),
+    'decimal, $ for zero': (t) => deals(t).map(([[a], [b]]) => { const n = rv(a) + rv(b); return n < 10 ? [RANKS[n - 1] + 'S'] : [RANKS[Math.floor(n / 10) - 1] + 'S', n % 10 ? RANKS[(n % 10) - 1] + 'S' : '$']; }),
+    'leading digit underneath': (t) => deals(t).map(([[a], [b]]) => casinoOf(rv(a) + rv(b)).reverse()),
+    'units digit only': (t) => deals(t).map(([[a], [b]]) => casinoOf(rv(a) + rv(b)).slice(-1)),
+    'aces high': (t) => deals(t).map(([[a], [b]]) => casinoOf(hv(a) + hv(b))),
+    'the difference': (t) => deals(t).filter(([[a], [b]]) => a !== b).map(([[a], [b]]) => casinoOf(Math.abs(rv(a) - rv(b)))),
+    'the two cards': (t) => deals(t).map(([a, b]) => [...a, ...b]),
   },
   'rest-of-the-deck': {
     'the cards played': (t) => t.flat().map((c) => [c]),

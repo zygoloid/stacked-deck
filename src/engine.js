@@ -45,6 +45,9 @@ import {
 //      floor is cleared only if the machine also passes its check deals
 //      (random deals seeded from the machine itself; see src/score.js); the
 //      rounds score is the total over the tests, not the rounded average
+// (The card limit going from 1000 to 2000 and Hand's n from 13 to 52 at
+// most are not rules changes either: no machine that cleared a floor before
+// behaves differently.)
 // (Seated players, `seat` on a source, seats with fewer hands than others,
 // labelled desks, `desk` on a payout, and `inOrder` payouts are level
 // features: no rule changed.)
@@ -52,8 +55,9 @@ export const RULES_VERSION = 9;
 
 // A machine can multiply cards without bound (two duplicates feeding each
 // other quadruple them every four rounds), so a run fails once more than this
-// many cards are on the floor. No reference solution has more than 70.
-export const MAX_FLOOR_CARDS = 1000;
+// many cards are on the floor. It only guards against runaway machines:
+// no reference solution has more than about 600.
+export const MAX_FLOOR_CARDS = 2000;
 
 export const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
 export const DIR_NAMES = ['E', 'SE', 'SW', 'W', 'NW', 'NE'];

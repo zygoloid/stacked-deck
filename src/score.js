@@ -7,6 +7,9 @@ import { SPECIALS, isCard, isSpecial, sfc32 } from './cards.js';
 export const hexKey = ([q, r]) => `${q},${r}`;
 export const addDir = ([q, r], d) => [q + DIRS[d][0], r + DIRS[d][1]];
 
+// The most cards a Hand croupier may deal at once (its n: 1 to this).
+export const MAX_HAND = 52;
+
 // War rules the player may pick on a level (levels.js: defaults to high only).
 export const warRules = (level) => (Array.isArray(level.warRules) && level.warRules.length ? level.warRules : ['high']);
 
@@ -39,7 +42,7 @@ export function sanitizeCells(level, cells) {
       cell.deck = (Array.isArray(cell.deck) ? cell.deck : []).filter((x) => isCard(x) && (!isSpecial(x) || allowed.includes(x)));
       if (!cell.deck.length) cell.deck = ['AS'];
     }
-    if (cell.fn === 'hand' && !(Number.isInteger(cell.n) && cell.n >= 1 && cell.n <= 13)) cell.n = 5;
+    if (cell.fn === 'hand' && !(Number.isInteger(cell.n) && cell.n >= 1 && cell.n <= MAX_HAND)) cell.n = 5;
     if (cell.kind === 'croupier') cell.out ??= {};
     delete cell.facing; // the engine's, not the player's (see cellError)
     if (cell.fn === 'deal') cell.out.to ??= [];
@@ -75,7 +78,7 @@ const isSide = (v) => Number.isInteger(v) && v >= 0 && v < 6;
 const inRange = (lo, hi) => (v) => Number.isInteger(v) && v >= lo && v <= hi;
 const PARAMS = {
   kind: { n: inRange(2, 8) },
-  hand: { n: inRange(1, 13) },
+  hand: { n: inRange(1, MAX_HAND) },
   gather: { under: isSide },
   war: { dealer: isSide, rule: (v, level) => warRules(level).includes(v) },
 };
