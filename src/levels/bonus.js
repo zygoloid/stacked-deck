@@ -153,11 +153,11 @@ export function casino(n) {
 }
 // A two-card hand as a casino number, its leading digit on top.
 const twoDigits = ([a, b]) => 13 * rankValue(a) + rankValue(b);
-// Two players' two-digit casino numbers (a spade on top for the leading
-// digit, a club for the units), `nDeals` deals a test.
+// Two players' two-digit casino numbers (a club on top for the leading
+// digit, a spade for the units), `nDeals` deals a test.
 function twoDigitDeals(rand, nTests, nDeals) {
   const card = (suit) => `${RANKS[Math.floor(rand() * 13)]}${suit}`;
-  return Array.from({ length: nTests }, () => Array.from({ length: 2 * nDeals }, () => [card('S'), card('C')]));
+  return Array.from({ length: nTests }, () => Array.from({ length: 2 * nDeals }, () => [card('C'), card('S')]));
 }
 // Two players' one-card hands of spades A..K, `nDeals` deals a test.
 function digitDeals(rand, nTests, nDeals) {
@@ -781,10 +781,10 @@ export const LEVELS = [
     unlockAfter: 'deja-vu',
     title: 'Carry the One',
     story: [
-      'Dmitri\'s spreadsheet now has two columns, and so do the players: tonight each of them plays a two-digit casino number per deal, the leading digit a spade on top of the units digit, a club. That is fourteen (an ace and an ace) up to a hundred and eighty-two (a king and a king).',
+      'Dmitri\'s spreadsheet now has two columns, and so do the players: tonight each of them plays a two-digit casino number per deal, the leading digit a club on top of the units digit, a spade. That is fourteen (an ace and an ace) up to a hundred and eighty-two (a king and a king).',
       'The house pays the total in casino numbers, in its own spades, the leading digit on top. The biggest totals take three cards, which the Owner has decided to be proud of.',
     ],
-    brief: 'Two players, two-card hands, one each per deal: a two-digit casino number, the leading digit a spade on top of the units digit, a club (A♠ A♣ is 14, K♠ K♣ is 182). Pay the sum in casino numbers, house spades with the leading digit on top: 28 is 2♠ 2♠, 182 is K♠ K♠, and from 183 (A♠ A♠ A♠) it takes three cards, up to 364 (2♠ A♠ K♠).',
+    brief: 'Two players, two-card hands, one each per deal: a two-digit casino number, the leading digit a club on top of the units digit, a spade (A♣ A♠ is 14, K♣ K♠ is 182). Pay the sum in casino numbers, house spades with the leading digit on top: 28 is 2♠ 2♠, 182 is K♠ K♠, and from 183 (A♠ A♠ A♠) it takes three cards, up to 364 (2♠ A♠ K♠).',
     handSize: 2,
     floor: floorOf(hexRect(-4, 5, -11, 17), H7),
     fixed: H7,
@@ -798,9 +798,9 @@ export const LEVELS = [
       deal: (rand, n) => twoDigitDeals(rand, n, 6),
       fixed: [
         // the smallest and largest sums; a carry or not into each digit
-        ['AS AC', 'AS AC', 'KS KC', 'KS KC', 'AS 6C', 'AS 7C', 'AS 7C', 'AS 7C', 'QS AC', 'AS AC', 'QS KC', 'AS AC',
-          'KS AC', 'AS KC', '9S 9C', '9S 9C'],
-        ['5S 7C', '6S 7C', '2S 3C', 'JS 4C', 'AS KC', 'KS AC'],
+        ['AC AS', 'AC AS', 'KC KS', 'KC KS', 'AC 6S', 'AC 7S', 'AC 7S', 'AC 7S', 'QC AS', 'AC AS', 'QC KS', 'AC AS',
+          'KC AS', 'AC KS', '9C 9S', '9C 9S'],
+        ['5C 7S', '6C 7S', '2C 3S', 'JC 4S', 'AC KS', 'KC AS'],
       ],
       nRandom: 4, seed: 186,
     }),
