@@ -32,6 +32,8 @@ const desc = (val) => (h) => h.map(val).sort((x, y) => y - x);
 const up = (c, k = 1) => RANKS[(RANKS.indexOf(rankOf(c)) + 13 + k) % 13] + c[1];
 // Casino numbers (as src/levels/bonus.js): digits ace up to the base, no zero.
 const casinoOf = (n, base = 13) => { const d = []; for (let v = n; v > 0; v = Math.floor((v - 1) / base)) d.unshift(RANKS[(v - 1) % base] + 'S'); return d; };
+// A two-card hand as a casino number, leading digit on top.
+const two = ([a, b]) => 13 * rv(a) + rv(b);
 const NEW_DECK = ['S', 'D', 'C', 'H'].flatMap((s) => RANKS.map((r) => r + s)).sort((a, b) => newDeckIndex(a) - newDeckIndex(b));
 
 // Crossed Wires variants: seat i % 3's hands go to desk `to(seat)`.
@@ -159,6 +161,22 @@ export const MUTANTS = {
     'aces high': (t) => deals(t).map(([[a], [b]]) => casinoOf(hv(a) + hv(b))),
     'the difference': (t) => deals(t).filter(([[a], [b]]) => a !== b).map(([[a], [b]]) => casinoOf(Math.abs(rv(a) - rv(b)))),
     'the two cards': (t) => deals(t).map(([a, b]) => [...a, ...b]),
+  },
+  'times-tables': {
+    'the sum': (t) => deals(t).map(([[a], [b]]) => casinoOf(rv(a) + rv(b))),
+    'leading digit underneath': (t) => deals(t).map(([[a], [b]]) => casinoOf(rv(a) * rv(b)).reverse()),
+    'units digit only': (t) => deals(t).map(([[a], [b]]) => casinoOf(rv(a) * rv(b)).slice(-1)),
+    'base 10': (t) => deals(t).map(([[a], [b]]) => casinoOf(rv(a) * rv(b), 10)),
+    'aces high': (t) => deals(t).map(([[a], [b]]) => casinoOf(hv(a) * hv(b))),
+    'one less than the product': (t) => deals(t).filter(([[a], [b]]) => rv(a) * rv(b) > 1).map(([[a], [b]]) => casinoOf(rv(a) * rv(b) - 1)),
+  },
+  'carry-the-one': {
+    'leading digit underneath': (t) => deals(t).map(([a, b]) => casinoOf(two(a) + two(b)).reverse()),
+    'no carry from the units': (t) => deals(t).map(([a, b]) => casinoOf(13 * (rv(a[0]) + rv(b[0])) + ((rv(a[1]) + rv(b[1]) - 1) % 13) + 1)),
+    'two digits at most': (t) => deals(t).map(([a, b]) => casinoOf(two(a) + two(b)).slice(-2)),
+    'units digit on top of the hands': (t) => deals(t).map(([a, b]) => casinoOf(two([...a].reverse()) + two([...b].reverse()))),
+    'aces high': (t) => deals(t).map(([a, b]) => casinoOf(13 * (hv(a[0]) + hv(b[0])) + hv(a[1]) + hv(b[1]))),
+    'the four cards': (t) => deals(t).map(([a, b]) => [...a, ...b]),
   },
   'rest-of-the-deck': {
     'the cards played': (t) => t.flat().map((c) => [c]),

@@ -73,6 +73,159 @@ export function casinoSums(digits) {
 }
 const at = ([q, r], [dq, dr]) => [q + dq, r + dr];
 
+// Times Tables (casino products). The players' cards are counted as in
+// Carry the One (a master table round a ring of two lookups: each gathers
+// a card on top of the table, copies it and burns the card off; Set and
+// Suits on the copy give the card as that many hearts), and the product is
+// read off a ruler of 13 rows, one per card a of player A:
+//  * The ruler's row for a is every thirteenth card from 13 - a (mod 13).
+//    A's count goes on top of a copy of the ruler (stacked by the store
+//    with the table, and split from it by suit: spades and diamonds), so
+//    Deal round 13 piles puts row a on pile 0, its last card on top.
+//  * Row a holds, from the top, the units digit of a × b at 13 - b and its
+//    leading digit at 26 - b (a diamond when the product is one digit). B's
+//    count goes on top of the row, and Deal pays cards 13 and 26: the units
+//    digit, and the leading digit on top of it; Suits drops the diamond.
+//  * The ruler goes round a ring of its own (Suits drops the count, Gather
+//    and Duplicate), which waits for A's counts, so one copy is out at once.
+function productDecks() {
+  const S = (v) => `${RANKS[v - 1]}S`;
+  const ruler = Array(338);
+  for (let a = 1; a <= 13; a++) for (let b = 1; b <= 13; b++) {
+    const n = a * b, place = (t) => ((13 - a) % 13) + 13 * (25 - t);
+    ruler[place(13 - b)] = S(((n - 1) % 13) + 1);
+    const lead = Math.floor((n - 1) / 13);
+    ruler[place(26 - b)] = lead ? S(lead) : '2D';
+  }
+  const table = [];
+  for (let r = 1; r <= 13; r++) for (let i = 0; i < 13; i++) table.push(RANKS[r - 1] + (i < r ? 'H' : 'C'));
+  const order = ['?', ...ruler, ...table];
+  while (order.length % 52) order.push('$');
+  const chunks = [];
+  for (let i = 0; i < order.length; i += 52) chunks.push(order.slice(i, i + 52));
+  return chunks.reverse().flat();
+}
+export function casinoProducts() {
+  const at = {
+    GA: [1, -1], DA: [1, 0], BA: [1, 1], TA: [0, 1], UA: [-1, 1], MP: [1, -2],
+    GB: [2, 0], DB: [3, 0], BB: [4, 0], TB: [3, 1], UB: [2, 2],
+    SH: [-1, -5], HS: [-1, -4], ST: [-1, -3], TW: [-1, -2], AC: [0, -3], BK: [-2, -2], SEED: [-3, -2], SP: [0, -2],
+    RS: [-1, -1], G4: [-1, 0], DR: [-2, 1], DL13: [-2, 2], G5: [0, 2], DL: [0, 3], SU: [0, 4],
+  };
+  const nodes = {
+    SH: shoe(at.SH, productDecks(), { once: true }), HS: c(at.HS, 'hand', { n: 52 }), ST: c(at.ST, 'gather'),
+    TW: twar(at.TW), AC: shoe(at.AC, 'AC'), BK: c(at.BK, 'pass'), SEED: shoe(at.SEED, '$', { once: true }),
+    SP: c(at.SP, 'suits'), MP: c(at.MP, 'pass'),
+    RS: c(at.RS, 'suits'), G4: c(at.G4, 'gather'), DR: c(at.DR, 'duplicate'),
+    // unpaid cards go to a free side, onto the floor
+    DL13: c(at.DL13, 'deal', { out: { to: Array(13).fill(SE) } }),
+    G5: c(at.G5, 'gather'), DL: c(at.DL, 'deal', { out: { to: Array(28).fill(E) } }), SU: c(at.SU, 'suits'),
+  };
+  for (const d of ['A', 'B']) {
+    Object.assign(nodes, {
+      [`G${d}`]: c(at[`G${d}`], 'gather'), [`D${d}`]: c(at[`D${d}`], 'duplicate'), [`B${d}`]: c(at[`B${d}`], 'burn'),
+      [`T${d}`]: c(at[`T${d}`], 'set'), [`U${d}`]: c(at[`U${d}`], 'suits'),
+    });
+  }
+  for (const n of Object.values(nodes)) if (n.fn === 'pass') n.out = {};
+  const links = [
+    // the store
+    ['SH', null, 'HS'], ['HS', 'out', 'ST'], ['BK', 'out', 'ST', 'under'], ['SEED', null, 'BK'],
+    ['AC', null, 'TW', 'dealer'], ['ST', 'out', 'TW'], ['TW', 'lose', 'BK'], ['TW', 'win', 'SP'],
+    // the table round the two lookups
+    ['SP', ['H', 'C'], 'MP'], ['BB', 'rest', 'MP'], ['MP', 'out', 'GA', 'under'], ['BA', 'rest', 'GB', 'under'],
+    ...['A', 'B'].flatMap((d) => [[`G${d}`, 'out', `D${d}`], [`D${d}`, 'b', `B${d}`], [`D${d}`, 'a', `T${d}`], [`T${d}`, 'set', `U${d}`]]),
+    // the ruler round its ring; A's count picks the row, B's the product
+    ['SP', ['S', 'D'], 'RS'], ['RS', ['S', 'D'], 'G4', 'under'], ['UA', 'H', 'G4'], ['G4', 'out', 'DR'], ['DR', 'b', 'RS'],
+    ['DR', 'a', 'DL13'], ['DL13', [0], 'G5', 'under'], ['UB', 'H', 'G5'], ['G5', 'out', 'DL'], ['DL', [13, 26], 'SU'],
+    ['SU', 'S', 'desk'],
+  ];
+  return { nodes, links };
+}
+
+// Carry the One (two-digit casino sums): each player plays two spades, the
+// leading digit on top. The machine works in unary, a digit at a time.
+//  * A master table (thirteen cards of each rank r, r of them hearts; stacked
+//    by a store as in Casino Numbers) goes round a ring of four lookups, one
+//    per digit: each gathers its digit on top of the table, copies it, and
+//    burns the digit off again (so the ring waits for each digit, and only
+//    one table and a copy or two are on the floor). Set on the copy keeps
+//    the digit's rank and Suits its hearts: the digit as that many cards.
+//  * The units counts (s = 2 to 26 cards) go on a 25-card ruler; Deal pays
+//    card 26 (the units digit of s) and cards 0 and 38 (a carry pile: two
+//    cards for s >= 14, one otherwise).
+//  * The carry pile and the leading counts (t + 1 cards, t = the leading
+//    digits plus the carry, 2 to 27) go on a 40-card ruler; Deal pays card
+//    28 (the units digit of t) and card 54 (there only for t >= 14: its
+//    leading digit), the higher on top, and the units digit is gathered
+//    underneath.
+// Laid out by simulated annealing (block positions; routes by the router).
+function longSumsDecks() {
+  const units = (n) => `${RANKS[(n - 1) % 13]}S`;
+  const r1 = Array.from({ length: 25 }, (_, i) => units(26 - i));
+  const r2 = Array.from({ length: 40 }, (_, i) => (i <= 25 ? units(27 - i) : i === 26 ? '2S' : 'AS'));
+  const table = [];
+  for (let r = 1; r <= 13; r++) for (let i = 0; i < 13; i++) table.push(RANKS[r - 1] + (i < r ? 'H' : 'C'));
+  const order = ['?', ...table];
+  while (order.length % 13) order.push('$');
+  const chunks = [];
+  for (let i = 0; i < order.length; i += 13) chunks.push(order.slice(i, i + 13));
+  return { r1, r2, deck: chunks.reverse().flat() };
+}
+export function casinoLongSums() {
+  const k = longSumsDecks();
+  const at = {
+    SpA: [-1, -3], SpB: [8, -1],
+    GA2: [-2, 3], DA2: [-1, 2], BA2: [0, 1], TA2: [0, 2], UA2: [0, 3],
+    GA1: [3, -3], DA1: [4, -3], BA1: [5, -3], TA1: [4, -2], UA1: [3, -1],
+    GB1: [8, -2], DB1: [7, -1], BB1: [6, 0], TB1: [6, -1], UB1: [6, -2],
+    GB2: [5, 1], DB2: [5, 2], BB2: [5, 3], TB2: [4, 3], UB2: [3, 3],
+    SH: [-3, 0], H13: [-2, 0], ST: [-1, 0], TW: [0, 0], AC: [0, -1], BK: [-1, 1], SEED: [-2, 2], BJ: [1, -1],
+    MP: [2, -2], SR1: [1, 1], HR1: [1, 2], SR2: [5, 0], HR2: [5, -1],
+    GU: [2, 3], GT1: [4, -1], GR1: [2, 2], DL1: [2, 1], GT2: [3, 0], GF: [3, 1], GR2: [4, 0], DL2: [4, 1],
+  };
+  const nodes = {
+    SpA: c(at.SpA, 'burn'), SpB: c(at.SpB, 'burn'),
+    SH: shoe(at.SH, k.deck, { once: true }), H13: c(at.H13, 'hand', { n: 13 }), ST: c(at.ST, 'gather'),
+    TW: twar(at.TW), AC: shoe(at.AC, 'AC'), BK: c(at.BK, 'pass'), SEED: shoe(at.SEED, '$', { once: true }),
+    BJ: c(at.BJ, 'burn'), MP: c(at.MP, 'pass'),
+    SR1: shoe(at.SR1, k.r1), HR1: c(at.HR1, 'hand', { n: 25 }), SR2: shoe(at.SR2, k.r2), HR2: c(at.HR2, 'hand', { n: 40 }),
+    GU: c(at.GU, 'gather'), GT1: c(at.GT1, 'gather'), GR1: c(at.GR1, 'gather'), GT2: c(at.GT2, 'gather'),
+    GF: c(at.GF, 'gather'), GR2: c(at.GR2, 'gather'),
+    // unpaid cards go to a free side, onto the floor
+    DL1: c(at.DL1, 'deal', { out: { to: Array(52).fill(NW) } }),
+    DL2: c(at.DL2, 'deal', { out: { to: Array(56).fill(SE) } }),
+  };
+  for (const d of ['A2', 'A1', 'B1', 'B2']) {
+    Object.assign(nodes, {
+      [`G${d}`]: c(at[`G${d}`], 'gather'), [`D${d}`]: c(at[`D${d}`], 'duplicate'), [`B${d}`]: c(at[`B${d}`], 'burn'),
+      [`T${d}`]: c(at[`T${d}`], 'set'), [`U${d}`]: c(at[`U${d}`], 'suits'),
+    });
+  }
+  for (const n of Object.values(nodes)) if (n.fn === 'pass') n.out = {};
+  const links = [
+    // each player's leading digit (the top card) to A1/B1, the units to A2/B2
+    ['SpA', 'rest', 'GA2'], ['SpA', 'burn', 'GA1'], ['SpB', 'rest', 'GB2'], ['SpB', 'burn', 'GB1'],
+    // the store
+    ['SH', null, 'H13'], ['H13', 'out', 'ST'], ['BK', 'out', 'ST', 'under'], ['SEED', null, 'BK'],
+    ['AC', null, 'TW', 'dealer'], ['ST', 'out', 'TW'], ['TW', 'lose', 'BK'], ['TW', 'win', 'BJ'], ['BJ', 'rest', 'MP'],
+    // the ring: A2, A1, B1, B2
+    ['BA2', 'rest', 'MP'], ['MP', 'out', 'GA1', 'under'], ['BA1', 'rest', 'GB1', 'under'],
+    ['BB1', 'rest', 'GB2', 'under'], ['BB2', 'rest', 'GA2', 'under'],
+    ...['A1', 'A2', 'B1', 'B2'].flatMap((d) => [[`G${d}`, 'out', `D${d}`], [`D${d}`, 'b', `B${d}`],
+      [`D${d}`, 'a', `T${d}`], [`T${d}`, 'set', `U${d}`]]),
+    // the counts: units, and leading digits
+    ['UA2', 'H', 'GU'], ['UB2', 'H', 'GU'], ['UA1', 'H', 'GT1'], ['UB1', 'H', 'GT1'],
+    // the units column
+    ['SR1', null, 'HR1'], ['HR1', 'out', 'GR1', 'under'], ['GU', 'out', 'GR1'], ['GR1', 'out', 'DL1'],
+    ['DL1', [0, 38], 'GT2'], ['DL1', [26], 'GF', 'under'], ['GT1', 'out', 'GT2'],
+    // the leading column
+    ['SR2', null, 'HR2'], ['HR2', 'out', 'GR2', 'under'], ['GT2', 'out', 'GR2'], ['GR2', 'out', 'DL2'],
+    ['DL2', [28, 54], 'GF'], ['GF', 'out', 'desk'],
+  ];
+  return { nodes, links };
+}
+
 
 export const SPECS = {
   'small-change': {
@@ -443,5 +596,7 @@ export const SPECS = {
   },
 
   'casino-numbers': casinoSums(),
+  'times-tables': casinoProducts(),
+  'carry-the-one': casinoLongSums(),
 
 };

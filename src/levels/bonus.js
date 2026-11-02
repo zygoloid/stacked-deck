@@ -6,10 +6,10 @@
 // by id); the others are extra floors, from 6♠ on for players who have
 // everything (every croupier, both War rules, every special card), roughly
 // easiest first. Crossed Wires and Uneven Tables seat three players (and
-// label three desks); Mirror Image, Casino Numbers, Showdown and Twice Shy
-// seat two. See docs/campaign.md.
+// label three desks); Mirror Image, Casino Numbers, Showdown, Twice Shy,
+// Times Tables and Carry the One seat two. See docs/campaign.md.
 import {
-  hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, W, NE,
+  hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, SW, W, NW, NE,
   hv, high, one, paletteThrough, finishChapter,
 } from './shared.js';
 import {
@@ -38,6 +38,8 @@ const H2 = [source([-2, 1], E), desk([-2, 3])];
 const H4 = [source([-4, 0], E), desk([1, 2])];
 const H5 = [seated([-6, 4], E, 0), seated([-5, 3], SE, 1), desk([-4, 7])];
 const H6 = [seated([5, -1], W, 0), seated([4, 1], W, 1), desk([-2, 0])];
+const H7 = [seated([-1, -4], SE, 0), seated([8, 0], NW, 1), desk([3, 2])];
+const H8 = [seated([2, -2], SW, 0), seated([2, -1], SE, 1), desk([1, 4])];
 const labelled = (at, n) => ({ ...desk(at), desk: n });
 const H3 = [
   seated([-2, -2], E, 0), seated([-3, 0], E, 1), seated([-4, 2], E, 2),
@@ -148,6 +150,14 @@ export function casino(n) {
   const digits = [];
   for (let v = n; v > 0; v = Math.floor((v - 1) / 13)) digits.unshift(SPADE(((v - 1) % 13) + 1));
   return digits;
+}
+// A two-card hand as a casino number, its leading digit on top.
+const twoDigits = ([a, b]) => 13 * rankValue(a) + rankValue(b);
+// Two players' two-digit casino numbers (a spade on top for the leading
+// digit, a club for the units), `nDeals` deals a test.
+function twoDigitDeals(rand, nTests, nDeals) {
+  const card = (suit) => `${RANKS[Math.floor(rand() * 13)]}${suit}`;
+  return Array.from({ length: nTests }, () => Array.from({ length: 2 * nDeals }, () => [card('S'), card('C')]));
 }
 // Two players' one-card hands of spades A..K, `nDeals` deals a test.
 function digitDeals(rand, nTests, nDeals) {
@@ -736,6 +746,65 @@ export const LEVELS = [
       nRandom: 4, seed: 182,
     }),
   },
+  {
+    id: 'times-tables',
+    card: '8H',
+    unlockAfter: 'deja-vu',
+    title: 'Times Tables',
+    story: [
+      'Dmitri has found the multiplication sheet. Tonight two players each play one spade per deal, ace to king, and the house pays the product in casino numbers, in its own spades, the leading digit on top: one card up to thirteen, two from fourteen (an ace and an ace) all the way to a hundred and sixty-nine (a queen and a king).',
+      'The Owner asked why the house pays more for a king and a queen than for a king and an ace. Dmitri said it was a long story; the Owner said to keep it short.',
+    ],
+    brief: 'Two players, one spade each per deal, ace (1) to king (13). Pay the product in casino numbers, house spades with the leading digit on top: 1 to 13 as one card (13 is the king), 14 and up as two (14 is A♠ A♠, 26 is A♠ K♠, 169 is Q♠ K♠).',
+    handSize: 1,
+    floor: floorOf(hexRect(-5, 4, -10, 10), H8),
+    fixed: H8,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => deals(inputs).map(([[a], [b]]) => casino(rankValue(a) * rankValue(b))),
+    ordered: true,
+    grace: 100,
+    tests: dealtTests({
+      deal: (rand, n) => digitDeals(rand, n, 8),
+      fixed: [
+        // the smallest and largest products, and either side of thirteen
+        one('AS AS KS KS AS KS 2S 7S 7S 2S KS 2S 3S 9S QS JS 5S 8S KS QS 6S 2S 9S 9S'),
+        one('4S 3S JS 2S 2S 6S TS 7S'),
+      ],
+      nRandom: 4, seed: 185,
+    }),
+  },
+  {
+    id: 'carry-the-one',
+    card: '9H',
+    unlockAfter: 'deja-vu',
+    title: 'Carry the One',
+    story: [
+      'Dmitri\'s spreadsheet now has two columns, and so do the players: tonight each of them plays a two-digit casino number per deal, the leading digit a spade on top of the units digit, a club. That is fourteen (an ace and an ace) up to a hundred and eighty-two (a king and a king).',
+      'The house pays the total in casino numbers, in its own spades, the leading digit on top. The biggest totals take three cards, which the Owner has decided to be proud of.',
+    ],
+    brief: 'Two players, two-card hands, one each per deal: a two-digit casino number, the leading digit a spade on top of the units digit, a club (A♠ A♣ is 14, K♠ K♣ is 182). Pay the sum in casino numbers, house spades with the leading digit on top: 28 is 2♠ 2♠, 182 is K♠ K♠, and from 183 (A♠ A♠ A♠) it takes three cards, up to 364 (2♠ A♠ K♠).',
+    handSize: 2,
+    floor: floorOf(hexRect(-4, 5, -11, 17), H7),
+    fixed: H7,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => deals(inputs).map(([a, b]) => casino(twoDigits(a) + twoDigits(b))),
+    ordered: true,
+    grace: 100,
+    tests: dealtTests({
+      deal: (rand, n) => twoDigitDeals(rand, n, 6),
+      fixed: [
+        // the smallest and largest sums; a carry or not into each digit
+        ['AS AC', 'AS AC', 'KS KC', 'KS KC', 'AS 6C', 'AS 7C', 'AS 7C', 'AS 7C', 'QS AC', 'AS AC', 'QS KC', 'AS AC',
+          'KS AC', 'AS KC', '9S 9C', '9S 9C'],
+        ['5S 7C', '6S 7C', '2S 3C', 'JS 4C', 'AS KC', 'KS AC'],
+      ],
+      nRandom: 4, seed: 186,
+    }),
+  },
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
@@ -764,6 +833,8 @@ const PAR = {
   'last-in-first-out': { croupiers: 20, rounds: 835 },
   'showdown': { croupiers: 43, rounds: 296 },
   'twice-shy': { croupiers: 36, rounds: 1145 },
+  'times-tables': { croupiers: 34, rounds: 3720 },
+  'carry-the-one': { croupiers: 69, rounds: 2060 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

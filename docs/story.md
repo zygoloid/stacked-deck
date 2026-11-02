@@ -207,6 +207,8 @@ regulation; Ace Count does).
 | 5♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
 | 6♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
 | 7♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
+| 8♥ | Times Tables | Déjà Vu | Dmitri finds the multiplication sheet |
+| 9♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
 
 ## Notes for writers
 
