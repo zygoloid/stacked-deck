@@ -143,7 +143,7 @@ export function casinoProducts() {
   return { nodes, links };
 }
 
-// Carry the One (two-digit casino sums): each player plays two spades, the
+// Carry the One (two-digit casino sums): each player plays two cards, the
 // leading digit on top. The machine works in unary, a digit at a time.
 //  * A master table (thirteen cards of each rank r, r of them hearts; stacked
 //    by a store as in Casino Numbers) goes round a ring of four lookups, one
