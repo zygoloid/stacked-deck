@@ -175,14 +175,14 @@ function longSumsDecks() {
 export function casinoLongSums() {
   const k = longSumsDecks();
   const at = {
-    SpA: [-1, -3], SpB: [8, -1],
-    GA2: [-2, 3], DA2: [-1, 2], BA2: [0, 1], TA2: [0, 2], UA2: [0, 3],
-    GA1: [3, -3], DA1: [4, -3], BA1: [5, -3], TA1: [4, -2], UA1: [3, -1],
-    GB1: [8, -2], DB1: [7, -1], BB1: [6, 0], TB1: [6, -1], UB1: [6, -2],
-    GB2: [5, 1], DB2: [5, 2], BB2: [5, 3], TB2: [4, 3], UB2: [3, 3],
-    SH: [-3, 0], H13: [-2, 0], ST: [-1, 0], TW: [0, 0], AC: [0, -1], BK: [-1, 1], SEED: [-2, 2], BJ: [1, -1],
-    MP: [2, -2], SR1: [1, 1], HR1: [1, 2], SR2: [5, 0], HR2: [5, -1],
-    GU: [2, 3], GT1: [4, -1], GR1: [2, 2], DL1: [2, 1], GT2: [3, 0], GF: [3, 1], GR2: [4, 0], DL2: [4, 1],
+    SpA: [4, -1], SpB: [3, 1],
+    GA2: [-4, 0], DA2: [-3, 0], BA2: [-2, 0], TA2: [-3, 1], UA2: [-4, 2],
+    GA1: [2, -1], DA1: [2, 0], BA1: [2, 1], TA1: [1, 1], UA1: [0, 1],
+    GB1: [2, 2], DB1: [1, 3], BB1: [0, 4], TB1: [0, 3], UB1: [0, 2],
+    GB2: [-2, 5], DB2: [-3, 6], BB2: [-4, 7], TB2: [-4, 6], UB2: [-4, 5],
+    SH: [3, -3], H13: [2, -3], ST: [1, -3], TW: [0, -3], AC: [0, -2], BK: [1, -4], SEED: [2, -5], BJ: [-1, -2],
+    MP: [-1, -1], SR1: [-1, 0], HR1: [-2, 1], SR2: [-1, 4], HR2: [-1, 3],
+    GU: [-4, 3], GT1: [-1, 2], GR1: [-3, 2], DL1: [-2, 2], GT2: [-2, 3], GF: [-3, 3], GR2: [-2, 4], DL2: [-3, 4],
   };
   const nodes = {
     SpA: c(at.SpA, 'burn'), SpB: c(at.SpB, 'burn'),
@@ -193,7 +193,7 @@ export function casinoLongSums() {
     GU: c(at.GU, 'gather'), GT1: c(at.GT1, 'gather'), GR1: c(at.GR1, 'gather'), GT2: c(at.GT2, 'gather'),
     GF: c(at.GF, 'gather'), GR2: c(at.GR2, 'gather'),
     // unpaid cards go to a free side, onto the floor
-    DL1: c(at.DL1, 'deal', { out: { to: Array(52).fill(NW) } }),
+    DL1: c(at.DL1, 'deal', { out: { to: Array(52).fill(NE) } }),
     DL2: c(at.DL2, 'deal', { out: { to: Array(56).fill(SE) } }),
   };
   for (const d of ['A2', 'A1', 'B1', 'B2']) {
@@ -203,25 +203,23 @@ export function casinoLongSums() {
     });
   }
   for (const n of Object.values(nodes)) if (n.fn === 'pass') n.out = {};
+  // (Each player's leading digit, the top card, goes to A1/B1 and the units to
+  // A2/B2; the store; the ring A2, A1, B1, B2 and its lookups; the counts;
+  // the units column; the leading column. Listed in the order that routes
+  // best, found by the annealer.)
   const links = [
-    // each player's leading digit (the top card) to A1/B1, the units to A2/B2
-    ['SpA', 'rest', 'GA2'], ['SpA', 'burn', 'GA1'], ['SpB', 'rest', 'GB2'], ['SpB', 'burn', 'GB1'],
-    // the store
-    ['SH', null, 'H13'], ['H13', 'out', 'ST'], ['BK', 'out', 'ST', 'under'], ['SEED', null, 'BK'],
-    ['AC', null, 'TW', 'dealer'], ['ST', 'out', 'TW'], ['TW', 'lose', 'BK'], ['TW', 'win', 'BJ'], ['BJ', 'rest', 'MP'],
-    // the ring: A2, A1, B1, B2
-    ['BA2', 'rest', 'MP'], ['MP', 'out', 'GA1', 'under'], ['BA1', 'rest', 'GB1', 'under'],
-    ['BB1', 'rest', 'GB2', 'under'], ['BB2', 'rest', 'GA2', 'under'],
-    ...['A1', 'A2', 'B1', 'B2'].flatMap((d) => [[`G${d}`, 'out', `D${d}`], [`D${d}`, 'b', `B${d}`],
-      [`D${d}`, 'a', `T${d}`], [`T${d}`, 'set', `U${d}`]]),
-    // the counts: units, and leading digits
-    ['UA2', 'H', 'GU'], ['UB2', 'H', 'GU'], ['UA1', 'H', 'GT1'], ['UB1', 'H', 'GT1'],
-    // the units column
-    ['SR1', null, 'HR1'], ['HR1', 'out', 'GR1', 'under'], ['GU', 'out', 'GR1'], ['GR1', 'out', 'DL1'],
-    ['DL1', [0, 38], 'GT2'], ['DL1', [26], 'GF', 'under'], ['GT1', 'out', 'GT2'],
-    // the leading column
-    ['SR2', null, 'HR2'], ['HR2', 'out', 'GR2', 'under'], ['GT2', 'out', 'GR2'], ['GR2', 'out', 'DL2'],
-    ['DL2', [28, 54], 'GF'], ['GF', 'out', 'desk'],
+    ['ST', 'out', 'TW'], ['BA1', 'rest', 'GB1', 'under'], ['GB1', 'out', 'DB1'], ['DB1', 'a', 'TB1'],
+    ['SEED', null, 'BK'], ['GR1', 'out', 'DL1'], ['UB1', 'H', 'GT1'], ['DB2', 'b', 'BB2'], ['DL1', [0, 38], 'GT2'],
+    ['AC', null, 'TW', 'dealer'], ['GF', 'out', 'desk'], ['BK', 'out', 'ST', 'under'], ['MP', 'out', 'GA1', 'under'],
+    ['DA2', 'a', 'TA2'], ['DA2', 'b', 'BA2'], ['SpA', 'rest', 'GA2'], ['HR2', 'out', 'GR2', 'under'],
+    ['TW', 'win', 'BJ'], ['GT1', 'out', 'GT2'], ['UA2', 'H', 'GU'], ['DB1', 'b', 'BB1'], ['UA1', 'H', 'GT1'],
+    ['TB1', 'set', 'UB1'], ['GB2', 'out', 'DB2'], ['BA2', 'rest', 'MP'], ['BB1', 'rest', 'GB2', 'under'],
+    ['TB2', 'set', 'UB2'], ['SR2', null, 'HR2'], ['TA1', 'set', 'UA1'], ['SpA', 'burn', 'GA1'],
+    ['HR1', 'out', 'GR1', 'under'], ['GU', 'out', 'GR1'], ['DB2', 'a', 'TB2'], ['SH', null, 'H13'],
+    ['GA1', 'out', 'DA1'], ['SpB', 'rest', 'GB2'], ['SR1', null, 'HR1'], ['BJ', 'rest', 'MP'], ['UB2', 'H', 'GU'],
+    ['H13', 'out', 'ST'], ['GT2', 'out', 'GR2'], ['GR2', 'out', 'DL2'], ['TA2', 'set', 'UA2'], ['GA2', 'out', 'DA2'],
+    ['BB2', 'rest', 'GA2', 'under'], ['DA1', 'a', 'TA1'], ['DL2', [28, 54], 'GF'], ['DL1', [26], 'GF', 'under'],
+    ['TW', 'lose', 'BK'], ['SpB', 'burn', 'GB1'], ['DA1', 'b', 'BA1'],
   ];
   return { nodes, links };
 }

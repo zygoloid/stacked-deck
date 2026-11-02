@@ -38,7 +38,7 @@ const H2 = [source([-2, 1], E), desk([-2, 3])];
 const H4 = [source([-4, 0], E), desk([1, 2])];
 const H5 = [seated([-6, 4], E, 0), seated([-5, 3], SE, 1), desk([-4, 7])];
 const H6 = [seated([5, -1], W, 0), seated([4, 1], W, 1), desk([-2, 0])];
-const H7 = [seated([-1, -4], SE, 0), seated([8, 0], NW, 1), desk([3, 2])];
+const H7 = [...H6.slice(0, 2), desk([-4, 4])];
 const H8 = [seated([2, -2], SW, 0), seated([2, -1], SE, 1), desk([1, 4])];
 const labelled = (at, n) => ({ ...desk(at), desk: n });
 const H3 = [
@@ -786,7 +786,7 @@ export const LEVELS = [
     ],
     brief: 'Two players, two-card hands, one each per deal: a two-digit casino number, the leading digit a club on top of the units digit, a spade (A♣ A♠ is 14, K♣ K♠ is 182). Pay the sum in casino numbers, house spades with the leading digit on top: 28 is 2♠ 2♠, 182 is K♠ K♠, and from 183 (A♠ A♠ A♠) it takes three cards, up to 364 (2♠ A♠ K♠).',
     handSize: 2,
-    floor: floorOf(hexRect(-4, 5, -11, 17), H7),
+    floor: floorOf(hexRect(-6, 7, -12, 9), H7),
     fixed: H7,
     croupiers: paletteThrough('hand'),
     warRules: ALL,
@@ -834,7 +834,7 @@ const PAR = {
   'showdown': { croupiers: 43, rounds: 296 },
   'twice-shy': { croupiers: 36, rounds: 1145 },
   'times-tables': { croupiers: 34, rounds: 3720 },
-  'carry-the-one': { croupiers: 69, rounds: 2060 },
+  'carry-the-one': { croupiers: 75, rounds: 2046 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);
