@@ -122,14 +122,18 @@ export class Sim {
 
     if (f.paid.length > before) {
       const t = this.tally();
-      this.paidNow = f.paid[f.paid.length - 1];
+      // paidNow is the hand as card objects ({c, src}), so the board can
+      // tell which copy of a card went to the desk.
+      this.paidNow = f.justPaid[f.justPaid.length - 1];
       this.paidNowDesk = f.paidAt[f.paidAt.length - 1];
-      const bad = t.paid.slice(before).find((x) => !x.ok);
-      if (bad) {
+      const now = t.paid.slice(before);
+      const bad = now.findIndex((x) => !x.ok);
+      if (bad >= 0) {
+        const { h, desk } = now[bad];
         this.paidWrong = true;
-        this.paidNow = bad.h;
-        this.paidNowDesk = bad.desk;
-        this.status = { kind: 'wrong', hand: bad.h, desk: bad.desk, msg: this.wrongReason(bad.h, bad.desk) };
+        this.paidNow = f.justPaid[bad];
+        this.paidNowDesk = desk;
+        this.status = { kind: 'wrong', hand: h, desk, msg: this.wrongReason(h, desk) };
         return this.status.kind;
       }
     }

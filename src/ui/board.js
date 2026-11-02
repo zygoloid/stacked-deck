@@ -195,15 +195,13 @@ export class Board {
     this.paidNowDesk = state.paidNowDesk;
     this.paidWrong = state.paidWrong;
     this.anim = live ? state.anim : null;
-    if (this.anim) {
-      // Cards that left the floor in the step (paid or dropped): the chip
-      // desk's hand is matched to them by card, the rest fade out.
-      if (!this.anim.vanished) {
-        const present = new Set();
-        for (const lc of live.cells.values()) for (const hand of liveHands(lc)) hand.forEach((x) => present.add(x));
-        this.anim.vanished = [...this.anim.from].filter(([x]) => !present.has(x)).map(([, p]) => p);
-      }
-      this.pool = [...this.anim.vanished];
+    this.copiedFrom = live?.copiedFrom;
+    if (this.anim && !this.anim.vanished) {
+      // Cards that left the floor in the step without reaching the chip desk
+      // (dropped, or paid but not shown): they fade out where they were.
+      const present = new Set(state.paidNow);
+      for (const lc of live.cells.values()) for (const hand of liveHands(lc)) hand.forEach((x) => present.add(x));
+      this.anim.vanished = [...this.anim.from].filter(([x]) => !present.has(x)).map(([, p]) => p);
     }
     // Card object -> where it is drawn (for the next step's animation), and
     // what a collapsed stack or label holds ([data-peek] indexes this).
@@ -241,7 +239,7 @@ export class Board {
     }
     // Dropped cards fade out where they were.
     if (this.anim && this.anim.t < 1) {
-      for (const p of this.pool) gCards.append(cardSvg(p.c, p.x, p.house, p.y, 1 - ease(this.anim.t)));
+      for (const p of this.anim.vanished) gCards.append(cardSvg(p.c, p.x, p.house, p.y, 1 - ease(this.anim.t)));
     }
 
     // The empty hex the croupier picker is open for, and the edge its first port will point at.
@@ -436,17 +434,15 @@ export class Board {
   }
 
   // Where a card drawn at (ax, ay) (board coordinates) is during the step
-  // animation: [dx, dy, opacity]. Cards that were on the floor before slide
-  // from there; the chip desk's cards come from cards that left the floor;
-  // new cards fade in.
-  motion(card, c, ax, ay) {
+  // animation: [dx, dy, opacity]. Cards that were on the floor before
+  // (including the chip desk's, just paid) slide from there, matched by card
+  // object so copies of a card each come from their own place; cards
+  // Duplicate just made come from the card they copy; new cards fade in.
+  motion(card, ax, ay) {
     const a = this.anim;
     if (!a || a.t >= 1) return [0, 0, 1];
-    let from = card && typeof card === 'object' ? a.from.get(card) : undefined;
-    if (!from && typeof card === 'string') {
-      const i = this.pool.findIndex((p) => p.c === c);
-      if (i >= 0) [from] = this.pool.splice(i, 1);
-    }
+    const from = card && typeof card === 'object'
+      ? a.from.get(card) ?? a.from.get(this.copiedFrom?.get(card)) : undefined;
     if (!from) return [0, 0, ease(a.t)];
     const k = 1 - ease(a.t);
     return [(from.x - ax) * k, (from.y - ay) * k, 1];
@@ -479,7 +475,7 @@ export class Board {
     if (deco) g.append(deco);
     const place = (i, k, cx) => {
       const ax = ox + x0 + cx, ay = oy + y0;
-      const [dx, dy, op] = this.motion(hand[i], cards[i], ax, ay);
+      const [dx, dy, op] = this.motion(hand[i], ax, ay);
       for (let j = i; j < i + k; j++) {
         if (typeof hand[j] === 'object') this.positions.set(hand[j], { x: ax + dx, y: ay + dy, c: cards[j], house: house[j] });
       }
