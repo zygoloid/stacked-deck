@@ -6,7 +6,7 @@ import { LEVELS, BONUS } from '../src/levels.js';
 import { RULES_VERSION } from '../src/engine.js';
 import { solutionHash } from '../src/score.js';
 import {
-  uploadCandidates, prepareUpload, submission, readStats, readFrontier, standing, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS,
+  uploadCandidates, prepareUpload, submission, readStats, readFrontier, recordOf, readRecord, bestRepairs, standing, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS,
 } from '../src/online.js';
 
 const ALL = [...LEVELS, ...BONUS];
@@ -110,12 +110,12 @@ console.log('read timeouts ok');
   let st = standing({ best: { croupiers: 3, rounds: 45 }, par });
   assert.strictEqual(st.record, null);
   assert.deepStrictEqual(st.top, { croupiers: false, rounds: false });
-  // The record counts everyone, friends, par and the player's own best (not uploaded yet).
-  const stats = { points: [{ croupiers: 5, rounds: 38, count: 2 }, { croupiers: 6, rounds: 36, count: 1 }], players: 3 };
-  st = standing({ best: { croupiers: 3, rounds: 45 }, par, stats });
+  // The record counts everyone's (best/v{N}), friends', par and the player's own best (not uploaded yet).
+  const everyone = { croupiers: 5, rounds: 36 };
+  st = standing({ best: { croupiers: 3, rounds: 45 }, par, everyone });
   assert.deepStrictEqual(st.record, { croupiers: 3, rounds: 36 });
   assert.deepStrictEqual(st.top, { croupiers: true, rounds: false });
-  st = standing({ best: { croupiers: 4, rounds: 36 }, par, stats: { points: [], players: 0 } });
+  st = standing({ best: { croupiers: 4, rounds: 36 }, par, everyone: {} });
   assert.deepStrictEqual(st.record, { croupiers: 4, rounds: 36 });
   assert.deepStrictEqual(st.top, { croupiers: true, rounds: true });
   // Friends who beat the player's best on either axis, with their best there.
@@ -124,10 +124,32 @@ console.log('read timeouts ok');
     { name: 'Bob', points: [{ croupiers: 4, rounds: 44 }] },
     { name: 'Cy', points: [] },
   ];
-  st = standing({ best: { croupiers: 3, rounds: 45 }, par, stats, friends });
+  st = standing({ best: { croupiers: 3, rounds: 45 }, par, everyone, friends });
   assert.deepStrictEqual(st.beatenBy, [{ name: 'Ann', croupiers: 2, rounds: 30 }, { name: 'Bob', croupiers: null, rounds: 44 }]);
   assert.deepStrictEqual(st.record, { croupiers: 2, rounds: 30 });
-  assert.deepStrictEqual(standing({ best: null, par, stats, friends }).beatenBy.map((f) => f.name), ['Ann', 'Bob'], 'unsolved: every friend who solved it');
-  assert.deepStrictEqual(standing({ best: { croupiers: 2, rounds: 30 }, par, stats, friends }).beatenBy, []);
+  assert.deepStrictEqual(standing({ best: null, par, everyone, friends }).beatenBy.map((f) => f.name), ['Ann', 'Bob'], 'unsolved: every friend who solved it');
+  assert.deepStrictEqual(standing({ best: { croupiers: 2, rounds: 30 }, par, everyone, friends }).beatenBy, []);
 }
 console.log('standings ok');
+{
+  // A floor's record from its stats: each count on its own, ignoring points nobody holds any more.
+  assert.deepStrictEqual(recordOf({ points: { '5_38': 2, '6_36': 1, '3_90': 0 }, players: 3 }), { croupiers: 5, rounds: 36 });
+  assert.strictEqual(recordOf({ points: { '5_38': 0 }, players: 0 }), null);
+  assert.strictEqual(recordOf(null), null);
+  assert.deepStrictEqual(readRecord({ croupiers: 3, rounds: 33 }), { croupiers: 3, rounds: 33 });
+  assert.strictEqual(readRecord({ croupiers: '3', rounds: 33 }), null);
+  assert.strictEqual(readRecord(null), null);
+  // Repairs only fill in or lower records, and leave the right ones alone.
+  const stats = {
+    a: { points: { '5_38': 1, '6_36': 1 }, players: 2 },   // missing: filled in
+    b: { points: { '4_40': 1 }, players: 1 },              // right already
+    c: { points: { '4_40': 1, '7_30': 1 }, players: 2 },   // rounds too high: lowered
+    d: { points: { '9_90': 1 }, players: 1 },              // lower than the stats show: kept
+    e: { points: { '9_90': 0 }, players: 0 },              // nobody: nothing written
+  };
+  const best = { b: { croupiers: 4, rounds: 40 }, c: { croupiers: 4, rounds: 40 }, d: { croupiers: 3, rounds: 33 } };
+  assert.deepStrictEqual(bestRepairs(stats, best), { a: { croupiers: 5, rounds: 36 }, c: { croupiers: 4, rounds: 30 } });
+  assert.deepStrictEqual(bestRepairs(stats, { ...best, ...bestRepairs(stats, best) }), {}, 'repairing twice changes nothing');
+  assert.deepStrictEqual(bestRepairs(null, null), {});
+}
+console.log('best known records ok');

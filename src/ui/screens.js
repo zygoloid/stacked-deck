@@ -26,11 +26,11 @@ export function levelSelect(root, ctx) {
 
   // Everyone's and friends' scores on a floor, as last read (signed in only),
   // and how the player's best compares with them and with par.
-  const scoresOf = (lv) => (signedIn ? cloud.floorScores(lv.id) : { stats: null, friends: [] });
+  const scoresOf = (lv) => (signedIn ? cloud.floorScores(lv.id) : { everyone: null, stats: null, friends: [] });
   const bestOf = (lv) => (save.levels[lv.id]?.solved ? save.levels[lv.id].best ?? null : null);
   const standingOf = (lv) => {
     const sc = scoresOf(lv);
-    return standing({ best: bestOf(lv), par: lv.par, stats: sc.stats, friends: sc.friends });
+    return standing({ best: bestOf(lv), par: lv.par, everyone: sc.everyone, friends: sc.friends });
   };
 
   const page = h('div', { class: 'select' });
@@ -140,7 +140,9 @@ export function levelSelect(root, ctx) {
     }
     // The score chart, once there are scores: on hovering the card, on
     // keyboard focus, or from the chart button (for touch).
-    if (!(st.solutions ?? []).some((p) => !p.broken) && !scoresOf(lv).stats?.points.length) return h('div', { class: 'tile-slot' }, el);
+    const sc = scoresOf(lv);
+    const scored = (st.solutions ?? []).some((p) => !p.broken) || sc.everyone?.croupiers != null || sc.stats?.points.length || sc.friends.length;
+    if (!scored) return h('div', { class: 'tile-slot' }, el);
     el.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') hoverPop(lv, el); });
     el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') leavePop(); });
     el.addEventListener('focus', () => { if (el.matches(':focus-visible')) showPop(lv, el); });
@@ -193,6 +195,11 @@ export function levelSelect(root, ctx) {
     }
     pop.style.left = `${Math.max(8, Math.min(vw - pw - 8, left))}px`;
     pop.style.top = `${Math.max(8, Math.min(vh - ph - 8, top))}px`;
+    // Everyone's scores on this floor are read when its chart is first shown
+    // (the floors list reads only each floor's best): shown again with them.
+    if (signedIn && !cloud.cachedStats(lv.id)) {
+      cloud.statsFor(lv.id).then(() => { if (popFor === lv && page.isConnected) showPop(lv, anchor, popPinned); }, () => {});
+    }
   }
   function hidePop() {
     clearTimeout(popTimer);
@@ -345,20 +352,29 @@ export function helpPanel(close, save) {
       h('ul', { class: 'rules' },
         h('li', {}, 'The ', h('b', {}, 'card player'), ' hands out the test hands one at a time. Hands that should win must reach the ', h('b', {}, 'chip desk'), '; every other card must end up on the floor.'),
         h('li', {}, 'Each croupier has named ', h('b', {}, 'output ports'), '. Point each port at a side of its hex. A port left on ', h('b', {}, '✕ floor'), ', or pointing at a hex with no table, drops its cards.'),
-        h('li', {}, 'Croupiers accept hands from any side. Every round, each free croupier picks up one hand (from the side it last took from, otherwise the next filled side clockwise), acts, and places its outputs. A croupier whose target slot is full waits.'),
+        h('li', {}, 'Croupiers accept hands from any side. Every round, each croupier takes a hand if it can, acts, and hands its results on; a croupier whose way is blocked waits.'),
         h('li', {}, 'A hand\'s top card is drawn first (leftmost). House cards from shoes are drawn dashed.'),
         h('li', {}, 'A floor is cleared when every test passes, and then its check deals: random deals made from your machine itself, so they change whenever the machine does. A machine has to follow the floor\'s rule, not just get the tests right.'),
-        h('li', {}, 'Scores: croupiers placed (shoes count) and rounds (the total over all the tests; check deals don\'t count). Fewer is better.'),
+        h('li', {}, 'Scores: croupiers placed and rounds (the total over all the tests; check deals don\'t count). Fewer is better.'),
         h('li', {}, 'Signing in with Google (optional, from the floors list) uploads the machines you solve floors with and shows everyone\'s scores behind your own on each floor\'s chart. Other players see only how many players got each score, never your machines. Until you sign in, nothing leaves your browser, and the account menu can delete everything signing in stored. See the ', h('a', { href: 'privacy.html', target: '_blank', rel: 'noopener' }, 'privacy notice'), '.')),
       h('h3', {}, 'Croupiers'),
       h('table', { class: 'help-table' }, h('tbody', {}, rows)),
       specials.length ? specialHelp(specials) : null,
-      h('h3', {}, 'Keys'),
+      h('h3', {}, 'Controls'),
+      // Keyboard and mouse controls only where there is a mouse, touch ones
+      // only where there is a touch screen (style.css: .kbd-only, .touch-only).
       h('div', { class: 'keys-grid' },
-        [['Space', 'play / pause'], ['.', 'step'], [',', 'step back'], ['R', 'reset the run'], ['F', 'next speed'],
-          ['1–9', 'pick a croupier'], ['Del', 'remove selected'], ['Q E A D Z C', 'point the active port NW NE W E SW SE, then the next'], ['Long-press an edge', 'pick which port points there'],
-          ['X', 'active port to floor'], ['Tab', 'next port'], ['Ctrl+Z', 'undo'], ['Wheel / pinch / drag', 'zoom / pan the floor'], ['+ − 0', 'zoom in, out, fit'], ['Esc', 'cancel / deselect'], ['Right-click', 'remove a croupier']]
-          .map(([k, v]) => h('div', {}, h('kbd', {}, k), ' ', v)))));
+        [['Tap an empty hex', 'pick a croupier to place there', 'touch'], ['Long-press a croupier in the picker', 'read about it', 'touch'],
+          ['Click an empty hex', 'pick a croupier to place there', 'kbd'], ['Point at a croupier in the picker', 'read about it', 'kbd'],
+          ['Long-press an edge', 'pick which port points there'], ['Long-press', 'pick up croupiers (drag for more)', 'touch'],
+          ['Pinch / drag', 'zoom / pan the floor', 'touch'],
+          ['Space', 'play / pause', 'kbd'], ['.', 'step', 'kbd'], [',', 'step back', 'kbd'], ['R', 'reset the run', 'kbd'], ['F', 'next speed', 'kbd'],
+          ['1–9', 'place a croupier at the pointer', 'kbd'], ['Del', 'remove selected', 'kbd'],
+          ['[ ] M', 'turn / mirror the selected croupier or group', 'kbd'], ['Shift-drag', 'pick up croupiers in a box', 'kbd'], ['Enter / Esc', 'put a group down / back', 'kbd'],
+          ['Q E A D Z C', 'point the active port NW NE W E SW SE, then the next', 'kbd'],
+          ['X', 'active port to floor', 'kbd'], ['Tab', 'next port', 'kbd'], ['Ctrl+Z', 'undo', 'kbd'], ['Wheel / drag', 'zoom / pan the floor', 'kbd'], ['+ − 0', 'zoom in, out, fit', 'kbd'],
+          ['Esc', 'cancel / deselect', 'kbd'], ['Right-click', 'remove a croupier', 'kbd']]
+          .map(([k, v, only]) => h('div', { class: only ? `${only === 'kbd' ? 'kbd' : 'touch'}-only` : null }, h('kbd', {}, k), ' ', v)))));
 }
 
 // "n (1–13, default 5)" or "rule (high / top)".
@@ -381,8 +397,8 @@ function specialHelp(cards) {
 }
 
 const SPECIAL_RULES = {
-  '?': 'Wild for value: joins the biggest set (n of a kind, Set) and fills a gap or an end of a straight. Has no suit, so it spoils a flush and Suits sends it to misc. In War it beats everything, aces included.',
-  '??': 'Wild like the monochrome joker, and it counts as every suit: it never spoils a flush, and Suits sends it to the first of ♠ ♥ ♦ ♣ that has a port. Beats everything in War.',
-  '$': 'No value and no suit: never part of a set, a straight or a flush (Set always sends it to rest), and it loses to everything in War. First in new deck order, before A♠.',
-  '$$': 'Like the front advertising card, but last in new deck order, after the jokers.',
+  '?': 'Wild. It has no suit.',
+  '??': 'Wild. It counts as every suit.',
+  '$': 'No value and no suit. First in new deck order.',
+  '$$': 'No value and no suit. Last in new deck order.',
 };

@@ -71,6 +71,10 @@ coordinates: `0 E [1,0]`, `1 SE [0,1]`, `2 SW [-1,1]`, `3 W [-1,0]`,
 | `shoe` (croupier dealing a stacked deck) | `at, out, deck: ['AS', ...], once?` |
 | `croupier` | `at, fn, out: {port: side}, facing?, ...params` |
 
+`facing` (the side a croupier starts looking for input on, default east) is
+for the engine and its tests only: the editor never sets it, so players'
+machines don't have it (`sanitizeCells` drops it, `validateCells` rejects it).
+
 An unassigned port, or a port pointing at a hex with no table, drops cards on
 the floor (they are gone). Every croupier accepts input from any side.
 

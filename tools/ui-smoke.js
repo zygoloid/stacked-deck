@@ -9,7 +9,8 @@
 // deck parser's special-card rules, and placing Burn and Hand croupiers (with
 // a Hand's held cards drawn on the board), step animation, pausing with a
 // slow mouse click, touch (drag pans with a croupier picked, tap places,
-// tapping the bare floor deselects, pinch zoom, tap to see a cut-short Deal
+// tapping the bare floor deselects, pinch zoom, a selected croupier's panel
+// right under the floor on a phone, tap to see a cut-short Deal
 // label), a croupier's settings before placing, and the floors list scrolled
 // back to the floor just left. With `?testlevels` the page adds the
 // fixture floors of test/ui-levels.js to the bonus deck; those cover an
@@ -101,6 +102,13 @@ try {
   check(await page.locator('a.tile[data-level="opening-night"]').count() === 1, 'level select lists opening-night');
   check(await page.locator(`a.tile[data-level="${LEVELS[2].id}"]`).count() === 1, 'first three levels are open');
   check(await page.locator(`a.tile[data-level="${LEVELS[3].id}"]`).count() === 0, 'fourth level is locked');
+  // Nothing covers the floors list's header (the editor's styles once took it out of the page flow).
+  const covered = await page.$$eval('header.marquee button', (bs) => bs.filter((b) => {
+    const r = b.getBoundingClientRect();
+    const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return !(top === b || b.contains(top));
+  }).map((b) => b.textContent));
+  check(!covered.length && await page.locator('header.marquee button').count() > 0, `the floors list's header buttons are on top${covered.length ? ` (covered: ${covered.join(', ')})` : ''}`);
   if (shots) await page.screenshot({ path: join(shots, '1-level-select.png') });
 
   await page.click('a.tile[data-level="opening-night"]');
@@ -123,9 +131,8 @@ try {
   // (for 'opening-night': [-1,0] [0,0] [1,0], out -> E), derived from level.fixed.
   const line1 = passLine(LEVELS[0]);
   const buildLine = async (line) => {
-    await page.click('.pal-item[data-tool="pass"]');
-    for (const [at] of line) await clickHex(at);
-    await page.keyboard.press('Escape'); // drop the tool
+    for (const [at] of line) { await page.click('.pal-item[data-tool="pass"]'); await clickHex(at); } // placing one puts the tool down
+    await page.keyboard.press('Escape'); // deselect the last
     for (const [at, d] of line) {
       await clickHex(at);                 // select
       await page.keyboard.press('x');     // port to the floor
@@ -139,6 +146,19 @@ try {
   const cells = saved?.levels?.['opening-night']?.cells ?? [];
   check(cells.length === line1.length && line1.every(([at, d]) => cells.some((c) => c.at.join() === at.join() && c.fn === 'pass' && c.out.out === d)),
     `machine autosaved: ${line1.map(([at, d]) => `[${at}]->${'E SE SW W NW NE'.split(' ')[d]}`).join(' ')}`);
+  // Placing a croupier selects it and puts the palette tool down.
+  check(await page.locator('.pal-item.on').count() === 0, 'placing a croupier puts the croupier type down');
+  // Dragging a croupier: the ghost shows its chip (and nothing else).
+  {
+    const [gx, gy] = await hexPoint(line1[0][0]);
+    await page.mouse.move(gx, gy);
+    await page.mouse.down();
+    await page.mouse.move(gx + 30, gy + 30, { steps: 3 });
+    const ghostText = (await page.textContent('.drag-ghost')).trim();
+    await page.mouse.move(gx, gy, { steps: 3 });
+    await page.mouse.up();
+    check(ghostText === 'PASS', `dragging a croupier shows just its chip ("${ghostText}")`);
+  }
   await clickHex(line1[Math.floor(line1.length / 2)][0]);
   if (shots) await page.screenshot({ path: join(shots, '2-editor.png') });
 
@@ -260,8 +280,7 @@ try {
     await page.goto(`${base}?unlockall#/level/${wrongLevel.id}`);
     await page.waitForSelector('svg.board');
     const line = passLine(wrongLevel);
-    await page.click('.pal-item[data-tool="pass"]');
-    for (const [at] of line) await clickHex(at);
+    for (const [at] of line) { await page.click('.pal-item[data-tool="pass"]'); await clickHex(at); }
     await page.keyboard.press('Escape');
     for (const [at, d] of line) { await clickHex(at); await page.keyboard.press('x'); await page.keyboard.press('dczaqe'[d]); }
     await page.keyboard.press('Escape');
@@ -463,9 +482,11 @@ try {
     await phone.close();
   }
 
-  // Touch on a phone: with a croupier picked, a drag pans and a tap places;
-  // tapping the bare floor drops the tool, two fingers pinch-zoom, the play
-  // button deselects, and tapping a cut-short label shows it in full.
+  // Touch on a phone: a drag pans; a tap on an empty hex opens the croupier
+  // picker there (no palette on a phone), and a tap near an edge points the
+  // first port that way; tapping the bare floor deselects, two fingers
+  // pinch-zoom, a long press draws a box that picks up a group, and tapping
+  // a cut-short label shows it in full.
   {
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     phone.on('pageerror', (e) => errors.push(e.message));
@@ -489,20 +510,77 @@ try {
     await phone.waitForSelector('svg.board');
     await phone.locator('svg.board').scrollIntoViewIfNeeded();
     const free = LEVELS[0].floor.filter((at) => !LEVELS[0].fixed.some((c) => c.at.join() === at.join()));
-    await phone.tap('.pal-item[data-tool="pass"]');
-    check((await phone.textContent('.inspector h3')) === 'Pass', 'picking a croupier shows its panel');
+    check(!(await phone.isVisible('.palette')), 'phone: no palette');
+    // The floor panel: Clear floor at its top; its list of the floor's
+    // croupiers unfolded at first (folding it is remembered); touch hints,
+    // no keyboard ones.
+    {
+      const y = async (sel) => (await phone.locator(sel).boundingBox()).y;
+      check(await phone.locator('.roster-box[open]').count() === 1 && await phone.isVisible('.roster-row[data-tool="pass"] .roster-desc') &&
+        await y('.inspector .floor-head .btn.danger') < await y('.inspector .howto'), 'phone: the floor panel starts with Clear floor, and lists the floor\'s croupiers unfolded');
+      check(!(await phone.isVisible('.inspector .keys')) && await phone.isVisible('.inspector .howto .touch-only') && !(await phone.isVisible('.inspector .howto .kbd-only')),
+        'phone: touch hints, no keyboard shortcuts');
+      const phoneText = await phone.innerText('.inspector');
+      check(/Tap an empty hex/.test(phoneText) && !/\bclick/i.test(phoneText), 'phone: the floor panel says tap, not click');
+      await phone.tap('.roster-box > summary');
+      await phone.reload();
+      await phone.waitForSelector('svg.board');
+      const folded = await phone.locator('.roster-box[open]').count() === 0;
+      await phone.tap('.roster-box > summary');
+      check(folded && await phone.locator('.roster-box[open]').count() === 1, 'phone: folding the list is remembered');
+      await phone.locator('svg.board').scrollIntoViewIfNeeded();
+    }
     const v0 = await viewBox();
     const [a, b] = [await hexAt(free[0]), await hexAt(free[1])];
     await touch('touchStart', [a]);
     for (let i = 1; i <= 8; i++) await touch('touchMove', [[a[0] + (b[0] - a[0]) * i / 8, a[1] + (b[1] - a[1]) * i / 8]]);
     await touch('touchEnd', []);
-    check(await viewBox() !== v0 && await placed() === 0, 'a drag with a croupier picked pans the floor, placing nothing');
+    check(await viewBox() !== v0 && await placed() === 0 && !(await phone.isVisible('.picker')), 'a drag over empty hexes pans the floor, opening nothing');
     await phone.click('.zoom button:last-child'); // fit
+    const tapItem = async (tool) => { const r = await phone.locator(`.picker-item[data-tool="${tool}"]`).boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
     await tap(await hexAt(free[0]));
-    check(await placed() === 1 && await phone.locator('.pal-item.on').count() === 1, 'a tap places it, and the croupier stays picked');
+    check(await phone.isVisible('.picker') && await phone.locator('.picker-item').count() === LEVELS[0].croupiers.length,
+      'a tap on an empty hex opens the croupier picker');
+    if (shots) await phone.screenshot({ path: join(shots, '7a-phone-picker.png') });
+    // A long press on a croupier in it shows what it does, without placing it.
+    {
+      const r = await phone.locator('.picker-item[data-tool="pass"]').boundingBox();
+      await touch('touchStart', [[r.x + r.width / 2, r.y + r.height / 2]]);
+      await phone.waitForTimeout(500);
+      const info = await phone.textContent('.peek.type-info').catch(() => '');
+      await touch('touchEnd', []);
+      await phone.waitForTimeout(100);
+      check(/Pass/.test(info) && /Passes the hand on/.test(info) && !(await phone.isVisible('.peek.type-info')) && await placed() === 0 && await phone.isVisible('.picker'),
+        `phone: a long press on a croupier in the picker shows what it does, and letting go places nothing ("${info}")`);
+    }
+    // It closes on a tap on its blank parts, or anywhere off the board.
+    const tapOn = async (sel) => { const r = await phone.locator(sel).boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
+    await tapOn('.picker-head');
+    const closedInside = !(await phone.isVisible('.picker'));
+    await tap(await hexAt(free[0]));
+    await tapOn('.inspector h3');
+    check(closedInside && !(await phone.isVisible('.picker')) && await placed() === 0, 'a tap on the picker\'s blank part, or off the board, closes it');
+    await tap(await hexAt(free[0]));
+    await tapItem('pass');
+    check(await placed() === 1 && await phone.locator('.cell.selected').count() === 1 && !(await phone.isVisible('.picker')),
+      'picking one places it there, selected');
     const box = await phone.locator('svg.board').boundingBox();
     await tap([box.x + 3, box.y + 3]);
-    check(await phone.locator('.pal-item.on').count() === 0 && await phone.locator('.cell.selected').count() === 0, 'tapping the bare floor drops the croupier and the selection');
+    check(await phone.locator('.cell.selected').count() === 0, 'tapping the bare floor drops the selection');
+    // A tap near an edge: the new croupier's first port points that way.
+    const nearEdge = ([q, r], d) => phone.evaluate(([[q, r], d]) => {
+      const R = 50, svg = document.querySelector('svg.board');
+      const x = R * Math.sqrt(3) * (q + r / 2) + Math.cos(d * Math.PI / 3) * R * 0.74, y = R * 1.5 * r + Math.sin(d * Math.PI / 3) * R * 0.74;
+      const pt = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+      return [pt.x, pt.y];
+    }, [[q, r], d]);
+    await tap(await nearEdge(free[1], 3));
+    check(/←/.test(await phone.textContent('.picker-head')), `the picker says which way the first port will point ("${await phone.textContent('.picker-head')}")`);
+    await tapItem('pass');
+    const second = await phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells[1]);
+    check(second?.out?.out === 3, `a tap near an edge points the first port that way (${JSON.stringify(second?.out)})`);
+    await tap(await (async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; })());
+    check(await placed() === 1, 'undo takes it away again');
     const w0 = Number((await viewBox()).split(' ')[2]);
     const [cx, cy] = [box.x + box.width / 2, box.y + box.height / 2];
     await touch('touchStart', [[cx - 30, cy], [cx + 30, cy]]);
@@ -511,11 +589,160 @@ try {
     const w1 = Number((await viewBox()).split(' ')[2]);
     check(w1 < w0 * 0.8 && await placed() === 1, `two fingers pinch-zoom (view ${w0.toFixed(0)} -> ${w1.toFixed(0)} wide)`);
     await phone.click('.zoom button:last-child');
+    const boardH = (await phone.locator('.board-wrap').boundingBox()).height;
+    const playAt = await phone.locator('.tp.main').boundingBox();
     await tap(await hexAt(free[0]));
     check(await phone.locator('.cell.selected').count() === 1, 'a tap selects a croupier');
-    await phone.tap('.tp.main');
-    check(await phone.locator('.cell.selected').count() === 0, 'pressing play deselects it');
-    await phone.tap('.tp.main');
+    // Its panel comes right under the floor: the palette and the play controls step aside.
+    const gap = await phone.evaluate(() => document.querySelector('.inspector').getBoundingClientRect().top - document.querySelector('.board-wrap').getBoundingClientRect().bottom);
+    check(!(await phone.isVisible('.palette')) && !(await phone.isVisible('.transport')) && gap >= 0 && gap < 4,
+      `phone: a selected croupier's panel sits right under the floor (gap ${gap.toFixed(0)}px)`);
+    if (shots) await phone.screenshot({ path: join(shots, '7e-phone-selected.png') });
+    // The floor keeps its size, so a tap where the play button was lands on
+    // the croupier's panel, not on a floor that grew into its place (which
+    // deselected and let the tap's click start playing).
+    const selH = (await phone.locator('.board-wrap').boundingBox()).height;
+    check(Math.abs(selH - boardH) < 1, `phone: selecting a croupier leaves the floor its size (${boardH.toFixed(0)} -> ${selH.toFixed(0)}px)`);
+    await tap([playAt.x + playAt.width / 2, playAt.y + playAt.height / 2]);
+    check((await phone.textContent('.tp.main')).trim() === '▶' && await phone.locator('.cell.selected').count() === 1,
+      'phone: a tap where the play button was neither plays nor deselects');
+    await phone.tap('.inspector .done-btn');
+    check(await phone.locator('.cell.selected').count() === 0 && await phone.isVisible('.transport'),
+      'Done deselects it and brings them back');
+    // A long press on an edge opens the port menu, which stays open after the
+    // finger lifts (lifting it clicks whatever is under it: the menu's centre);
+    // then a tap on a port points it there.
+    await tap(await hexAt(free[0]));
+    const edgeAt = (d) => phone.evaluate(([[q, r], d]) => {
+      const R = 50, svg = document.querySelector('svg.board');
+      const x = R * Math.sqrt(3) * (q + r / 2) + Math.cos(d * Math.PI / 3) * R * 0.74, y = R * 1.5 * r + Math.sin(d * Math.PI / 3) * R * 0.74;
+      const pt = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+      return [pt.x, pt.y];
+    }, [free[0], d]);
+    await touch('touchStart', [await edgeAt(4)]);
+    await phone.waitForTimeout(500);
+    await touch('touchEnd', []);
+    await phone.waitForTimeout(200);
+    check(await phone.isVisible('.radial-hub'), 'phone: the port menu stays open after a long press');
+    // On Android the browser's own long press (it lands on the menu, under the
+    // finger) can cancel the touch while it is still held: the menu stays open.
+    await phone.keyboard.press('Escape');
+    await touch('touchStart', [await edgeAt(4)]);
+    await phone.waitForTimeout(500);
+    await touch('touchCancel', []);
+    await phone.waitForTimeout(100);
+    check(await phone.isVisible('.radial-hub'), 'phone: the port menu stays open when the browser cancels the held touch');
+    const outItem = await phone.locator('.radial-item[data-port="out"]').boundingBox();
+    await tap([outItem.x + outItem.width / 2, outItem.y + outItem.height / 2]);
+    check(!(await phone.isVisible('.radial-hub')) &&
+      (await phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells[0].out.out)) === 4,
+    'phone: tapping a port in it points the port there');
+    await tap([box.x + 3, box.y + 3]); // deselect
+    // Undo on the floor: it restores the selection (which hides the palette on
+    // a phone) and stays in reach, so several steps undo in a row.
+    const passOut = () => phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells[0].out.out);
+    await tap(await hexAt(free[0]));
+    await tap(await edgeAt(0));
+    await tap(await edgeAt(1));
+    await tap([box.x + 3, box.y + 3]);
+    const undoAt = async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; };
+    check(await passOut() === 1, 'phone: two edge taps point the Pass (out 1)');
+    await tap(await undoAt());
+    const after1 = await passOut();
+    const visible = await phone.isVisible('.history button[aria-label="Undo"]') && await phone.locator('.cell.selected').count() === 1;
+    await tap(await undoAt());
+    check(after1 === 0 && visible && await passOut() === 4, `phone: undo stays in reach with the restored selection; two taps undo two steps (1 -> ${after1} -> ${await passOut()})`);
+    await tap([box.x + 3, box.y + 3]);
+    // A long press on the bare floor, then a drag: a box that picks up the
+    // croupiers in it; turn them and put them down.
+    const passCell = () => phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells[0]);
+    const before = await passCell();
+    await touch('touchStart', [[box.x + 3, box.y + 3]]);
+    await phone.waitForTimeout(450);
+    for (let i = 1; i <= 6; i++) await touch('touchMove', [[box.x + 3 + (box.width - 6) * i / 6, box.y + 3 + (box.height - 6) * i / 6]]);
+    await touch('touchEnd', []);
+    check(await phone.isVisible('.lift-bar') && /1 croupier/.test(await phone.textContent('.lift-bar')),
+      `phone: a long press and a drag pick up the croupiers in the box ("${await phone.textContent('.lift-bar').catch(() => '')}")`);
+    if (shots) await phone.screenshot({ path: join(shots, '7f-phone-group.png') });
+    // (Tapped straight away: a browser can drop the click of the first tap
+    // after a long-press drag, so the toolbar acts as the finger lifts.)
+    const btn = async (act) => { const r = await phone.locator(`.lift-bar [data-act="${act}"]`).boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
+    await btn('cw');
+    await btn('place');
+    const turnedPass = await passCell();
+    check(!(await phone.isVisible('.lift-bar')) && turnedPass.out.out === (before.out.out + 1) % 6 && turnedPass.facing === undefined,
+      `phone: ⟳ then ✓ turns it, ports and all, facing left alone (out ${before.out.out} -> ${turnedPass.out.out}, facing ${turnedPass.facing})`);
+    await tap(await (async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; })());
+    check(JSON.stringify(await passCell()) === JSON.stringify(before), 'phone: one undo puts the group back as it was');
+    // A long press on a croupier picks it up; held and dragged, a box grows
+    // from it (so croupiers packed together can be picked up).
+    const btnX = async () => { const r = await phone.locator('.lift-bar [data-act="cancel"]').boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
+    await tap([box.x + 3, box.y + 3]);
+    await touch('touchStart', [await hexAt(free[0])]);
+    await phone.waitForTimeout(450);
+    await touch('touchEnd', []);
+    check(/^1 croupier/.test(await phone.textContent('.lift-bar').catch(() => '')), 'phone: a long press on a croupier picks it up');
+    await btnX();
+    const nb = free.find((x) => [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]].some(([dq, dr]) => x[0] === free[0][0] + dq && x[1] === free[0][1] + dr));
+    await tap(await hexAt(nb));
+    await tapItem('pass');
+    await tap([box.x + 3, box.y + 3]);
+    const [p0, p1] = [await hexAt(free[0]), await hexAt(nb)];
+    await touch('touchStart', [p0]);
+    await phone.waitForTimeout(450);
+    for (let i = 1; i <= 5; i++) await touch('touchMove', [[p0[0] + (p1[0] - p0[0]) * i / 4, p0[1] + (p1[1] - p0[1]) * i / 4]]);
+    await touch('touchEnd', []);
+    check(/^2 croupiers/.test(await phone.textContent('.lift-bar').catch(() => '')), `phone: a long press on a croupier, then a drag over its neighbour, picks up both ("${await phone.textContent('.lift-bar').catch(() => '')}")`);
+    await btnX();
+    await tap(await (async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; })());
+    // With nothing selected, the floor's panel has Clear floor (no palette on a phone).
+    check(await phone.locator('.cell.selected').count() === 0 && await phone.isVisible('.inspector .floor-head .btn.danger') &&
+      (await phone.textContent('.inspector .floor-head .btn.danger')) === 'Clear floor', 'phone: the floor panel offers Clear floor');
+    // Play mode: a tap on a cut-short stack shows it all (before anything
+    // else); a croupier can be selected without leaving play mode, until it
+    // is edited.
+    {
+      const lvH = LEVELS.find((l) => l.croupiers.includes('hand') && l.croupiers.includes('shoe'));
+      const fixedH = new Set(lvH.fixed.map((c) => c.at.join()));
+      const freeH = lvH.floor.filter((x) => !fixedH.has(x.join()));
+      const [sa, sb] = (() => {
+        for (const x of freeH) {
+          const y = [x[0] + 1, x[1]];
+          if (freeH.some((z) => z.join() === y.join())) return [x, y];
+        }
+        return [];
+      })();
+      await phone.evaluate(([id, sa, sb]) => {
+        const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+        s.levels[id] = { cells: [
+          { at: sa, kind: 'shoe', out: 0, deck: ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S'] },
+          { at: sb, kind: 'croupier', fn: 'hand', n: 13, out: { out: 0 } }] };
+        localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+      }, [lvH.id, sa, sb]);
+      await phone.goto(`${base}?unlockall#/level/${lvH.id}`);
+      await phone.reload();
+      await phone.waitForSelector('svg.board');
+      await phone.locator('svg.board').scrollIntoViewIfNeeded();
+      for (let i = 0; i < 10; i++) await phone.tap('.tp:nth-child(4)'); // step
+      const watching = () => phone.evaluate(() => document.querySelector('.side').classList.contains('watching'));
+      const more = await phone.evaluate(() => {
+        const r = document.querySelector('.l-cards [data-peek] .scard.more')?.getBoundingClientRect();
+        return r ? [r.x + r.width / 2, r.y + r.height / 2] : null;
+      });
+      check(!!more && await watching(), 'play mode: the Hand\'s collected cards are cut short');
+      if (more) {
+        await tap(more);
+        await phone.waitForTimeout(100);
+        check(/9 cards/.test(await phone.textContent('.peek:not(.hidden)').catch(() => '')) && await phone.locator('.cell.selected').count() === 0 && await watching(),
+          'play mode: a tap on a cut-short stack shows it all, and selects nothing');
+      }
+      const shoeAt = await hexAt(sa);
+      await tap([shoeAt[0], shoeAt[1] - 12]); // the shoe's chip, above its deck label
+      check(await phone.locator('.cell.selected').count() === 1 && await watching() && await phone.isVisible('.inspector h3') && await phone.isVisible('.transport'),
+        'play mode: a tap selects a croupier and shows its panel, staying in play mode with the play controls');
+      await phone.tap('.inspector [aria-label="Turn clockwise"]');
+      check(!(await watching()), 'editing it leaves play mode');
+    }
     // A Deal croupier with more positions on a side than fit: cut short, shown in full on a tap.
     const dealer = LEVELS.find((lv) => lv.croupiers.includes('deal'));
     if (dealer) {
@@ -607,6 +834,198 @@ try {
     await page.mouse.up();
     cs = await cellsNow();
     check(cs.find(at(free[1])).out.yes === 2, 'or hold, slide onto a port and let go');
+    // The edge zones reach a little past the hex: just outside its east edge
+    // (in the next hex) a click points the active port east, and a long press
+    // opens the menu for that side.
+    const [ox, oy] = await hexPoint(free[1], 0, 1.2);
+    const portBefore = await page.textContent('.inspector .port-row.active .port-tag');
+    await page.mouse.click(ox, oy);
+    cs = await cellsNow();
+    check(cs.find(at(free[1])).out[portBefore] === 0, `a click just outside the selected croupier's edge points its port that way (${portBefore} -> ${cs.find(at(free[1])).out[portBefore]})`);
+    await page.mouse.move(ox, oy);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    check(await page.isVisible('.radial-hub') && /E/.test(await page.textContent('.radial-hub')), 'and a long press there opens the port menu for that side');
+    await page.keyboard.press('Escape');
+  }
+
+  // Placing from the floor with a mouse and keys: a click on an empty hex
+  // opens the picker (a number key or a click picks); pointing at an empty
+  // hex near an edge and pressing a number places that croupier pointing
+  // there. Then groups: a Shift-drag box picks them up; ] turns them and M
+  // mirrors them (positions and ports; facing is left alone, see
+  // test/transform.js); direction keys move them; they can't go down where
+  // they clash; copy, delete, a mouse drag; each put-down is one undo step.
+  // [ ] and M turn and mirror a single selected croupier.
+  {
+    // The first floor with these croupiers and room for the checks below.
+    const key = ([q, r]) => `${q},${r}`;
+    const freeRow = (l) => {
+      const fixed = new Set(l.fixed.map((c) => key(c.at)));
+      const buildable = new Set(l.floor.map(key).filter((k) => !fixed.has(k)));
+      return l.floor.map(([q, r]) => [[q, r], [q + 1, r], [q + 2, r]]).find((hs) => hs.every((x) => buildable.has(key(x))) &&
+        hs.every(([q, r]) => DIRS.every(([dq, dr]) => buildable.has(key([q + dq, r + dr])) || hs.some((x) => key(x) === key([q + dq, r + dr])))));
+    };
+    const lv = LEVELS.find((l) => ['straight', 'war', 'pass'].every((t) => l.croupiers.includes(t)) && freeRow(l));
+    const digit = (tool) => String(lv.croupiers.indexOf(tool) + 1);
+    await page.goto(base);
+    await page.evaluate((id) => {
+      const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+      s.levels[id] = {};
+      localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+    }, lv.id);
+    await page.goto(`${base}?unlockall#/level/${lv.id}`);
+    await page.reload();
+    await page.waitForSelector('svg.board');
+    const cellsNow = () => page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells ?? [], lv.id);
+    const at = (c) => (x) => x.at.join() === c.join();
+    // Three free hexes in a row (west to east) whose neighbours are free too (room to turn and move).
+    const row = freeRow(lv);
+    check(await page.locator('.roster-box').count() === 1 && await page.locator('.roster-box[open]').count() === 0 &&
+      await page.isVisible('.inspector .keys') && !(await page.isVisible('.inspector .howto .touch-only')),
+      'desktop: the floor panel\'s croupier list starts folded; keyboard shortcuts, no touch hints');
+    const deskText = await page.innerText('.inspector');
+    check(/Click an empty hex/.test(deskText) && !/\btap/i.test(deskText), 'desktop: the floor panel says click, not tap');
+    await clickHex(row[0]);
+    check(await page.isVisible('.picker') && await page.locator('.picker-item').count() === lv.croupiers.length, 'a click on an empty hex opens the croupier picker');
+    await page.hover('.picker-item[data-tool="straight"]');
+    check(/Is the hand a straight\?/.test(await page.textContent('.peek.type-info').catch(() => '')), 'with a mouse over a croupier in the picker, what it does shows');
+    if (shots) await page.screenshot({ path: join(shots, '13-picker.png') });
+    await page.keyboard.press(digit('straight'));
+    let cs = await cellsNow();
+    check(cs.find(at(row[0]))?.fn === 'straight' && Object.keys(cs.find(at(row[0])).out).length === 0 && !(await page.isVisible('.picker')) &&
+      await page.locator('.cell.selected').count() === 1, 'a number key in the picker places that croupier there, selected');
+    await page.keyboard.press('Escape');
+    const [ex, ey] = await hexPoint(row[1], 0, 0.8);
+    await page.mouse.move(ex, ey);
+    await page.keyboard.press(digit('pass'));
+    cs = await cellsNow();
+    check(cs.find(at(row[1]))?.fn === 'pass' && cs.find(at(row[1])).out.out === 0, 'pointing near an empty hex\'s edge and pressing a number places it pointing there');
+    await page.keyboard.press('Escape');
+    await clickHex(row[2], 2, 0.8);
+    await page.click('.picker-item[data-tool="war"]');
+    cs = await cellsNow();
+    const war0 = cs.find(at(row[2]));
+    check(war0?.fn === 'war' && war0.out.win === 2 && war0.dealer !== undefined, `clicking near an edge, then a croupier in the picker: its first port points there (${JSON.stringify(war0?.out)})`);
+    await page.keyboard.press('Escape');
+    // A Shift-drag box around the three.
+    const pts = await Promise.all(row.map((x) => hexPoint(x)));
+    const [bx0, by0] = [Math.min(...pts.map((p) => p[0])) - 70, Math.min(...pts.map((p) => p[1])) - 50];
+    const [bx1, by1] = [Math.max(...pts.map((p) => p[0])) + 70, Math.max(...pts.map((p) => p[1])) + 50];
+    const shiftBox = async () => {
+      await page.keyboard.down('Shift');
+      await page.mouse.move(bx0, by0);
+      await page.mouse.down();
+      await page.mouse.move(bx1, by1, { steps: 5 });
+      await page.mouse.up();
+      await page.keyboard.up('Shift');
+    };
+    await shiftBox();
+    check(await page.isVisible('.lift-bar') && /3 croupiers/.test(await page.textContent('.lift-bar')), 'a Shift-drag box picks up the croupiers in it');
+    const orig = await cellsNow();
+    await page.keyboard.press(']');
+    if (shots) await page.screenshot({ path: join(shots, '14-group-turned.png') });
+    await page.keyboard.press('Enter');
+    cs = await cellsNow();
+    const turnedBy = (v) => [-v[1], v[0] + v[1]]; // a sixth of a turn clockwise, in axial coordinates
+    const findFn = (list, fn) => list.find((c) => c.fn === fn);
+    const off = (list, f1, f2) => { const p = findFn(list, f1).at, q = findFn(list, f2).at; return [q[0] - p[0], q[1] - p[1]]; };
+    check(off(cs, 'straight', 'war').join() === turnedBy(off(orig, 'straight', 'war')).join() &&
+      findFn(cs, 'pass').out.out === 1 && findFn(cs, 'war').out.win === 3 && findFn(cs, 'war').dealer === (findFn(orig, 'war').dealer + 1) % 6 &&
+      findFn(cs, 'war').facing === undefined && !(await page.isVisible('.lift-bar')),
+    `] then Enter turns the group a sixth clockwise, positions and ports (${JSON.stringify(cs.map((c) => [c.fn, c.at, c.out]))})`);
+    await page.keyboard.press('Control+z');
+    check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'one undo puts the whole turn back');
+    // M mirrors the group left to right: E and W swap, SE and SW, NE and NW.
+    await shiftBox();
+    await page.keyboard.press('m');
+    await page.keyboard.press('Enter');
+    cs = await cellsNow();
+    const mirrored = (v) => [-v[0] - v[1], v[1]];
+    check(off(cs, 'straight', 'war').join() === mirrored(off(orig, 'straight', 'war')).join() &&
+      findFn(cs, 'pass').out.out === 3 && findFn(cs, 'war').out.win === 1 && findFn(cs, 'war').dealer === (9 - findFn(orig, 'war').dealer) % 6,
+    `M then Enter mirrors the group, positions and ports (${JSON.stringify(cs.map((c) => [c.fn, c.at, c.out]))})`);
+    await page.keyboard.press('Control+z');
+    // Moved onto the player (west, a hex at a time): it shows red and won't go down there.
+    await shiftBox();
+    let steps = 0;
+    while (!(await page.locator('.lift-bar.bad').count()) && steps++ < 12) await page.keyboard.press('a');
+    check(await page.locator('.lift-bar.bad').count() === 1 && await page.locator('.lift-bar [data-act="place"]').isDisabled() &&
+      await page.locator('.lift-bar [data-act="copy"]').isDisabled() &&
+      await page.locator('.board .cell.lifted.bad').count() > 0, 'moved where it clashes, the group shows red and ✓ is off');
+    await page.keyboard.press('Enter');
+    check(await page.isVisible('.lift-bar'), 'Enter does nothing there');
+    await page.keyboard.press('Escape');
+    check(!(await page.isVisible('.lift-bar')) && JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'Esc puts the group back');
+    // Copy: the copy floats off to the nearest place it fits.
+    await shiftBox();
+    await page.click('.lift-bar [data-act="copy"]');
+    const copyOk = !(await page.locator('.lift-bar [data-act="place"]').isDisabled());
+    await page.click('.lift-bar [data-act="place"]');
+    check(copyOk && (await cellsNow()).length === 6, `⧉ then ✓ copies the group (${(await cellsNow()).length} croupiers)`);
+    await page.keyboard.press('Control+z');
+    // Moved, then copied: put down where it was moved to (not back where it
+    // came from), with a copy floating; ⧉ again stamps another.
+    {
+      await shiftBox();
+      await page.keyboard.press('c'); // a hex south-east
+      await page.click('.lift-bar [data-act="copy"]');
+      const placed = await cellsNow();
+      const movedTo = row.map(([q, r]) => `${q},${r + 1}`).sort().join(' ');
+      check(placed.length === 3 && placed.map((c) => c.at.join()).sort().join(' ') === movedTo && /Copy of 3/.test(await page.textContent('.lift-bar')),
+        `moved then ⧉: the group goes down where it was moved, and a copy floats (${placed.map((c) => c.at.join()).join(' ')})`);
+      await page.click('.lift-bar [data-act="copy"]');
+      check((await cellsNow()).length === 6 && /Copy of 3/.test(await page.textContent('.lift-bar')), `⧉ again stamps another copy (${(await cellsNow()).length} croupiers)`);
+      await page.keyboard.press('Escape');
+      check((await cellsNow()).length === 6 && !(await page.isVisible('.lift-bar')), 'Esc drops the floating copy, keeping the ones put down');
+      await page.keyboard.press('Control+z');
+      await page.keyboard.press('Control+z');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'two undos put it all back');
+    }
+    // A mouse drag on one of them moves them all.
+    await shiftBox();
+    const [sx, sy] = await hexPoint(row[1]);
+    const dest = [row[1][0], row[1][1] + 1]; // one hex south-east
+    const [tx, ty] = await hexPoint(dest);
+    await page.mouse.move(sx, sy);
+    await page.mouse.down();
+    await page.mouse.move(tx, ty, { steps: 6 });
+    await page.mouse.up();
+    const movedOk = !(await page.locator('.lift-bar [data-act="place"]').isDisabled());
+    if (movedOk) await page.click('.lift-bar [data-act="place"]'); else await page.keyboard.press('Escape');
+    cs = await cellsNow();
+    check(movedOk && findFn(cs, 'pass').at.join() === dest.join() && findFn(cs, 'straight').at.join() === [row[0][0], row[0][1] + 1].join(),
+      `dragging one of the group moves them all (${JSON.stringify(cs.map((c) => c.at))})`);
+    await page.keyboard.press('Control+z');
+    // Delete.
+    await shiftBox();
+    await page.keyboard.press('Delete');
+    check((await cellsNow()).length === 0, 'Delete deletes the group');
+    await page.keyboard.press('Control+z');
+    check((await cellsNow()).length === 3, 'and undo brings it back');
+    // A Shift-drag that starts on a croupier takes it in too.
+    {
+      const [ax, ay] = await hexPoint(row[0]);
+      const [bx, by] = await hexPoint(row[1]);
+      await page.keyboard.down('Shift');
+      await page.mouse.move(ax, ay);
+      await page.mouse.down();
+      await page.mouse.move(bx + 10, by + 10, { steps: 4 });
+      await page.mouse.up();
+      await page.keyboard.up('Shift');
+      check(/^2 croupiers/.test(await page.textContent('.lift-bar')), `a Shift-drag from a croupier picks it up with the ones in the box ("${await page.textContent('.lift-bar')}")`);
+      await page.keyboard.press('Escape');
+    }
+    // [ ] on one selected croupier.
+    await clickHex(row[2]);
+    await page.keyboard.press(']');
+    const war1 = (await cellsNow()).find(at(row[2]));
+    check(war1.out.win === (war0.out.win + 1) % 6 && war1.dealer === (war0.dealer + 1) % 6 && war1.facing === undefined, `] turns a selected croupier (${JSON.stringify(war1)})`);
+    await page.click('.inspector [aria-label="Mirror"]');
+    const war2 = (await cellsNow()).find(at(row[2]));
+    check(war2.out.win === (9 - war1.out.win) % 6 && war2.dealer === (9 - war1.dealer) % 6, `⇋ mirrors a selected croupier (${JSON.stringify(war2)})`);
+    await page.keyboard.press('Escape');
   }
 
   // Picking a croupier shows its settings: a Hand set to 3 before placing is placed with n = 3.
@@ -621,8 +1040,7 @@ try {
     await clickHex(at);
     const hc = (await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, lv.id)).find((c) => c.fn === 'hand');
     check(hc?.n === 3, `the Hand is placed with n = 3 (${JSON.stringify(hc)})`);
-    await page.keyboard.press('Escape');
-    await page.keyboard.press('Delete');
+    await page.keyboard.press('Delete'); // it is selected
     // Play mode: stepping hides the palette and the inspector; Edit brings them back.
     await page.click('.pal-item[data-tool="hand"]');
     await page.keyboard.press('.');

@@ -516,8 +516,8 @@ svg.board.placing { cursor: copy; }
 .tests { flex: 1; }
 .tests-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .tests-head .edit-btn { margin-left: auto; }
-/* Play mode: only the tests are shown beside (or under) the board. */
-.side.watching .palette, .side.watching .inspector { display: none; }
+/* Play mode: only the tests (and a selected croupier's panel) beside or under the board. */
+.side.watching .palette, .editor:not(.cell-selected) .side.watching .inspector { display: none; }
 .test-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
 .test-chip {
   min-width: 30px; height: 28px; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, 0.35); background: #24493a;
@@ -608,6 +608,7 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .hex.drop.bad { fill: rgba(255, 107, 107, 0.12); stroke: var(--bad); }
 
 .l-cards { pointer-events: none; }
+.l-cards .peekable { pointer-events: auto; } /* a cut-short stack: hover or tap to see it all */
 .scard rect { fill: var(--card); stroke: rgba(0, 0, 0, 0.55); stroke-width: 0.6; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
 .scard text { font-family: var(--serif); font-weight: 700; }
 .scard .rank { font-size: 8.4px; }
@@ -761,13 +762,30 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   .editor { grid-template-columns: minmax(0, 1fr) 310px; }
   .brief { font-size: 12.5px; }
 }
+.insp-head .done-btn { display: none; } /* a phone's way back from a selected croupier */
+.phone-only { display: none; } /* shown by the phone layout below */
+/* Keyboard shortcuts only where there is a mouse (so likely a keyboard),
+   touch gestures only where there is a touch screen. */
+@media not (any-pointer: fine) { .kbd-only, .pal-item kbd, .picker-item kbd { display: none !important; } }
+@media not (any-pointer: coarse) { .touch-only { display: none !important; } }
 @media (max-width: 900px) {
-  .editor { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto 62vh auto; grid-template-areas: 'top' 'stage' 'side'; }
+  .editor { height: auto; min-height: 100vh; grid-template-columns: 1fr; grid-template-rows: auto auto auto; grid-template-areas: 'top' 'stage' 'side'; }
+  /* The floor keeps its size whatever shows under it (the play controls
+     step aside for a selected croupier): a floor that grew into their place
+     would take a tap meant for them. */
+  .board-wrap { flex: none; height: 50vh; }
   .topbar { flex-wrap: wrap; }
   .brief { flex-basis: 100%; order: 5; }
   .pal-item kbd { display: none; }
+  /* Croupiers are placed by tapping an empty hex (the picker), so no palette. */
+  .side .palette { display: none; }
+  .phone-only { display: block; }
+  .btn.phone-only { display: inline-flex; }
   .side { border-left: 0; }
   .story-card { padding: 28px 22px; }
+  /* A selected croupier: its panel right under the floor (in play mode, under the play controls), Done to go back. */
+  .editor.cell-selected:not(.watching) .transport, .editor.cell-selected .palette { display: none; }
+  .insp-head .done-btn { display: inline-flex; }
 }
 .fixed-rule { font-size: 12.5px; font-weight: 700; color: var(--gold-2); }
 
@@ -778,6 +796,14 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   cursor: pointer; font-size: 16px; line-height: 1; display: grid; place-items: center; padding: 0;
 }
 .zoom button:hover { border-color: var(--gold); }
+/* undo / redo, bottom left of the floor */
+.history { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 4px; z-index: 2; }
+.history button {
+  width: 38px; height: 34px; border-radius: 8px; border: 1px solid var(--gold-soft); background: rgba(4, 30, 17, 0.85);
+  cursor: pointer; font-size: 19px; line-height: 1; display: grid; place-items: center; padding: 0;
+}
+.history button:hover:not(:disabled) { border-color: var(--gold); }
+.history button:disabled { opacity: 0.35; cursor: default; }
 svg.board.panning { cursor: grabbing; }
 
 /* A cut-short stack or label shown in full (hover, or tap on a touch screen). */
@@ -788,10 +814,11 @@ svg.board.panning { cursor: grabbing; }
 }
 .peek .hand { flex-wrap: wrap; }
 .peek-t { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.peek.type-info { z-index: 6; max-width: min(300px, calc(100% - 8px)); }
 .card.house { box-shadow: inset 0 0 0 1px #8a6420; outline: 1px dashed #8a6420; outline-offset: -1px; background: #efe2bd; }
 
 /* Port menu: a ring of a croupier's ports around a long press on an edge. */
-.radial { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 5; }
+.radial { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 5; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; }
 .radial::before {
   content: ''; position: absolute; left: -96px; top: -96px; width: 192px; height: 192px; border-radius: 50%;
   background: radial-gradient(circle, rgba(4, 30, 17, 0.88) 55%, rgba(4, 30, 17, 0) 72%); pointer-events: none;
@@ -814,13 +841,68 @@ svg.board.panning { cursor: grabbing; }
 .radial-tick { font-size: 11px; }
 svg.board { -webkit-touch-callout: none; }
 
-/* Inspector: a croupier kind picked in the palette, before placing it. */
-.placing-note {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; padding: 6px 8px; border-radius: 8px;
-  background: rgba(212, 175, 55, 0.1); border: 1px solid var(--gold-soft); font-size: 12.5px;
+/* Croupier picker: a grid of the floor's croupiers beside an empty hex. */
+.picker {
+  position: absolute; left: 0; top: 0; z-index: 5; padding: 6px; border-radius: 12px; max-width: calc(100% - 8px);
+  background: rgba(4, 30, 17, 0.96); border: 1px solid var(--gold-soft); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
-.placing-note > span { flex: 1 1 140px; }
+.picker-head { font-size: 11px; color: var(--muted); margin: 0 4px 5px; }
+.picker-grid { display: grid; grid-template-columns: repeat(4, 64px); gap: 3px; }
+.picker-item {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 2px 4px;
+  border-radius: 9px; border: 1px solid transparent; background: rgba(255, 255, 255, 0.04); cursor: pointer;
+}
+.picker-item:hover { background: rgba(212, 175, 55, 0.14); border-color: var(--gold-soft); }
+.picker-item .pal-chip { width: 32px; height: 32px; border-width: 2.5px; }
+.picker-item .pal-chip span { width: 21px; height: 21px; font-size: 6.6px; }
+.picker-name { font-size: 10.5px; font-weight: 600; line-height: 1.1; text-align: center; }
+.picker-item kbd { position: absolute; top: 2px; right: 2px; min-width: 0; padding: 0 2px; border: 0; background: none; font-size: 8.5px; opacity: 0.5; }
+.board .pick-hex { fill: rgba(242, 193, 78, 0.16); stroke: var(--gold-2); stroke-width: 2; stroke-dasharray: 5 3; pointer-events: none; }
+.board .pick-edge { stroke: var(--gold-2); stroke-width: 4; stroke-linecap: round; pointer-events: none; }
+
+/* Groups: the box being drawn, the picked-up croupiers, their toolbar. */
+.box-select {
+  position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none; border-radius: 3px;
+  border: 1.5px dashed #6fb7ff; background: rgba(111, 183, 255, 0.12);
+}
+.box-select.armed { width: 0; height: 0; box-shadow: 0 0 0 6px rgba(111, 183, 255, 0.35); border-radius: 50%; }
+.board .cell.lifted { filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.55)); }
+.board .cell.lifted .hex.table { stroke: #6fb7ff; stroke-width: 2.4; stroke-dasharray: 6 3; }
+.board .cell.lifted.bad .hex.table { fill: rgba(140, 38, 50, 0.85); stroke: var(--bad); }
+.lift-bar {
+  position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 4px;
+  padding: 4px 6px 4px 12px; border-radius: 12px; background: rgba(4, 30, 17, 0.94); border: 1px solid #6fb7ff;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5); white-space: nowrap; max-width: calc(100% - 12px);
+}
+.lift-bar.bad { border-color: var(--bad); }
+.lift-n { font-size: 12.5px; font-weight: 700; margin-right: 4px; overflow: hidden; text-overflow: ellipsis; }
+.lift-bar button {
+  width: 34px; height: 32px; flex: none; border-radius: 8px; border: 1px solid var(--gold-soft); background: rgba(0, 0, 0, 0.3);
+  cursor: pointer; font-size: 16px; line-height: 1; display: grid; place-items: center; padding: 0;
+}
+.lift-bar button:hover:not(:disabled) { border-color: var(--gold); }
+.lift-bar button:disabled { opacity: 0.35; cursor: default; }
+.lift-bar button.ok { background: linear-gradient(180deg, #f6d77a, #d4af37); color: #2a1d02; border-color: #f6e19c; font-weight: 800; }
+.insp-head .turn-btn { padding: 3px 7px; font-size: 15px; line-height: 1; }
+
+/* Inspector: a croupier kind picked in the palette, before placing it. */
 .port-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+/* The floor panel: its heading (with Clear floor on a phone), and its
+   foldable list of the floor's croupiers. */
+.floor-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.roster-box > summary { cursor: pointer; list-style: none; user-select: none; }
+.roster-box > summary::-webkit-details-marker { display: none; }
+.roster-box > summary::before { content: '▸'; display: inline-block; width: 1em; transition: transform 0.15s; }
+.roster-box[open] > summary::before { transform: rotate(90deg); }
+.roster { display: flex; flex-direction: column; gap: 8px; margin: 2px 0 6px; }
+.roster-row { display: flex; align-items: flex-start; gap: 9px; }
+.roster-row .pal-chip { width: 30px; height: 30px; border-width: 2.5px; margin-top: 1px; }
+.roster-row .pal-chip span { width: 19px; height: 19px; font-size: 6.5px; }
+.roster-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 13px; }
+.roster-head .port-list { margin: 0; gap: 3px; }
+.roster-head .port-tag { min-width: 0; padding: 0 6px; font-size: 10px; line-height: 1.5; }
+.roster-desc { color: var(--ink-2); font-size: 12.5px; line-height: 1.35; }
 
 /* Which side a croupier faces (placeholder until croupier art). */
 .board .facing { fill: none; stroke: var(--gold-2, #f2c14e); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; pointer-events: none; }
