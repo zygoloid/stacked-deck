@@ -786,7 +786,7 @@ export const LEVELS = [
     ],
     brief: 'Two players, two-card hands, one each per deal: a two-digit casino number, the leading digit a club on top of the units digit, a spade (A♣ A♠ is 14, K♣ K♠ is 182). Pay the sum in casino numbers, house spades with the leading digit on top: 28 is 2♠ 2♠, 182 is K♠ K♠, and from 183 (A♠ A♠ A♠) it takes three cards, up to 364 (2♠ A♠ K♠).',
     handSize: 2,
-    floor: floorOf(hexRect(-6, 7, -12, 9), H7),
+    floor: floorOf(hexRect(-6, 7, -12, 11), H7),
     fixed: H7,
     croupiers: paletteThrough('hand'),
     warRules: ALL,
