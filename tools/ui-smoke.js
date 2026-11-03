@@ -1030,6 +1030,40 @@ try {
       await page.keyboard.press('Control+z');
       check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'two undos put it all back');
     }
+    // Leaving one out (a click on it): it stays where the group was moved
+    // to; the rest go down there too, still picked up. Not where it clashes.
+    {
+      const south = ([q, r]) => [q, r + 1];
+      await shiftBox();
+      await page.keyboard.press('c');
+      await clickHex(south(row[0]));
+      const now = await cellsNow();
+      check(now.map((c) => c.at.join()).sort().join(' ') === row.map((x) => south(x).join()).sort().join(' ') &&
+        /^2 croupiers/.test(await page.textContent('.lift-bar')),
+        `moved, then one left out: it stays where it was moved to, the rest still up (${now.map((c) => c.at.join()).join(' ')})`);
+      await page.keyboard.press('Escape');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(now), 'Esc then leaves the rest there too');
+      await page.keyboard.press('Control+z');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'one undo puts them back');
+      await shiftBox();
+      let n = 0;
+      while (!(await page.locator('.lift-bar.bad').count()) && n++ < 12) await page.keyboard.press('a');
+      const red = await page.locator('.board .cell.lifted.bad').first().getAttribute('data-at');
+      await clickHex(red.split(',').map(Number));
+      check(/^3 croupiers/.test(await page.textContent('.lift-bar')) && JSON.stringify(await cellsNow()) === JSON.stringify(orig),
+        'one can\'t be left out where it clashes');
+      await page.keyboard.press('Escape');
+      // Of a floating copy, one left out goes down; the rest still float.
+      await shiftBox();
+      await page.click('.lift-bar [data-act="copy"]');
+      const k = await page.locator('.board .cell.lifted').first().getAttribute('data-at');
+      await clickHex(k.split(',').map(Number));
+      check((await cellsNow()).length === 4 && /Copy of 2/.test(await page.textContent('.lift-bar')), `one left out of a copy goes down (${(await cellsNow()).length} croupiers)`);
+      await page.keyboard.press('Escape');
+      check((await cellsNow()).length === 4, 'Esc drops the rest of the copy');
+      await page.keyboard.press('Control+z');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'and undo takes the one out');
+    }
     // A mouse drag on one of them moves them all.
     await shiftBox();
     const [sx, sy] = await hexPoint(row[1]);
