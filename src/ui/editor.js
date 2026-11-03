@@ -1514,9 +1514,28 @@ export function openEditor(root, ctx, level) {
     renderAll();
   }
   function endLift() { lift = null; renderAll(); }
+  // The same croupiers, in any order.
+  const sameCells = (a, b) => JSON.stringify(a.map((c) => JSON.stringify(c)).sort()) === JSON.stringify(b.map((c) => JSON.stringify(c)).sort());
+  // Put the group down where it is, as one undo step (none if it hasn't moved).
+  function putDown(next) { if (!sameCells(next, cells)) commit(() => { cells = next; }); }
+  // A tap on one of the group leaves it out, where it is (so only where it
+  // fits). Of a group picked up, the rest go down where they are too (staying
+  // up): so all of it must fit. Of a floating copy, the rest still float.
   function dropMember(item) {
-    const items = lift.items.filter((i) => i !== item);
-    if (items.length) { lift.items = items; renderAll(); } else endLift();
+    const rest = lift.items.filter((i) => i !== item);
+    if (lift.copy) {
+      if (liftClashes().has(hexKey(item.cell.at))) return;
+      lift = null;
+      putDown([...cells, item.cell]);
+      if (rest.length) lift = { copy: true, items: rest };
+    } else {
+      if (liftClashes().size) return;
+      const next = [...staying(), ...lift.items.map((i) => i.cell)];
+      lift = null;
+      putDown(next);
+      if (rest.length) lift = { copy: false, items: rest.map((i) => ({ key: hexKey(i.cell.at), cell: structuredClone(i.cell) })) };
+    }
+    renderAll();
   }
   function placeLift() {
     if (!lift || liftClashes().size) return;
@@ -1550,10 +1569,8 @@ export function openEditor(root, ctx, level) {
     if (!lift || liftClashes().size) return;
     const keep = staying(), placed = lift.items.map((i) => i.cell);
     const copies = placed.map((c) => structuredClone(c));
-    const next = [...keep, ...placed];
-    const same = (a, b) => JSON.stringify(a.map((c) => JSON.stringify(c)).sort()) === JSON.stringify(b.map((c) => JSON.stringify(c)).sort());
     lift = null;
-    if (!same(next, cells)) commit(() => { cells = next; }); // (not moved: nothing to undo)
+    putDown([...keep, ...placed]);
     lift = { copy: true, items: copies.map((c) => ({ key: hexKey(c.at), cell: c })) };
     if (liftClashes().size) {
       nudge: for (let dist = 1; dist <= 6; dist++) {
