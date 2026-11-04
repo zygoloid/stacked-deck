@@ -137,17 +137,19 @@ export class Sim {
         return this.status.kind;
       }
     }
-    const allPaid = f.allDealt() && f.paid.length >= this.expected.length;
-    if (allPaid) this.settled ??= f.round;
+    if (f.allDealt() && f.paid.length >= this.expected.length) this.settled ??= f.round;
     // Player cards all gone but payouts still owed: house cards may still be
     // on their way to the desk, so allow the grace rounds (as runTest does).
-    if (f.done() && !allPaid) this.drained ??= f.round;
+    if (f.done() && this.settled === null) this.drained ??= f.round;
     const t = () => this.tally();
-    if ((f.done() && (allPaid || f.round - this.drained >= this.grace)) ||
-        (!f.done() && this.settled !== null && f.round - this.settled >= this.grace)) {
+    const idle = f.idle();
+    if (idle || (this.settled !== null ? f.round - this.settled >= this.grace
+      : this.drained !== null && f.round - this.drained >= this.grace)) {
       const { missing } = t();
+      const what = `${missing.length} ${this.listed ? 'expected payout' : 'winning hand'}${missing.length > 1 ? 's were' : ' was'}`;
       this.status = missing.length
-        ? { kind: 'missing', missing, msg: `Every card has left the floor, but ${missing.length} ${this.listed ? 'expected payout' : 'winning hand'}${missing.length > 1 ? 's were' : ' was'} never paid.` }
+        ? { kind: 'missing', missing, msg: idle ? `Every card has left the floor, but ${what} never paid.`
+          : `Every player card left the floor ${this.grace} rounds ago, but ${what} never paid.` }
         : { kind: 'passed', rounds: this.settled ?? f.round, msg: `Test passed in ${this.settled ?? f.round} rounds.` };
     } else if (f.round >= MAX_ROUNDS) {
       const { missing } = t();

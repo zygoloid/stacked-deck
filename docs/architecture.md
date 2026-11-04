@@ -45,6 +45,7 @@ floor.step();                // advance one round
 floor.round                  // rounds so far
 floor.paid                   // array of paid hands (card strings), in order
 floor.done()                 // every input placed and every player card off the floor
+floor.idle()                 // done(), no house card on the floor either, and no shoe left to deal
 floor.snapshot() / floor.restore(snap)   // for stepping backwards
 floor.cells                  // Map "q,r" -> cell with live state:
                              //   slots[6] (hand or null; slot d = arrived from side d),
@@ -202,9 +203,13 @@ must also arrive in the order listed: the n-th payout must match the n-th
 expected hand (the UI marks such a floor "payout order matters").
 On a floor with labelled desks an expected payout is `{ desk, hand }`, and a
 payout matches only at that desk (`payoutKey` in `src/engine.js`).
-A test normally gives up `GRACE` (50) rounds after the last player card has
-left the floor if payouts are still owed; a level whose house cards are paid
-long after that sets its own `grace` (The Rest of the Deck: 100).
+A test is scored at the round its last expected payout arrives (once every
+hand is dealt), then runs on for `GRACE` (50) more rounds, failing on any
+extra payout, of player or house cards; it stops sooner only once the floor
+is idle (no card left on it and no shoe with any to deal). If payouts are
+still owed once the last player card has left the floor, it gives up `GRACE`
+rounds after that; a level whose house cards are paid long after that sets
+its own `grace` for both windows (The Rest of the Deck: 100).
 `expectedPayouts(rule, inputs)` and
 `runTest(spec, inputs, rule)` in `src/engine.js` accept either a `pays`
 function or the level object.

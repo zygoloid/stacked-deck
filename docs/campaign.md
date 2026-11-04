@@ -321,9 +321,9 @@ the same idea).
   (Change of Heart, Small Change). Card order within a payout doesn't matter
   unless the floor is `ordered`, and the order of the payouts never does.
   Define every edge case in the brief (leftovers, empty results, ties).
-* **House cards in flight.** A test normally ends once every player card has
-  left the floor; if payouts are still owed then (house cards on their way to
-  the desk), it runs on for up to 50 rounds before failing. So house-card
+* **House cards in flight.** If payouts are still owed once every player
+  card has left the floor (house cards on their way to the desk), a test runs
+  on for up to 50 rounds before failing. So house-card
   floors needn't time the player's card to leave with the house card.
 * **Floor sizing.** The working croupiers should dominate: place the desk so
   the reference needs few passes (≤ about a quarter of par), and leave 1.5–3×

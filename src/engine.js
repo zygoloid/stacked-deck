@@ -27,7 +27,7 @@
 //
 // Hands are arrays with the top card first. Cards carry provenance (`src`:
 // 'player' or 'house') so the checker knows when every player card has left
-// the floor.
+// the floor (when a run that still owes payouts gives up waiting for them).
 
 import {
   rankOf, suitsOf, isJoker, isAd, highValue, newDeckIndex, isFlush, isStraight, rankCounts, largestSet,
@@ -45,13 +45,17 @@ import {
 //      floor is cleared only if the machine also passes its check deals
 //      (random deals seeded from the machine itself; see src/score.js); the
 //      rounds score is the total over the tests, not the rounded average
+//  10  a run ends early only once no card at all is left on the floor (house
+//      cards included) and no shoe has any left to deal; otherwise it runs
+//      on for the grace rounds after the last expected payout, so extra
+//      payouts of house cards are caught as extra player cards always were
 // (The card limit going from 1000 to 2000 and Hand's n from 13 to 52 at
 // most are not rules changes either: no machine that cleared a floor before
 // behaves differently.)
 // (Seated players, `seat` on a source, seats with fewer hands than others,
 // labelled desks, `desk` on a payout, and `inOrder` payouts are level
 // features: no rule changed.)
-export const RULES_VERSION = 9;
+export const RULES_VERSION = 10;
 
 // A machine can multiply cards without bound (two duplicates feeding each
 // other quadruple them every four rounds), so a run fails once more than this
@@ -293,10 +297,8 @@ export class Floor {
     }
     // Phase 3: deposit.
     for (const cell of this.cells.values()) {
-      if (cell.kind === 'shoe' && !cell.pending.length && cell.out !== undefined && typeof cell.out === 'number') {
-        if (!cell.once || cell.pos < cell.deck.length) {
-          cell.pending = [[cell.out, [{ c: cell.deck[cell.pos++ % cell.deck.length], src: 'house' }]]];
-        }
+      if (cell.kind === 'shoe' && !cell.pending.length && shoeDeals(cell)) {
+        cell.pending = [[cell.out, [{ c: cell.deck[cell.pos++ % cell.deck.length], src: 'house' }]]];
       }
       if (cell.kind === 'source' && !cell.pending.length) {
         const i = this.seats ? (cell.seat ?? 0) + cell.pos * this.seats : this.inputPos;
@@ -405,11 +407,22 @@ export class Floor {
     Object.assign(this, { round: s.round, paid: s.paid, paidAt: s.paidAt, inputPos: s.inputPos, live: s.live });
   }
 
+  // Every player card has left the floor (house cards may still be on it).
   done() {
     return this.allDealt() && this.live === 0 &&
       ![...this.cells.values()].some((c) => c.kind === 'source' && c.pending.length);
   }
+
+  // Nothing can ever happen again: every player card has left the floor, no
+  // house card is on it either, and no shoe has a card left to deal.
+  idle() {
+    return this.done() && this.cardCount() === 0 &&
+      ![...this.cells.values()].some((c) => c.kind === 'shoe' && (c.pending.length || shoeDeals(c)));
+  }
 }
+
+// Whether a shoe will deal another card (a shoe dealing `once` runs out).
+const shoeDeals = (cell) => typeof cell.out === 'number' && (!cell.once || cell.pos < cell.deck.length);
 
 // What the chip desk should receive for one test. `rule` is either a
 // `pays(hand, earlierHands)` function (pay out a subset of the input hands)
@@ -457,23 +470,26 @@ export function runTest(spec, inputs, rule, { maxRounds = 5000, grace: defaultGr
   const expected = expectedPayouts(rule, inputs);
   const ordered = typeof rule === 'object' && !!rule.ordered;
   const inOrder = typeof rule === 'object' && !!rule.inOrder;
-  // A run ends when every player card has left the floor. Machines with
-  // memory keep copies of player cards circulating forever, so a run also
-  // ends `grace` rounds after the last expected payout (catching any extra
-  // payouts in that window). If the player cards are gone but payouts are
-  // still owed (house cards on their way to the desk), it runs on for up to
-  // `grace` rounds before giving up (GRACE unless the level sets `grace`).
+  // Once every hand is dealt and the expected number of payouts has been
+  // made (`settled`, the round the test is scored at), a run goes on for
+  // `grace` more rounds (GRACE unless the level sets `grace`), so any extra
+  // payout in that window fails it, whether of player or of house cards.
+  // It stops sooner only if the floor is idle (no card left on it, and no
+  // shoe with any to deal), when nothing more can be paid. A run still
+  // owing payouts once every player card has gone (house cards may be on
+  // their way to the desk) waits up to `grace` rounds for them.
   let settled = null, drained = null, overflow = false;
   while (floor.round < maxRounds) {
     floor.step();
     if (floor.overflowed()) { overflow = true; break; }
-    const allPaid = floor.allDealt() && floor.paid.length >= expected.length;
-    if (allPaid) settled ??= floor.round;
-    if (floor.done()) {
-      if (allPaid) break;
+    if (floor.allDealt() && floor.paid.length >= expected.length) settled ??= floor.round;
+    if (floor.idle()) break;
+    if (settled !== null) {
+      if (floor.round - settled >= grace) break;
+    } else if (floor.done()) {
       drained ??= floor.round;
       if (floor.round - drained >= grace) break;
-    } else if (settled !== null && floor.round - settled >= grace) break;
+    }
   }
   let remaining = expected.map((p) => payoutKey(p, ordered));
   const paid = floor.paid.map((h, n) => payoutKey(paidPayout(floor, n), ordered));

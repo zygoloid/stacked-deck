@@ -229,6 +229,29 @@ console.log('expected payouts ok');
   assert(!bad.ok && bad.missing.length === 1, 'a payout that never comes still fails');
 }
 console.log('house cards in flight ok');
+// Extra payouts are caught after the last expected one whoever's cards they
+// are: a run doesn't stop when the last player card goes while house cards
+// are still on their way to the desk.
+{
+  const spec = { cells: [
+    { at: [0, 0], kind: 'source', out: 0 },
+    { at: [1, 0], kind: 'croupier', fn: 'pass', out: {} }, // drops the player's hand
+    { at: [0, 2], kind: 'shoe', out: 0, deck: ['AS', 'AS'], once: true },
+    { at: [1, 2], kind: 'croupier', fn: 'pass', out: { out: 0 } },
+    { at: [2, 2], kind: 'payout' },
+  ] };
+  const r = runTest(spec, [['2C']], { expected: () => [['AS']] });
+  assert(!r.ok && r.wrong.length === 1 && r.rounds === 2, `a second house A♠ is an extra payout: ${JSON.stringify(r)}`);
+  assert(runTest(spec, [['2C']], { expected: () => [['AS'], ['AS']] }).ok, 'both A♠ expected');
+  // With the shoe run out and the floor empty, the run stops at once.
+  const f = new Floor(spec, [['2C']]);
+  for (let i = 0; i < 3; i++) f.step();
+  assert(f.done() && f.idle(), 'idle once the shoe is empty and its cards are paid');
+  const repeat = new Floor({ cells: spec.cells.map((c) => (c.kind === 'shoe' ? { ...c, once: false } : c)) }, [['2C']]);
+  for (let i = 0; i < 3; i++) repeat.step();
+  assert(repeat.done() && !repeat.idle(), 'a repeating shoe is never idle');
+}
+console.log('extra house payouts ok');
 // Deal: one pile per side, each card dealt on top, so piles come out in
 // reverse deal order; a side listed twice is still one pile.
 {
