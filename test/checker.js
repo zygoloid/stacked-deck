@@ -13,5 +13,8 @@ const wrongPort = { cells: [{ at: [0, 0], kind: 'source', out: 0 }, { at: [1, 0]
 assert(!runTest(wrongPort, t, pz.pays).ok, 'passing everything to the desk must fail');
 assert(!r.ok && !r.timeout, 'dropping everything must fail (but finish)');
 const stuck = { cells: [{ at: [0, 0], kind: 'source', out: 0 }, { at: [1, 0], kind: 'croupier', fn: 'gather' }] };
-assert(runTest(stuck, t, pz.pays, { maxRounds: 200 }).timeout, 'a jammed floor must time out');
+{
+  const s = runTest(stuck, t, pz.pays);
+  assert(!s.ok && s.stop === 'cycle' && s.undealt > 0, `a jammed floor fails as soon as it repeats itself: ${JSON.stringify(s)}`);
+}
 console.log('checker ok');

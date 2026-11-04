@@ -530,9 +530,6 @@ export const LEVELS = [
     warRules: ALL,
     specialCards: ['?', '??', '$', '$$'],
     expected: unplayed,
-    // The unplayed cards may be paid long after the last player card has
-    // gone (51 of them, one a round, after a one-card night).
-    grace: 100,
     tests: makeMixedTests({
       minSize: 1, maxSize: 5, handsPerTest: 6,
       fixed: [
@@ -764,7 +761,6 @@ export const LEVELS = [
     specialCards: ['?', '??', '$', '$$'],
     expected: (inputs) => deals(inputs).map(([[a], [b]]) => casino(rankValue(a) * rankValue(b))),
     ordered: true,
-    grace: 100,
     tests: dealtTests({
       deal: (rand, n) => digitDeals(rand, n, 8),
       fixed: [
@@ -793,7 +789,6 @@ export const LEVELS = [
     specialCards: ['?', '??', '$', '$$'],
     expected: (inputs) => deals(inputs).map(([a, b]) => casino(twoDigits(a) + twoDigits(b))),
     ordered: true,
-    grace: 100,
     tests: dealtTests({
       deal: (rand, n) => twoDigitDeals(rand, n, 6),
       fixed: [

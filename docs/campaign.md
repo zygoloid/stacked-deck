@@ -201,7 +201,7 @@ campaign's "palette only grows" rule doesn't apply to the bonus deck).
 | 10♠ | four-of-a-kind | Four of a Kind | `$$` deja-vu | 1 | **expected**, regrouped: every time the fourth unpaid card of a rank is played, pay those four as one hand | Déjà Vu's memory seeded with `$$`: gather, K4, Set (set to the desk, rest back to the memory) (6/533) | 6 | new |
 | J♠ | counting-up | Counting Up | `$$` deja-vu | 5 | pay the first hand holding a 2, then the next holding a 3, ... up to the ace, then 2 again | the rank waited for is four cards of it, gathered on each hand: K5, then a cut splits them off; on a payout the four go to a War that releases the next four from Hand(4) on a stacked shoe (seeded by a `once` `$`) (9/290) | 6 | new |
 | Q♠ | rising | Rising | `$$` deja-vu | 1–6 | cards never go down, top to bottom (aces high, ties fine) | [hand, joker, hand] round a loop: Burn, a top-card War of the burned card against the rest, a top-card War of the rest against an ace that only the joker wins; a last Burn drops the joker and pays the copy (12/214) | 6 | new |
-| K♠ | rest-of-the-deck | The Rest of the Deck | `$$` deja-vu | 1–5 | **expected**, house cards: after the last hand, every card of the deck not played, one card a hand | a shoe deals the deck then a joker behind the player (a pass prefers the player); everything is stacked until the joker is on top, so each suit holds the played cards twice and the rest once; Suits, K2 (a pair: Set drops the played cards; none: the whole suit is unplayed) and Hand(1) pays them one at a time (14/1506). Its own `grace` (100 rounds) | 6 | new |
+| K♠ | rest-of-the-deck | The Rest of the Deck | `$$` deja-vu | 1–5 | **expected**, house cards: after the last hand, every card of the deck not played, one card a hand | a shoe deals the deck then a joker behind the player (a pass prefers the player); everything is stacked until the joker is on top, so each suit holds the played cards twice and the rest once; Suits, K2 (a pair: Set drops the played cards; none: the whole suit is unplayed) and Hand(1) pays them one at a time (14/1506) | 6 | new |
 | A♥ | one-up | One Up | `$$` deja-vu | 1 | **expected**, house cards: for every card, the next card up in its suit (K → A) | two shoes in step deal [x, next-of-x] pairs through the whole deck; the card waits in a loop taking pairs until K2 + Flush find it is x (a Deal and a second K2 tell x from y), then y is paid; a War lets one card in at a time (16/4076) | 7 | new |
 | 2♥ | head-count | Head Count | `$$` deja-vu | 1–6 | the top card's rank (ace 1) is the number of cards | the hand doubled on a 12-card ruler (6 5 4 3 2 A and six `$`; Hand(12) on a shoe); a cut puts the ruler card for the hand's size on top of the bottom half; two top-card Wars compare it with the top card; the gate's dealer gets the `$`s on a tie, else the top half (19/676) | 8 | new |
 | 3♥ | mirror-image | Mirror Image | `$$` deja-vu | 5, two players | **expected**: when both players hold the same five cards (any order), pay both hands | stack the two hands and copy; Sort the copy, Hand(2) into pairs, K2 + Flush check each pair is two identical cards; one card per pair (the card, or a joker for a mismatch, routes of equal length) into Hand(5); the stack beats its own cards but not a joker; a cut splits it back into the two hands (25/383) | 8 | new |
@@ -321,10 +321,11 @@ the same idea).
   (Change of Heart, Small Change). Card order within a payout doesn't matter
   unless the floor is `ordered`, and the order of the payouts never does.
   Define every edge case in the brief (leftovers, empty results, ties).
-* **House cards in flight.** If payouts are still owed once every player
-  card has left the floor (house cards on their way to the desk), a test runs
-  on for up to 50 rounds before failing. So house-card
-  floors needn't time the player's card to leave with the house card.
+* **House and player cards alike.** A run stops only at a wrong payout, too many cards,
+  a repeated state, or `STALL_ROUNDS` rounds with nothing dealt or paid,
+  whoever's cards they are (docs/architecture.md, "When a run stops"). So
+  house-card floors needn't time the player's card to leave with the house
+  card, and a floor's tests may have no player hands at all.
 * **Floor sizing.** The working croupiers should dominate: place the desk so
   the reference needs few passes (≤ about a quarter of par), and leave 1.5–3×
   the reference's footprint so other designs fit. Pillars are for making
