@@ -407,14 +407,22 @@ export function openEditor(root, ctx, level) {
     renderAll();
     let spec;
     try { spec = toSpec(level, cells); } catch (e) { showToast(e.message, 'bad'); running = false; return; }
+    // Yield to the page (to redraw the tests' chips, and stay responsive)
+    // only after about a frame's work: yielding after every test spends more
+    // time redrawing the floor than running the tests.
+    let since = 0;
     const runAll = async (tests) => {
       for (const t of tests) {
-        await new Promise((r) => setTimeout(r, 0));
+        if (performance.now() - since > 12) {
+          renderTests();
+          await new Promise((r) => setTimeout(r, 0));
+          since = performance.now();
+        }
         let res;
         try { res = runTest(spec, t, level); } catch (e) { res = { ok: false, error: e.message, rounds: 0, wrong: [], missing: [] }; }
         runResults.push(res);
-        renderTests();
       }
+      renderTests();
     };
     // The published tests, then (if they all pass) the check deals. They
     // depend only on the machine, so any shown already stay valid (editing the

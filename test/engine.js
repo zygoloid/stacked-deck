@@ -42,6 +42,28 @@ import { Sim } from '../src/ui/sim.js';
   assert.strictEqual(paidAfter(), first);
 }
 console.log('engine ok');
+// Snapshots share hands with the floor (they are never changed in place), so
+// a snapshot must come back exactly however far the floor ran on after it:
+// on a machine with memory (Hand, Duplicate, Gather, War, Deal), replay
+// from every round's snapshot, some twice, and end in the same state.
+{
+  const { BONUS } = await import('../src/levels.js');
+  const { toSpec } = await import('../src/score.js');
+  const level = BONUS.find((l) => l.id === 'twice-shy');
+  const spec = toSpec(level, (await import('../solutions/levels/twice-shy.js')).default.cells);
+  const a = new Floor(spec, level.tests[0]);
+  const snaps = [];
+  for (let i = 0; i < 300; i++) { snaps.push(a.snapshot()); a.step(); }
+  const end = a.mark();
+  const b = new Floor(spec, level.tests[0]);
+  for (const r of [0, 1, 37, 37, 150, 299, 2, 150]) {
+    b.restore(snaps[r]);
+    assert.strictEqual(b.round, r);
+    while (b.round < 300) b.step();
+    assert(b.sameAs(end) && JSON.stringify(b.paid) === JSON.stringify(a.paid), `replayed from round ${r}`);
+  }
+}
+console.log('snapshots ok');
 // A deal with no sides and a shoe with no side drop their cards instead of crashing.
 {
   const floor = new Floor({ cells: [

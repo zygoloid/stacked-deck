@@ -45,7 +45,7 @@ floor.step();                // advance one round
 floor.round                  // rounds so far
 floor.paid                   // array of paid hands (card strings), in order
 floor.done()                 // every input placed and every player card off the floor
-floor.stateKey()             // everything its future depends on, with hands dealt and payouts made
+floor.mark() / floor.sameAs(m)   // its state (all its future depends on, and progress so far); compare
 floor.snapshot() / floor.restore(snap)   // for stepping backwards
 floor.cells                  // Map "q,r" -> cell with live state:
                              //   slots[6] (hand or null; slot d = arrived from side d),
@@ -210,11 +210,16 @@ stops at the first of:
 * a **wrong payout**, one matching no expected payout still owed: nothing
   later can put it right;
 * **overflow**, more than `MAX_FLOOR_CARDS` cards on the floor;
-* a **cycle**: the floor in a state it was in before (`Floor.stateKey`:
-  the cards in every slot, held and waiting, each croupier's facing, how far
+* a **cycle**: the floor in a state it was in before (`Floor.mark`: the
+  cards in every slot, held and waiting, each croupier's facing, how far
   each shoe and player has dealt, and the payouts so far), so with no
   progress since. The floor is deterministic, so it will go round the same
-  loop for ever and never make progress again;
+  loop for ever and never make progress again. As in Brent's algorithm,
+  the floor is compared each round with one state, saved 1, 2, 4, 8, …
+  rounds after the last progress, so a loop is found within about twice
+  the rounds it takes to start plus its length. Hands are never changed
+  once made, so a saved state keeps references to them, and most rounds
+  differ from it in the first few things compared;
 * a **stall**: `STALL_ROUNDS` rounds without progress, taken to mean it
   never will.
 

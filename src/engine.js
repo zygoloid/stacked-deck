@@ -389,20 +389,26 @@ export class Floor {
     return true;
   }
 
-  // Everything that changes while running, for stepping backwards.
+  // Everything that changes while running, for stepping backwards (and
+  // Run.fork). Hands, their cards and held hands are never changed once
+  // made, only replaced, so a snapshot shares them: it copies just the
+  // arrays that are changed in place (slots, pending, the payouts).
   snapshot() {
     const cells = [...this.cells.values()].map((c) => ({
-      slots: c.slots, pending: c.pending, held: c.held, facing: c.facing, pos: c.pos,
+      slots: [...c.slots], pending: c.pending.map(([d, h]) => [d, h]), held: c.held, facing: c.facing, pos: c.pos,
     }));
-    return structuredClone({
-      cells, round: this.round, paid: this.paid, paidAt: this.paidAt, inputPos: this.inputPos, live: this.live,
-    });
+    return {
+      cells, round: this.round, paid: [...this.paid], paidAt: [...this.paidAt], inputPos: this.inputPos, live: this.live,
+    };
   }
 
-  restore(snap) {
-    const s = structuredClone(snap);
-    [...this.cells.values()].forEach((c, i) => Object.assign(c, s.cells[i]));
-    Object.assign(this, { round: s.round, paid: s.paid, paidAt: s.paidAt, inputPos: s.inputPos, live: s.live });
+  // Back to a snapshot (which stays as it was, to restore again).
+  restore(s) {
+    [...this.cells.values()].forEach((c, i) => {
+      const { slots, pending, held, facing, pos } = s.cells[i];
+      Object.assign(c, { slots: [...slots], pending: pending.map(([d, h]) => [d, h]), held, facing, pos });
+    });
+    Object.assign(this, { round: s.round, paid: [...s.paid], paidAt: [...s.paidAt], inputPos: s.inputPos, live: s.live });
   }
 
   // Every player card has left the floor (house cards may still be on it).
@@ -411,23 +417,47 @@ export class Floor {
       ![...this.cells.values()].some((c) => c.kind === 'source' && c.pending.length);
   }
 
-  // Everything the floor's future depends on, with its progress (hands dealt,
-  // payouts made): the cards (not where they came from) in every slot, held
-  // and waiting to be placed, each croupier's facing, and how far each shoe
-  // and player has dealt. Equal keys mean equal futures.
-  stateKey() {
-    const hand = (h) => h.map((x) => x.c).join(' ');
-    const parts = [this.inputPos, this.paid.length];
+  // Everything the floor's future depends on, as of now: the cards (not
+  // where they came from) in every slot, held and waiting to be placed,
+  // each croupier's facing, how far each shoe and player has dealt, and the
+  // progress so far (hands dealt, payouts made). Hands are never changed
+  // once made, so this keeps references to them and costs little; sameAs
+  // compares the floor with one, stopping at the first difference.
+  mark() {
+    const cells = [];
     for (const c of this.cells.values()) {
       if (c.kind === 'payout') continue;
-      const pos = c.kind === 'shoe' && !c.once ? c.pos % c.deck.length : c.pos;
-      parts.push(`${c.facing} ${pos}|${c.slots.map((h) => (h ? hand(h) : '')).join('/')}|${
-        c.pending.map(([d, h]) => `${d}:${hand(h)}`).join('/')}|${
-        c.held ? JSON.stringify(c.held, (k, v) => (v?.src ? v.c : v)) : ''}`);
+      cells.push([c, c.facing, shoePos(c), [...c.slots], c.pending.map(([d, h]) => [d, h]), c.held]);
     }
-    return parts.join('\n');
+    return { inputPos: this.inputPos, paid: this.paid.length, cells };
+  }
+
+  sameAs(m) {
+    if (m.inputPos !== this.inputPos || m.paid !== this.paid.length) return false;
+    for (const [c, facing, pos, slots, pending, held] of m.cells) {
+      if (c.facing !== facing || shoePos(c) !== pos || c.pending.length !== pending.length) return false;
+      for (let d = 0; d < 6; d++) if (!sameHand(c.slots[d], slots[d])) return false;
+      for (let i = 0; i < pending.length; i++) {
+        if (c.pending[i][0] !== pending[i][0] || !sameHand(c.pending[i][1], pending[i][1])) return false;
+      }
+      if (c.held !== held && !sameHeld(c.held, held)) return false;
+    }
+    return true;
   }
 }
+
+// How far a cell has dealt, as far as its future goes (a repeating shoe
+// starts its deck again).
+const shoePos = (c) => (c.kind === 'shoe' && !c.once ? c.pos % c.deck.length : c.pos);
+// Hands (arrays of {c, src}) with the same cards in the same order, or both
+// none; and croupiers' held hands (see heldHands), likewise.
+const sameHand = (a, b) => a === b || (!!a && !!b && a.length === b.length && a.every((x, i) => x.c === b[i].c));
+const sameHeld = (a, b) => {
+  if (!a || !b) return a === b;
+  if (Array.isArray(a)) return a[1] === b[1] && sameHand(a[0], b[0]); // gather: [hand, side]
+  const ka = Object.keys(a), kb = Object.keys(b);
+  return ka.length === kb.length && ka.every((k) => sameHand(a[k], b[k]));
+};
 
 // Whether a shoe will deal another card (a shoe dealing `once` runs out).
 const shoeDeals = (cell) => typeof cell.out === 'number' && (!cell.once || cell.pos < cell.deck.length);
@@ -476,8 +506,11 @@ export const STALL_ROUNDS = 1000;
 // payout must be the n-th expected. A run stops at:
 //   wrong     a payout matching none still owed: it can never be put right;
 //   overflow  more than MAX_FLOOR_CARDS cards on the floor;
-//   cycle     a state (Floor.stateKey) it was in before, with no progress
-//             since: it is going round a loop and will never progress again;
+//   cycle     a state (Floor.mark) it was in before, with no progress
+//             since: it is going round a loop and will never progress again
+//             (found as in Brent's algorithm: the floor is compared with a
+//             state saved 1, 2, 4, 8, ... rounds after the last progress,
+//             so a loop is found within about twice its start and length);
 //   stall     `stall` rounds (STALL_ROUNDS) without progress: taken to mean
 //             that it never will.
 // Every way to stop treats house and player cards alike. A run passes if
@@ -503,8 +536,7 @@ export class Run {
     for (let n = 0; n < f.paid.length && this.wrong === null; n++) this.check(n);
     this.progress = (this.progress ?? []).filter((r) => r <= f.round); // rounds with progress
     this.dealt = f.inputPos;
-    this.seen = new Map([...(this.seen ?? [])].filter(([, r]) => r <= f.round && r >= this.last));
-    if (!this.seen.size) this.seen.set(f.stateKey(), f.round);
+    this.watch();
     this.stop = null;
   }
 
@@ -528,6 +560,13 @@ export class Run {
     return true;
   }
 
+  // Look for a loop from the state the floor is in now.
+  watch() {
+    this.saved = this.floor.mark();
+    this.savedAt = this.floor.round;
+    this.power = 1;
+  }
+
   // Advance one round; returns the reason it stopped, or null.
   step() {
     if (this.stop) return this.stop;
@@ -539,14 +578,15 @@ export class Run {
     if (f.inputPos !== this.dealt || this.checked !== paidBefore) {
       this.dealt = f.inputPos;
       this.progress.push(f.round);
-      this.seen.clear(); // no earlier state can come back
-    }
-    const key = f.stateKey();
-    if (this.seen.has(key)) {
-      this.cycleFrom = this.seen.get(key); // the round it was in this state before
+      this.watch(); // no earlier state can come back
+    } else if (f.sameAs(this.saved)) {
+      this.cycleFrom = this.savedAt; // the round it was in this state before
       return (this.stop = 'cycle');
+    } else if (f.round - this.savedAt === this.power) {
+      this.saved = f.mark();
+      this.savedAt = f.round;
+      this.power *= 2;
     }
-    this.seen.set(key, f.round);
     if (f.round - this.last >= this.stall) return (this.stop = 'stall');
     return null;
   }
@@ -557,7 +597,7 @@ export class Run {
     r.floor.restore(this.floor.snapshot());
     Object.assign(r, { matched: [...this.matched], wrong: this.wrong, checked: this.checked, dealt: this.dealt });
     r.progress = [...this.progress];
-    r.seen = new Map(this.seen);
+    r.watch();
     return r;
   }
 }
