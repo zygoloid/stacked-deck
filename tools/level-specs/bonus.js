@@ -224,6 +224,36 @@ export function casinoLongSums() {
   return { nodes, links };
 }
 
+// Off Suit: Red Flush with no Suits croupier (pass, straight, shoe, gather,
+// cut, flush). An ace of hearts under the hand makes a four-card flush only
+// of a heart flush. A hand that isn't one has the ace stripped again (Cut:
+// [c0 c1] and [c2 A♥]; Cut again: [c2] and the ace; Gather the hand back)
+// and tries an ace of diamonds the same way. Either flush has its ace
+// stripped by the same three croupiers on the way to the desk.
+export function offSuit() {
+  const at = {
+    SH: [-2, 1], FL1: [0, -1], C1n: [-1, -1], C2n: [-2, -1], GRn: [-1, -2], G2: [0, -2], SD: [0, -3], FL2: [1, -2],
+    MY: [1, -1], C1y: [1, 0], C2y: [0, 1], GRy: [1, 1],
+  };
+  const nodes = {
+    // (the hand comes from the player straight into G1)
+    G1: c([-1, 0], 'gather'), SH: shoe(at.SH, 'AH'), FL1: c(at.FL1, 'flush'),
+    C1n: c(at.C1n, 'cut'), C2n: c(at.C2n, 'cut'), GRn: c(at.GRn, 'gather'), G2: c(at.G2, 'gather'), SD: shoe(at.SD, 'AD'),
+    FL2: c(at.FL2, 'flush'), MY: c(at.MY, 'pass'), C1y: c(at.C1y, 'cut'), C2y: c(at.C2y, 'cut'), GRy: c(at.GRy, 'gather'),
+  };
+  nodes.MY.out = {};
+  const links = [
+    // an ace of hearts under the hand: a flush only for a heart flush
+    ['SH', null, 'G1', 'under'], ['G1', 'out', 'FL1'], ['FL1', 'yes', 'MY'],
+    // otherwise strip the ace and try an ace of diamonds
+    ['FL1', 'no', 'C1n'], ['C1n', 'top', 'GRn'], ['C1n', 'bottom', 'C2n'], ['C2n', 'top', 'GRn', 'under'],
+    ['GRn', 'out', 'G2'], ['SD', null, 'G2', 'under'], ['G2', 'out', 'FL2'], ['FL2', 'yes', 'MY'],
+    // either flush: strip its ace the same way, and pay
+    ['MY', 'out', 'C1y'], ['C1y', 'top', 'GRy'], ['C1y', 'bottom', 'C2y'], ['C2y', 'top', 'GRy', 'under'], ['GRy', 'out', 'desk'],
+  ];
+  return { nodes, links };
+}
+
 // Night Off: Red Flush with no Flush croupier (pass, suits, straight, shoe,
 // gather, cut). Suits splits each hand into its hearts and its diamonds
 // (to different sides, so they stay separate piles); each red pile P of n
@@ -650,6 +680,7 @@ export const SPECS = {
   'casino-numbers': casinoSums(),
   'times-tables': casinoProducts(),
   'carry-the-one': casinoLongSums(),
+  'off-suit': offSuit(),
   'night-off': nightOff(),
 
 };

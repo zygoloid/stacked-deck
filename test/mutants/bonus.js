@@ -35,6 +35,12 @@ const casinoOf = (n, base = 13) => { const d = []; for (let v = n; v > 0; v = Ma
 // A two-card hand as a casino number, leading digit on top.
 const two = ([a, b]) => 13 * rv(a) + rv(b);
 const sameSuit = (h) => h.every((c) => c[1] === h[0][1]);
+// Red Flush variants (Off Suit, Night Off).
+const redFlushMutants = {
+  'any flush': (h) => sameSuit(h), 'all red': (h) => h.every((c) => 'HD'.includes(c[1])),
+  'hearts only': (h) => sameSuit(h) && h[0][1] === 'H', 'two of a red suit': (h) => ['H', 'D'].some((u) => h.filter((c) => c[1] === u).length >= 2),
+  'a red card': (h) => h.some((c) => 'HD'.includes(c[1])),
+};
 const NEW_DECK = ['S', 'D', 'C', 'H'].flatMap((s) => RANKS.map((r) => r + s)).sort((a, b) => newDeckIndex(a) - newDeckIndex(b));
 
 // Crossed Wires variants: seat i % 3's hands go to desk `to(seat)`.
@@ -171,11 +177,8 @@ export const MUTANTS = {
     'aces high': (t) => deals(t).map(([[a], [b]]) => casinoOf(hv(a) * hv(b))),
     'one less than the product': (t) => deals(t).filter(([[a], [b]]) => rv(a) * rv(b) > 1).map(([[a], [b]]) => casinoOf(rv(a) * rv(b) - 1)),
   },
-  'night-off': {
-    'any flush': (h) => sameSuit(h), 'all red': (h) => h.every((c) => 'HD'.includes(c[1])),
-    'hearts only': (h) => sameSuit(h) && h[0][1] === 'H', 'two of a red suit': (h) => ['H', 'D'].some((u) => h.filter((c) => c[1] === u).length >= 2),
-    'a red card': (h) => h.some((c) => 'HD'.includes(c[1])),
-  },
+  'off-suit': redFlushMutants,
+  'night-off': redFlushMutants,
   'carry-the-one': {
     'leading digit underneath': (t) => deals(t).map(([a, b]) => casinoOf(two(a) + two(b)).reverse()),
     'no carry from the units': (t) => deals(t).map(([a, b]) => casinoOf(13 * (rv(a[0]) + rv(b[0])) + ((rv(a[1]) + rv(b[1]) - 1) % 13) + 1)),

@@ -71,7 +71,8 @@ export function levelSelect(root, ctx) {
   }
 
   // The bonus deck: extra floors outside the campaign, each opened by
-  // clearing a campaign floor (shown on its card back).
+  // clearing a floor (shown on its card back): a campaign floor or another
+  // bonus floor.
   function bonusDeck() {
     return h('section', { class: 'chapter bonus' },
       h('h2', { 'data-chapter': 'bonus' }, h('span', { class: 'ch-suit bonus' }, '★'), 'Bonus deck',

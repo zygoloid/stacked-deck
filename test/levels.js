@@ -9,9 +9,11 @@
 //  * the palette only grows; special cards only appear in the finale, only
 //    grow, and are not mentioned before a floor allows them;
 //  * bonus floors: ids unique across the campaign and the bonus deck; each
-//    opens after a campaign floor (`unlockAfter`), in campaign order, with
-//    cards A..K of each of BONUS_SUITS in turn, in list order; its palette, War rules and
-//    special cards are all available by its unlockAfter floor;
+//    opens after a campaign floor or another bonus floor (`unlockAfter`;
+//    a chain of bonus floors ends at a campaign floor), with cards A..K of
+//    each of BONUS_SUITS in turn, in list order (by difficulty, not by
+//    unlocking); its palette, War rules and special cards are all available
+//    by the campaign floor that opens its chain;
 //  * a level has either `pays(hand, earlierHands)` or `expected(inputs)`;
 //  * its reference solution only uses the level's floor, palette, War rules
 //    and special cards, places only shoes and croupiers, and doesn't overlap
@@ -110,24 +112,32 @@ for (const level of LEVELS) {
     index: availableBy.size, palette: level.croupiers, rules: [...rulesSeen], specials, specialsSeen,
   });
 }
-// The bonus deck.
-let prevUnlock = -1;
+// The bonus deck. A bonus floor's unlockAfter may be another bonus floor;
+// the chain ends at the campaign floor that opens it.
+const bonusById = new Map(BONUS.map((l) => [l.id, l]));
+const rootOf = (level) => {
+  const seen = new Set();
+  let l = level;
+  while (bonusById.has(l.unlockAfter) && !seen.has(l.id)) { seen.add(l.id); l = bonusById.get(l.unlockAfter); }
+  return seen.has(l.id) ? null : l.unlockAfter;
+};
 BONUS.forEach((level, i) => {
   const where = `${level.id} (bonus):`;
   check(!ids.has(level.id), `${where} id is unique across the campaign and the bonus deck`); ids.add(level.id);
   check(level.chapter === undefined, `${where} has no chapter`);
   const want = i < 13 * BONUS_SUITS.length ? RANKS[i % 13] + BONUS_SUITS[Math.floor(i / 13)] : null;
   check(level.card === want, `${where} card ${level.card} should be ${want} (at most ${13 * BONUS_SUITS.length} bonus floors)`);
-  const after = availableBy.get(level.unlockAfter);
-  check(after, `${where} unlockAfter ${level.unlockAfter} is a campaign floor`);
+  check(level.unlockAfter !== level.id, `${where} doesn't unlock after itself`);
+  const root = rootOf(level);
+  const after = availableBy.get(root);
+  check(after, `${where} unlockAfter ${level.unlockAfter} is a campaign floor, or a bonus floor whose chain ends at one`);
   if (!after) return;
-  check(after.index >= prevUnlock, `${where} bonus floors are in the order they unlock`); prevUnlock = after.index;
   const lost = level.croupiers.filter((c) => !after.palette.includes(c));
-  check(!lost.length, `${where} palette is available by ${level.unlockAfter} (not yet: ${lost})`);
+  check(!lost.length, `${where} palette is available by ${root} (not yet: ${lost})`);
   const rules = level.warRules ?? ['high'];
-  check(rules.every((r) => after.rules.includes(r)), `${where} War rules ${rules} are available by ${level.unlockAfter}`);
+  check(rules.every((r) => after.rules.includes(r)), `${where} War rules ${rules} are available by ${root}`);
   const specials = level.specialCards ?? [];
-  check(specials.every((c) => after.specials.includes(c)), `${where} specialCards ${specials} are available by ${level.unlockAfter}`);
+  check(specials.every((c) => after.specials.includes(c)), `${where} specialCards ${specials} are available by ${root}`);
   if (!after.specialsSeen) {
     const text = [level.title, level.brief, ...(level.story ?? [])].join(' ');
     check(!SPECIAL_WORDS.test(text), `${where} doesn't mention special cards before they're introduced`);
