@@ -224,6 +224,60 @@ export function casinoLongSums() {
   return { nodes, links };
 }
 
+// Night Off: Red Flush with no Flush croupier (pass, suits, straight, shoe,
+// gather, cut). Suits splits each hand into its hearts and its diamonds
+// (to different sides, so they stay separate piles); each red pile P of n
+// cards (1 to 3) then goes through one filter, one pile at a time:
+//  * Three house cards on top, 2♣ 3♠ 9♠, and Cut: the top half is house
+//    cards only, 2♣ 3♠ for n = 1 or 2 and 2♣ 3♠ 9♠ for n = 3; the bottom is
+//    the whole pile (with the 9♠ on top of it for n = 1 or 2).
+//  * Straight tells them apart (2 3 is a run, 2 3 9 isn't). A run is cut
+//    down to its top card, 2♣; otherwise a Q♠ is gathered underneath: one
+//    card or four.
+//  * K♠, the bottom half, then those one or four cards, and Cut again: the
+//    pile is all in the top half for n = 3 ([K♠, P, 4 cards]: 8 cards, cut
+//    after 4) and all in the bottom half otherwise ([K♠, 9♠, P, 2♣]).
+//    Suits pays the top half's red cards.
+//  (Cut alone can't do it: one more card in the pile moves the cut only
+//  half a card, so it is always the small piles that land on one side.)
+//  * The 2♣ is a token: it is always the only club in the last bottom half,
+//    and it goes back to make the next pile's house cards (a once shoe
+//    deals the first), so piles can't overtake one another on the two
+//    branches.
+export function nightOff() {
+  const at = {
+    SU1: [-1, 0], MP: [-1, -1], MD: [0, -1],
+    TK: [-4, 2], TP: [-3, 1], SY2: [-4, 0], SY3: [-2, -2], GH1: [-3, 0], GH2: [-2, -1], G1: [-1, -2], CUT1: [1, -3],
+    ST: [3, -4], CY: [2, -3], GN: [3, -3], SP: [4, -3], MF: [2, -2],
+    SF: [0, -2], G2: [1, -2], G3: [1, -1], CUT2: [0, 0], SU2: [1, 0], SB: [-2, 1],
+  };
+  const nodes = {
+    SU1: c(at.SU1, 'suits'), MP: c(at.MP, 'pass'), MD: c(at.MD, 'pass'),
+    TK: shoe(at.TK, '2C', { once: true }), TP: c(at.TP, 'pass'), SY2: shoe(at.SY2, '3S'), SY3: shoe(at.SY3, '9S'),
+    GH1: c(at.GH1, 'gather'), GH2: c(at.GH2, 'gather'), G1: c(at.G1, 'gather'), CUT1: c(at.CUT1, 'cut'),
+    ST: c(at.ST, 'straight'), CY: c(at.CY, 'cut'), GN: c(at.GN, 'gather'), SP: shoe(at.SP, 'QS'), MF: c(at.MF, 'pass'),
+    SF: shoe(at.SF, 'KS'), G2: c(at.G2, 'gather'), G3: c(at.G3, 'gather'), CUT2: c(at.CUT2, 'cut'),
+    SU2: c(at.SU2, 'suits'), SB: c(at.SB, 'suits'),
+  };
+  for (const n of Object.values(nodes)) if (n.fn === 'pass') n.out = {};
+  const links = [
+    // the hand's hearts and diamonds, as separate piles, into one line
+    ['SU1', 'H', 'MP'], ['SU1', 'D', 'MD'], ['MD', 'out', 'MP'],
+    // 2♣ (the token) 3♠ 9♠ on top of the pile, and cut
+    ['TK', null, 'TP'], ['TP', 'out', 'GH1'], ['SY2', null, 'GH1', 'under'], ['GH1', 'out', 'GH2'],
+    ['SY3', null, 'GH2', 'under'], ['GH2', 'out', 'G1'], ['MP', 'out', 'G1', 'under'], ['G1', 'out', 'CUT1'],
+    // the top half: a run (n < 3) gives one card, otherwise four
+    ['CUT1', 'top', 'ST'], ['ST', 'yes', 'CY'], ['CY', 'top', 'MF'], ['SP', null, 'GN', 'under'], ['ST', 'no', 'GN'],
+    ['GN', 'out', 'MF'],
+    // K♠, the pile, those cards; cut, and pay the top half's red cards
+    ['SF', null, 'G2'], ['CUT1', 'bottom', 'G2', 'under'], ['G2', 'out', 'G3'], ['MF', 'out', 'G3', 'under'],
+    ['G3', 'out', 'CUT2'], ['CUT2', 'top', 'SU2'], ['SU2', ['H', 'D'], 'desk'],
+    // the token back for the next pile
+    ['CUT2', 'bottom', 'SB'], ['SB', 'C', 'TP'],
+  ];
+  return { nodes, links };
+}
+
 
 export const SPECS = {
   'small-change': {
@@ -596,5 +650,6 @@ export const SPECS = {
   'casino-numbers': casinoSums(),
   'times-tables': casinoProducts(),
   'carry-the-one': casinoLongSums(),
+  'night-off': nightOff(),
 
 };
