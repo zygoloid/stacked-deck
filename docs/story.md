@@ -176,8 +176,8 @@ opening night.
 
 ## The bonus deck
 
-Extra floors outside the campaign, each opened by a campaign floor
-(docs/campaign.md). Their stories stand on their own: they may lean on the
+Extra floors outside the campaign, each opened by a campaign floor or by
+another bonus floor (docs/campaign.md), in order of difficulty. Their stories stand on their own: they may lean on the
 cast and the moment they unlock (Sal's kings after Beat the Dealer, the
 rival's split pots after Top Pair, the city asking for one more game after
 Déjà Vu), but they never move the plot, so the campaign reads the same
@@ -187,29 +187,30 @@ regulation; Ace Count does).
 
 | Card | Level | After | Beat |
 |---|---|---|---|
-| A♠ | Small Change | Beat the Dealer | Sal changes kings for the ace of spades |
-| 2♠ | Split Pot | Top Pair | the rival splits its pots; so does the house |
-| 3♠ | Every Other | Ace Count | the string quartet's game for the bar |
-| 4♠ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
-| 5♠ | Bookends | Change of Heart | the doormen's game, hand against hand |
-| 6♠ | Two Apart | Déjà Vu | the doormen's new game for their break |
-| 7♠ | Three Apart | Déjà Vu | the cloakroom plays it one better |
-| 8♠ | Crossed Wires | Déjà Vu | the Owner rewires the floor; the twins bring a cousin |
+| A♠ | Split Pot | Top Pair | the rival splits its pots; so does the house |
+| 2♠ | Small Change | Beat the Dealer | Sal changes kings for the ace of spades |
+| 3♠ | Two Apart | Déjà Vu | the doormen's new game for their break |
+| 4♠ | Three Apart | Déjà Vu | the cloakroom plays it one better |
+| 5♠ | Off Suit | Red Flush | the suits croupier is at a wedding; the uncle's red flushes |
+| 6♠ | Crossed Wires | Déjà Vu | the Owner rewires the floor; the twins bring a cousin |
+| 7♠ | Every Other | Ace Count | the string quartet's game for the bar |
+| 8♠ | Bookends | Change of Heart | the doormen's game, hand against hand |
 | 9♠ | Uneven Tables | Déjà Vu | the cousins stop playing in step |
 | 10♠ | Four of a Kind | Déjà Vu | the city asks for one more game |
 | J♠ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
 | Q♠ | Rising | Déjà Vu | the string quartet takes up scales |
-| K♠ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
-| A♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
-| 2♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
-| 3♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
-| 4♥ | Casino Numbers | Déjà Vu | the Owner counts in thirteens, with no zero |
-| 5♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
-| 6♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
-| 7♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
+| K♠ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
+| A♥ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
+| 2♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
+| 3♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
+| 4♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
+| 5♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
+| 6♥ | Casino Numbers | Déjà Vu | the Owner counts in thirteens, with no zero |
+| 7♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
 | 8♥ | Times Tables | Déjà Vu | Dmitri finds the multiplication sheet |
-| 9♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
-| 10♥ | Night Off | Déjà Vu | the flush croupier's night off; the uncle's red flushes anyway |
+| 9♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
+| 10♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
+| J♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
 
 ## Notes for writers
 
