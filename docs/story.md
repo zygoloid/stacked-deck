@@ -209,6 +209,7 @@ regulation; Ace Count does).
 | 7♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
 | 8♥ | Times Tables | Déjà Vu | Dmitri finds the multiplication sheet |
 | 9♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
+| 10♥ | Night Off | Déjà Vu | the flush croupier's night off; the uncle's red flushes anyway |
 
 ## Notes for writers
 

@@ -5,7 +5,8 @@
 // the campaign to make room (their ids are unchanged, since saves are keyed
 // by id); the others are extra floors, from 6♠ on for players who have
 // everything (every croupier, both War rules, every special card), roughly
-// easiest first. Crossed Wires and Uneven Tables seat three players (and
+// easiest first; Night Off is the exception, Red Flush again with a smaller
+// palette (no Flush). Crossed Wires and Uneven Tables seat three players (and
 // label three desks); Mirror Image, Casino Numbers, Showdown, Twice Shy,
 // Times Tables and Carry the One seat two. See docs/campaign.md.
 import {
@@ -13,7 +14,7 @@ import {
   hv, high, one, paletteThrough, finishChapter,
 } from './shared.js';
 import {
-  RANKS, rankOf, suitOf, rankValue, highValue, largestSet, rankCounts, fullDeck, shuffled,
+  RANKS, rankOf, suitOf, rankValue, highValue, largestSet, rankCounts, fullDeck, shuffled, isFlush,
 } from '../cards.js';
 
 const B1 = [source([-3, 0], E), desk([1, 0])];
@@ -40,6 +41,8 @@ const H5 = [seated([-6, 4], E, 0), seated([-5, 3], SE, 1), desk([-4, 7])];
 const H6 = [seated([5, -1], W, 0), seated([4, 1], W, 1), desk([-2, 0])];
 const H7 = [...H6.slice(0, 2), desk([-4, 4])];
 const H8 = [seated([2, -2], SW, 0), seated([2, -1], SE, 1), desk([1, 4])];
+// Red Flush's player and desk (its floor is two rings smaller).
+const H9 = [source([-2, 0], E), desk([2, 0])];
 const labelled = (at, n) => ({ ...desk(at), desk: n });
 const H3 = [
   seated([-2, -2], E, 0), seated([-3, 0], E, 1), seated([-4, 2], E, 2),
@@ -805,6 +808,31 @@ export const LEVELS = [
       nRandom: 4, seed: 186,
     }),
   },
+  {
+    id: 'night-off',
+    card: 'TH',
+    unlockAfter: 'deja-vu',
+    title: 'Night Off',
+    story: [
+      'The croupier who checks for flushes has the night off, and Sal Vellani\'s uncle has come back for his red flushes anyway: three-card hands, and the house pays any hand that is all hearts or all diamonds.',
+      'Nobody else on the floor can tell a flush at a glance. They can split a hand by suit, stack cards and cut them, and the uncle is in no hurry.',
+    ],
+    brief: 'Three-card hands. Pay out every flush in hearts or diamonds, with no Flush croupier.',
+    handSize: 3,
+    floor: floorOf(hexRange(4), H9),
+    fixed: H9,
+    croupiers: paletteThrough('cut'),
+    pays: (h) => isFlush(h) && ['H', 'D'].includes(suitOf(h[0])),
+    tests: makeTests({
+      handSize: 3, handsPerTest: 10,
+      fixed: [
+        ['2H 7H KH', '3D 9D QD', '4S 8S JS', '5C TC AC', 'AH 2D 3H', 'KD QD JH', '6H 6D 6S', 'AD KD 2D', '9S 9H 4C', 'TH JH QH'],
+        // two of a red suit and one other, either way round
+        ['2H 3H 4S', '5D 6D 7C', 'KS QH JH', '8C 9D TD', 'AH 5D 9H', 'JD 2H QD'],
+      ],
+      nRandom: 4, seed: 187,
+    }),
+  },
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
@@ -835,6 +863,7 @@ const PAR = {
   'twice-shy': { croupiers: 36, rounds: 1145 },
   'times-tables': { croupiers: 34, rounds: 3720 },
   'carry-the-one': { croupiers: 75, rounds: 2046 },
+  'night-off': { croupiers: 25, rounds: 398 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);
