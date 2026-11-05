@@ -179,6 +179,11 @@ export const MUTANTS = {
   },
   'off-suit': redFlushMutants,
   'night-off': redFlushMutants,
+  'skeleton-crew': {
+    'any flush': (h) => sameSuit(h), 'red flushes': (h) => sameSuit(h) && 'HD'.includes(h[0][1]),
+    'two hearts or more': (h) => h.filter((c) => c[1] === 'H').length >= 2, 'a heart': (h) => h.some((c) => c[1] === 'H'),
+    'all red': (h) => h.every((c) => 'HD'.includes(c[1])),
+  },
   'carry-the-one': {
     'leading digit underneath': (t) => deals(t).map(([a, b]) => casinoOf(two(a) + two(b)).reverse()),
     'no carry from the units': (t) => deals(t).map(([a, b]) => casinoOf(13 * (rv(a[0]) + rv(b[0])) + ((rv(a[1]) + rv(b[1]) - 1) % 13) + 1)),

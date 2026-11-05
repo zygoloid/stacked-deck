@@ -1,14 +1,15 @@
 // The bonus deck: floors outside the 56-card campaign. Each opens once its
-// `unlockAfter` floor is solved (a campaign floor, or another bonus floor:
-// Night Off opens after Off Suit, which opens after Red Flush), and has its
+// `unlockAfter` floors are solved (one id or a list; campaign floors or other
+// bonus floors: Night Off opens after Off Suit, which opens after Red Flush,
+// and Skeleton Crew after both Calling Card and Night Off), and has its
 // own card in the bonus deck: A..K of spades, then of hearts, of a second
 // deck, in this list's order, which is roughly easiest first (the Diff
 // column of docs/campaign.md), not the order they open in. Some are floors
 // cut from the campaign to make room (their ids are unchanged, since saves
 // are keyed by id); most of the others are extra floors for players who have
 // everything (every croupier, both War rules, every special card), and Off
-// Suit and Night Off are Red Flush again with a croupier taken away (Suits,
-// then Flush). Crossed Wires and Uneven Tables seat three players (and label
+// Suit, Night Off and Skeleton Crew are Red Flush again with croupiers taken
+// away (Suits; Flush; both, for heart flushes only). Crossed Wires and Uneven Tables seat three players (and label
 // three desks); Mirror Image, Casino Numbers, Showdown, Twice Shy, Times
 // Tables and Carry the One seat two. See docs/campaign.md.
 import {
@@ -484,8 +485,34 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'rising',
+    id: 'skeleton-crew',
     card: 'QS',
+    unlockAfter: ['calling-card', 'night-off'],
+    title: 'Skeleton Crew',
+    story: [
+      'The croupiers who split hands by suit and check for flushes have both taken the night off, together, and the rest of the floor is covering for them. Sal Vellani\'s uncle has heard, and has come in with a simpler request: three-card hands, and the house pays any hand that is all hearts.',
+      'Nobody left can tell a heart from a club by looking at it. But the croupier who sorts a deck into new deck order knows exactly where the hearts go.',
+    ],
+    brief: 'Three-card hands. Pay out every flush in hearts, with neither a Flush nor a Suits croupier.',
+    handSize: 3,
+    floor: floorOf(hexRange(4), H9),
+    fixed: H9,
+    croupiers: paletteThrough('sort').filter((c) => c !== 'flush' && c !== 'suits'),
+    warRules: ALL,
+    pays: (h) => isFlush(h) && suitOf(h[0]) === 'H',
+    tests: makeTests({
+      handSize: 3, handsPerTest: 10,
+      fixed: [
+        ['2H 7H KH', '3D 9D QD', '4S 8S JS', '5C TC AC', 'AH 2D 3H', 'KD QD JH', '6H 6D 6S', 'AD KD 2D', '9S 9H 4C', 'TH JH QH'],
+        // aces, and the ace of clubs, next to hearts
+        ['AC KH QH', 'AS AD 7D', 'AH 2H 3H', 'KS KD KC', 'AD 5H 6H', 'AC 2C 3C', '9H TH AH', 'AS 4H 8H'],
+      ],
+      nRandom: 4, seed: 189,
+    }),
+  },
+  {
+    id: 'rising',
+    card: 'KS',
     unlockAfter: 'deja-vu',
     title: 'Rising',
     story: [
@@ -514,7 +541,7 @@ export const LEVELS = [
   },
   {
     id: 'after-a-pair',
-    card: 'KS',
+    card: 'AH',
     unlockAfter: 'suit-yourself',
     title: 'After a Pair',
     story: [
@@ -545,7 +572,7 @@ export const LEVELS = [
   },
   {
     id: 'rest-of-the-deck',
-    card: 'AH',
+    card: '2H',
     unlockAfter: 'deja-vu',
     title: 'The Rest of the Deck',
     story: [
@@ -577,7 +604,7 @@ export const LEVELS = [
   },
   {
     id: 'one-up',
-    card: '2H',
+    card: '3H',
     unlockAfter: 'deja-vu',
     title: 'One Up',
     story: [
@@ -600,7 +627,7 @@ export const LEVELS = [
   },
   {
     id: 'night-off',
-    card: '3H',
+    card: '4H',
     unlockAfter: 'off-suit',
     title: 'Night Off',
     story: [
@@ -625,7 +652,7 @@ export const LEVELS = [
   },
   {
     id: 'head-count',
-    card: '4H',
+    card: '5H',
     unlockAfter: 'deja-vu',
     title: 'Head Count',
     story: [
@@ -654,7 +681,7 @@ export const LEVELS = [
   },
   {
     id: 'mirror-image',
-    card: '5H',
+    card: '6H',
     unlockAfter: 'deja-vu',
     title: 'Mirror Image',
     story: [
@@ -683,7 +710,7 @@ export const LEVELS = [
   },
   {
     id: 'casino-numbers',
-    card: '6H',
+    card: '7H',
     unlockAfter: 'deja-vu',
     title: 'Casino Numbers',
     story: [
@@ -712,7 +739,7 @@ export const LEVELS = [
   },
   {
     id: 'last-in-first-out',
-    card: '7H',
+    card: '8H',
     unlockAfter: 'deja-vu',
     title: 'Last In, First Out',
     story: [
@@ -741,7 +768,7 @@ export const LEVELS = [
   },
   {
     id: 'times-tables',
-    card: '8H',
+    card: '9H',
     unlockAfter: 'deja-vu',
     title: 'Times Tables',
     story: [
@@ -770,7 +797,7 @@ export const LEVELS = [
   },
   {
     id: 'showdown',
-    card: '9H',
+    card: 'TH',
     unlockAfter: 'deja-vu',
     title: 'Showdown',
     story: [
@@ -802,7 +829,7 @@ export const LEVELS = [
   },
   {
     id: 'twice-shy',
-    card: 'TH',
+    card: 'JH',
     unlockAfter: 'deja-vu',
     title: 'Twice Shy',
     story: [
@@ -832,7 +859,7 @@ export const LEVELS = [
   },
   {
     id: 'carry-the-one',
-    card: 'JH',
+    card: 'QH',
     unlockAfter: 'deja-vu',
     title: 'Carry the One',
     story: [
@@ -879,6 +906,7 @@ const PAR = {
   'uneven-tables': { croupiers: 18, rounds: 94 },
   'four-of-a-kind': { croupiers: 6, rounds: 533 },
   'counting-up': { croupiers: 9, rounds: 290 },
+  'skeleton-crew': { croupiers: 10, rounds: 69 },
   'rising': { croupiers: 12, rounds: 214 },
   'after-a-pair': { croupiers: 13, rounds: 171 },
   'rest-of-the-deck': { croupiers: 14, rounds: 1506 },

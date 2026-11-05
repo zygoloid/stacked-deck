@@ -9,11 +9,11 @@
 //  * the palette only grows; special cards only appear in the finale, only
 //    grow, and are not mentioned before a floor allows them;
 //  * bonus floors: ids unique across the campaign and the bonus deck; each
-//    opens after a campaign floor or another bonus floor (`unlockAfter`;
-//    a chain of bonus floors ends at a campaign floor), with cards A..K of
-//    each of BONUS_SUITS in turn, in list order (by difficulty, not by
-//    unlocking); its palette, War rules and special cards are all available
-//    by the campaign floor that opens its chain;
+//    opens after one or more campaign or bonus floors (`unlockAfter`, an id
+//    or a list; every chain of bonus floors ends at campaign floors), with
+//    cards A..K of each of BONUS_SUITS in turn, in list order (by
+//    difficulty, not by unlocking); its palette, War rules and special cards
+//    are all available by the latest campaign floor it needs;
 //  * a level has either `pays(hand, earlierHands)` or `expected(inputs)`;
 //  * its reference solution only uses the level's floor, palette, War rules
 //    and special cards, places only shoes and croupiers, and doesn't overlap
@@ -112,14 +112,24 @@ for (const level of LEVELS) {
     index: availableBy.size, palette: level.croupiers, rules: [...rulesSeen], specials, specialsSeen,
   });
 }
-// The bonus deck. A bonus floor's unlockAfter may be another bonus floor;
-// the chain ends at the campaign floor that opens it.
+// The bonus deck. A bonus floor's unlockAfter is an id or a list of ids, of
+// campaign floors or other bonus floors; following the bonus floors back
+// gives the campaign floors it needs (null for a cycle or an unknown id).
 const bonusById = new Map(BONUS.map((l) => [l.id, l]));
-const rootOf = (level) => {
-  const seen = new Set();
-  let l = level;
-  while (bonusById.has(l.unlockAfter) && !seen.has(l.id)) { seen.add(l.id); l = bonusById.get(l.unlockAfter); }
-  return seen.has(l.id) ? null : l.unlockAfter;
+const unlockIds = (level) => [].concat(level.unlockAfter ?? []);
+const rootsOf = (level, seen = new Set()) => {
+  if (seen.has(level.id)) return null;
+  seen.add(level.id);
+  const roots = [];
+  for (const id of unlockIds(level)) {
+    if (bonusById.has(id)) {
+      const more = rootsOf(bonusById.get(id), new Set(seen));
+      if (!more) return null;
+      roots.push(...more);
+    } else if (availableBy.has(id)) roots.push(id);
+    else return null;
+  }
+  return roots;
 };
 BONUS.forEach((level, i) => {
   const where = `${level.id} (bonus):`;
@@ -127,11 +137,12 @@ BONUS.forEach((level, i) => {
   check(level.chapter === undefined, `${where} has no chapter`);
   const want = i < 13 * BONUS_SUITS.length ? RANKS[i % 13] + BONUS_SUITS[Math.floor(i / 13)] : null;
   check(level.card === want, `${where} card ${level.card} should be ${want} (at most ${13 * BONUS_SUITS.length} bonus floors)`);
-  check(level.unlockAfter !== level.id, `${where} doesn't unlock after itself`);
-  const root = rootOf(level);
+  const roots = rootsOf(level);
+  check(unlockIds(level).length && roots?.length, `${where} unlockAfter ${unlockIds(level)} names campaign floors, or bonus floors whose chains end at campaign floors (no cycles)`);
+  if (!roots?.length) return;
+  // Everything the latest of those campaign floors has seen is available.
+  const root = roots.reduce((a, b) => (availableBy.get(b).index > availableBy.get(a).index ? b : a));
   const after = availableBy.get(root);
-  check(after, `${where} unlockAfter ${level.unlockAfter} is a campaign floor, or a bonus floor whose chain ends at one`);
-  if (!after) return;
   const lost = level.croupiers.filter((c) => !after.palette.includes(c));
   check(!lost.length, `${where} palette is available by ${root} (not yet: ${lost})`);
   const rules = level.warRules ?? ['high'];

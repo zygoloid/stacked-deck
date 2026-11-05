@@ -218,9 +218,9 @@ breaking change.
 
 **Bonus deck.** `src/levels.js` also exports `BONUS`: extra floors outside the
 56-card campaign (cut floors moved out of the campaign, and new extras), with
-the same format plus `unlockAfter: '<level id>'` (open once that floor is
-solved: a campaign floor, or another bonus floor) and their own `card` labels
-in the bonus deck. They don't
+the same format plus `unlockAfter` (a level id, or a list of them: open once
+those floors are all solved, campaign floors or other bonus floors) and their
+own `card` labels in the bonus deck. They don't
 count towards the campaign's unlock window, and their palette is whatever the
 level lists. Ids are unique across `LEVELS` and `BONUS`, since saves are keyed
 by id.

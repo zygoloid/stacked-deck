@@ -3,7 +3,7 @@ import { h, s, handEl, SPECIAL_FACE } from './dom.js';
 import { CROUPIERS, PORT_STYLE, chipLabel, sampleCell } from './croupiers.js';
 import { CAMPAIGN as LEVELS, BONUS, findLevel } from './catalog.js';
 import { RULES_VERSION } from '../engine.js';
-import { isUnlocked, isBonusOpen, specialCardsUnlocked } from './model.js';
+import { isUnlocked, isBonusOpen, unlockIds, specialCardsUnlocked } from './model.js';
 import { floorLabel, chapterInfo, floorBadge } from './floors.js';
 import { accountButton } from './account.js';
 import { scatterPlot, parMark } from './scatter.js';
@@ -77,20 +77,34 @@ export function levelSelect(root, ctx) {
     return h('section', { class: 'chapter bonus' },
       h('h2', { 'data-chapter': 'bonus' }, h('span', { class: 'ch-suit bonus' }, '★'), 'Bonus deck',
         h('span', { class: 'ch-name' }, ' · Off the books')),
-      h('p', { class: 'bonus-note' }, 'Extra floors outside the campaign. Each one opens when you clear the floor named on its back.'),
+      h('p', { class: 'bonus-note' }, 'Extra floors outside the campaign. Each one opens when you clear the floors named on its back (★ marks a bonus floor).'),
       h('div', { class: 'tiles' }, BONUS.map((lv) => bonusTile(lv))));
   }
 
   function bonusTile(lv) {
     const f = floorLabel(lv);
     if (!isBonusOpen(save, lv)) {
-      const after = findLevel(lv.unlockAfter);
-      const need = after ? floorLabel(after).text : lv.unlockAfter;
+      // What opens it: campaign floors by their card; bonus floors by theirs,
+      // marked as bonus floors (a star on a bonus-deck chip). Floors already
+      // cleared are struck through.
+      const needs = unlockIds(lv).map((id) => findLevel(id) ?? id);
+      const isBonus = (x) => typeof x !== 'string' && BONUS.includes(x);
+      const done = (x) => typeof x !== 'string' && !!save.levels[x.id]?.solved;
+      const chip = (x) => {
+        if (typeof x === 'string') return h('span', { class: 'req' }, x);
+        return h('span', { class: `req${isBonus(x) ? ' bonus' : ''}${done(x) ? ' done' : ''}` },
+          isBonus(x) ? h('span', { class: 'req-star' }, '★') : null, floorLabel(x).text);
+      };
+      const named = (x) => (typeof x === 'string' ? x
+        : `${x.title} (${isBonus(x) ? 'bonus deck ' : ''}${floorLabel(x).text}${done(x) ? ', cleared' : ''})`);
+      const list = needs.map(named);
+      const title = needs.length
+        ? `Clear ${list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list[0]} to open` : 'Locked';
       return h('div', {
-        class: 'tile locked bonus', 'data-bonus': lv.id, 'data-card': f.card ?? f.text,
-        title: after ? `Clear ${after.title} (${need}) to open` : 'Locked',
+        class: 'tile locked bonus', 'data-bonus': lv.id, 'data-card': f.card ?? f.text, title,
       },
-      h('div', { class: 'tile-back' }, h('span', { class: 'lock' }, after ? `After ${need}` : 'Locked')),
+      h('div', { class: 'tile-back' }, h('span', { class: 'lock' },
+        needs.length ? ['After ', needs.map((x, i) => [i ? ' + ' : '', chip(x)])] : 'Locked')),
       h('div', { class: `tile-no${f.cls === 'red' ? ' red' : ''}` }, f.text));
     }
     return tile(lv, -1, f);
