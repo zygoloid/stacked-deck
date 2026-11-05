@@ -281,6 +281,46 @@ export function skeletonCrew() {
   return { nodes, links };
 }
 
+// Rally Night: red flushes, with Calling Card's croupiers but neither Flush
+// nor Suits, and no kings in the players' hands. Kings are then markers
+// that no hand card can be mistaken for, and they sort into the gaps
+// between the suits (K♠ after the spades, K♦ after the diamonds, K♥ before
+// the hearts). Eight of them, [K♠ K♦ K♥ K♥] copied twice (a Duplicate with
+// both copies to one side stacks them), are sorted with the hand, and Deal
+// splits the 11 cards: cards 1-5 hold a diamond flush between two kings,
+// cards 6-10 a heart flush after two kings. Any other hand leaves at least
+// three kings in each window (a search over every king-free hand finds
+// this pair of windows; no single window or smaller set of markers serves
+// both suits), so Kind(3) says no only for the flush's window, and Set takes
+// its two kings off on the way to the desk.
+export function rallyNight() {
+  const at = {
+    SKH: [-1, 3], DH: [-1, 2], SKS: [1, 2], SKD: [2, 1], GSD: [1, 1], GM: [0, 1], DM: [0, 0],
+    SO: [0, -1], DL: [1, -1], MP: [1, -2], KI: [2, -2], ST: [2, -1],
+  };
+  const nodes = {
+    // (the hand comes from the player straight into G0)
+    G0: c([-1, 0], 'gather'),
+    SKH: shoe(at.SKH, 'KH'), DH: c(at.DH, 'duplicate'), SKS: shoe(at.SKS, 'KS'), SKD: shoe(at.SKD, 'KD'),
+    GSD: c(at.GSD, 'gather'), GM: c(at.GM, 'gather'), DM: c(at.DM, 'duplicate'),
+    SO: c(at.SO, 'sort'), MP: c(at.MP, 'pass'), KI: c(at.KI, 'kind', { n: 3 }), ST: c(at.ST, 'set'),
+    // card 0 (always a king or a spade) goes to a free side, onto the floor
+    DL: c(at.DL, 'deal', { out: { to: Array(11).fill(SE) } }),
+  };
+  nodes.MP.out = {};
+  const links = [
+    // eight kings: [K♠ K♦ K♥ K♥], twice
+    ['SKH', null, 'DH'], ['DH', ['a', 'b'], 'GM', 'under'], ['SKS', null, 'GSD'], ['SKD', null, 'GSD', 'under'],
+    ['GSD', 'out', 'GM'], ['GM', 'out', 'DM'], ['DM', ['a', 'b'], 'G0', 'under'],
+    // with the hand, sorted; one window for each red suit
+    ['G0', 'out', 'SO'], ['SO', 'out', 'DL'],
+    ['DL', [1, 2, 3, 4, 5], 'KI'], ['DL', [6, 7, 8, 9, 10], 'MP'], ['MP', 'out', 'KI'],
+    // only a flush's window has just two kings; Set takes them off
+    ['KI', 'no', 'ST'], ['ST', 'rest', 'desk'],
+  ];
+  return { nodes, links };
+}
+
 // Night Off: Red Flush with no Flush croupier (pass, suits, straight, shoe,
 // gather, cut). Suits splits each hand into its hearts and its diamonds
 // (to different sides, so they stay separate piles); each red pile P of n
@@ -295,8 +335,9 @@ export function skeletonCrew() {
 //    pile is all in the top half for n = 3 ([K♠, P, 4 cards]: 8 cards, cut
 //    after 4) and all in the bottom half otherwise ([K♠, 9♠, P, 2♣]).
 //    Suits pays the top half's red cards.
-//  (Cut alone can't do it: one more card in the pile moves the cut only
-//  half a card, so it is always the small piles that land on one side.)
+//  (With one Cut and fixed house cards, one more card in the pile moves the
+//  cut only half a card, so it is the small piles that land on one side;
+//  Straight amplifies the difference here, but Cuts alone can do it too.)
 //  * The 2♣ is a token: it is always the only club in the last bottom half,
 //    and it goes back to make the next pile's house cards (a once shoe
 //    deals the first), so piles can't overtake one another on the two
@@ -710,5 +751,6 @@ export const SPECS = {
   'off-suit': offSuit(),
   'night-off': nightOff(),
   'skeleton-crew': skeletonCrew(),
+  'rally-night': rallyNight(),
 
 };

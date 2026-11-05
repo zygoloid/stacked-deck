@@ -202,16 +202,17 @@ regulation; Ace Count does).
 | K♠ | Rising | Déjà Vu | the string quartet takes up scales |
 | A♥ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
 | 2♥ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
-| 3♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
-| 4♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
-| 5♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
-| 6♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
-| 7♥ | Casino Numbers | Déjà Vu | the Owner counts in thirteens, with no zero |
-| 8♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
-| 9♥ | Times Tables | Déjà Vu | Dmitri finds the multiplication sheet |
-| 10♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
-| J♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
-| Q♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
+| 3♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
+| 4♥ | Rally Night | Skeleton Crew | both croupiers off at a rally; the kings come out of the players' decks |
+| 5♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
+| 6♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
+| 7♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
+| 8♥ | Casino Numbers | Déjà Vu | the Owner counts in thirteens, with no zero |
+| 9♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
+| 10♥ | Times Tables | Déjà Vu | Dmitri finds the multiplication sheet |
+| J♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
+| Q♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
+| K♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
 
 ## Notes for writers
 

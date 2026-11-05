@@ -1,17 +1,19 @@
 // The bonus deck: floors outside the 56-card campaign. Each opens once its
 // `unlockAfter` floors are solved (one id or a list; campaign floors or other
 // bonus floors: Night Off opens after Off Suit, which opens after Red Flush,
-// and Skeleton Crew after both Calling Card and Night Off), and has its
-// own card in the bonus deck: A..K of spades, then of hearts, of a second
-// deck, in this list's order, which is roughly easiest first (the Diff
-// column of docs/campaign.md), not the order they open in. Some are floors
-// cut from the campaign to make room (their ids are unchanged, since saves
-// are keyed by id); most of the others are extra floors for players who have
-// everything (every croupier, both War rules, every special card), and Off
-// Suit, Night Off and Skeleton Crew are Red Flush again with croupiers taken
-// away (Suits; Flush; both, for heart flushes only). Crossed Wires and Uneven Tables seat three players (and label
-// three desks); Mirror Image, Casino Numbers, Showdown, Twice Shy, Times
-// Tables and Carry the One seat two. See docs/campaign.md.
+// Skeleton Crew after both Calling Card and Night Off, and Rally Night after
+// Skeleton Crew), and has its own card in the bonus deck: A..K of spades,
+// then of hearts, of a second deck, in this list's order, which is roughly
+// easiest first (the Diff column of docs/campaign.md), not the order they
+// open in. Some are floors cut from the campaign to make room (their ids are
+// unchanged, since saves are keyed by id); most of the others are extra
+// floors for players who have everything (every croupier, both War rules,
+// every special card), and Off Suit, Night Off, Skeleton Crew and Rally Night
+// are Red Flush again with croupiers taken away (Suits; Flush; both, for heart
+// flushes only; both, with no kings in the players' hands). Crossed Wires and
+// Uneven Tables seat three players (and label three desks); Mirror Image,
+// Casino Numbers, Showdown, Twice Shy, Times Tables and Carry the One seat
+// two. See docs/campaign.md.
 import {
   hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, SW, W, NW, NE,
   hv, high, one, paletteThrough, finishChapter,
@@ -168,6 +170,14 @@ function twoDigitDeals(rand, nTests, nDeals) {
 // Two players' one-card hands of spades A..K, `nDeals` deals a test.
 function digitDeals(rand, nTests, nDeals) {
   return Array.from({ length: nTests }, () => Array.from({ length: 2 * nDeals }, () => [SPADE(1 + Math.floor(rand() * 13))]));
+}
+
+// Three-card hands dealt from a deck without kings, `per` hands a test.
+function kinglessDeals(rand, nTests, per) {
+  return Array.from({ length: nTests }, () => {
+    const deck = shuffled(fullDeck().filter((c) => rankOf(c) !== 'K'), rand);
+    return Array.from({ length: per }, (_, i) => deck.slice(3 * i, 3 * i + 3));
+  });
 }
 
 // The Rest of the Deck: every card of the deck nobody played, one at a time.
@@ -603,31 +613,8 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'one-up',
-    card: '3H',
-    unlockAfter: 'deja-vu',
-    title: 'One Up',
-    story: [
-      'Old Thursday has one trick left, and he insists it is the best one. You show him a card, and he produces the next card up in the same suit: a 7 of clubs for a 6 of clubs, the ace for the king.',
-      'The house pays out his card and keeps yours. He says he has a whole deck up his sleeve, and the house would be wise to keep one too.',
-    ],
-    brief: 'Single cards. For every card, pay out the next card up in the same suit (a house card; after the king comes the ace).',
-    handSize: 1,
-    floor: floorOf(hexRect(-3, 5, -7, 9), H2),
-    fixed: H2,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    specialCards: ['?', '??', '$', '$$'],
-    expected: (inputs) => inputs.map(([c]) => [oneUp(c)]),
-    tests: makeTests({
-      handSize: 1, handsPerTest: 6,
-      fixed: [one('KS AS KH AH QD KD'), one('AD 2D KC AC QC JC'), one('7H'), one('2S 3S 4S 5S')],
-      nRandom: 4, seed: 179,
-    }),
-  },
-  {
     id: 'night-off',
-    card: '4H',
+    card: '3H',
     unlockAfter: 'off-suit',
     title: 'Night Off',
     story: [
@@ -651,8 +638,57 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'head-count',
+    id: 'rally-night',
+    card: '4H',
+    unlockAfter: 'skeleton-crew',
+    title: 'Rally Night',
+    story: [
+      'The suits croupier and the flush croupier are off at a rally. Nobody will say what for. Sal Vellani\'s uncle is back for his red flushes, hearts and diamonds both, and he has noticed that the house can\'t tell a king of diamonds from a king of clubs without them.',
+      'So tonight the kings are out of the players\' decks, and the house has every one of them to work with.',
+    ],
+    brief: 'Three-card hands, from decks with no kings. Pay out every flush in hearts or diamonds, with neither a Flush nor a Suits croupier.',
+    handSize: 3,
+    floor: floorOf(hexRange(4), H9),
+    fixed: H9,
+    croupiers: paletteThrough('sort').filter((c) => c !== 'flush' && c !== 'suits'),
+    warRules: ALL,
+    pays: (h) => isFlush(h) && ['H', 'D'].includes(suitOf(h[0])),
+    tests: dealtTests({
+      deal: (rand, n) => kinglessDeals(rand, n, 10),
+      fixed: [
+        ['2H 7H QH', '3D 9D QD', '4S 8S JS', '5C TC AC', 'AH 2D 3H', 'QD JD JH', '6H 6D 6S', 'AD QD 2D', '9S 9H 4C', 'TH JH QH'],
+        // queens and aces at the edges of a suit; two of a red suit and one other
+        ['AD 2D 3D', 'QH AH 2H', 'AS QS 5D', 'QC AC 4H', '2H 3H 4S', '5D 6D 7C', 'QS QH JH', '8C 9D TD', 'AH 5D 9H', 'JD 2H QD'],
+      ],
+      nRandom: 4, seed: 190,
+    }),
+  },
+  {
+    id: 'one-up',
     card: '5H',
+    unlockAfter: 'deja-vu',
+    title: 'One Up',
+    story: [
+      'Old Thursday has one trick left, and he insists it is the best one. You show him a card, and he produces the next card up in the same suit: a 7 of clubs for a 6 of clubs, the ace for the king.',
+      'The house pays out his card and keeps yours. He says he has a whole deck up his sleeve, and the house would be wise to keep one too.',
+    ],
+    brief: 'Single cards. For every card, pay out the next card up in the same suit (a house card; after the king comes the ace).',
+    handSize: 1,
+    floor: floorOf(hexRect(-3, 5, -7, 9), H2),
+    fixed: H2,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => inputs.map(([c]) => [oneUp(c)]),
+    tests: makeTests({
+      handSize: 1, handsPerTest: 6,
+      fixed: [one('KS AS KH AH QD KD'), one('AD 2D KC AC QC JC'), one('7H'), one('2S 3S 4S 5S')],
+      nRandom: 4, seed: 179,
+    }),
+  },
+  {
+    id: 'head-count',
+    card: '6H',
     unlockAfter: 'deja-vu',
     title: 'Head Count',
     story: [
@@ -681,7 +717,7 @@ export const LEVELS = [
   },
   {
     id: 'mirror-image',
-    card: '6H',
+    card: '7H',
     unlockAfter: 'deja-vu',
     title: 'Mirror Image',
     story: [
@@ -710,7 +746,7 @@ export const LEVELS = [
   },
   {
     id: 'casino-numbers',
-    card: '7H',
+    card: '8H',
     unlockAfter: 'deja-vu',
     title: 'Casino Numbers',
     story: [
@@ -739,7 +775,7 @@ export const LEVELS = [
   },
   {
     id: 'last-in-first-out',
-    card: '8H',
+    card: '9H',
     unlockAfter: 'deja-vu',
     title: 'Last In, First Out',
     story: [
@@ -768,7 +804,7 @@ export const LEVELS = [
   },
   {
     id: 'times-tables',
-    card: '9H',
+    card: 'TH',
     unlockAfter: 'deja-vu',
     title: 'Times Tables',
     story: [
@@ -797,7 +833,7 @@ export const LEVELS = [
   },
   {
     id: 'showdown',
-    card: 'TH',
+    card: 'JH',
     unlockAfter: 'deja-vu',
     title: 'Showdown',
     story: [
@@ -829,7 +865,7 @@ export const LEVELS = [
   },
   {
     id: 'twice-shy',
-    card: 'JH',
+    card: 'QH',
     unlockAfter: 'deja-vu',
     title: 'Twice Shy',
     story: [
@@ -859,7 +895,7 @@ export const LEVELS = [
   },
   {
     id: 'carry-the-one',
-    card: 'QH',
+    card: 'KH',
     unlockAfter: 'deja-vu',
     title: 'Carry the One',
     story: [
@@ -910,8 +946,9 @@ const PAR = {
   'rising': { croupiers: 12, rounds: 214 },
   'after-a-pair': { croupiers: 13, rounds: 171 },
   'rest-of-the-deck': { croupiers: 14, rounds: 1506 },
-  'one-up': { croupiers: 16, rounds: 4076 },
   'night-off': { croupiers: 25, rounds: 398 },
+  'rally-night': { croupiers: 13, rounds: 107 },
+  'one-up': { croupiers: 16, rounds: 4076 },
   'head-count': { croupiers: 19, rounds: 676 },
   'mirror-image': { croupiers: 25, rounds: 383 },
   'casino-numbers': { croupiers: 27, rounds: 1574 },
