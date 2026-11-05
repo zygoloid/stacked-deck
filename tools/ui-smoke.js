@@ -1391,6 +1391,26 @@ try {
     check((await page.textContent('a.tile[data-level="test-pay-twice"] .tile-corner.tl')) === 'A♠' &&
       (await page.textContent('.tile.locked.bonus[data-bonus="test-locked"] .tile-no')).startsWith('B'), 'bonus tiles are labelled by their bonus card (A♠; B… without one)');
     check(await page.locator(`a.tile[data-level="${LEVELS[4].id}"]`).count() === 0, 'open bonus floors leave the campaign window alone');
+    // A floor needing a campaign floor and a bonus floor: both are named, the
+    // bonus one on a starred chip, and a cleared one is struck through.
+    const keys = '.tile.locked.bonus[data-bonus="test-two-keys"]';
+    check(await page.locator(`${keys} .req`).count() === 2 &&
+      (await page.textContent(`${keys} .req:not(.bonus)`)) === floorLabel(1).text &&
+      (await page.textContent(`${keys} .req.bonus`)) === '★A♠' &&
+      await page.locator(`${keys} .req.done`).count() === 0, 'a bonus floor needing two floors names both, the bonus one starred');
+    await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true } });
+    await page.reload();
+    await page.waitForSelector('.chapter.bonus');
+    check(await page.locator(keys).count() === 1 && await page.locator(`${keys} .req.done:not(.bonus)`).count() === 1 &&
+      await page.locator(`${keys} .req.bonus.done`).count() === 0, 'it stays locked with one of the two cleared, which is struck through');
+    await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true }, 'test-pay-twice': { solved: true } });
+    await page.reload();
+    await page.waitForSelector('.chapter.bonus');
+    check(await page.locator('a.tile[data-level="test-two-keys"]').count() === 1, 'and opens once both are cleared');
+    await setSave({ 'opening-night': { solved: true } });
+    await page.reload();
+    await page.waitForSelector('.chapter.bonus');
+
     if (shots) await page.screenshot({ path: join(shots, '12b-bonus-deck.png'), fullPage: true });
 
     await page.click('a.tile[data-level="test-pay-twice"]');

@@ -321,6 +321,12 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
 .meta-bonus { color: #a9c3f0; }
 .bonus-star { color: #b38b22; }
 .lock { background: rgba(0, 0, 0, 0.45); padding: 4px 12px; border-radius: 999px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
+/* what opens a locked bonus floor: campaign floors plain, bonus floors on a navy chip with a star */
+.tile.locked.bonus .lock { max-width: calc(100% - 20px); text-align: center; line-height: 1.9; }
+.req { white-space: nowrap; }
+.req.bonus { background: #1f3b70; color: #fdf8ec; padding: 1px 6px; border-radius: 999px; box-shadow: inset 0 0 0 1px #f2c14e; }
+.req-star { color: #f2c14e; margin-right: 2px; }
+.req.done { opacity: 0.55; text-decoration: line-through; }
 .tile.locked .tile-no { position: absolute; top: 14px; left: 16px; font: 700 15px var(--serif); color: #fdf8ec; padding: 1px 6px; border-radius: 4px; background: rgba(0, 0, 0, 0.35); }
 
 /* ---------- story ---------- */

@@ -254,6 +254,33 @@ export function offSuit() {
   return { nodes, links };
 }
 
+// Skeleton Crew: heart flushes, with Calling Card's croupiers but neither
+// Flush nor Suits. Sort is the only croupier that sees suits, and in new deck
+// order the ace of clubs is the last card before the hearts. Sort the hand
+// with three aces of clubs: a heart flush comes out as [A♣ A♣ A♣, its three
+// hearts, highest first], so card 3 is a heart and never an ace (A♥ sorts
+// last). Any other hand has at most three cards before the aces of clubs and
+// at least one card (or its own A♣) ahead of the hearts, so card 3 is always
+// an ace of clubs. Cut, and the bottom half plays a king in a top-card War:
+// only an ace beats it, so the hands that lose are the heart flushes.
+// (Diamonds can't be done this way: K♦ and K♣ are next to each other in new
+// deck order, and every croupier left treats them alike.)
+export function skeletonCrew() {
+  const nodes = {
+    G1: c([-1, 0], 'gather'), SA1: shoe([-1, 1], 'AC'),
+    G2: c([0, -1], 'gather'), SA2: shoe([-1, -1], 'AC'),
+    G3: c([1, -2], 'gather'), SA3: shoe([0, -2], 'AC'),
+    SO: c([2, -2], 'sort'), CU: c([2, -1], 'cut'),
+    WR: twar([3, -1]), SK: shoe([3, -2], 'KS'),
+  };
+  const links = [
+    ['SA1', null, 'G1', 'under'], ['G1', 'out', 'G2'], ['SA2', null, 'G2', 'under'], ['G2', 'out', 'G3'],
+    ['SA3', null, 'G3', 'under'], ['G3', 'out', 'SO'], ['SO', 'out', 'CU'],
+    ['SK', null, 'WR', 'dealer'], ['CU', 'bottom', 'WR'], ['WR', 'lose', 'desk'],
+  ];
+  return { nodes, links };
+}
+
 // Night Off: Red Flush with no Flush croupier (pass, suits, straight, shoe,
 // gather, cut). Suits splits each hand into its hearts and its diamonds
 // (to different sides, so they stay separate piles); each red pile P of n
@@ -682,5 +709,6 @@ export const SPECS = {
   'carry-the-one': casinoLongSums(),
   'off-suit': offSuit(),
   'night-off': nightOff(),
+  'skeleton-crew': skeletonCrew(),
 
 };

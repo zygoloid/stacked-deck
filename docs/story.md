@@ -176,8 +176,8 @@ opening night.
 
 ## The bonus deck
 
-Extra floors outside the campaign, each opened by a campaign floor or by
-another bonus floor (docs/campaign.md), in order of difficulty. Their stories stand on their own: they may lean on the
+Extra floors outside the campaign, each opened by campaign floors or by
+other bonus floors (docs/campaign.md), in order of difficulty. Their stories stand on their own: they may lean on the
 cast and the moment they unlock (Sal's kings after Beat the Dealer, the
 rival's split pots after Top Pair, the city asking for one more game after
 Déjà Vu), but they never move the plot, so the campaign reads the same
@@ -198,19 +198,20 @@ regulation; Ace Count does).
 | 9♠ | Uneven Tables | Déjà Vu | the cousins stop playing in step |
 | 10♠ | Four of a Kind | Déjà Vu | the city asks for one more game |
 | J♠ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
-| Q♠ | Rising | Déjà Vu | the string quartet takes up scales |
-| K♠ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
-| A♥ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
-| 2♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
-| 3♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
-| 4♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
-| 5♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
-| 6♥ | Casino Numbers | Déjà Vu | the Owner counts in thirteens, with no zero |
-| 7♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
-| 8♥ | Times Tables | Déjà Vu | Dmitri finds the multiplication sheet |
-| 9♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
-| 10♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
-| J♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
+| Q♠ | Skeleton Crew | Calling Card and Night Off | suits and flush croupiers both off; the uncle asks only for hearts |
+| K♠ | Rising | Déjà Vu | the string quartet takes up scales |
+| A♥ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
+| 2♥ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
+| 3♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
+| 4♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
+| 5♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
+| 6♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
+| 7♥ | Casino Numbers | Déjà Vu | the Owner counts in thirteens, with no zero |
+| 8♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
+| 9♥ | Times Tables | Déjà Vu | Dmitri finds the multiplication sheet |
+| 10♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
+| J♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
+| Q♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
 
 ## Notes for writers
 

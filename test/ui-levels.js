@@ -56,6 +56,18 @@ export const BONUS = [
     tests: tests(['AS', '2D']),
   },
   {
+    id: 'test-two-keys',
+    unlockAfter: ['around-the-bar', 'test-pay-twice'],
+    title: 'Two Keys',
+    story: ['Test floor: opens after a campaign floor and a bonus floor.'],
+    brief: 'Pay out every card.',
+    handSize: 1,
+    floor, fixed: FIXED,
+    croupiers: ['pass'],
+    pays: () => true,
+    tests: tests(['AS', '2D']),
+  },
+  {
     id: 'test-hearts',
     unlockAfter: 'around-the-bar',
     title: 'Hearts Tonight',
