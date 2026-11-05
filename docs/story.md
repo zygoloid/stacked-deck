@@ -198,12 +198,12 @@ regulation; Ace Count does).
 | 9♠ | Uneven Tables | Déjà Vu | the cousins stop playing in step |
 | 10♠ | Four of a Kind | Déjà Vu | the city asks for one more game |
 | J♠ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
-| Q♠ | Skeleton Crew | Calling Card and Night Off | suits and flush croupiers both off; the uncle asks only for hearts |
-| K♠ | Rising | Déjà Vu | the string quartet takes up scales |
-| A♥ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
-| 2♥ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
-| 3♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
-| 4♥ | Rally Night | Skeleton Crew | both croupiers off at a rally; the kings come out of the players' decks |
+| Q♠ | Rising | Déjà Vu | the string quartet takes up scales |
+| K♠ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
+| A♥ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
+| 2♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
+| 3♥ | Skeleton Crew | Calling Card and Night Off | the suits and flush croupiers both off; the uncle asks only for hearts |
+| 4♥ | No Kings | Skeleton Crew | both croupiers off at a No Kings rally; the players leave their kings at home |
 | 5♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
 | 6♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
 | 7♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
@@ -224,7 +224,17 @@ regulation; Ace Count does).
   paid, including the edge cases (leftover cards, hands with nothing to pay,
   whether card order counts).
 * The brief is the precise rule. The story can be playful, but it must never
-  contradict the brief or explain the solution. Edge cases (aces high or low,
+  contradict the brief or explain the solution.
+* No hints in stories, not even as a joke: a story never says or suggests how
+  to solve its floor. That rules out naming a croupier that would help ("the
+  croupier who sorts knows where the hearts go"), a technique ("split by
+  suit, stack and cut"), house cards or markers to use ("the house has every
+  king to work with"), a pitfall that points at the method ("the house can't
+  tell K♦ from K♣"), or what a croupier can or can't do in this puzzle
+  ("it can tell you a hand is a flush, not which suit"). What the floor takes
+  away (a croupier, a card) is stated plainly in the story and the brief, as a
+  rule; how to work around it is for the player to find. Write the solution
+  notes in docs/campaign.md and the recipe comments instead. Edge cases (aces high or low,
   ties go to the house, two pair versus trips, the ace-to-five straight)
   belong in the story or the brief whenever a player could reasonably guess
   wrong.

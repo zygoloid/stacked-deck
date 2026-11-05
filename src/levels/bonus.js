@@ -1,14 +1,14 @@
 // The bonus deck: floors outside the 56-card campaign. Each opens once its
 // `unlockAfter` floors are solved (one id or a list; campaign floors or other
 // bonus floors: Night Off opens after Off Suit, which opens after Red Flush,
-// Skeleton Crew after both Calling Card and Night Off, and Rally Night after
+// Skeleton Crew after both Calling Card and Night Off, and No Kings after
 // Skeleton Crew), and has its own card in the bonus deck: A..K of spades,
 // then of hearts, of a second deck, in this list's order, which is roughly
 // easiest first (the Diff column of docs/campaign.md), not the order they
-// open in. Some are floors cut from the campaign to make room (their ids are
+// open in, except that a floor always comes after the bonus floors it needs. Some are floors cut from the campaign to make room (their ids are
 // unchanged, since saves are keyed by id); most of the others are extra
 // floors for players who have everything (every croupier, both War rules,
-// every special card), and Off Suit, Night Off, Skeleton Crew and Rally Night
+// every special card), and Off Suit, Night Off, Skeleton Crew and No Kings
 // are Red Flush again with croupiers taken away (Suits; Flush; both, for heart
 // flushes only; both, with no kings in the players' hands). Crossed Wires and
 // Uneven Tables seat three players (and label three desks); Mirror Image,
@@ -304,7 +304,7 @@ export const LEVELS = [
     title: 'Off Suit',
     story: [
       'The croupier who splits hands by suit has gone to a cousin\'s wedding, and Sal Vellani\'s uncle has come back for his red flushes: three-card hands, and the house pays any hand that is all hearts or all diamonds.',
-      'The flush croupier is on duty, and very sure of itself. It can tell you that a hand is a flush; which suit is none of its business.',
+      'The uncle says he would have gone to the wedding himself, if anyone had thought to invite him.',
     ],
     brief: 'Three-card hands. Pay out every flush in hearts or diamonds, with no Suits croupier.',
     handSize: 3,
@@ -495,34 +495,8 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'skeleton-crew',
-    card: 'QS',
-    unlockAfter: ['calling-card', 'night-off'],
-    title: 'Skeleton Crew',
-    story: [
-      'The croupiers who split hands by suit and check for flushes have both taken the night off, together, and the rest of the floor is covering for them. Sal Vellani\'s uncle has heard, and has come in with a simpler request: three-card hands, and the house pays any hand that is all hearts.',
-      'Nobody left can tell a heart from a club by looking at it. But the croupier who sorts a deck into new deck order knows exactly where the hearts go.',
-    ],
-    brief: 'Three-card hands. Pay out every flush in hearts, with neither a Flush nor a Suits croupier.',
-    handSize: 3,
-    floor: floorOf(hexRange(4), H9),
-    fixed: H9,
-    croupiers: paletteThrough('sort').filter((c) => c !== 'flush' && c !== 'suits'),
-    warRules: ALL,
-    pays: (h) => isFlush(h) && suitOf(h[0]) === 'H',
-    tests: makeTests({
-      handSize: 3, handsPerTest: 10,
-      fixed: [
-        ['2H 7H KH', '3D 9D QD', '4S 8S JS', '5C TC AC', 'AH 2D 3H', 'KD QD JH', '6H 6D 6S', 'AD KD 2D', '9S 9H 4C', 'TH JH QH'],
-        // aces, and the ace of clubs, next to hearts
-        ['AC KH QH', 'AS AD 7D', 'AH 2H 3H', 'KS KD KC', 'AD 5H 6H', 'AC 2C 3C', '9H TH AH', 'AS 4H 8H'],
-      ],
-      nRandom: 4, seed: 189,
-    }),
-  },
-  {
     id: 'rising',
-    card: 'KS',
+    card: 'QS',
     unlockAfter: 'deja-vu',
     title: 'Rising',
     story: [
@@ -551,7 +525,7 @@ export const LEVELS = [
   },
   {
     id: 'after-a-pair',
-    card: 'AH',
+    card: 'KS',
     unlockAfter: 'suit-yourself',
     title: 'After a Pair',
     story: [
@@ -582,7 +556,7 @@ export const LEVELS = [
   },
   {
     id: 'rest-of-the-deck',
-    card: '2H',
+    card: 'AH',
     unlockAfter: 'deja-vu',
     title: 'The Rest of the Deck',
     story: [
@@ -614,12 +588,12 @@ export const LEVELS = [
   },
   {
     id: 'night-off',
-    card: '3H',
+    card: '2H',
     unlockAfter: 'off-suit',
     title: 'Night Off',
     story: [
       'The suits croupier is back from the wedding, and now the croupier who checks for flushes has the night off. Sal Vellani\'s uncle has come back for his red flushes anyway: three-card hands, and the house pays any hand that is all hearts or all diamonds.',
-      'Nobody else on the floor can tell a flush at a glance. They can split a hand by suit, stack cards and cut them, and the uncle is in no hurry.',
+      'He has brought a slice of the wedding cake for the croupier who missed it, and is in no hurry.',
     ],
     brief: 'Three-card hands. Pay out every flush in hearts or diamonds, with no Flush croupier.',
     handSize: 3,
@@ -638,13 +612,39 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'rally-night',
+    id: 'skeleton-crew',
+    card: '3H',
+    unlockAfter: ['calling-card', 'night-off'],
+    title: 'Skeleton Crew',
+    story: [
+      'The croupiers who split hands by suit and check for flushes have both taken the night off, together, and the rest of the floor is covering for them. Sal Vellani\'s uncle has heard, and has come in with a simpler request: three-card hands, and the house pays any hand that is all hearts.',
+      'He has brought a get-well card for the absent croupiers, and everyone on the floor has signed it, twice.',
+    ],
+    brief: 'Three-card hands. Pay out every flush in hearts, with neither a Flush nor a Suits croupier.',
+    handSize: 3,
+    floor: floorOf(hexRange(4), H9),
+    fixed: H9,
+    croupiers: paletteThrough('sort').filter((c) => c !== 'flush' && c !== 'suits'),
+    warRules: ALL,
+    pays: (h) => isFlush(h) && suitOf(h[0]) === 'H',
+    tests: makeTests({
+      handSize: 3, handsPerTest: 10,
+      fixed: [
+        ['2H 7H KH', '3D 9D QD', '4S 8S JS', '5C TC AC', 'AH 2D 3H', 'KD QD JH', '6H 6D 6S', 'AD KD 2D', '9S 9H 4C', 'TH JH QH'],
+        // aces, and the ace of clubs, next to hearts
+        ['AC KH QH', 'AS AD 7D', 'AH 2H 3H', 'KS KD KC', 'AD 5H 6H', 'AC 2C 3C', '9H TH AH', 'AS 4H 8H'],
+      ],
+      nRandom: 4, seed: 189,
+    }),
+  },
+  {
+    id: 'no-kings',
     card: '4H',
     unlockAfter: 'skeleton-crew',
-    title: 'Rally Night',
+    title: 'No Kings',
     story: [
-      'The suits croupier and the flush croupier are off at a rally. Nobody will say what for. Sal Vellani\'s uncle is back for his red flushes, hearts and diamonds both, and he has noticed that the house can\'t tell a king of diamonds from a king of clubs without them.',
-      'So tonight the kings are out of the players\' decks, and the house has every one of them to work with.',
+      'The suits croupier and the flush croupier are off at a No Kings rally, and Sal Vellani\'s uncle is back for his red flushes, hearts and diamonds both: three-card hands, and the house pays any hand that is all hearts or all diamonds.',
+      'In solidarity, the players have taken the kings out of their decks for the night. The uncle says it is the least he can do.',
     ],
     brief: 'Three-card hands, from decks with no kings. Pay out every flush in hearts or diamonds, with neither a Flush nor a Suits croupier.',
     handSize: 3,
@@ -670,7 +670,7 @@ export const LEVELS = [
     title: 'One Up',
     story: [
       'Old Thursday has one trick left, and he insists it is the best one. You show him a card, and he produces the next card up in the same suit: a 7 of clubs for a 6 of clubs, the ace for the king.',
-      'The house pays out his card and keeps yours. He says he has a whole deck up his sleeve, and the house would be wise to keep one too.',
+      'The house pays out his card and keeps yours. Nobody has ever caught him doing it.',
     ],
     brief: 'Single cards. For every card, pay out the next card up in the same suit (a house card; after the king comes the ace).',
     handSize: 1,
@@ -942,12 +942,12 @@ const PAR = {
   'uneven-tables': { croupiers: 18, rounds: 94 },
   'four-of-a-kind': { croupiers: 6, rounds: 533 },
   'counting-up': { croupiers: 9, rounds: 290 },
-  'skeleton-crew': { croupiers: 10, rounds: 69 },
   'rising': { croupiers: 12, rounds: 214 },
   'after-a-pair': { croupiers: 13, rounds: 171 },
   'rest-of-the-deck': { croupiers: 14, rounds: 1506 },
   'night-off': { croupiers: 25, rounds: 398 },
-  'rally-night': { croupiers: 13, rounds: 107 },
+  'skeleton-crew': { croupiers: 10, rounds: 69 },
+  'no-kings': { croupiers: 13, rounds: 107 },
   'one-up': { croupiers: 16, rounds: 4076 },
   'head-count': { croupiers: 19, rounds: 676 },
   'mirror-image': { croupiers: 25, rounds: 383 },

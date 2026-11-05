@@ -281,7 +281,7 @@ export function skeletonCrew() {
   return { nodes, links };
 }
 
-// Rally Night: red flushes, with Calling Card's croupiers but neither Flush
+// No Kings: red flushes, with Calling Card's croupiers but neither Flush
 // nor Suits, and no kings in the players' hands. Kings are then markers
 // that no hand card can be mistaken for, and they sort into the gaps
 // between the suits (K♠ after the spades, K♦ after the diamonds, K♥ before
@@ -293,7 +293,7 @@ export function skeletonCrew() {
 // this pair of windows; no single window or smaller set of markers serves
 // both suits), so Kind(3) says no only for the flush's window, and Set takes
 // its two kings off on the way to the desk.
-export function rallyNight() {
+export function noKings() {
   const at = {
     SKH: [-1, 3], DH: [-1, 2], SKS: [1, 2], SKD: [2, 1], GSD: [1, 1], GM: [0, 1], DM: [0, 0],
     SO: [0, -1], DL: [1, -1], MP: [1, -2], KI: [2, -2], ST: [2, -1],
@@ -751,6 +751,6 @@ export const SPECS = {
   'off-suit': offSuit(),
   'night-off': nightOff(),
   'skeleton-crew': skeletonCrew(),
-  'rally-night': rallyNight(),
+  'no-kings': noKings(),
 
 };

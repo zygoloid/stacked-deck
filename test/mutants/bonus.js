@@ -179,7 +179,7 @@ export const MUTANTS = {
   },
   'off-suit': redFlushMutants,
   'night-off': redFlushMutants,
-  'rally-night': redFlushMutants,
+  'no-kings': redFlushMutants,
   'skeleton-crew': {
     'any flush': (h) => sameSuit(h), 'red flushes': (h) => sameSuit(h) && 'HD'.includes(h[0][1]),
     'two hearts or more': (h) => h.filter((c) => c[1] === 'H').length >= 2, 'a heart': (h) => h.some((c) => c[1] === 'H'),

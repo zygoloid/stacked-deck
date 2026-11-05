@@ -12,8 +12,9 @@
 //    opens after one or more campaign or bonus floors (`unlockAfter`, an id
 //    or a list; every chain of bonus floors ends at campaign floors), with
 //    cards A..K of each of BONUS_SUITS in turn, in list order (by
-//    difficulty, not by unlocking); its palette, War rules and special cards
-//    are all available by the latest campaign floor it needs;
+//    difficulty, not by unlocking, except that a floor comes after every
+//    bonus floor it needs); its palette, War rules and special cards are all
+//    available by the latest campaign floor it needs;
 //  * a level has either `pays(hand, earlierHands)` or `expected(inputs)`;
 //  * its reference solution only uses the level's floor, palette, War rules
 //    and special cards, places only shoes and croupiers, and doesn't overlap
@@ -137,6 +138,9 @@ BONUS.forEach((level, i) => {
   check(level.chapter === undefined, `${where} has no chapter`);
   const want = i < 13 * BONUS_SUITS.length ? RANKS[i % 13] + BONUS_SUITS[Math.floor(i / 13)] : null;
   check(level.card === want, `${where} card ${level.card} should be ${want} (at most ${13 * BONUS_SUITS.length} bonus floors)`);
+  for (const id of unlockIds(level)) {
+    if (bonusById.has(id)) check(BONUS.indexOf(bonusById.get(id)) < i, `${where} comes after ${id}, which opens it`);
+  }
   const roots = rootsOf(level);
   check(unlockIds(level).length && roots?.length, `${where} unlockAfter ${unlockIds(level)} names campaign floors, or bonus floors whose chains end at campaign floors (no cycles)`);
   if (!roots?.length) return;
