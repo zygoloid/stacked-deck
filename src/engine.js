@@ -493,9 +493,10 @@ export const paidPayout = (floor, n) => (floor.paidAt[n] === undefined ? floor.p
 
 // Rounds a run may go without progress before it is taken never to make
 // any more (see Run). It must be at least the longest stretch without
-// progress of any machine that should work (tools/stall-bound.js): 525 for
-// the reference solutions, Times Tables filling its table before taking
-// the second hand.
+// progress of any machine that should work: 525 for the reference
+// solutions (Times Tables filling its table before taking the second hand)
+// and 171 for every player's machine when it was set. See "When a run
+// stops" in docs/architecture.md.
 export const STALL_ROUNDS = 1000;
 
 // A run of one test against `rule` (see expectedPayouts), checked round by

@@ -230,8 +230,14 @@ pattern of house cards, is checked the same way. Each progress event is
 followed by at most `STALL_ROUNDS` rounds, and there are at most as many as
 hands plus expected payouts, so a run always ends without a round limit.
 `STALL_ROUNDS` has to be at least the longest stretch without progress of
-any machine that should work: `node tools/stall-bound.js [dump]` measures it
-for the reference solutions and a dump of the database's `/solutions`.
+any machine that should work. When it was set (1000, with `RULES_VERSION`
+10), that was 525 for the reference solutions (Times Tables filling its
+table before taking its second hand) and 171 for every player's machine in
+the database; no honest machine pays anything after its last expected
+payout, so there was no upper bound (the only machines that did were
+cheats, which the new rules reject). A reference solution that needs more
+fails `test/levels.js`. The script that measured it, `tools/stall-bound.js`
+(run on a dump of `/solutions`), is in the history at commit 3b8850d.
 
 The editor's simulator (`src/ui/sim.js`) checks the same `Run` a round at a
 time. Once every hand is dealt and every expected payout made, it runs a copy
