@@ -151,26 +151,65 @@ rules version (`scores/v$N`, `stats/v$N`), and each solution records the
 server version current when it was submitted. A client always reads the stats
 for its own `RULES_VERSION`, so they match the scores it computes locally.
 
-Deploying a new rules version (say 8 to 9):
+Deploying a new rules version (say 9 to 10). The commands use
+`F="--instance zygoloid-stacked-deck --project zygoloid-github-io"`; run
+them from a checkout of `main` with your own owner credentials
+(`firebase login`, and for `rescore.js`
+`gcloud auth application-default login`).
 
-1. **Deploy functions and database rules** with the v9 engine. They score only
-   solutions tagged 9, so anything submitted now (still tagged 8) waits.
-2. **Set `/config/rulesVersion` to 9.** From now on the rules only accept
-   submissions tagged 9, so no new solution is ever tagged 8. A client that
-   read the old value gets "permission denied", re-reads it and retries.
-3. **Run `rescore.js`.** It re-scores every solution tagged below 9 under the
-   v9 engine, retags it 9, and adds its point to `scores/v9`, `stats/v9` and
-   `best/v9`. It
-   then sweeps any solution tagged 9 that is still unscored. It uses the same
-   add-a-point operation as the trigger (below), which is commutative and
-   idempotent, so it can run while live submissions are being scored.
-4. **Deploy the site.** v9 clients read `stats/v9` and `best/v9`. Clients
-   still running cached v8 code read `stats/v8` and `best/v8`, frozen but
+0. **Before merging: rehearse on a copy.** Export the database
+   (`firebase database:get / $F > live.json`: players' data, so keep it on
+   your own machine), then in `test/emulator`
+   `REHEARSE_EXPORT=$PWD/live.json npm run rehearse` (`rehearse.js`). It
+   loads the export into the database emulator and runs steps 2 and 3 there:
+   it prints what changes for each solution (newly broken, rounds changed,
+   …), checks that a second run finds nothing to do, that `scores`, `stats`
+   and `best` for the new version agree with the solutions
+   (`rescore.js --check`) and that `tools/repair-best.js` would change
+   nothing, and that nothing outside `solutions` and `config/rulesVersion`
+   changed. Keep the export: it is the backup. Then
+   `node tools/copy-game.js && node functions/tools/rescore.js --dry-run`
+   reads the live database (writing nothing) and reports the same changes,
+   which also shows the credentials work.
+1. **Merge to `main`.** The deploy workflow stops at its version check
+   (the server is still on 9) and deploys nothing. **Then deploy the
+   functions and database rules** with the v10 engine, by hand:
+   `firebase deploy --only functions:stacked-deck --project zygoloid-github-io`,
+   then `firebase deploy --only database:stacked-deck --project zygoloid-github-io`.
+   They score only solutions tagged 10, so anything submitted now (still
+   tagged 9) waits.
+2. **Set `/config/rulesVersion` to 10**
+   (`firebase database:set /config/rulesVersion --data 10 $F`). From now on
+   the rules only accept submissions tagged 10, so no new solution is ever
+   tagged 9. A client that read the old value gets "permission denied",
+   re-reads it and retries. (Clients still running v9 code tag their
+   submissions 10 and the server scores them under v10.)
+3. **Run `rescore.js`** (`node tools/copy-game.js && node functions/tools/rescore.js`).
+   It refuses unless `/config/rulesVersion` is 10 (and scoring isn't
+   paused). It re-scores every solution tagged below 10 under the v10
+   engine, retags it 10, and adds its point to `scores/v10`, `stats/v10` and
+   `best/v10`; then it scores any solution tagged 10 that is still unscored.
+   It uses the trigger's own code (`processSolution`, so the same add-a-point
+   operation, which is commutative and idempotent), so it can run while live
+   submissions are being scored, and run again to finish after a crash. Then
+   `node functions/tools/rescore.js --check` should report no differences.
+4. **Deploy the site** by re-running the deploy workflow on `main` (Actions
+   → Test and deploy → Run workflow, dry run unticked). Its version check now
+   passes; it redeploys the (unchanged) functions and rules, repairs
+   `best/v10` and publishes the site. v10 clients read `stats/v10` and
+   `best/v10`, and re-score their saved solutions locally (solutions already
+   uploaded aren't uploaded again: step 3 covered them). Clients still
+   running cached v9 code read `stats/v9` and `best/v9`, frozen but
    consistent with their engine, until they reload.
-5. Delete `scores/v8`, `stats/v8` and `best/v8` at the next version bump.
+5. Delete `scores/v9`, `stats/v9` and `best/v9` at the next version bump.
+   Until then they are the way back: before step 4, undoing the change is
+   setting `/config/rulesVersion` back to 9, redeploying the functions from
+   the commit before the merge, deleting the `v10` nodes and restoring the
+   solutions from the export.
 
-Deploys that don't change `RULES_VERSION` skip steps 2, 3 and 5. Those are done by the
-deploy workflow on every push to `main` ("Deploying (GitHub Actions)" below).
+Deploys that don't change `RULES_VERSION` need none of this: the deploy
+workflow does them on every push to `main` ("Deploying (GitHub Actions)"
+below).
 
 ## Security rules
 
@@ -310,11 +349,25 @@ with a code the client shows):
 
 ### `rescore.js` and repairs
 
-`functions/tools/rescore.js` is a script run with deploy credentials, not a
-deployed function, so it can run longer than a function's timeout. It scores
-each solution in its own Worker with the same limits as `scoreSolution`,
-records failures as tombstones and carries on. Besides the version bump
-above, it can:
+`functions/tools/rescore.js` (built) is a script run with your own admin
+credentials, not a deployed function, so it can run longer than a
+function's timeout. It scores each solution with the trigger's own code
+(`processSolution`: its own Worker with the same limits as `scoreSolution`,
+invalid ones as tombstones), a few at a time. Run `node tools/copy-game.js`
+first: it scores with the engine in `functions/game/`. Modes:
+
+* (no option) the version bump above: retag every solution tagged with an
+  older version and score it again, then score any still unscored. It
+  refuses unless `config/rulesVersion` is the code's `RULES_VERSION`;
+* `--dry-run`: judge the same solutions (`judgeSolution`, the checks
+  `processSolution` makes) and report what would change, writing nothing;
+* `--check`: compare `scores`, `stats` and `best` for the current version
+  with the solutions scored under it (zero counts in `stats` are ignored),
+  and print any differences.
+
+`--instance <name>` picks the database instance; with
+`FIREBASE_DATABASE_EMULATOR_HOST` set it talks to the emulator. Still to
+build, when needed:
 
 * **remove a banned account's results** (the inverse of adding a point for
   each, then delete its data, as `deleteMyData`);
@@ -624,7 +677,10 @@ The emulator tests: `cd test/emulator && npm ci && npm test` (needs Java;
 `firebase-tools` is pinned in that package). It copies the game code into
 `functions/game/`, starts the database and functions emulators for a demo
 project (no real resources) and runs `run.js`: the rules, `processSolution`
-and `addPoint`, and a submission scored end to end by the trigger.
+and `addPoint`, `rescore.js` (a dry run, the version bump, a second run, the
+check), and a submission scored end to end by the trigger. `npm run
+rehearse` there rehearses a rules version change on an export of the live
+database (see "Rules versions").
 
 `npm run test:browser` there (also needs Playwright's Chromium, as
 `tools/ui-smoke.js`) adds the auth emulator and runs `tools/online-smoke.js`:
@@ -672,8 +728,8 @@ without changing anything.
 
 **Rules version changes** are still done by hand, following "Rules
 versions" above: the workflow refuses to deploy while the server's version
-differs, so push the new version, deploy the functions and rules from a
-checkout, set `config/rulesVersion`, re-score (`rescore.js`, step 7), then
+differs, so rehearse, merge the new version, deploy the functions and rules
+from a checkout, set `config/rulesVersion`, re-score (`rescore.js`), then
 re-run the workflow, which deploys the site.
 
 **Credentials.** No key is stored in GitHub. The job exchanges GitHub's
@@ -872,5 +928,5 @@ for the functions' container images, set one once from a checkout:
 5. Done: cloud save.
 6. Done: invites, the friends list and friends' frontiers on the plot;
    `deleteMyData` and its dialog; the privacy notice.
-7. Done: the deploy workflow (GitHub Actions). Still to do: `rescore.js`,
-   needed before the next rules version change.
+7. Done: the deploy workflow (GitHub Actions), and `rescore.js` for rules
+   version changes (with its rehearsal, `test/emulator/rehearse.js`).
