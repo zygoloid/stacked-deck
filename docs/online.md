@@ -160,8 +160,9 @@ them from a checkout of `main` with your own owner credentials
 0. **Before merging: rehearse on a copy.** Export the database
    (`firebase database:get / $F > live.json`: players' data, so keep it on
    your own machine), then in `test/emulator`
-   `REHEARSE_EXPORT=../../live.json npm run rehearse` (`rehearse.js`). It
-   loads the export into the database emulator and runs steps 2 and 3 there:
+   `REHEARSE_EXPORT=../../live.json npm run rehearse` (`rehearse.js`; like
+   the emulator tests, it needs Java for the emulator). It loads the export
+   into the database emulator and runs steps 2 and 3 there:
    it prints what changes for each solution (newly broken, rounds changed,
    …), checks that a second run finds nothing to do, that `scores`, `stats`
    and `best` for the new version agree with the solutions
