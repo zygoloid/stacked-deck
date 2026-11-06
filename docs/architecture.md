@@ -45,6 +45,7 @@ floor.step();                // advance one round
 floor.round                  // rounds so far
 floor.paid                   // array of paid hands (card strings), in order
 floor.done()                 // every input placed and every player card off the floor
+floor.mark() / floor.sameAs(m)   // its state (all its future depends on, and progress so far); compare
 floor.snapshot() / floor.restore(snap)   // for stepping backwards
 floor.cells                  // Map "q,r" -> cell with live state:
                              //   slots[6] (hand or null; slot d = arrived from side d),
@@ -54,7 +55,8 @@ floor.cells                  // Map "q,r" -> cell with live state:
                              // A hand in the live state is an array of {c: 'AS', src: 'player'|'house'}.
 floor.cardCount()            // cards in slots, held, or waiting to be placed by croupiers
 floor.overflowed()           // cardCount() > MAX_FLOOR_CARDS (2000): the run has failed
-runTest({ cells }, inputs, pays) -> { ok, rounds, croupiers, wrong, missing, timeout, overflow }
+runTest({ cells }, inputs, pays) -> { ok, rounds, croupiers, wrong, missing, undealt, stop, maxGap, overflow }
+new Run({ cells }, inputs, pays)   // the same, a round at a time (step(), fork(); the editor's simulator)
 ```
 
 Cards are strings: rank `A23456789TJQK` + suit `SDCH`. A hand's top card is
@@ -181,8 +183,6 @@ whenever a rule changes; the level select shows it.
   expected: (inputs) => [hand, ...],       // …or this: the exact payouts (see below)
   ordered: false,                          // compare card order within payouts
   inOrder: false,                          // payouts must come in the listed order
-  grace: 50,                               // rounds to wait for owed payouts once the
-                                           //   player cards are gone (default GRACE)
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays);
                                 //   made by dealtTests (src/levels/shared.js; makeTests and
                                 //   makeMixedTests use it), which also records the deal function
@@ -202,9 +202,47 @@ must also arrive in the order listed: the n-th payout must match the n-th
 expected hand (the UI marks such a floor "payout order matters").
 On a floor with labelled desks an expected payout is `{ desk, hand }`, and a
 payout matches only at that desk (`payoutKey` in `src/engine.js`).
-A test normally gives up `GRACE` (50) rounds after the last player card has
-left the floor if payouts are still owed; a level whose house cards are paid
-long after that sets its own `grace` (The Rest of the Deck: 100).
+
+**When a run stops** (`Run` in `src/engine.js`). The only irreversible
+events are **progress**: a player handing over a hand, or a payout. A run
+stops at the first of:
+
+* a **wrong payout**, one matching no expected payout still owed: nothing
+  later can put it right;
+* **overflow**, more than `MAX_FLOOR_CARDS` cards on the floor;
+* a **cycle**: the floor in a state it was in before (`Floor.mark`: the
+  cards in every slot, held and waiting, each croupier's facing, how far
+  each shoe and player has dealt, and the payouts so far), so with no
+  progress since. The floor is deterministic, so it will go round the same
+  loop for ever and never make progress again. As in Brent's algorithm,
+  the floor is compared each round with one state, saved 1, 2, 4, 8, …
+  rounds after the last progress, so a loop is found within about twice
+  the rounds it takes to start plus its length. Hands are never changed
+  once made, so a saved state keeps references to them, and most rounds
+  differ from it in the first few things compared;
+* a **stall**: `STALL_ROUNDS` rounds without progress, taken to mean it
+  never will.
+
+It passes if it stops at a cycle or a stall with every hand dealt and every
+expected payout made, and scores the round of its last progress. Whose cards
+are whose (`src`) plays no part: a floor with no players at all, paying a
+pattern of house cards, is checked the same way. Each progress event is
+followed by at most `STALL_ROUNDS` rounds, and there are at most as many as
+hands plus expected payouts, so a run always ends without a round limit.
+`STALL_ROUNDS` has to be at least the longest stretch without progress of
+any machine that should work. When it was set (1000, with `RULES_VERSION`
+10), that was 525 for the reference solutions (Times Tables filling its
+table before taking its second hand) and 171 for every player's machine in
+the database; no honest machine pays anything after its last expected
+payout, so there was no upper bound (the only machines that did were
+cheats, which the new rules reject). A reference solution that needs more
+fails `test/levels.js`. The script that measured it, `tools/stall-bound.js`
+(run on a dump of `/solutions`), is in the history at commit 3b8850d.
+
+The editor's simulator (`src/ui/sim.js`) checks the same `Run` a round at a
+time. Once every hand is dealt and every expected payout made, it runs a copy
+ahead (`Run.fork`) and, if that passes, stops at once; otherwise it carries
+on to show the wrong payout.
 `expectedPayouts(rule, inputs)` and
 `runTest(spec, inputs, rule)` in `src/engine.js` accept either a `pays`
 function or the level object.

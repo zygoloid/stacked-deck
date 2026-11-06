@@ -253,14 +253,14 @@ for (const level of [...LEVELS, ...BONUS]) {
   }
   const all = [...level.fixed, ...cells];
   const results = runAll(level, all);
-  results.forEach((r, i) => check(r.ok, `test ${i}: ${r.timeout ? 'timeout' : ''} wrong ${JSON.stringify(r.wrong)} missing ${JSON.stringify(r.missing)}`));
+  results.forEach((r, i) => check(r.ok, `test ${i}: stop ${r.stop}, wrong ${JSON.stringify(r.wrong)} missing ${JSON.stringify(r.missing)}`));
   const rounds = totalRounds(results);
   check(level.par && level.par.croupiers === results[0].croupiers, `par croupiers ${level.par?.croupiers} = ${results[0].croupiers}`);
   check(level.par && level.par.rounds === rounds, `par rounds ${level.par?.rounds} = ${rounds}`);
   check(level.tests.deal, 'tests made by dealtTests (so it has check deals)');
   (await checkDeals(level, cells)).forEach((t, i) => {
     const r = runTest({ cells: all }, t, level);
-    check(r.ok, `check deal ${i + 1}: ${r.timeout ? 'timeout' : ''} wrong ${JSON.stringify(r.wrong)} missing ${JSON.stringify(r.missing)}`);
+    check(r.ok, `check deal ${i + 1}: stop ${r.stop}, wrong ${JSON.stringify(r.wrong)} missing ${JSON.stringify(r.missing)}`);
   });
 
   // --- The tests discriminate ---

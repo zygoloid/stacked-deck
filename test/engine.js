@@ -42,6 +42,28 @@ import { Sim } from '../src/ui/sim.js';
   assert.strictEqual(paidAfter(), first);
 }
 console.log('engine ok');
+// Snapshots share hands with the floor (they are never changed in place), so
+// a snapshot must come back exactly however far the floor ran on after it:
+// on a machine with memory (Hand, Duplicate, Gather, War, Deal), replay
+// from every round's snapshot, some twice, and end in the same state.
+{
+  const { BONUS } = await import('../src/levels.js');
+  const { toSpec } = await import('../src/score.js');
+  const level = BONUS.find((l) => l.id === 'twice-shy');
+  const spec = toSpec(level, (await import('../solutions/levels/twice-shy.js')).default.cells);
+  const a = new Floor(spec, level.tests[0]);
+  const snaps = [];
+  for (let i = 0; i < 300; i++) { snaps.push(a.snapshot()); a.step(); }
+  const end = a.mark();
+  const b = new Floor(spec, level.tests[0]);
+  for (const r of [0, 1, 37, 37, 150, 299, 2, 150]) {
+    b.restore(snaps[r]);
+    assert.strictEqual(b.round, r);
+    while (b.round < 300) b.step();
+    assert(b.sameAs(end) && JSON.stringify(b.paid) === JSON.stringify(a.paid), `replayed from round ${r}`);
+  }
+}
+console.log('snapshots ok');
 // A deal with no sides and a shoe with no side drop their cards instead of crashing.
 {
   const floor = new Floor({ cells: [
@@ -204,13 +226,13 @@ console.log('rules v7 ok');
   // inOrder: the n-th payout must be the n-th expected hand.
   const reversed = { expected: (inputs) => [...inputs].reverse(), inOrder: true };
   const r = runTest(passPay, [['AS'], ['KS']], reversed);
-  assert(!r.ok && r.wrong.length === 2 && r.missing.length === 2, 'inOrder: paid in the wrong order');
+  assert(!r.ok && r.stop === 'wrong' && r.wrong.length === 1 && r.missing.length === 2, 'inOrder: paid in the wrong order');
   assert(runTest(passPay, [['AS'], ['AS']], reversed).ok, 'inOrder: equal hands either way');
   assert(runTest(passPay, [['AS'], ['KS']], { expected: (inputs) => inputs, inOrder: true }).ok);
 }
 console.log('expected payouts ok');
 // A house card still on its way to the desk after the last player card has
-// gone is not cut off: the run waits (up to the grace period) for it.
+// gone is not cut off: the run waits for it.
 {
   const { runTest } = await import('../src/engine.js');
   const level = { expected: (inputs) => inputs.map(() => ['AH']) };
@@ -229,6 +251,69 @@ console.log('expected payouts ok');
   assert(!bad.ok && bad.missing.length === 1, 'a payout that never comes still fails');
 }
 console.log('house cards in flight ok');
+// The rules never ask whose cards are whose: an extra payout of house cards
+// fails a run just as one of player cards does, however late it comes.
+{
+  const { Run, STALL_ROUNDS } = await import('../src/engine.js');
+  const { Sim } = await import('../src/ui/sim.js');
+  const spec = { cells: [
+    { at: [0, 0], kind: 'source', out: 0 },
+    { at: [1, 0], kind: 'croupier', fn: 'pass', out: {} }, // drops the player's hand
+    { at: [0, 2], kind: 'shoe', out: 0, deck: ['AS', 'AS'], once: true },
+    { at: [1, 2], kind: 'croupier', fn: 'pass', out: { out: 0 } },
+    { at: [2, 2], kind: 'payout' },
+  ] };
+  const r = runTest(spec, [['2C']], { expected: () => [['AS']] });
+  assert(!r.ok && r.stop === 'wrong' && r.wrong.length === 1, `a second house A♠ is an extra payout: ${JSON.stringify(r)}`);
+  const both = runTest(spec, [['2C']], { expected: () => [['AS'], ['AS']] });
+  assert(both.ok && both.rounds === 3 && both.stop === 'cycle', `both A♠ expected: ${JSON.stringify(both)}`);
+  // An empty floor with its shoe run out is a cycle at once (nothing
+  // changes); a repeating shoe dropping its cards cycles with its deck.
+  const run = new Run(spec, [['2C']], { expected: () => [['AS'], ['AS']] });
+  while (!run.step());
+  assert(run.round === 4 && run.cycleFrom === 3, `stops the round after the last payout: ${run.round}`);
+  // A floor with no players at all: pay the shoe's A♠ K♠ three times over.
+  const noPlayers = { cells: [
+    { at: [0, 0], kind: 'shoe', out: 0, deck: ['AS', 'KS', 'AS', 'KS', 'AS', 'KS'], once: true },
+    { at: [1, 0], kind: 'payout' },
+  ] };
+  const pattern = { expected: () => [['AS'], ['KS'], ['AS'], ['KS'], ['AS'], ['KS']], ordered: true, inOrder: true };
+  assert(runTest(noPlayers, [], pattern).ok, 'no players: the house cards alone are the output');
+  const forever = { cells: [{ ...noPlayers.cells[0], once: false }, noPlayers.cells[1]] };
+  assert(runTest(forever, [], pattern).stop === 'wrong', 'a repeating shoe pays a seventh card');
+  // A floor that makes no progress for a long time, though house cards keep
+  // moving, still passes if it makes it in time: Suits keeps taking clubs
+  // from a shoe on the side it faces (and drops them) while the player's A♠
+  // waits beside it, until the shoe runs out. A stall is STALL_ROUNDS
+  // rounds without progress, not cards standing still.
+  const wait = (n) => ({ cells: [
+    { at: [-1, 0], kind: 'source', out: 0 },
+    { at: [0, 0], kind: 'croupier', fn: 'suits', facing: 4, out: { S: 0 } },
+    { at: [0, -1], kind: 'shoe', out: 1, deck: Array(n).fill('2C'), once: true },
+    { at: [1, 0], kind: 'payout' },
+  ] });
+  const slow = runTest(wait(STALL_ROUNDS - 1), [['AS']], () => true);
+  assert(slow.ok && slow.maxGap === STALL_ROUNDS, `just in time: ${JSON.stringify(slow)}`);
+  const slower = runTest(wait(STALL_ROUNDS), [['AS']], () => true);
+  assert(!slower.ok && slower.stop === 'stall', `one round too slow: ${JSON.stringify(slower)}`);
+  // The step-by-step simulator agrees, and once the last payout is made
+  // (when a copy run on would pass) it stops there.
+  for (const [n, ok] of [[STALL_ROUNDS - 1, true], [STALL_ROUNDS, false]]) {
+    const sim = new Sim(wait(n), [['AS']], () => true);
+    while (!sim.finished) sim.step();
+    assert.strictEqual(sim.status.kind, ok ? 'passed' : 'missing', sim.status.msg);
+    if (ok) assert(sim.round === slow.rounds && sim.status.rounds === slow.rounds, `stops at the last payout: ${sim.round}`);
+  }
+  // It keeps going when the copy fails, to show the extra payout.
+  const sim = new Sim(spec, [['2C']], { expected: () => [['AS']] });
+  while (!sim.finished) sim.step();
+  assert(sim.status.kind === 'wrong' && sim.round === 3, `${sim.status.kind} ${sim.round}`);
+  sim.back();
+  assert(!sim.finished && sim.round === 2);
+  while (!sim.finished) sim.step();
+  assert(sim.status.kind === 'wrong' && sim.round === 3, 'and again after stepping back');
+}
+console.log('extra house payouts ok');
 // Deal: one pile per side, each card dealt on top, so piles come out in
 // reverse deal order; a side listed twice is still one pile.
 {
@@ -291,7 +376,7 @@ console.log('seated players ok');
   const r = runTest(spec, inputs, at([0, 1]));
   assert(r.ok, JSON.stringify(r));
   const wrong = runTest(spec, inputs, at([1, 0]));
-  assert(!wrong.ok && wrong.wrong.length === 4 && wrong.missing.length === 4, 'the right hands at the wrong desks fail');
+  assert(!wrong.ok && wrong.stop === 'wrong' && wrong.wrong.length === 1 && wrong.missing.length === 4, 'the right hands at the wrong desks fail');
   const sim = new Sim(spec, inputs, at([1, 0]));
   while (!sim.finished) sim.step();
   assert.strictEqual(sim.status.kind, 'wrong');

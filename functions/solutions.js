@@ -159,6 +159,26 @@ export async function removePoint(db, version, uid, level, point) {
   return true;
 }
 
+// Verify and score a solution as stored (`sol`, at solutions/{uid}/{level}/
+// {hash}), writing nothing: { invalid: reason } for a submission to replace
+// with a tombstone, or the score ({ ok, croupiers, rounds }).
+export async function judgeSolution(level, hash, sol) {
+  const lv = LEVEL_BY_ID.get(level);
+  if (!lv) return { invalid: 'unknown floor' };
+  let cells;
+  try {
+    if (typeof sol.cells !== 'string') throw new Error();
+    cells = JSON.parse(sol.cells);
+  } catch {
+    return { invalid: 'not JSON' };
+  }
+  const valid = validateCells(lv, cells);
+  if (valid.error) return { invalid: valid.error };
+  if (await solutionHash(valid.cells) !== hash) return { invalid: 'wrong hash' };
+  const res = await scoreInWorker(level, valid.cells);
+  return res.error ? { invalid: res.error } : res;
+}
+
 // Verify and score one submitted solution (written by a player to
 // solutions/{uid}/{level}/{hash}). Returns what happened, for logs and tests.
 export async function processSolution(db, { uid, level, hash }) {
@@ -170,28 +190,14 @@ export async function processSolution(db, { uid, level, hash }) {
   // During a rules-version deploy, rescoring handles the other version.
   if (sol.rules !== RULES_VERSION) return 'other version';
 
-  // Invalid submissions keep only a small tombstone, never their contents.
-  // (Only while it still exists: never recreate one the player deleted.)
-  const tombstone = async (reason) => {
-    const stone = { invalid: reason, rules: sol.rules, at: typeof sol.at === 'number' ? sol.at : 0 };
+  const res = await judgeSolution(level, hash, sol);
+  if (res.invalid) {
+    // Invalid submissions keep only a small tombstone, never their contents.
+    // (Only while it still exists: never recreate one the player deleted.)
+    const stone = { invalid: res.invalid, rules: sol.rules, at: typeof sol.at === 'number' ? sol.at : 0 };
     await ref.transaction((current) => (current ? stone : null));
-    return `invalid: ${reason}`;
-  };
-  const lv = LEVEL_BY_ID.get(level);
-  if (!lv) return tombstone('unknown floor');
-  let cells;
-  try {
-    if (typeof sol.cells !== 'string') throw new Error();
-    cells = JSON.parse(sol.cells);
-  } catch {
-    return tombstone('not JSON');
+    return `invalid: ${res.invalid}`;
   }
-  const valid = validateCells(lv, cells);
-  if (valid.error) return tombstone(valid.error);
-  if (await solutionHash(valid.cells) !== hash) return tombstone('wrong hash');
-
-  const res = await scoreInWorker(level, valid.cells);
-  if (res.error) return tombstone(res.error);
   // The point goes in before `score` is written, so a retry after a crash
   // redoes both (and adding the point again changes nothing).
   if (res.ok) await addPoint(db, RULES_VERSION, uid, level, res);

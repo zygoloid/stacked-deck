@@ -412,6 +412,88 @@ console.log('deleting a player\'s data ok');
 }
 console.log('friends ok');
 
+// ---------- rescore.js: a rules version change ----------
+{
+  const { rescore, check } = await import('../../functions/tools/rescore.js');
+  const db = admin.getDatabaseWithUrl(url('rescore-tests'), app);
+  await db.ref('/').set(null);
+  const V = RULES_VERSION, OLD = RULES_VERSION - 1;
+  const at = (uid, level, hash) => `solutions/${uid}/${level}/${hash}`;
+  // Small Change's reference, plus a shoe that pays a 202nd-round A♠ (once
+  // the floor is done): the old rules, which stopped watching then, passed
+  // it at 130 rounds; it pays a hand too many.
+  const scRef = await reference('small-change');
+  const cheat = [...scRef,
+    { at: [1, -1], kind: 'croupier', fn: 'suits', out: { S: 1 } },
+    { at: [1, -2], kind: 'shoe', deck: [...Array(200).fill('2C'), 'AS'], once: true, out: 1 }];
+  const ch = await solutionHash(cheat), sh = await solutionHash(scRef), bh = await solutionHash(BOMB);
+  const scPar = byId.get('small-change').par;
+  const old = (cells, score) => ({ cells: JSON.stringify(cells), at: 1, rules: OLD, ...(score ? { score } : {}) });
+  const seed = {
+    [at('r1', LEVEL, HASH)]: old(CELLS, { croupiers: PAR.croupiers, rounds: PAR.rounds }),   // still works
+    [at('r1', 'small-change', ch)]: old(cheat, { croupiers: 8, rounds: 130 }),               // newly broken
+    [at('r1', 'small-change', sh)]: old(scRef, { croupiers: scPar.croupiers, rounds: scPar.rounds }),
+    [at('r2', LEVEL, HASH)]: old(CELLS),                                                      // sent mid-switch, unscored
+    [at('r3', LEVEL, bh)]: old(BOMB, { broken: true }),                                       // still broken
+    [at('r4', LEVEL, HASH)]: { cells: JSON.stringify(CELLS), at: 1, rules: V },               // new, unscored
+    [at('r5', LEVEL, HASH)]: { invalid: 'wrong hash', rules: OLD, at: 1 },                    // a tombstone
+    [at('r6', LEVEL, 'f'.repeat(32))]: old(CELLS, { croupiers: 1, rounds: 1 }),               // no longer valid
+    // The old version's frontier, stats and record, which stay as they were.
+    [`scores/v${OLD}/r1/small-change`]: { '8_130': true },
+    [`stats/v${OLD}/small-change`]: { points: { '8_130': 1 }, players: 1 },
+    [`best/v${OLD}/small-change`]: { croupiers: 8, rounds: 130 },
+    'config/rulesVersion': OLD,
+  };
+  await db.ref().update(seed);
+  const tree = async () => JSON.stringify((await db.ref('/').get()).val());
+  const before = await tree();
+
+  // A dry run reports what would change, at any server version, and writes nothing.
+  const dry = await rescore(db, { dryRun: true });
+  assert.strictEqual(await tree(), before, 'a dry run writes nothing');
+  const change = (r, uid, level, hash) => r.items.find((x) => x.uid === uid && x.level === level && x.hash === hash)?.change;
+  assert.strictEqual(change(dry, 'r1', 'small-change', ch), 'newly broken');
+  assert.strictEqual(change(dry, 'r1', LEVEL, HASH), 'same');
+  assert.strictEqual(change(dry, 'r6', LEVEL, 'f'.repeat(32)), 'invalid');
+  assert.deepStrictEqual(dry.counts, { same: 2, 'newly broken': 1, scored: 2, 'still broken': 1, invalid: 1 }, JSON.stringify(dry.counts));
+
+  // For real, only once the server is on the new version.
+  await assert.rejects(rescore(db), /config\/rulesVersion is \d+, not/);
+  assert.strictEqual(await tree(), before);
+  await db.ref('config/rulesVersion').set(V);
+  const real = await rescore(db);
+  assert.deepStrictEqual(real.counts, dry.counts, 'the dry run said what would happen');
+  const node = async (path) => (await db.ref(path).get()).val();
+  assert.deepStrictEqual(await node(at('r1', 'small-change', ch)), { ...old(cheat), rules: V, score: { broken: true } });
+  assert.deepStrictEqual(await node(at('r1', LEVEL, HASH)), { ...old(CELLS), rules: V, score: { croupiers: PAR.croupiers, rounds: PAR.rounds } });
+  assert.deepStrictEqual((await node(at('r2', LEVEL, HASH))).score, { croupiers: PAR.croupiers, rounds: PAR.rounds });
+  assert.deepStrictEqual(await node(at('r3', LEVEL, bh)), { ...old(BOMB), rules: V, score: { broken: true } });
+  assert.deepStrictEqual((await node(at('r4', LEVEL, HASH))).score, { croupiers: PAR.croupiers, rounds: PAR.rounds });
+  assert.deepStrictEqual(await node(at('r5', LEVEL, HASH)), seed[at('r5', LEVEL, HASH)], 'tombstones stay');
+  assert.deepStrictEqual(await node(at('r6', LEVEL, 'f'.repeat(32))), { invalid: 'wrong hash', rules: V, at: 1 });
+  const pk = `${PAR.croupiers}_${PAR.rounds}`, sk = `${scPar.croupiers}_${scPar.rounds}`;
+  assert.deepStrictEqual(await node(`scores/v${V}`), {
+    r1: { [LEVEL]: { [pk]: true }, 'small-change': { [sk]: true } }, r2: { [LEVEL]: { [pk]: true } }, r4: { [LEVEL]: { [pk]: true } },
+  });
+  assert.deepStrictEqual(await node(`stats/v${V}/small-change`), { points: { [sk]: 1 }, players: 1 });
+  assert.deepStrictEqual(await node(`stats/v${V}/${LEVEL}`), { points: { [pk]: 3 }, players: 3 });
+  assert.deepStrictEqual(await node(`best/v${V}/small-change`), { croupiers: scPar.croupiers, rounds: scPar.rounds });
+  for (const k of ['scores', 'stats', 'best']) assert.deepStrictEqual(await node(`${k}/v${OLD}`), Object.fromEntries(Object.entries(seed).filter(([p]) => p.startsWith(`${k}/v${OLD}/`)).map(([p, v]) => [p.split('/')[2], k === 'scores' ? { 'small-change': v } : v])), `${k}/v${OLD} untouched`);
+  assert.deepStrictEqual(await check(db), [], 'scores, stats and best agree with the solutions');
+
+  // Running it again finds nothing to do and changes nothing.
+  const after = await tree();
+  assert.deepStrictEqual((await rescore(db)).counts, {});
+  assert.strictEqual(await tree(), after, 'a second run changes nothing');
+  // The check notices drift.
+  await db.ref(`stats/v${V}/${LEVEL}/points/${pk}`).set(2);
+  await db.ref(`best/v${V}/small-change`).set({ croupiers: 1, rounds: 1 });
+  const diffs = await check(db);
+  assert(diffs.length === 2 && diffs.some((d) => d.startsWith(`stats/v${V}/${LEVEL}:`)) &&
+    diffs.some((d) => d.startsWith(`best/v${V}/small-change:`)), diffs.join('; '));
+}
+console.log('rescore ok');
+
 // ---------- end to end: the trigger scores a real submission ----------
 {
   const env2 = await initializeTestEnvironment({ projectId: 'demo-stacked-deck', database: { host, port: Number(port) } });

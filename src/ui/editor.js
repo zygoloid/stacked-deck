@@ -1,6 +1,6 @@
 // The level editor: palette, board, inspector, simulation and test runs.
 import {
-  runTest, expectedPayouts, payoutHand, payoutDesk, MAX_FLOOR_CARDS, DIRS,
+  runTest, expectedPayouts, payoutHand, payoutDesk, MAX_FLOOR_CARDS, STALL_ROUNDS, DIRS,
 } from '../engine.js';
 import { h, s, handEl, cardEl, parseCards, fmtCards } from './dom.js';
 import { Board, R, center, axialRound } from './board.js';
@@ -407,14 +407,22 @@ export function openEditor(root, ctx, level) {
     renderAll();
     let spec;
     try { spec = toSpec(level, cells); } catch (e) { showToast(e.message, 'bad'); running = false; return; }
+    // Yield to the page (to redraw the tests' chips, and stay responsive)
+    // only after about a frame's work: yielding after every test spends more
+    // time redrawing the floor than running the tests.
+    let since = 0;
     const runAll = async (tests) => {
       for (const t of tests) {
-        await new Promise((r) => setTimeout(r, 0));
+        if (performance.now() - since > 12) {
+          renderTests();
+          await new Promise((r) => setTimeout(r, 0));
+          since = performance.now();
+        }
         let res;
         try { res = runTest(spec, t, level); } catch (e) { res = { ok: false, error: e.message, rounds: 0, wrong: [], missing: [] }; }
         runResults.push(res);
-        renderTests();
       }
+      renderTests();
     };
     // The published tests, then (if they all pass) the check deals. They
     // depend only on the machine, so any shown already stay valid (editing the
@@ -460,8 +468,12 @@ export function openEditor(root, ctx, level) {
     if (r.error) return r.error;
     if (r.wrong?.length) return `paid ${fmtCards(r.wrong[0])}, which ${listed ? 'isn\'t one of the expected payouts' : 'should have been dropped'}.`;
     if (r.overflow) return `more than ${MAX_FLOOR_CARDS} cards on the floor in round ${r.rounds}.`;
-    if (r.timeout) return `still running after ${r.rounds} rounds (${r.missing.length} hand${r.missing.length === 1 ? '' : 's'} never paid).`;
-    if (r.missing?.length) return `${r.missing.length} ${listed ? 'expected payout' : 'winning hand'}${r.missing.length === 1 ? '' : 's'} never paid.`;
+    const why = [
+      r.missing?.length ? `${r.missing.length} ${listed ? 'expected payout' : 'winning hand'}${r.missing.length === 1 ? '' : 's'} never paid` : '',
+      r.undealt ? `${r.undealt} hand${r.undealt === 1 ? '' : 's'} never dealt` : '',
+    ].filter(Boolean).join(', and ');
+    if (r.stop === 'stall') return `nothing dealt or paid for ${STALL_ROUNDS} rounds (${why}).`;
+    if (why) return `${why}.`;
     return 'failed.';
   }
 

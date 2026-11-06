@@ -57,7 +57,7 @@ for (const level of ALL) {
   console.log(`\n== ${level.card ?? ''} ${level.id} ${ok ? 'PASS' : 'FAIL'} croupiers ${cells.length} rounds ${rounds} floor ${level.floor.length}${off.length ? ` OFF-FLOOR ${off.map((c) => c.at).join(' ')}` : ''}`);
   console.log(map.replace(/^/gm, '   '));
   results.forEach((r, i) => {
-    if (!r.ok) console.log(`   test ${i} failed (${r.rounds} rounds)${r.timeout ? ' TIMEOUT' : ''} wrong: ${r.wrong.map(fmtHand).join(' ')} missing: ${r.missing.join(' | ')}`);
+    if (!r.ok) console.log(`   test ${i} failed (${r.rounds} rounds) stop: ${r.stop} wrong: ${r.wrong.map(fmtHand).join(' ')} missing: ${r.missing.join(' | ')}`);
   });
   if (!par.has(groupOf(level))) par.set(groupOf(level), []);
   par.get(groupOf(level)).push([level.id, { croupiers: cells.length, rounds }]);
