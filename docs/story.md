@@ -190,29 +190,29 @@ regulation; Ace Count does).
 | A♠ | Split Pot | Top Pair | the rival splits its pots; so does the house |
 | 2♠ | Small Change | Beat the Dealer | Sal changes kings for the ace of spades |
 | 3♠ | Two Apart | Déjà Vu | the doormen's new game for their break |
-| 4♠ | Three Apart | Déjà Vu | the cloakroom plays it one better |
+| 4♠ | Three Apart | Two Apart | the cloakroom plays it one better |
 | 5♠ | Off Suit | Red Flush | the suits croupier is at a wedding; the uncle's red flushes |
 | 6♠ | Crossed Wires | Déjà Vu | the Owner rewires the floor; the twins bring a cousin |
 | 7♠ | Every Other | Ace Count | the string quartet's game for the bar |
 | 8♠ | Bookends | Change of Heart | the doormen's game, hand against hand |
-| 9♠ | Uneven Tables | Déjà Vu | the cousins stop playing in step |
+| 9♠ | Uneven Tables | Crossed Wires | the cousins stop playing in step |
 | 10♠ | Four of a Kind | Déjà Vu | the city asks for one more game |
 | J♠ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
-| Q♠ | Rising | Déjà Vu | the string quartet takes up scales |
+| Q♠ | Rising | Every Other and Déjà Vu | the string quartet takes up scales |
 | K♠ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
-| A♥ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
+| A♥ | The Rest of the Deck | Four of a Kind | Commissioner Pryce audits the house deck |
 | 2♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
 | 3♥ | Skeleton Crew | Calling Card and Night Off | the suits and flush croupiers both off; the uncle asks only for hearts |
 | 4♥ | No Kings | Skeleton Crew | both croupiers off at a No Kings rally; the players leave their kings at home |
-| 5♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
-| 6♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
-| 7♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
-| 8♥ | Casino Numbers | Déjà Vu | the Owner counts in thirteens, with no zero |
-| 9♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
-| 10♥ | Times Tables | Déjà Vu | Dmitri finds the multiplication sheet |
-| J♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
-| Q♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
-| K♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
+| 5♥ | One Up | Counting Up | Old Thursday's last (and best) trick |
+| 6♥ | Head Count | The Rest of the Deck | Pryce's regulation on honest labelling |
+| 7♥ | Mirror Image | Crossed Wires | the Marchetti twins, a deck each |
+| 8♥ | Casino Numbers | Crossed Wires | the Owner counts in thirteens, with no zero |
+| 9♥ | Last In, First Out | Three Apart and The Rest of the Deck | the cloakroom's new attendant |
+| 10♥ | Times Tables | Casino Numbers | Dmitri finds the multiplication sheet |
+| J♥ | Showdown | Mirror Image | Sal and Dmitri settle things at the table |
+| Q♥ | Twice Shy | Mirror Image | the twins again; the Owner won't pay twice |
+| K♥ | Carry the One | Times Tables | two-digit casino numbers; totals of three cards |
 
 ## Notes for writers
 

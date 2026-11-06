@@ -1,17 +1,29 @@
 // The bonus deck: floors outside the 56-card campaign. Each opens once its
 // `unlockAfter` floors are solved (one id or a list; campaign floors or other
-// bonus floors: Night Off opens after Off Suit, which opens after Red Flush,
-// Skeleton Crew after both Calling Card and Night Off, and No Kings after
-// Skeleton Crew), and has its own card in the bonus deck: A..K of spades,
-// then of hearts, of a second deck, in this list's order, which is roughly
+// bonus floors), and has its own card in the bonus deck: A..K of spades, then
+// of hearts, of a second deck, in this list's order, which is roughly
 // easiest first (the Diff column of docs/campaign.md), not the order they
-// open in, except that a floor always comes after the bonus floors it needs. Some are floors cut from the campaign to make room (their ids are
+// open in, except that a floor always comes after the bonus floors it needs.
+// Some are floors cut from the campaign to make room (their ids are
 // unchanged, since saves are keyed by id); most of the others are extra
 // floors for players who have everything (every croupier, both War rules,
-// every special card), and Off Suit, Night Off, Skeleton Crew and No Kings
-// are Red Flush again with croupiers taken away (Suits; Flush; both, for heart
-// flushes only; both, with no kings in the players' hands). Crossed Wires and
-// Uneven Tables seat three players (and label three desks); Mirror Image,
+// every special card).
+//
+// The floors that need everything open in lines that follow their stories,
+// from four that Déjà Vu opens:
+//   Two Apart > Three Apart (the doormen, then the cloakroom);
+//   Crossed Wires, the first floor with seated players, > Uneven Tables,
+//     Mirror Image (> Showdown, Twice Shy) and Casino Numbers (> Times
+//     Tables > Carry the One);
+//   Four of a Kind > The Rest of the Deck (> Head Count: Pryce again);
+//   Counting Up > One Up (Old Thursday's tricks);
+// and Rising (the string quartet again) after Every Other and Déjà Vu, Last
+// In, First Out (the cloakroom again, and closing time) after Three Apart and
+// The Rest of the Deck. Off Suit, Night Off, Skeleton Crew and No Kings are
+// Red Flush again with croupiers taken away (Suits; Flush; both, for heart
+// flushes only; both, with no kings in the players' hands), each after the
+// one before (Skeleton Crew after Calling Card too, for Sort). Crossed Wires
+// and Uneven Tables seat three players (and label three desks); Mirror Image,
 // Casino Numbers, Showdown, Twice Shy, Times Tables and Carry the One seat
 // two. See docs/campaign.md.
 import {
@@ -272,7 +284,7 @@ export const LEVELS = [
   {
     id: 'three-apart',
     card: '4S',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'two-apart',
     title: 'Three Apart',
     story: [
       'The doormen have told the cloakroom, and the cloakroom plays it one better: a two-card hand wins if its cards are exactly three ranks apart, a 4 with a 7 or a 10 with a king.',
@@ -408,7 +420,7 @@ export const LEVELS = [
   {
     id: 'uneven-tables',
     card: '9S',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'crossed-wires',
     title: 'Uneven Tables',
     story: [
       'The wiring stays, and so does the rule: every player is paid at the desk diametrically opposite their seat. But the cousins have stopped playing in step. Tonight each of the three plays as many hands as they like, from none at all to six.',
@@ -497,7 +509,7 @@ export const LEVELS = [
   {
     id: 'rising',
     card: 'QS',
-    unlockAfter: 'deja-vu',
+    unlockAfter: ['every-other', 'deja-vu'],
     title: 'Rising',
     story: [
       'The string quartet has given up on beats and taken up scales. Hands of any size from one card to six win if they climb: every card at least as high as the card above it, aces high.',
@@ -557,7 +569,7 @@ export const LEVELS = [
   {
     id: 'rest-of-the-deck',
     card: 'AH',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'four-of-a-kind',
     title: 'The Rest of the Deck',
     story: [
       'Commissioner Pryce is auditing the house deck. Tonight one deck is played, in hands of one to five cards, and at closing time the house must hand him every card that was not played, one card at a time, so that he can count them.',
@@ -663,7 +675,7 @@ export const LEVELS = [
   {
     id: 'one-up',
     card: '5H',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'counting-up',
     title: 'One Up',
     story: [
       'Old Thursday has one trick left, and he insists it is the best one. You show him a card, and he produces the next card up in the same suit: a 7 of clubs for a 6 of clubs, the ace for the king.',
@@ -686,7 +698,7 @@ export const LEVELS = [
   {
     id: 'head-count',
     card: '6H',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'rest-of-the-deck',
     title: 'Head Count',
     story: [
       'Commissioner Pryce has a new regulation, and this one he wrote himself. A hand of one to six cards wins if its top card says how many cards it holds: an ace on a hand of one, a 4 on a hand of four.',
@@ -715,7 +727,7 @@ export const LEVELS = [
   {
     id: 'mirror-image',
     card: '7H',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'crossed-wires',
     title: 'Mirror Image',
     story: [
       'The Marchetti twins are back, at two tables again, and each has brought a deck of their own. They play five-card hands side by side, one each per deal, and the house pays both hands when the twins hold exactly the same five cards.',
@@ -744,7 +756,7 @@ export const LEVELS = [
   {
     id: 'casino-numbers',
     card: '8H',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'crossed-wires',
     title: 'Casino Numbers',
     story: [
       'The Owner has a new way of counting, and it has no zero in it: nobody at the Stacked Deck has ever been paid nothing. The digits are the cards, ace to king, so a jack is eleven and a king thirteen; fourteen is an ace and an ace, twenty-six an ace and a king, and twenty-seven a two and an ace.',
@@ -773,7 +785,7 @@ export const LEVELS = [
   {
     id: 'last-in-first-out',
     card: '9H',
-    unlockAfter: 'deja-vu',
+    unlockAfter: ['three-apart', 'rest-of-the-deck'],
     title: 'Last In, First Out',
     story: [
       'The cloakroom has a new attendant, and a new rule: tickets are for amateurs. Guests hand over hands of one to five cards on the way in, and at the end of the night the house pays every one of them back, the last hand handed in first, then the one before it, and so on back to the first.',
@@ -802,7 +814,7 @@ export const LEVELS = [
   {
     id: 'times-tables',
     card: 'TH',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'casino-numbers',
     title: 'Times Tables',
     story: [
       'Dmitri has found the multiplication sheet. Tonight two players each play one spade per deal, ace to king, and the house pays the product in casino numbers, in its own spades, the leading digit on top: one card up to thirteen, two from fourteen (an ace and an ace) all the way to a hundred and sixty-nine (a queen and a king).',
@@ -830,7 +842,7 @@ export const LEVELS = [
   {
     id: 'showdown',
     card: 'JH',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'mirror-image',
     title: 'Showdown',
     story: [
       'Sal Vellani and Dmitri have agreed to settle things at the table, three cards each, one hand each per deal. The house pays the better hand: highest card against highest card, and if those match, middle against middle, then lowest against lowest.',
@@ -862,7 +874,7 @@ export const LEVELS = [
   {
     id: 'twice-shy',
     card: 'QH',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'mirror-image',
     title: 'Twice Shy',
     story: [
       'The Marchetti twins have each brought a deck of their own again, and the Owner is tired of paying twice for the same card. Tonight the twins play five-card hands side by side, one each per deal, and every hand is paid out, less any card that turns up more than once over the whole night.',
@@ -892,7 +904,7 @@ export const LEVELS = [
   {
     id: 'carry-the-one',
     card: 'KH',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'times-tables',
     title: 'Carry the One',
     story: [
       'Dmitri\'s spreadsheet now has two columns, and so do the players: tonight each of them plays a two-digit casino number per deal, the leading digit a club on top of the units digit, a spade. That is fourteen (an ace and an ace) up to a hundred and eighty-two (a king and a king).',
