@@ -40,12 +40,14 @@ export function isUnlocked(save, index) {
   return unsolvedBefore < OPEN_UNSOLVED;
 }
 
-// A bonus floor opens once its `unlockAfter` campaign floor is solved (one
-// without unlockAfter is open from the start); it never counts towards the
-// campaign's OPEN_UNSOLVED window. Solved floors always stay open.
+// A bonus floor opens once its `unlockAfter` floors (campaign or bonus: one
+// id or a list of them) are all solved (one without unlockAfter is open from
+// the start); it never counts towards the campaign's OPEN_UNSOLVED window.
+// Solved floors always stay open.
+export const unlockIds = (level) => [].concat(level.unlockAfter ?? []);
 export function isBonusOpen(save, level) {
   if (unlockAll() || save.levels[level.id]?.solved) return true;
-  return !level.unlockAfter || !!save.levels[level.unlockAfter]?.solved;
+  return unlockIds(level).every((id) => !!save.levels[id]?.solved);
 }
 
 // Whether any floor (campaign or bonus) is open.

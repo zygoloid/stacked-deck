@@ -224,6 +224,158 @@ export function casinoLongSums() {
   return { nodes, links };
 }
 
+// Off Suit: Red Flush with no Suits croupier (pass, straight, shoe, gather,
+// cut, flush). An ace of hearts under the hand makes a four-card flush only
+// of a heart flush. A hand that isn't one has the ace stripped again (Cut:
+// [c0 c1] and [c2 A♥]; Cut again: [c2] and the ace; Gather the hand back)
+// and tries an ace of diamonds the same way. Either flush has its ace
+// stripped by the same three croupiers on the way to the desk.
+export function offSuit() {
+  const at = {
+    SH: [-2, 1], FL1: [0, -1], C1n: [-1, -1], C2n: [-2, -1], GRn: [-1, -2], G2: [0, -2], SD: [0, -3], FL2: [1, -2],
+    MY: [1, -1], C1y: [1, 0], C2y: [0, 1], GRy: [1, 1],
+  };
+  const nodes = {
+    // (the hand comes from the player straight into G1)
+    G1: c([-1, 0], 'gather'), SH: shoe(at.SH, 'AH'), FL1: c(at.FL1, 'flush'),
+    C1n: c(at.C1n, 'cut'), C2n: c(at.C2n, 'cut'), GRn: c(at.GRn, 'gather'), G2: c(at.G2, 'gather'), SD: shoe(at.SD, 'AD'),
+    FL2: c(at.FL2, 'flush'), MY: c(at.MY, 'pass'), C1y: c(at.C1y, 'cut'), C2y: c(at.C2y, 'cut'), GRy: c(at.GRy, 'gather'),
+  };
+  nodes.MY.out = {};
+  const links = [
+    // an ace of hearts under the hand: a flush only for a heart flush
+    ['SH', null, 'G1', 'under'], ['G1', 'out', 'FL1'], ['FL1', 'yes', 'MY'],
+    // otherwise strip the ace and try an ace of diamonds
+    ['FL1', 'no', 'C1n'], ['C1n', 'top', 'GRn'], ['C1n', 'bottom', 'C2n'], ['C2n', 'top', 'GRn', 'under'],
+    ['GRn', 'out', 'G2'], ['SD', null, 'G2', 'under'], ['G2', 'out', 'FL2'], ['FL2', 'yes', 'MY'],
+    // either flush: strip its ace the same way, and pay
+    ['MY', 'out', 'C1y'], ['C1y', 'top', 'GRy'], ['C1y', 'bottom', 'C2y'], ['C2y', 'top', 'GRy', 'under'], ['GRy', 'out', 'desk'],
+  ];
+  return { nodes, links };
+}
+
+// Skeleton Crew: heart flushes, with Calling Card's croupiers but neither
+// Flush nor Suits. Sort is the only croupier that sees suits, and in new deck
+// order the ace of clubs is the last card before the hearts. Sort the hand
+// with three aces of clubs: a heart flush comes out as [A♣ A♣ A♣, its three
+// hearts, highest first], so card 3 is a heart and never an ace (A♥ sorts
+// last). Any other hand has at most three cards before the aces of clubs and
+// at least one card (or its own A♣) ahead of the hearts, so card 3 is always
+// an ace of clubs. Cut, and the bottom half plays a king in a top-card War:
+// only an ace beats it, so the hands that lose are the heart flushes.
+// (Diamonds can't be done this way: K♦ and K♣ are next to each other in new
+// deck order, and every croupier left treats them alike.)
+export function skeletonCrew() {
+  const nodes = {
+    G1: c([-1, 0], 'gather'), SA1: shoe([-1, 1], 'AC'),
+    G2: c([0, -1], 'gather'), SA2: shoe([-1, -1], 'AC'),
+    G3: c([1, -2], 'gather'), SA3: shoe([0, -2], 'AC'),
+    SO: c([2, -2], 'sort'), CU: c([2, -1], 'cut'),
+    WR: twar([3, -1]), SK: shoe([3, -2], 'KS'),
+  };
+  const links = [
+    ['SA1', null, 'G1', 'under'], ['G1', 'out', 'G2'], ['SA2', null, 'G2', 'under'], ['G2', 'out', 'G3'],
+    ['SA3', null, 'G3', 'under'], ['G3', 'out', 'SO'], ['SO', 'out', 'CU'],
+    ['SK', null, 'WR', 'dealer'], ['CU', 'bottom', 'WR'], ['WR', 'lose', 'desk'],
+  ];
+  return { nodes, links };
+}
+
+// No Kings: red flushes, with Calling Card's croupiers but neither Flush
+// nor Suits, and no kings in the players' hands. Kings are then markers
+// that no hand card can be mistaken for, and they sort into the gaps
+// between the suits (K♠ after the spades, K♦ after the diamonds, K♥ before
+// the hearts). Eight of them, [K♠ K♦ K♥ K♥] copied twice (a Duplicate with
+// both copies to one side stacks them), are sorted with the hand, and Deal
+// splits the 11 cards: cards 1-5 hold a diamond flush between two kings,
+// cards 6-10 a heart flush after two kings. Any other hand leaves at least
+// three kings in each window (a search over every king-free hand finds
+// this pair of windows; no single window or smaller set of markers serves
+// both suits), so Kind(3) says no only for the flush's window, and Set takes
+// its two kings off on the way to the desk.
+export function noKings() {
+  const at = {
+    SKH: [-1, 3], DH: [-1, 2], SKS: [1, 2], SKD: [2, 1], GSD: [1, 1], GM: [0, 1], DM: [0, 0],
+    SO: [0, -1], DL: [1, -1], MP: [1, -2], KI: [2, -2], ST: [2, -1],
+  };
+  const nodes = {
+    // (the hand comes from the player straight into G0)
+    G0: c([-1, 0], 'gather'),
+    SKH: shoe(at.SKH, 'KH'), DH: c(at.DH, 'duplicate'), SKS: shoe(at.SKS, 'KS'), SKD: shoe(at.SKD, 'KD'),
+    GSD: c(at.GSD, 'gather'), GM: c(at.GM, 'gather'), DM: c(at.DM, 'duplicate'),
+    SO: c(at.SO, 'sort'), MP: c(at.MP, 'pass'), KI: c(at.KI, 'kind', { n: 3 }), ST: c(at.ST, 'set'),
+    // card 0 (always a king or a spade) goes to a free side, onto the floor
+    DL: c(at.DL, 'deal', { out: { to: Array(11).fill(SE) } }),
+  };
+  nodes.MP.out = {};
+  const links = [
+    // eight kings: [K♠ K♦ K♥ K♥], twice
+    ['SKH', null, 'DH'], ['DH', ['a', 'b'], 'GM', 'under'], ['SKS', null, 'GSD'], ['SKD', null, 'GSD', 'under'],
+    ['GSD', 'out', 'GM'], ['GM', 'out', 'DM'], ['DM', ['a', 'b'], 'G0', 'under'],
+    // with the hand, sorted; one window for each red suit
+    ['G0', 'out', 'SO'], ['SO', 'out', 'DL'],
+    ['DL', [1, 2, 3, 4, 5], 'KI'], ['DL', [6, 7, 8, 9, 10], 'MP'], ['MP', 'out', 'KI'],
+    // only a flush's window has just two kings; Set takes them off
+    ['KI', 'no', 'ST'], ['ST', 'rest', 'desk'],
+  ];
+  return { nodes, links };
+}
+
+// Night Off: Red Flush with no Flush croupier (pass, suits, straight, shoe,
+// gather, cut). Suits splits each hand into its hearts and its diamonds
+// (to different sides, so they stay separate piles); each red pile P of n
+// cards (1 to 3) then goes through one filter, one pile at a time:
+//  * Three house cards on top, 2♣ 3♠ 9♠, and Cut: the top half is house
+//    cards only, 2♣ 3♠ for n = 1 or 2 and 2♣ 3♠ 9♠ for n = 3; the bottom is
+//    the whole pile (with the 9♠ on top of it for n = 1 or 2).
+//  * Straight tells them apart (2 3 is a run, 2 3 9 isn't). A run is cut
+//    down to its top card, 2♣; otherwise a Q♠ is gathered underneath: one
+//    card or four.
+//  * K♠, the bottom half, then those one or four cards, and Cut again: the
+//    pile is all in the top half for n = 3 ([K♠, P, 4 cards]: 8 cards, cut
+//    after 4) and all in the bottom half otherwise ([K♠, 9♠, P, 2♣]).
+//    Suits pays the top half's red cards.
+//  (With one Cut and fixed house cards, one more card in the pile moves the
+//  cut only half a card, so it is the small piles that land on one side;
+//  Straight amplifies the difference here, but Cuts alone can do it too.)
+//  * The 2♣ is a token: it is always the only club in the last bottom half,
+//    and it goes back to make the next pile's house cards (a once shoe
+//    deals the first), so piles can't overtake one another on the two
+//    branches.
+export function nightOff() {
+  const at = {
+    SU1: [-1, 0], MP: [-1, -1], MD: [0, -1],
+    TK: [-4, 2], TP: [-3, 1], SY2: [-4, 0], SY3: [-2, -2], GH1: [-3, 0], GH2: [-2, -1], G1: [-1, -2], CUT1: [1, -3],
+    ST: [3, -4], CY: [2, -3], GN: [3, -3], SP: [4, -3], MF: [2, -2],
+    SF: [0, -2], G2: [1, -2], G3: [1, -1], CUT2: [0, 0], SU2: [1, 0], SB: [-2, 1],
+  };
+  const nodes = {
+    SU1: c(at.SU1, 'suits'), MP: c(at.MP, 'pass'), MD: c(at.MD, 'pass'),
+    TK: shoe(at.TK, '2C', { once: true }), TP: c(at.TP, 'pass'), SY2: shoe(at.SY2, '3S'), SY3: shoe(at.SY3, '9S'),
+    GH1: c(at.GH1, 'gather'), GH2: c(at.GH2, 'gather'), G1: c(at.G1, 'gather'), CUT1: c(at.CUT1, 'cut'),
+    ST: c(at.ST, 'straight'), CY: c(at.CY, 'cut'), GN: c(at.GN, 'gather'), SP: shoe(at.SP, 'QS'), MF: c(at.MF, 'pass'),
+    SF: shoe(at.SF, 'KS'), G2: c(at.G2, 'gather'), G3: c(at.G3, 'gather'), CUT2: c(at.CUT2, 'cut'),
+    SU2: c(at.SU2, 'suits'), SB: c(at.SB, 'suits'),
+  };
+  for (const n of Object.values(nodes)) if (n.fn === 'pass') n.out = {};
+  const links = [
+    // the hand's hearts and diamonds, as separate piles, into one line
+    ['SU1', 'H', 'MP'], ['SU1', 'D', 'MD'], ['MD', 'out', 'MP'],
+    // 2♣ (the token) 3♠ 9♠ on top of the pile, and cut
+    ['TK', null, 'TP'], ['TP', 'out', 'GH1'], ['SY2', null, 'GH1', 'under'], ['GH1', 'out', 'GH2'],
+    ['SY3', null, 'GH2', 'under'], ['GH2', 'out', 'G1'], ['MP', 'out', 'G1', 'under'], ['G1', 'out', 'CUT1'],
+    // the top half: a run (n < 3) gives one card, otherwise four
+    ['CUT1', 'top', 'ST'], ['ST', 'yes', 'CY'], ['CY', 'top', 'MF'], ['SP', null, 'GN', 'under'], ['ST', 'no', 'GN'],
+    ['GN', 'out', 'MF'],
+    // K♠, the pile, those cards; cut, and pay the top half's red cards
+    ['SF', null, 'G2'], ['CUT1', 'bottom', 'G2', 'under'], ['G2', 'out', 'G3'], ['MF', 'out', 'G3', 'under'],
+    ['G3', 'out', 'CUT2'], ['CUT2', 'top', 'SU2'], ['SU2', ['H', 'D'], 'desk'],
+    // the token back for the next pile
+    ['CUT2', 'bottom', 'SB'], ['SB', 'C', 'TP'],
+  ];
+  return { nodes, links };
+}
+
 
 export const SPECS = {
   'small-change': {
@@ -596,5 +748,9 @@ export const SPECS = {
   'casino-numbers': casinoSums(),
   'times-tables': casinoProducts(),
   'carry-the-one': casinoLongSums(),
+  'off-suit': offSuit(),
+  'night-off': nightOff(),
+  'skeleton-crew': skeletonCrew(),
+  'no-kings': noKings(),
 
 };

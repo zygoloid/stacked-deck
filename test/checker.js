@@ -11,7 +11,7 @@ const dropAll = { cells: [{ at: [0, 0], kind: 'source', out: 0 }, { at: [1, 0], 
 const r = runTest(dropAll, t, pz.pays);
 const wrongPort = { cells: [{ at: [0, 0], kind: 'source', out: 0 }, { at: [1, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } }, { at: [2, 0], kind: 'payout' }] };
 assert(!runTest(wrongPort, t, pz.pays).ok, 'passing everything to the desk must fail');
-assert(!r.ok && !r.timeout, 'dropping everything must fail (but finish)');
+assert(!r.ok && r.stop === 'cycle', `dropping everything must fail (stopping once the floor is empty): ${r.stop}`);
 const stuck = { cells: [{ at: [0, 0], kind: 'source', out: 0 }, { at: [1, 0], kind: 'croupier', fn: 'gather' }] };
 {
   const s = runTest(stuck, t, pz.pays);

@@ -176,8 +176,8 @@ opening night.
 
 ## The bonus deck
 
-Extra floors outside the campaign, each opened by a campaign floor
-(docs/campaign.md). Their stories stand on their own: they may lean on the
+Extra floors outside the campaign, each opened by campaign floors or by
+other bonus floors (docs/campaign.md), in order of difficulty. Their stories stand on their own: they may lean on the
 cast and the moment they unlock (Sal's kings after Beat the Dealer, the
 rival's split pots after Top Pair, the city asking for one more game after
 Déjà Vu), but they never move the plot, so the campaign reads the same
@@ -187,28 +187,32 @@ regulation; Ace Count does).
 
 | Card | Level | After | Beat |
 |---|---|---|---|
-| A♠ | Small Change | Beat the Dealer | Sal changes kings for the ace of spades |
-| 2♠ | Split Pot | Top Pair | the rival splits its pots; so does the house |
-| 3♠ | Every Other | Ace Count | the string quartet's game for the bar |
-| 4♠ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
-| 5♠ | Bookends | Change of Heart | the doormen's game, hand against hand |
-| 6♠ | Two Apart | Déjà Vu | the doormen's new game for their break |
-| 7♠ | Three Apart | Déjà Vu | the cloakroom plays it one better |
-| 8♠ | Crossed Wires | Déjà Vu | the Owner rewires the floor; the twins bring a cousin |
+| A♠ | Split Pot | Top Pair | the rival splits its pots; so does the house |
+| 2♠ | Small Change | Beat the Dealer | Sal changes kings for the ace of spades |
+| 3♠ | Two Apart | Déjà Vu | the doormen's new game for their break |
+| 4♠ | Three Apart | Déjà Vu | the cloakroom plays it one better |
+| 5♠ | Off Suit | Red Flush | the suits croupier is at a wedding; the uncle's red flushes |
+| 6♠ | Crossed Wires | Déjà Vu | the Owner rewires the floor; the twins bring a cousin |
+| 7♠ | Every Other | Ace Count | the string quartet's game for the bar |
+| 8♠ | Bookends | Change of Heart | the doormen's game, hand against hand |
 | 9♠ | Uneven Tables | Déjà Vu | the cousins stop playing in step |
 | 10♠ | Four of a Kind | Déjà Vu | the city asks for one more game |
 | J♠ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
 | Q♠ | Rising | Déjà Vu | the string quartet takes up scales |
-| K♠ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
-| A♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
-| 2♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
-| 3♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
-| 4♥ | Casino Numbers | Déjà Vu | the Owner counts in thirteens, with no zero |
-| 5♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
-| 6♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
-| 7♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
-| 8♥ | Times Tables | Déjà Vu | Dmitri finds the multiplication sheet |
-| 9♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
+| K♠ | After a Pair | Suit Yourself | Dmitri's theory of streaks |
+| A♥ | The Rest of the Deck | Déjà Vu | Commissioner Pryce audits the house deck |
+| 2♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
+| 3♥ | Skeleton Crew | Calling Card and Night Off | the suits and flush croupiers both off; the uncle asks only for hearts |
+| 4♥ | No Kings | Skeleton Crew | both croupiers off at a No Kings rally; the players leave their kings at home |
+| 5♥ | One Up | Déjà Vu | Old Thursday's last (and best) trick |
+| 6♥ | Head Count | Déjà Vu | Pryce's regulation on honest labelling |
+| 7♥ | Mirror Image | Déjà Vu | the Marchetti twins, a deck each |
+| 8♥ | Casino Numbers | Déjà Vu | the Owner counts in thirteens, with no zero |
+| 9♥ | Last In, First Out | Déjà Vu | the cloakroom's new attendant |
+| 10♥ | Times Tables | Déjà Vu | Dmitri finds the multiplication sheet |
+| J♥ | Showdown | Déjà Vu | Sal and Dmitri settle things at the table |
+| Q♥ | Twice Shy | Déjà Vu | the twins again; the Owner won't pay twice |
+| K♥ | Carry the One | Déjà Vu | two-digit casino numbers; totals of three cards |
 
 ## Notes for writers
 
@@ -220,7 +224,17 @@ regulation; Ace Count does).
   paid, including the edge cases (leftover cards, hands with nothing to pay,
   whether card order counts).
 * The brief is the precise rule. The story can be playful, but it must never
-  contradict the brief or explain the solution. Edge cases (aces high or low,
+  contradict the brief or explain the solution.
+* No hints in stories, not even as a joke: a story never says or suggests how
+  to solve its floor. That rules out naming a croupier that would help ("the
+  croupier who sorts knows where the hearts go"), a technique ("split by
+  suit, stack and cut"), house cards or markers to use ("the house has every
+  king to work with"), a pitfall that points at the method ("the house can't
+  tell K♦ from K♣"), or what a croupier can or can't do in this puzzle
+  ("it can tell you a hand is a flush, not which suit"). What the floor takes
+  away (a croupier, a card) is stated plainly in the story and the brief, as a
+  rule; how to work around it is for the player to find. Write the solution
+  notes in docs/campaign.md and the recipe comments instead. Edge cases (aces high or low,
   ties go to the house, two pair versus trips, the ace-to-five straight)
   belong in the story or the brief whenever a player could reasonably guess
   wrong.

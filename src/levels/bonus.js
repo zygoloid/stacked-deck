@@ -1,19 +1,25 @@
 // The bonus deck: floors outside the 56-card campaign. Each opens once its
-// `unlockAfter` campaign floor is solved, and has its own card in the bonus
-// deck: A..K of spades, then of hearts, of a second deck, in this list's order (which follows
-// the unlockAfter floors' order in the campaign). Some are floors cut from
-// the campaign to make room (their ids are unchanged, since saves are keyed
-// by id); the others are extra floors, from 6♠ on for players who have
-// everything (every croupier, both War rules, every special card), roughly
-// easiest first. Crossed Wires and Uneven Tables seat three players (and
-// label three desks); Mirror Image, Casino Numbers, Showdown, Twice Shy,
-// Times Tables and Carry the One seat two. See docs/campaign.md.
+// `unlockAfter` floors are solved (one id or a list; campaign floors or other
+// bonus floors: Night Off opens after Off Suit, which opens after Red Flush,
+// Skeleton Crew after both Calling Card and Night Off, and No Kings after
+// Skeleton Crew), and has its own card in the bonus deck: A..K of spades,
+// then of hearts, of a second deck, in this list's order, which is roughly
+// easiest first (the Diff column of docs/campaign.md), not the order they
+// open in, except that a floor always comes after the bonus floors it needs. Some are floors cut from the campaign to make room (their ids are
+// unchanged, since saves are keyed by id); most of the others are extra
+// floors for players who have everything (every croupier, both War rules,
+// every special card), and Off Suit, Night Off, Skeleton Crew and No Kings
+// are Red Flush again with croupiers taken away (Suits; Flush; both, for heart
+// flushes only; both, with no kings in the players' hands). Crossed Wires and
+// Uneven Tables seat three players (and label three desks); Mirror Image,
+// Casino Numbers, Showdown, Twice Shy, Times Tables and Carry the One seat
+// two. See docs/campaign.md.
 import {
   hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, SW, W, NW, NE,
   hv, high, one, paletteThrough, finishChapter,
 } from './shared.js';
 import {
-  RANKS, rankOf, suitOf, rankValue, highValue, largestSet, rankCounts, fullDeck, shuffled,
+  RANKS, rankOf, suitOf, rankValue, highValue, largestSet, rankCounts, fullDeck, shuffled, isFlush,
 } from '../cards.js';
 
 const B1 = [source([-3, 0], E), desk([1, 0])];
@@ -40,6 +46,8 @@ const H5 = [seated([-6, 4], E, 0), seated([-5, 3], SE, 1), desk([-4, 7])];
 const H6 = [seated([5, -1], W, 0), seated([4, 1], W, 1), desk([-2, 0])];
 const H7 = [...H6.slice(0, 2), desk([-4, 4])];
 const H8 = [seated([2, -2], SW, 0), seated([2, -1], SE, 1), desk([1, 4])];
+// Red Flush's player and desk (its floor is two rings smaller).
+const H9 = [source([-2, 0], E), desk([2, 0])];
 const labelled = (at, n) => ({ ...desk(at), desk: n });
 const H3 = [
   seated([-2, -2], E, 0), seated([-3, 0], E, 1), seated([-4, 2], E, 2),
@@ -164,6 +172,14 @@ function digitDeals(rand, nTests, nDeals) {
   return Array.from({ length: nTests }, () => Array.from({ length: 2 * nDeals }, () => [SPADE(1 + Math.floor(rand() * 13))]));
 }
 
+// Three-card hands dealt from a deck without kings, `per` hands a test.
+function kinglessDeals(rand, nTests, per) {
+  return Array.from({ length: nTests }, () => {
+    const deck = shuffled(fullDeck().filter((c) => rankOf(c) !== 'K'), rand);
+    return Array.from({ length: per }, (_, i) => deck.slice(3 * i, 3 * i + 3));
+  });
+}
+
 // The Rest of the Deck: every card of the deck nobody played, one at a time.
 const unplayed = (inputs) => {
   const played = new Set(inputs.flat());
@@ -183,29 +199,8 @@ function quadsOf(inputs) {
 
 export const LEVELS = [
   {
-    id: 'small-change',
-    card: 'AS',
-    unlockAfter: 'beat-the-dealer',
-    title: 'Small Change',
-    story: [
-      'Sal Vellani has a rule about kings: a king is too much money to leave on the table. Tonight, for every king played, the house hands over the ace of spades from its own cards, and keeps the king.',
-      'Queens, aces and everything else are just cards, and pay nothing.',
-    ],
-    brief: 'Single cards. For every king played, pay out the ace of spades (a house card). Nothing else is paid.',
-    handSize: 1,
-    floor: floorOf(hexRect(-2, 2, -7, 4), B1),
-    fixed: B1,
-    croupiers: paletteThrough('war'),
-    expected: (inputs) => inputs.filter(([c]) => rankOf(c) === 'K').map(() => ['AS']),
-    tests: makeTests({
-      handSize: 1, handsPerTest: 26,
-      fixed: [one('KS QS AS KD 2C KH JD AH KC'), one('KH KD KC KS'), one('QS AD JC 2H')],
-      nRandom: 4, seed: 161,
-    }),
-  },
-  {
     id: 'split-pot',
-    card: '2S',
+    card: 'AS',
     unlockAfter: 'top-pair',
     title: 'Split Pot',
     story: [
@@ -226,94 +221,29 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'every-other',
-    card: '3S',
-    unlockAfter: 'ace-count',
-    title: 'Every Other',
+    id: 'small-change',
+    card: '2S',
+    unlockAfter: 'beat-the-dealer',
+    title: 'Small Change',
     story: [
-      'Commissioner Pryce has taken his regulation home and framed it. With War played any way you like again, the string quartet has a game for the bar: a five-card hand wins if its highest card is its first or its third card. The first violin says those are the beats that matter.',
-      'If the highest rank turns up twice, one of them in either place is enough. The second violin says this is no better than last time.',
+      'Sal Vellani has a rule about kings: a king is too much money to leave on the table. Tonight, for every king played, the house hands over the ace of spades from its own cards, and keeps the king.',
+      'Queens, aces and everything else are just cards, and pay nothing.',
     ],
-    brief: 'Five-card hands. Pay out every hand whose highest card is its 1st or 3rd card (ties count).',
-    handSize: 5,
-    floor: floorOf(hexRange(2), B3),
-    fixed: B3,
-    croupiers: paletteThrough('deal'),
-    warRules: ['high', 'top'],
-    pays: (h) => Math.max(hv(h[0]), hv(h[2])) >= high(h),
+    brief: 'Single cards. For every king played, pay out the ace of spades (a house card). Nothing else is paid.',
+    handSize: 1,
+    floor: floorOf(hexRect(-2, 2, -7, 4), B1),
+    fixed: B1,
+    croupiers: paletteThrough('war'),
+    expected: (inputs) => inputs.filter(([c]) => rankOf(c) === 'K').map(() => ['AS']),
     tests: makeTests({
-      handSize: 5, handsPerTest: 10,
-      fixed: [
-        ['AS 2D 3C 4H 5S', '2S AD 3C 4H 5S', '2S 3D AC 4H 5S', '2S 3D 4C AH 5S', '2S 3D 4C 5H AS',
-          'KS 2D 3C KH 4S', '2S KD 3C 4H KS', '2S 3D KC 4H KH', 'QS KD 2C 3H 4S', 'KS 2D 3C AH 4S'],
-        // winners back to back, then losers back to back
-        ['AS 2D 3C 4H 5S', '2S 3D AC 4H 5S', 'KS QD 2C 3H 4S', '7S 2D 7C 3H 4S', '9S TD JC 2H 3S',
-          '2S AD 3C 4H 5S', '2S 3D 4C KH 5S', '2S 3D 4C 5H QS', 'JS QD 2C 3H 4S', '4S 5D 3C 6H 2S'],
-      ],
-      nRandom: 4, seed: 146,
+      handSize: 1, handsPerTest: 26,
+      fixed: [one('KS QS AS KD 2C KH JD AH KC'), one('KH KD KC KS'), one('QS AD JC 2H')],
+      nRandom: 4, seed: 161,
     }),
-  },
-  {
-    id: 'after-a-pair',
-    card: '4S',
-    unlockAfter: 'suit-yourself',
-    title: 'After a Pair',
-    story: [
-      'Dmitri has a theory about streaks. A pair, he says, warms the table, so the hand after any hand holding a pair or better should win, whatever it holds itself.',
-      'Two pair, three of a kind and the rest all count as a pair or better. The first hand of the night follows nothing and never wins. Dmitri has a spreadsheet for this as well.',
-    ],
-    brief: 'Five-card hands. Pay out every hand that comes straight after a hand holding a pair or better.',
-    handSize: 5,
-    floor: floorOf(hexRect(-3, 3, -7, 5), B4),
-    fixed: B4,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    pays: (h, before) => before.length > 0 && largestSet(last(before)) >= 2,
-    tests: makeTests({
-      handSize: 5, handsPerTest: 10,
-      fixed: [
-        ['2S 2D 5C 9H KS', 'AS KD QC JH 9S', '3S 3D 3C 7H JS', 'KS KD QS QD 2H', '2H 4H 6H 8H TH',
-          '4S 5D 6C 7H 8S', '9S 9D 4C 4H 9C', 'AH 3S 5D 7C JD', '6S 6D 6C 6H 2S', 'TS JD QC KH AS'],
-        // pairs back to back, then no pairs back to back
-        ['2S 2D 5C 9H KS', '3S 3D 6C TH QS', '4S 4D 7C JH KD', '5S 5D 8C QH AS', '6S 6D 9C KH AD',
-          'AH KD QC JH 9S', '2H 4D 6C 8S TD', '3H 5D 7C 9S JD', '4H 6D 8C TS QD', '5H 7D 9C JS KD'],
-        // alternating
-        ['AH KD QC JH 9S', '2S 2D 5C 9H KS', '2H 4D 6C 8S TD', '3S 3D 6C TH QS', '3H 5D 7C 9S JD',
-          '4S 4D 7C JH KD', '4H 6D 8C TS QD', '5S 5D 8C QH AS', '5H 7D 9C JS KD', '6S 6D 9C KH AD'],
-      ],
-      nRandom: 4, seed: 145,
-    }),
-  },
-  {
-    id: 'bookends',
-    card: '5S',
-    unlockAfter: 'change-of-heart',
-    title: 'Bookends',
-    story: [
-      'The doormen\'s game has outlived the doormen\'s break. Two-card hands again, but now each hand is played against the one before it: a hand wins if its top card beats the bottom card of the previous hand.',
-      'Aces are high and a tie loses, as ever. The first hand of the night has nothing to lean on and never wins. The Kesslers\' bottom dealer says he has always known the bottom card was the important one.',
-    ],
-    brief: 'Two-card hands. Pay out every hand whose top card beats the bottom card of the hand before it.',
-    handSize: 2,
-    floor: floorOf(hexRect(-2, 2, -7, 3), B5, [[-2, -1]]),
-    fixed: B5,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    pays: (h, before) => before.length > 0 && hv(h[0]) > hv(last(before)[1]),
-    tests: makeTests({
-      handSize: 2, handsPerTest: 20,
-      fixed: [
-        ['KS 2D', '3C KH', 'AS 2H', '2D AC', 'AH 7S', '7D 9C', '9H 9S', 'TD 4C', '5S QD', '4H 3S', 'KD KC', 'AD 2S'],
-        // the top card, not the higher card, must beat the bottom card before
-        ['2S AD', 'AS 2D', '3C KH', 'KS 3D', 'QH QC', 'JS 5H', '6D JD', '5C 4D', '4S TH'],
-      ],
-      nRandom: 4, seed: 146,
-    }),
-  
   },
   {
     id: 'two-apart',
-    card: '6S',
+    card: '3S',
     unlockAfter: 'deja-vu',
     title: 'Two Apart',
     story: [
@@ -341,7 +271,7 @@ export const LEVELS = [
   },
   {
     id: 'three-apart',
-    card: '7S',
+    card: '4S',
     unlockAfter: 'deja-vu',
     title: 'Three Apart',
     story: [
@@ -368,8 +298,33 @@ export const LEVELS = [
     }),
   },
   {
+    id: 'off-suit',
+    card: '5S',
+    unlockAfter: 'red-flush',
+    title: 'Off Suit',
+    story: [
+      'The croupier who splits hands by suit has gone to a cousin\'s wedding, and Sal Vellani\'s uncle has come back for his red flushes: three-card hands, and the house pays any hand that is all hearts or all diamonds.',
+      'The uncle says he would have gone to the wedding himself, if anyone had thought to invite him.',
+    ],
+    brief: 'Three-card hands. Pay out every flush in hearts or diamonds, with no Suits croupier.',
+    handSize: 3,
+    floor: floorOf(hexRange(4), H9),
+    fixed: H9,
+    croupiers: paletteThrough('flush').filter((c) => c !== 'suits'),
+    pays: (h) => isFlush(h) && ['H', 'D'].includes(suitOf(h[0])),
+    tests: makeTests({
+      handSize: 3, handsPerTest: 10,
+      fixed: [
+        ['2H 7H KH', '3D 9D QD', '4S 8S JS', '5C TC AC', 'AH 2D 3H', 'KD QD JH', '6H 6D 6S', 'AD KD 2D', '9S 9H 4C', 'TH JH QH'],
+        // two of a red suit and one other, either way round
+        ['2H 3H 4S', '5D 6D 7C', 'KS QH JH', '8C 9D TD', 'AH 5D 9H', 'JD 2H QD'],
+      ],
+      nRandom: 4, seed: 188,
+    }),
+  },
+  {
     id: 'crossed-wires',
-    card: '8S',
+    card: '6S',
     unlockAfter: 'deja-vu',
     title: 'Crossed Wires',
     story: [
@@ -394,6 +349,61 @@ export const LEVELS = [
       ],
       nRandom: 4, seed: 180,
     }),
+  },
+  {
+    id: 'every-other',
+    card: '7S',
+    unlockAfter: 'ace-count',
+    title: 'Every Other',
+    story: [
+      'Commissioner Pryce has taken his regulation home and framed it. With War played any way you like again, the string quartet has a game for the bar: a five-card hand wins if its highest card is its first or its third card. The first violin says those are the beats that matter.',
+      'If the highest rank turns up twice, one of them in either place is enough. The second violin says this is no better than last time.',
+    ],
+    brief: 'Five-card hands. Pay out every hand whose highest card is its 1st or 3rd card (ties count).',
+    handSize: 5,
+    floor: floorOf(hexRange(2), B3),
+    fixed: B3,
+    croupiers: paletteThrough('deal'),
+    warRules: ['high', 'top'],
+    pays: (h) => Math.max(hv(h[0]), hv(h[2])) >= high(h),
+    tests: makeTests({
+      handSize: 5, handsPerTest: 10,
+      fixed: [
+        ['AS 2D 3C 4H 5S', '2S AD 3C 4H 5S', '2S 3D AC 4H 5S', '2S 3D 4C AH 5S', '2S 3D 4C 5H AS',
+          'KS 2D 3C KH 4S', '2S KD 3C 4H KS', '2S 3D KC 4H KH', 'QS KD 2C 3H 4S', 'KS 2D 3C AH 4S'],
+        // winners back to back, then losers back to back
+        ['AS 2D 3C 4H 5S', '2S 3D AC 4H 5S', 'KS QD 2C 3H 4S', '7S 2D 7C 3H 4S', '9S TD JC 2H 3S',
+          '2S AD 3C 4H 5S', '2S 3D 4C KH 5S', '2S 3D 4C 5H QS', 'JS QD 2C 3H 4S', '4S 5D 3C 6H 2S'],
+      ],
+      nRandom: 4, seed: 146,
+    }),
+  },
+  {
+    id: 'bookends',
+    card: '8S',
+    unlockAfter: 'change-of-heart',
+    title: 'Bookends',
+    story: [
+      'The doormen\'s game has outlived the doormen\'s break. Two-card hands again, but now each hand is played against the one before it: a hand wins if its top card beats the bottom card of the previous hand.',
+      'Aces are high and a tie loses, as ever. The first hand of the night has nothing to lean on and never wins. The Kesslers\' bottom dealer says he has always known the bottom card was the important one.',
+    ],
+    brief: 'Two-card hands. Pay out every hand whose top card beats the bottom card of the hand before it.',
+    handSize: 2,
+    floor: floorOf(hexRect(-2, 2, -7, 3), B5, [[-2, -1]]),
+    fixed: B5,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    pays: (h, before) => before.length > 0 && hv(h[0]) > hv(last(before)[1]),
+    tests: makeTests({
+      handSize: 2, handsPerTest: 20,
+      fixed: [
+        ['KS 2D', '3C KH', 'AS 2H', '2D AC', 'AH 7S', '7D 9C', '9H 9S', 'TD 4C', '5S QD', '4H 3S', 'KD KC', 'AD 2S'],
+        // the top card, not the higher card, must beat the bottom card before
+        ['2S AD', 'AS 2D', '3C KH', 'KS 3D', 'QH QC', 'JS 5H', '6D JD', '5C 4D', '4S TH'],
+      ],
+      nRandom: 4, seed: 146,
+    }),
+  
   },
   {
     id: 'uneven-tables',
@@ -514,8 +524,39 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'rest-of-the-deck',
+    id: 'after-a-pair',
     card: 'KS',
+    unlockAfter: 'suit-yourself',
+    title: 'After a Pair',
+    story: [
+      'Dmitri has a theory about streaks. A pair, he says, warms the table, so the hand after any hand holding a pair or better should win, whatever it holds itself.',
+      'Two pair, three of a kind and the rest all count as a pair or better. The first hand of the night follows nothing and never wins. Dmitri has a spreadsheet for this as well.',
+    ],
+    brief: 'Five-card hands. Pay out every hand that comes straight after a hand holding a pair or better.',
+    handSize: 5,
+    floor: floorOf(hexRect(-3, 3, -7, 5), B4),
+    fixed: B4,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    pays: (h, before) => before.length > 0 && largestSet(last(before)) >= 2,
+    tests: makeTests({
+      handSize: 5, handsPerTest: 10,
+      fixed: [
+        ['2S 2D 5C 9H KS', 'AS KD QC JH 9S', '3S 3D 3C 7H JS', 'KS KD QS QD 2H', '2H 4H 6H 8H TH',
+          '4S 5D 6C 7H 8S', '9S 9D 4C 4H 9C', 'AH 3S 5D 7C JD', '6S 6D 6C 6H 2S', 'TS JD QC KH AS'],
+        // pairs back to back, then no pairs back to back
+        ['2S 2D 5C 9H KS', '3S 3D 6C TH QS', '4S 4D 7C JH KD', '5S 5D 8C QH AS', '6S 6D 9C KH AD',
+          'AH KD QC JH 9S', '2H 4D 6C 8S TD', '3H 5D 7C 9S JD', '4H 6D 8C TS QD', '5H 7D 9C JS KD'],
+        // alternating
+        ['AH KD QC JH 9S', '2S 2D 5C 9H KS', '2H 4D 6C 8S TD', '3S 3D 6C TH QS', '3H 5D 7C 9S JD',
+          '4S 4D 7C JH KD', '4H 6D 8C TS QD', '5S 5D 8C QH AS', '5H 7D 9C JS KD', '6S 6D 9C KH AD'],
+      ],
+      nRandom: 4, seed: 145,
+    }),
+  },
+  {
+    id: 'rest-of-the-deck',
+    card: 'AH',
     unlockAfter: 'deja-vu',
     title: 'The Rest of the Deck',
     story: [
@@ -543,13 +584,90 @@ export const LEVELS = [
     }),
   },
   {
+    id: 'night-off',
+    card: '2H',
+    unlockAfter: 'off-suit',
+    title: 'Night Off',
+    story: [
+      'The suits croupier is back from the wedding, and now the croupier who checks for flushes has the night off. Sal Vellani\'s uncle has come back for his red flushes anyway: three-card hands, and the house pays any hand that is all hearts or all diamonds.',
+      'He has brought a slice of the wedding cake for the croupier who missed it, and is in no hurry.',
+    ],
+    brief: 'Three-card hands. Pay out every flush in hearts or diamonds, with no Flush croupier.',
+    handSize: 3,
+    floor: floorOf(hexRange(4), H9),
+    fixed: H9,
+    croupiers: paletteThrough('cut'),
+    pays: (h) => isFlush(h) && ['H', 'D'].includes(suitOf(h[0])),
+    tests: makeTests({
+      handSize: 3, handsPerTest: 10,
+      fixed: [
+        ['2H 7H KH', '3D 9D QD', '4S 8S JS', '5C TC AC', 'AH 2D 3H', 'KD QD JH', '6H 6D 6S', 'AD KD 2D', '9S 9H 4C', 'TH JH QH'],
+        // two of a red suit and one other, either way round
+        ['2H 3H 4S', '5D 6D 7C', 'KS QH JH', '8C 9D TD', 'AH 5D 9H', 'JD 2H QD'],
+      ],
+      nRandom: 4, seed: 187,
+    }),
+  },
+  {
+    id: 'skeleton-crew',
+    card: '3H',
+    unlockAfter: ['calling-card', 'night-off'],
+    title: 'Skeleton Crew',
+    story: [
+      'The croupiers who split hands by suit and check for flushes have both taken the night off, together, and the rest of the floor is covering for them. Sal Vellani\'s uncle has heard, and has come in with a simpler request: three-card hands, and the house pays any hand that is all hearts.',
+      'He has brought a get-well card for the absent croupiers, and everyone on the floor has signed it, twice.',
+    ],
+    brief: 'Three-card hands. Pay out every flush in hearts, with neither a Flush nor a Suits croupier.',
+    handSize: 3,
+    floor: floorOf(hexRange(4), H9),
+    fixed: H9,
+    croupiers: paletteThrough('sort').filter((c) => c !== 'flush' && c !== 'suits'),
+    warRules: ALL,
+    pays: (h) => isFlush(h) && suitOf(h[0]) === 'H',
+    tests: makeTests({
+      handSize: 3, handsPerTest: 10,
+      fixed: [
+        ['2H 7H KH', '3D 9D QD', '4S 8S JS', '5C TC AC', 'AH 2D 3H', 'KD QD JH', '6H 6D 6S', 'AD KD 2D', '9S 9H 4C', 'TH JH QH'],
+        // aces, and the ace of clubs, next to hearts
+        ['AC KH QH', 'AS AD 7D', 'AH 2H 3H', 'KS KD KC', 'AD 5H 6H', 'AC 2C 3C', '9H TH AH', 'AS 4H 8H'],
+      ],
+      nRandom: 4, seed: 189,
+    }),
+  },
+  {
+    id: 'no-kings',
+    card: '4H',
+    unlockAfter: 'skeleton-crew',
+    title: 'No Kings',
+    story: [
+      'The suits croupier and the flush croupier are off at a No Kings rally, and Sal Vellani\'s uncle is back for his red flushes, hearts and diamonds both: three-card hands, and the house pays any hand that is all hearts or all diamonds.',
+      'In solidarity, the players have taken the kings out of their decks for the night. The uncle says it is the least he can do.',
+    ],
+    brief: 'Three-card hands, from decks with no kings. Pay out every flush in hearts or diamonds, with neither a Flush nor a Suits croupier.',
+    handSize: 3,
+    floor: floorOf(hexRange(4), H9),
+    fixed: H9,
+    croupiers: paletteThrough('sort').filter((c) => c !== 'flush' && c !== 'suits'),
+    warRules: ALL,
+    pays: (h) => isFlush(h) && ['H', 'D'].includes(suitOf(h[0])),
+    tests: dealtTests({
+      deal: (rand, n) => kinglessDeals(rand, n, 10),
+      fixed: [
+        ['2H 7H QH', '3D 9D QD', '4S 8S JS', '5C TC AC', 'AH 2D 3H', 'QD JD JH', '6H 6D 6S', 'AD QD 2D', '9S 9H 4C', 'TH JH QH'],
+        // queens and aces at the edges of a suit; two of a red suit and one other
+        ['AD 2D 3D', 'QH AH 2H', 'AS QS 5D', 'QC AC 4H', '2H 3H 4S', '5D 6D 7C', 'QS QH JH', '8C 9D TD', 'AH 5D 9H', 'JD 2H QD'],
+      ],
+      nRandom: 4, seed: 190,
+    }),
+  },
+  {
     id: 'one-up',
-    card: 'AH',
+    card: '5H',
     unlockAfter: 'deja-vu',
     title: 'One Up',
     story: [
       'Old Thursday has one trick left, and he insists it is the best one. You show him a card, and he produces the next card up in the same suit: a 7 of clubs for a 6 of clubs, the ace for the king.',
-      'The house pays out his card and keeps yours. He says he has a whole deck up his sleeve, and the house would be wise to keep one too.',
+      'The house pays out his card and keeps yours. Nobody has ever caught him doing it.',
     ],
     brief: 'Single cards. For every card, pay out the next card up in the same suit (a house card; after the king comes the ace).',
     handSize: 1,
@@ -567,7 +685,7 @@ export const LEVELS = [
   },
   {
     id: 'head-count',
-    card: '2H',
+    card: '6H',
     unlockAfter: 'deja-vu',
     title: 'Head Count',
     story: [
@@ -596,7 +714,7 @@ export const LEVELS = [
   },
   {
     id: 'mirror-image',
-    card: '3H',
+    card: '7H',
     unlockAfter: 'deja-vu',
     title: 'Mirror Image',
     story: [
@@ -625,7 +743,7 @@ export const LEVELS = [
   },
   {
     id: 'casino-numbers',
-    card: '4H',
+    card: '8H',
     unlockAfter: 'deja-vu',
     title: 'Casino Numbers',
     story: [
@@ -654,7 +772,7 @@ export const LEVELS = [
   },
   {
     id: 'last-in-first-out',
-    card: '5H',
+    card: '9H',
     unlockAfter: 'deja-vu',
     title: 'Last In, First Out',
     story: [
@@ -682,8 +800,36 @@ export const LEVELS = [
     }),
   },
   {
+    id: 'times-tables',
+    card: 'TH',
+    unlockAfter: 'deja-vu',
+    title: 'Times Tables',
+    story: [
+      'Dmitri has found the multiplication sheet. Tonight two players each play one spade per deal, ace to king, and the house pays the product in casino numbers, in its own spades, the leading digit on top: one card up to thirteen, two from fourteen (an ace and an ace) all the way to a hundred and sixty-nine (a queen and a king).',
+      'The Owner asked why the house pays more for a king and a queen than for a king and an ace. Dmitri said it was a long story; the Owner said to keep it short.',
+    ],
+    brief: 'Two players, one spade each per deal, ace (1) to king (13). Pay the product in casino numbers, house spades with the leading digit on top: 1 to 13 as one card (13 is the king), 14 and up as two (14 is A♠ A♠, 26 is A♠ K♠, 169 is Q♠ K♠).',
+    handSize: 1,
+    floor: floorOf(hexRect(-5, 4, -10, 10), H8),
+    fixed: H8,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => deals(inputs).map(([[a], [b]]) => casino(rankValue(a) * rankValue(b))),
+    ordered: true,
+    tests: dealtTests({
+      deal: (rand, n) => digitDeals(rand, n, 8),
+      fixed: [
+        // the smallest and largest products, and either side of thirteen
+        one('AS AS KS KS AS KS 2S 7S 7S 2S KS 2S 3S 9S QS JS 5S 8S KS QS 6S 2S 9S 9S'),
+        one('4S 3S JS 2S 2S 6S TS 7S'),
+      ],
+      nRandom: 4, seed: 185,
+    }),
+  },
+  {
     id: 'showdown',
-    card: '6H',
+    card: 'JH',
     unlockAfter: 'deja-vu',
     title: 'Showdown',
     story: [
@@ -715,7 +861,7 @@ export const LEVELS = [
   },
   {
     id: 'twice-shy',
-    card: '7H',
+    card: 'QH',
     unlockAfter: 'deja-vu',
     title: 'Twice Shy',
     story: [
@@ -744,36 +890,8 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'times-tables',
-    card: '8H',
-    unlockAfter: 'deja-vu',
-    title: 'Times Tables',
-    story: [
-      'Dmitri has found the multiplication sheet. Tonight two players each play one spade per deal, ace to king, and the house pays the product in casino numbers, in its own spades, the leading digit on top: one card up to thirteen, two from fourteen (an ace and an ace) all the way to a hundred and sixty-nine (a queen and a king).',
-      'The Owner asked why the house pays more for a king and a queen than for a king and an ace. Dmitri said it was a long story; the Owner said to keep it short.',
-    ],
-    brief: 'Two players, one spade each per deal, ace (1) to king (13). Pay the product in casino numbers, house spades with the leading digit on top: 1 to 13 as one card (13 is the king), 14 and up as two (14 is A♠ A♠, 26 is A♠ K♠, 169 is Q♠ K♠).',
-    handSize: 1,
-    floor: floorOf(hexRect(-5, 4, -10, 10), H8),
-    fixed: H8,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    specialCards: ['?', '??', '$', '$$'],
-    expected: (inputs) => deals(inputs).map(([[a], [b]]) => casino(rankValue(a) * rankValue(b))),
-    ordered: true,
-    tests: dealtTests({
-      deal: (rand, n) => digitDeals(rand, n, 8),
-      fixed: [
-        // the smallest and largest products, and either side of thirteen
-        one('AS AS KS KS AS KS 2S 7S 7S 2S KS 2S 3S 9S QS JS 5S 8S KS QS 6S 2S 9S 9S'),
-        one('4S 3S JS 2S 2S 6S TS 7S'),
-      ],
-      nRandom: 4, seed: 185,
-    }),
-  },
-  {
     id: 'carry-the-one',
-    card: '9H',
+    card: 'KH',
     unlockAfter: 'deja-vu',
     title: 'Carry the One',
     story: [
@@ -808,27 +926,31 @@ export const LEVELS = [
 // this table from the recipes in tools/level-specs/bonus.js.
 // BEGIN PAR
 const PAR = {
-  'small-change': { croupiers: 6, rounds: 130 },
   'split-pot': { croupiers: 3, rounds: 56 },
-  'every-other': { croupiers: 4, rounds: 90 },
-  'after-a-pair': { croupiers: 13, rounds: 171 },
-  'bookends': { croupiers: 5, rounds: 134 },
+  'small-change': { croupiers: 6, rounds: 130 },
   'two-apart': { croupiers: 5, rounds: 120 },
   'three-apart': { croupiers: 7, rounds: 125 },
+  'off-suit': { croupiers: 13, rounds: 71 },
   'crossed-wires': { croupiers: 14, rounds: 68 },
+  'every-other': { croupiers: 4, rounds: 90 },
+  'bookends': { croupiers: 5, rounds: 134 },
   'uneven-tables': { croupiers: 18, rounds: 94 },
   'four-of-a-kind': { croupiers: 6, rounds: 533 },
   'counting-up': { croupiers: 9, rounds: 290 },
   'rising': { croupiers: 12, rounds: 214 },
+  'after-a-pair': { croupiers: 13, rounds: 171 },
   'rest-of-the-deck': { croupiers: 14, rounds: 1506 },
+  'night-off': { croupiers: 25, rounds: 398 },
+  'skeleton-crew': { croupiers: 10, rounds: 69 },
+  'no-kings': { croupiers: 13, rounds: 107 },
   'one-up': { croupiers: 16, rounds: 4076 },
   'head-count': { croupiers: 19, rounds: 676 },
   'mirror-image': { croupiers: 25, rounds: 383 },
   'casino-numbers': { croupiers: 27, rounds: 1574 },
   'last-in-first-out': { croupiers: 20, rounds: 835 },
+  'times-tables': { croupiers: 34, rounds: 3720 },
   'showdown': { croupiers: 43, rounds: 296 },
   'twice-shy': { croupiers: 36, rounds: 1145 },
-  'times-tables': { croupiers: 34, rounds: 3720 },
   'carry-the-one': { croupiers: 75, rounds: 2046 },
 };
 // END PAR

@@ -11,9 +11,10 @@
 //   specialCards: special cards the player may put in shoes (default [])
 //
 // BONUS (src/levels/bonus.js) is the bonus deck: floors outside the campaign,
-// each with `unlockAfter: '<campaign id>'` and its own `card` in the bonus
-// deck (A..K of spades, then of hearts, of a second deck, in BONUS order; see
-// docs/campaign.md). Bonus floors have no `chapter`.
+// each with `unlockAfter` (an id or a list: campaign floors or other bonus floors)
+// and its own `card` in the bonus deck (A..K of spades, then of hearts, of a
+// second deck, in BONUS order, which is by difficulty; see docs/campaign.md).
+// Bonus floors have no `chapter`.
 import { LEVELS as HEARTS } from './levels/hearts.js';
 import { LEVELS as DIAMONDS } from './levels/diamonds.js';
 import { LEVELS as CLUBS } from './levels/clubs.js';
