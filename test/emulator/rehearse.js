@@ -8,6 +8,9 @@
 //   firebase database:get / --instance zygoloid-stacked-deck --project zygoloid-github-io > live.json
 //   REHEARSE_EXPORT=path/to/live.json npm run rehearse
 // The export holds players' data: keep it on your own machine.
+// For tests (rehearse-test.js): REHEARSE_INSTANCE, the emulator namespace to
+// use (default zygoloid-stacked-deck), and REHEARSE_EXPECT, the dry run's
+// counts as JSON (e.g. {"same": 2, "newly broken": 1}), checked if set.
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -27,7 +30,7 @@ const { initializeApp } = fnRequire('firebase-admin/app');
 const { getDatabaseWithUrl } = fnRequire('firebase-admin/database');
 const { rescore, check } = await import('../../functions/tools/rescore.js');
 const app = initializeApp({ projectId: 'demo-stacked-deck' }, 'rehearse');
-const db = getDatabaseWithUrl('https://zygoloid-stacked-deck.firebaseio.com', app);
+const db = getDatabaseWithUrl(`https://${process.env.REHEARSE_INSTANCE || 'zygoloid-stacked-deck'}.firebaseio.com`, app);
 
 const V = RULES_VERSION;
 const from = live.config?.rulesVersion;
@@ -47,6 +50,7 @@ const report = (r) => {
 console.log('\nDry run:');
 const dry = await rescore(db, { dryRun: true });
 report(dry);
+if (process.env.REHEARSE_EXPECT) assert.deepStrictEqual(dry.counts, JSON.parse(process.env.REHEARSE_EXPECT), 'the expected changes');
 
 // 2. Set the version, and 3. re-score.
 await db.ref('config/rulesVersion').set(V);

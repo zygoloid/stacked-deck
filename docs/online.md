@@ -683,7 +683,10 @@ The emulator tests: `cd test/emulator && npm ci && npm test` (needs Java;
 `functions/game/`, starts the database and functions emulators for a demo
 project (no real resources) and runs `run.js`: the rules, `processSolution`
 and `addPoint`, `rescore.js` (a dry run, the version bump, a second run, the
-check), and a submission scored end to end by the trigger. `npm run
+check), and a submission scored end to end by the trigger; then
+`rehearse-test.js`, which runs the rehearsal below on a small export made
+from the reference solutions (one machine of each kind: unchanged, newly
+broken, unscored, still broken, invalid, and a tombstone). `npm run
 rehearse` there rehearses a rules version change on an export of the live
 database (see "Rules versions").
 
