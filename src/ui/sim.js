@@ -138,14 +138,11 @@ export class Sim {
     }
     const { missing } = run;
     const undealt = run.floor.total - run.floor.inputPos;
-    const why = run.stop === 'cycle'
-      ? `The floor is back as it was in round ${run.cycleFrom}, with nothing dealt or paid since, so nothing more ever will be`
-      : `Nothing has been dealt or paid for ${run.stall} rounds`;
     const what = [
       missing.length ? `${missing.length} ${this.listed ? 'expected payout' : 'winning hand'}${missing.length > 1 ? 's were' : ' was'} never paid` : '',
       undealt ? `${undealt} hand${undealt > 1 ? 's were' : ' was'} never dealt` : '',
     ].filter(Boolean).join(', and ');
-    this.status = { kind: 'missing', missing, msg: `${why}: ${what}.` };
+    this.status = { kind: 'missing', missing, msg: `${what[0].toUpperCase()}${what.slice(1)}.` };
     return this.status.kind;
   }
 

@@ -303,6 +303,7 @@ console.log('house cards in flight ok');
     while (!sim.finished) sim.step();
     assert.strictEqual(sim.status.kind, ok ? 'passed' : 'missing', sim.status.msg);
     if (ok) assert(sim.round === slow.rounds && sim.status.rounds === slow.rounds, `stops at the last payout: ${sim.round}`);
+    else assert.strictEqual(sim.status.msg, '1 winning hand was never paid.');
   }
   // It keeps going when the copy fails, to show the extra payout.
   const sim = new Sim(spec, [['2C']], { expected: () => [['AS']] });
