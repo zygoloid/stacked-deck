@@ -115,6 +115,13 @@ jobs:
           if [ -z "$DRY_RUN" ] && [ "$(cat "$RUNNER_TEMP/update.json")" != '{}' ]; then
             $FIREBASE database:update /best/v$V "$RUNNER_TEMP/update.json" $DB --force
           fi
+      # The scoring trigger doesn't retry, so a submission it failed on (a
+      # crash, a timeout, scoring paused) stays unscored: score any such now.
+      # Normally there are none. (A dry run only lists them.)
+      - name: Score anything left unscored
+        run: |
+          node tools/copy-game.js
+          node functions/tools/rescore.js $DRY_RUN
 
   pages:
     needs: firebase

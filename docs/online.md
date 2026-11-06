@@ -160,7 +160,7 @@ them from a checkout of `main` with your own owner credentials
 0. **Before merging: rehearse on a copy.** Export the database
    (`firebase database:get / $F > live.json`: players' data, so keep it on
    your own machine), then in `test/emulator`
-   `REHEARSE_EXPORT=$PWD/live.json npm run rehearse` (`rehearse.js`). It
+   `REHEARSE_EXPORT=../../live.json npm run rehearse` (`rehearse.js`). It
    loads the export into the database emulator and runs steps 2 and 3 there:
    it prints what changes for each solution (newly broken, rounds changed,
    …), checks that a second run finds nothing to do, that `scores`, `stats`
@@ -307,9 +307,13 @@ the work is `processSolution` and `addPoint` in `functions/solutions.js`).
 6. Write `score` last, in a transaction that writes only if the solution still
    exists (tombstones too): if the player deleted their data meanwhile,
    nothing is written back and the point is taken out again (`removePoint`).
-   A retry after a crash redoes steps 5 and 6, and the transaction makes step
-   5 a no-op if the point is already there. A crash between the transaction
-   and the increments loses those increments until the next rebuild.
+   The trigger is not retried (`retry: false`), so a submission it fails on
+   (a crash or timeout, or scoring paused) stays unscored until a sweep:
+   `rescore.js`, which the deploy workflow runs on every deploy and which
+   can be run by hand. The sweep redoes steps 5 and 6, and the transaction
+   makes step 5 a no-op if the point is already there. A crash between the
+   transaction and the increments loses those increments until the next
+   rebuild.
 
 Transactions here return `null`, never `undefined`, for a `null` current
 value: a transaction's first run often sees a cached `null` rather than the
@@ -713,9 +717,10 @@ deployed by hand except a rules version change (below) and the kill switch
   rules version change: it stops, deploying nothing), then deploys the
   functions, then the database rules: in that order, so the functions know
   every floor and feature the new rules accept. Unchanged functions are
-  skipped by the Firebase CLI. Last, it fills in and repairs each floor's
-  best known score (`tools/repair-best.js`, above); a dry run only reports
-  what it would write.
+  skipped by the Firebase CLI. Then it fills in and repairs each floor's
+  best known score (`tools/repair-best.js`, above), and last it scores any
+  submission the trigger missed (`rescore.js`, a sweep: normally there are
+  none). A dry run only reports what they would write.
 * **pages**, after that: builds `_site/` (`index.html`, `privacy.html`,
   `style.css`, `src/`; `tools/build-site.js` checks every import stays
   inside it) and publishes it. The site goes live last, after the server

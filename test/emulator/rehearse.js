@@ -5,19 +5,20 @@
 // scores, stats and best for the new version agree with the solutions, that
 // tools/repair-best.js would change nothing, and that nothing else changed.
 // From test/emulator:
-//   firebase database:get / --instance zygoloid-stacked-deck --project zygoloid-github-io > /abs/path/live.json
-//   REHEARSE_EXPORT=/abs/path/live.json npm run rehearse
+//   firebase database:get / --instance zygoloid-stacked-deck --project zygoloid-github-io > live.json
+//   REHEARSE_EXPORT=path/to/live.json npm run rehearse
 // The export holds players' data: keep it on your own machine.
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
+import { resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { RULES_VERSION } from '../../src/engine.js';
 import { bestRepairs } from '../../src/online.js';
 
 assert(process.env.FIREBASE_DATABASE_EMULATOR_HOST, 'run under firebase emulators:exec (npm run rehearse)');
-const file = process.env.REHEARSE_EXPORT;
-assert(file && isAbsolute(file), 'set REHEARSE_EXPORT to the absolute path of an export of the database');
+// A relative path is relative to where npm was run (INIT_CWD).
+assert(process.env.REHEARSE_EXPORT, 'set REHEARSE_EXPORT to the path of an export of the database');
+const file = resolve(process.env.INIT_CWD ?? process.cwd(), process.env.REHEARSE_EXPORT);
 const live = JSON.parse(readFileSync(file, 'utf8'));
 assert(live && typeof live === 'object' && live.solutions, `${file} has no solutions: export the whole database (/)`);
 
