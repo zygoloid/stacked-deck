@@ -1,6 +1,6 @@
 // The level editor: palette, board, inspector, simulation and test runs.
 import {
-  runTest, expectedPayouts, payoutHand, payoutDesk, MAX_FLOOR_CARDS, STALL_ROUNDS, DIRS,
+  runTest, expectedPayouts, payoutHand, payoutDesk, MAX_FLOOR_CARDS, DIRS,
 } from '../engine.js';
 import { h, s, handEl, cardEl, parseCards, fmtCards } from './dom.js';
 import { Board, R, center, axialRound } from './board.js';
@@ -472,7 +472,6 @@ export function openEditor(root, ctx, level) {
       r.missing?.length ? `${r.missing.length} ${listed ? 'expected payout' : 'winning hand'}${r.missing.length === 1 ? '' : 's'} never paid` : '',
       r.undealt ? `${r.undealt} hand${r.undealt === 1 ? '' : 's'} never dealt` : '',
     ].filter(Boolean).join(', and ');
-    if (r.stop === 'stall') return `nothing dealt or paid for ${STALL_ROUNDS} rounds (${why}).`;
     if (why) return `${why}.`;
     return 'failed.';
   }
