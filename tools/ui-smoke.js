@@ -1165,10 +1165,28 @@ try {
     check(await suit.locator('.tiles.fan').count() === 1 && (await suit.locator('.ch-toggle').getAttribute('aria-expanded')) === 'false' &&
       folded.join() === flat.join() && new Set(turns).size === turns.length,
     `folding a suit fans its ${flat.length} cards, each turned its own way, at their size (${flat[0]} -> ${folded[0]})`);
+    // Drawn again (as when scores arrive from the server), the hand stays
+    // still: its cards don't slide in from where the grid had them.
+    {
+      const places = await page.evaluate((id) => new Promise((res) => {
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+        const pts = new Set();
+        const t0 = performance.now();
+        const tick = () => {
+          const r = document.querySelector(`.tile[data-level="${id}"]`).getBoundingClientRect();
+          pts.add(`${Math.round(r.left)},${Math.round(r.top)}`);
+          if (performance.now() - t0 < 400) requestAnimationFrame(tick); else res([...pts]);
+        };
+        tick();
+      }), lv.id);
+      check(places.length === 1, `drawn again, a folded suit's cards stay still (${places.join(' ')})`);
+    }
     // Pointing at a card in the hand opens a break after it: the cards after
     // it move aside, it stays put, and the pointer stays on it.
     {
       const kids = suit.locator('.tiles > *');
+      await suit.evaluate((sec) => sec.scrollIntoView({ block: 'center' }));
+      await page.waitForTimeout(100);
       const before = await kids.nth(3).boundingBox();
       await page.mouse.move(before.x + 12, before.y + before.height * 0.35);
       await page.waitForTimeout(400);
