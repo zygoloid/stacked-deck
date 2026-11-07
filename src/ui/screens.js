@@ -172,15 +172,18 @@ export function levelSelect(root, ctx, focus = null) {
     h('span', { class: `ch-count${done === floors.length ? ' all' : ''}` }, `${done} / ${floors.length}`),
     h('span', { class: 'ch-chev', 'aria-hidden': 'true' }));
     // In a hand, the card under the pointer (or focused) is shown whole by a
-    // break opening after it.
+    // break opening after it; on a touch screen, see touchHand().
     const breakAt = (e) => {
+      if (e.pointerType === 'touch') return;
       const card = [...tiles.children].find((k) => k.contains(e.target));
       if (card) openBreak(tiles, card);
     };
+    const unbreak = () => openBreak(tiles, tiles._shown ?? null);
     tiles.addEventListener('pointerover', breakAt);
     tiles.addEventListener('focusin', breakAt);
-    tiles.addEventListener('pointerleave', () => openBreak(tiles, null));
-    tiles.addEventListener('focusout', (e) => { if (!tiles.contains(e.relatedTarget)) openBreak(tiles, null); });
+    tiles.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch') unbreak(); });
+    tiles.addEventListener('focusout', (e) => { if (!tiles.contains(e.relatedTarget)) unbreak(); });
+    touchHand(tiles);
     sec.append(h('h2', { 'data-chapter': c.chapter }, toggle), tiles);
     if (folded()) sec.classList.add('folded');
     return sec;
@@ -253,7 +256,87 @@ export function levelSelect(root, ctx, focus = null) {
     kids.forEach((el, j) => {
       const open = k >= 0 && j > k && lay.places[j].row === lay.places[k].row;
       el.style.setProperty('--brk', open ? `${lay.gap.toFixed(1)}px` : '0px');
+      el.classList.toggle('shown', j === k);   // in front of the row dealt over it
     });
+  }
+
+  // ---------- a hand on a touch screen ----------
+  // With no pointer to hover, a hand is read by touch. A long press opens
+  // the break at the card under the finger, and sliding the finger moves it
+  // from card to card (the page doesn't scroll meanwhile); where the finger
+  // lifts, that card stays shown whole (tiles._shown). A tap on a card the
+  // hand hides shows it the same way; a tap on the card shown opens its
+  // floor; a tap anywhere off the hands closes the break (onDown). The
+  // browser's own long-press actions are kept off the hand: its menu, text
+  // selection (style.css), link previews and dragging the link away.
+  const HOLD_MS = 300;   // as long a press as on the floor itself (editor.js)
+  function touchHand(tiles) {
+    let press = null;          // { id, x, y, card, timer, browsing }
+    let eatClick = false;      // the click after a long press, or after a tap that only showed a card
+    let lastTouch = -1e9;
+    const inFan = () => tiles.classList.contains('fan');
+    const cardOf = (el) => [...tiles.children].find((k) => k.contains(el)) ?? null;
+    const show = (card) => { tiles._shown = card; openBreak(tiles, card); };
+    const end = () => {
+      if (!press) return;
+      clearTimeout(press.timer);
+      tiles.classList.remove('browsing');
+      press = null;
+    };
+    tiles.addEventListener('pointerdown', (e) => {
+      eatClick = false;
+      if (e.pointerType !== 'touch') return;
+      lastTouch = performance.now();
+      if (!inFan() || press) return;
+      const card = cardOf(e.target);
+      if (!card) return;
+      const p = press = { id: e.pointerId, x: e.clientX, y: e.clientY, card, browsing: false };
+      p.timer = setTimeout(() => {
+        if (press !== p || !inFan()) return;
+        p.browsing = true;
+        tiles.classList.add('browsing');
+        show(cardOf(document.elementFromPoint(p.x, p.y)) ?? card);
+        navigator.vibrate?.(8);
+      }, HOLD_MS);
+    });
+    tiles.addEventListener('pointermove', (e) => {
+      if (!press || e.pointerId !== press.id) return;
+      if (press.browsing) {
+        const card = cardOf(document.elementFromPoint(e.clientX, e.clientY));
+        if (card && card !== tiles._shown) show(card);
+      } else if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) {
+        end();   // a swipe: the page scrolls
+      }
+    });
+    tiles.addEventListener('pointerup', (e) => {
+      if (!press || e.pointerId !== press.id) return;
+      const p = press;
+      end();
+      if (p.browsing) eatClick = true;
+      else if (p.card !== tiles._shown) { eatClick = true; show(p.card); }
+    });
+    tiles.addEventListener('pointercancel', (e) => { if (press && e.pointerId === press.id) end(); });
+    // Sliding along the hand mustn't scroll the page (once a long press has
+    // started; before, a swipe scrolls as anywhere else).
+    tiles.addEventListener('touchmove', (e) => { if (press?.browsing && e.cancelable) e.preventDefault(); }, { passive: false });
+    tiles.addEventListener('click', (e) => {
+      if (!eatClick) return;
+      eatClick = false;
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+    tiles.addEventListener('contextmenu', (e) => {
+      if (inFan() && (press || performance.now() - lastTouch < 1500)) e.preventDefault();
+    });
+    tiles.addEventListener('dragstart', (e) => { if (inFan()) e.preventDefault(); });
+  }
+  // Closes the break left open by touch in every hand.
+  function closeShown() {
+    for (const tiles of page.querySelectorAll('.tiles.fan')) {
+      if (!tiles._shown) continue;
+      tiles._shown = null;
+      openBreak(tiles, null);
+    }
   }
 
   // The cards drawn where they are now placed (with no transition: .still),
@@ -286,6 +369,7 @@ export function levelSelect(root, ctx, focus = null) {
     tiles.style.setProperty('--card-w', `${w}px`);
     tiles.classList.add('fan');
     tiles._hand = lay;
+    tiles._shown = null;
     if (!animate || !animated()) {
       tiles.style.height = `${lay.height}px`;
       kids.forEach((k, j) => place(k, lay.places[j]));
@@ -308,6 +392,7 @@ export function levelSelect(root, ctx, focus = null) {
     const lay = tiles._hand;
     const oldBox = tiles.getBoundingClientRect(), oldH = tiles.offsetHeight;
     tiles.classList.remove('moving', 'placed', 'fan');
+    tiles._shown = null;
     clearTimeout(moveTimers.get(tiles));
     sec.classList.remove('folded');
     sec.style.width = '';
@@ -557,7 +642,11 @@ export function levelSelect(root, ctx, focus = null) {
   }
 
   const onKey = (e) => { if (e.key === 'Escape' && !pop.classList.contains('hidden')) hidePop(); };
-  const onDown = (e) => { if (popPinned && !pop.contains(e.target) && !e.target.closest?.('.tile-chart')) hidePop(); };
+  const onDown = (e) => {
+    if (popPinned && !pop.contains(e.target) && !e.target.closest?.('.tile-chart')) hidePop();
+    // A touch off the hands (and off the chart) closes a break left open.
+    if (e.pointerType === 'touch' && !e.target.closest?.('.tiles.fan > *') && !pop.contains(e.target)) closeShown();
+  };
   let fitFrame = 0;
   const onResize = () => { hidePop(); cancelAnimationFrame(fitFrame); fitFrame = requestAnimationFrame(() => { layHands(); pinFoil(); fitBriefs(); }); };
   const onScroll = () => { if (!pop.classList.contains('hidden')) hidePop(); };
