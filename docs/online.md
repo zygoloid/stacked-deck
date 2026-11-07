@@ -215,20 +215,28 @@ below).
 
 ### Copies of the database
 
-Exports of the database (the rehearsal's `live.json` above, which is also
-the way back from a release; dumps for `tools/bonus-usage.js`) hold players'
-data, nicknames included. The privacy notice promises:
+The database's automated daily backups (Firebase console, Realtime
+Database, Backups), and exports (the rehearsal's `live.json` above, which is
+also the way back from a release; dumps for `tools/bonus-usage.js`), hold
+players' data, nicknames included. The privacy notice promises:
 
-* **Kept on your own machine, and deleted within 30 days** of being made.
+* **Backups are deleted 30 days after they are made.** Firebase doesn't
+  expire them itself: the bucket they are written to needs a lifecycle rule
+  deleting objects 30 days old, e.g. with `lifecycle.json` holding
+  `{"rule": [{"action": {"type": "Delete"}, "condition": {"age": 30}}]}`,
+  `gcloud storage buckets update gs://<backup bucket> --lifecycle-file=lifecycle.json`.
+  The bucket is in the United States, as the notice says.
+* **Exports are kept on your own machine, and deleted within 30 days** of
+  being made.
 * **Only counts are published** from an analysis: nothing that identifies a
   player, and never a machine.
 * **Deletions survive a restore.** Before restoring any part of the
-  database from an export, first take out of the export every account
+  database from a backup or an export, first take out of it every account
   deleted since it was made: the `deleteMyData` entries in the functions'
   logs (`logger.info('deleteMyData', { uid, floors })`) give their uids.
-  The logs are kept 30 days, the same as the longest an export is kept, so
-  they always cover it. (Still to build when needed: a script that does
-  this to an export, as `deleteMyData` does to the database.)
+  The logs are kept 30 days, the same as the longest a backup or export is
+  kept, so they always cover it. (Still to build when needed: a script that
+  does this to a backup or export, as `deleteMyData` does to the database.)
 
 ## Security rules
 
