@@ -252,11 +252,26 @@ export function levelSelect(root, ctx, focus = null) {
       const open = k >= 0 && j > k && lay.places[j].row === lay.places[k].row;
       el.style.setProperty('--brk', open ? `${lay.gap.toFixed(1)}px` : '0px');
     });
+    followLight(300);
+  }
+
+  // While cards move (a break opening, a suit folding), their foil follows
+  // where they are on the screen, frame by frame.
+  let followUntil = 0, followFrame = 0;
+  function followLight(ms) {
+    followUntil = Math.max(followUntil, performance.now() + ms);
+    if (followFrame) return;
+    const step = () => {
+      light();
+      followFrame = performance.now() < followUntil && page.isConnected ? requestAnimationFrame(step) : 0;
+    };
+    followFrame = requestAnimationFrame(step);
   }
   // The cards drawn where they are now placed (with no transition: .still),
   // then moving (.moving) to wherever they are placed next.
   const moveTimers = new WeakMap();
   function startMove(tiles, done) {
+    followLight(MOVE_MS + 50);
     void tiles.offsetHeight;
     tiles.classList.remove('still');
     tiles.classList.add('moving');
@@ -270,7 +285,10 @@ export function levelSelect(root, ctx, focus = null) {
   function fold(sec, tiles, animate) {
     const kids = [...tiles.children];
     const before = animate ? kids.map((k) => k.getBoundingClientRect()) : null;
-    const oldH = tiles.offsetHeight;
+    const oldH = animate ? tiles.offsetHeight : 0;
+    // Laid out without moving (on drawing the list, or a resize), the cards
+    // must not slide from wherever the browser last drew them.
+    tiles.classList.add('still');
     tiles.classList.remove('moving', 'placed');
     clearTimeout(moveTimers.get(tiles));
     const { W, w } = cardWidth();
@@ -283,10 +301,11 @@ export function levelSelect(root, ctx, focus = null) {
     if (!animate || !animated()) {
       tiles.style.height = `${lay.height}px`;
       kids.forEach((k, j) => place(k, lay.places[j]));
+      void tiles.offsetHeight;
+      tiles.classList.remove('still');
       return;
     }
     tiles.style.height = `${oldH}px`;
-    tiles.classList.add('still');
     const box = tiles.getBoundingClientRect();
     kids.forEach((k, j) => place(k, { x: before[j].left - box.left, y: before[j].top - box.top, a: 0 }));
     startMove(tiles);
@@ -573,6 +592,7 @@ export function levelSelect(root, ctx, focus = null) {
     removeEventListener('scroll', onScroll);
     cancelAnimationFrame(fitFrame);
     cancelAnimationFrame(lightFrame);
+    cancelAnimationFrame(followFrame);
     clearTimeout(popTimer);
   };
 }
