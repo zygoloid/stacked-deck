@@ -370,6 +370,16 @@ try {
     await page.mouse.move(2, 2);
     await page.waitForTimeout(300);
     check(await page.locator('.tile-pop.hidden').count() === 1, 'the chart goes away on leaving the card');
+    // Clicking one of the player's points on it opens the floor with that machine.
+    await page.hover('a.tile[data-level="opening-night"]');
+    await page.waitForSelector('.tile-pop:not(.hidden) .sc-pt', { timeout: 3000 }).catch(() => {});
+    await page.click('.tile-pop .sc-pt');
+    await page.waitForSelector('svg.board', { timeout: 5000 }).catch(() => {});
+    const toast = await page.textContent('.toast').catch(() => '');
+    check(page.url().endsWith('#/level/opening-night') && /Loaded your/.test(toast ?? ''),
+      `clicking a point on a card's chart opens the floor with that solution ("${(toast ?? '').slice(0, 50)}")`);
+    await page.goto(base);
+    await page.waitForSelector('.tile');
   }
   if (shots) await page.screenshot({ path: join(shots, '6-level-select-after.png') });
 

@@ -26,7 +26,16 @@ const ctx = {
   },
   helpOpen: () => !!helpHost.firstChild,
   nextLevel,
+  // Open a floor's editor with one of its saved solutions loaded (by its
+  // index in the save's list); the editor takes it when it opens.
+  openSolution: (level, index) => { pendingSolution = { id: level.id, index }; ctx.go(`#/level/${level.id}`); },
+  takeSolution: (id) => {
+    const p = pendingSolution;
+    pendingSolution = null;
+    return p?.id === id ? p.index : null;
+  },
 };
+let pendingSolution = null;
 
 // The online features (src/ui/cloud.js): nothing loads unless the player
 // signed in last time or signs in now. Only real floors go online (not the
