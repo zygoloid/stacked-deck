@@ -252,26 +252,39 @@ export function levelSelect(root, ctx, focus = null) {
       const open = k >= 0 && j > k && lay.places[j].row === lay.places[k].row;
       el.style.setProperty('--brk', open ? `${lay.gap.toFixed(1)}px` : '0px');
     });
-    followLight(300);
   }
 
-  // While cards move (a break opening, a suit folding), their foil follows
-  // where they are on the screen, frame by frame.
-  let followUntil = 0, followFrame = 0;
-  function followLight(ms) {
-    followUntil = Math.max(followUntil, performance.now() + ms);
-    if (followFrame) return;
-    const step = () => {
-      light();
-      followFrame = performance.now() < followUntil && page.isConnected ? requestAnimationFrame(step) : 0;
-    };
-    followFrame = requestAnimationFrame(step);
-  }
+  // While anything on the list moves (any transition of a transform: a
+  // break opening, a suit folding, whatever moves cards next), the foil
+  // follows where the cards are on the screen, frame by frame, until it
+  // stops. Watching the transitions themselves, rather than each thing that
+  // starts one, keeps the foil right whatever moves the cards. A card taken
+  // off the page mid-move (the list drawn again) never says it stopped, so
+  // those are dropped, and the loop gives up a second after the last start.
+  const moving = new Set();
+  let followFrame = 0, lastRun = 0;
+  const follow = () => {
+    for (const el of moving) if (!el.isConnected) moving.delete(el);
+    light();
+    followFrame = moving.size && page.isConnected && performance.now() - lastRun < 1000 ? requestAnimationFrame(follow) : 0;
+    if (!followFrame) moving.clear();
+  };
+  page.addEventListener('transitionrun', (e) => {
+    if (e.propertyName !== 'transform') return;
+    moving.add(e.target);
+    lastRun = performance.now();
+    if (!followFrame) followFrame = requestAnimationFrame(follow);
+  });
+  const stopped = (e) => {
+    if (e.propertyName !== 'transform' || !moving.delete(e.target) || moving.size) return;
+    light();   // where they came to rest
+  };
+  page.addEventListener('transitionend', stopped);
+  page.addEventListener('transitioncancel', stopped);
   // The cards drawn where they are now placed (with no transition: .still),
   // then moving (.moving) to wherever they are placed next.
   const moveTimers = new WeakMap();
   function startMove(tiles, done) {
-    followLight(MOVE_MS + 50);
     void tiles.offsetHeight;
     tiles.classList.remove('still');
     tiles.classList.add('moving');
