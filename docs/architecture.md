@@ -310,6 +310,13 @@ position). The same machine built elsewhere on the floor is a different
 solution. The player can delete solutions; `best` is then recomputed from
 what is left (and removed when nothing is), while `solved` stays true.
 
+The floors list keeps its own settings under a second key,
+`stacked-deck-ui` (this browser only, never synced): `{ deck: 'campaign' |
+'bonus', folded: [suit keys] }`, the deck showing and the suits folded into a
+row of small cards (keys `c<chapter>` in the campaign, `b<S|H|C|D|special|other>`
+in the bonus deck, which is grouped by its cards' suits). Coming back from a
+floor shows that floor's deck.
+
 Older saves have no `solutions`: they start with an empty list, and the
 `best` they recorded is kept as `legacyBest` and still counts towards `best`
 until the level is next re-scored.

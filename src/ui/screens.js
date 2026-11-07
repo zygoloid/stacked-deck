@@ -1,5 +1,5 @@
 // Level select, story and help screens.
-import { h, s, handEl, SPECIAL_FACE } from './dom.js';
+import { h, s, handEl, SPECIAL_FACE, SUIT_GLYPH, SUIT_NAME } from './dom.js';
 import { CROUPIERS, PORT_STYLE, chipLabel, sampleCell } from './croupiers.js';
 import { CAMPAIGN as LEVELS, BONUS, findLevel } from './catalog.js';
 import { RULES_VERSION } from '../engine.js';
@@ -12,9 +12,36 @@ import { standing } from '../online.js';
 // Tile classes for the four finale cards.
 const SPECIAL_TILE = { '?': 'f-mono', '??': 'f-colour', '$': 'f-front', '$$': 'f-back' };
 
-export function levelSelect(root, ctx) {
+// The floors list's own settings, kept in this browser only: which deck is
+// showing and which suits are folded away.
+const UI_KEY = 'stacked-deck-ui';
+function loadUi() {
+  try {
+    const u = JSON.parse(localStorage.getItem(UI_KEY) || 'null');
+    if (u && typeof u === 'object') return { deck: u.deck === 'bonus' ? 'bonus' : 'campaign', folded: Array.isArray(u.folded) ? u.folded : [] };
+  } catch { /* unreadable or blocked storage */ }
+  return { deck: 'campaign', folded: [] };
+}
+function saveUi(ui) {
+  try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* storage full or blocked */ }
+}
+
+// The bonus deck's groups, by the suit of their cards: ♠ ♥ ♣ ♦, then special
+// cards, then floors without a playing card.
+const BONUS_GROUPS = [
+  ...['S', 'H', 'C', 'D'].map((k) => ({ key: k, glyph: SUIT_GLYPH[k], name: SUIT_NAME[k], red: k === 'H' || k === 'D' })),
+  { key: 'special', glyph: '✦', name: 'Specials', red: false },
+  { key: 'other', glyph: '★', name: 'More floors', red: false },
+];
+const bonusGroupOf = (f) => (f.suit ?? (f.special ? 'special' : 'other'));
+
+// `focus`: the floor just left (its deck is shown, and main.js scrolls to it).
+export function levelSelect(root, ctx, focus = null) {
   const { save, cloud } = ctx;
   const signedIn = cloud?.state() === 'signed-in';
+  const ui = loadUi();
+  if (focus) ui.deck = BONUS.some((l) => l.id === focus) ? 'bonus' : 'campaign';
+  if (!BONUS.length) ui.deck = 'campaign';
   const chapters = new Map();
   LEVELS.forEach((lv, i) => {
     const ch = lv.chapter ?? 1;
@@ -32,6 +59,12 @@ export function levelSelect(root, ctx) {
     const sc = scoresOf(lv);
     return standing({ best: bestOf(lv), par: lv.par, everyone: sc.everyone, friends: sc.friends });
   };
+  // 'holo' (best known on both counts), 'foil' (on one) or ''.
+  const finishOf = (lv) => {
+    const sd = standingOf(lv);
+    const tops = AXES.filter((k) => sd.top[k]).length;
+    return tops === 2 ? 'holo' : tops === 1 ? 'foil' : '';
+  };
 
   const page = h('div', { class: 'select' });
   const pop = h('div', { class: 'tile-pop hidden' });
@@ -43,18 +76,16 @@ export function levelSelect(root, ctx) {
         h('h1', {}, 'Stacked Deck'),
         h('p', { class: 'tagline' }, 'An esoteric casino. Build machines of croupiers that pay out exactly the right hands.'),
         h('div', { class: 'marquee-meta' },
-          h('span', { class: 'meta-count' }, `${solvedCount} / ${LEVELS.length} floors cleared`,
-            BONUS.length ? h('span', { class: 'meta-bonus' }, ` · ${bonusSolved} / ${BONUS.length} bonus`) : null),
+          BONUS.length ? null : h('span', { class: 'meta-count' }, `${solvedCount} / ${LEVELS.length} floors cleared`),
           h('button', { class: 'btn ghost small', onclick: () => ctx.help() }, '? How to play'),
           cloud ? accountButton(cloud) : null,
           h('span', { class: 'rules-version', title: 'Version of the game rules this page is running' }, `rules v${RULES_VERSION}`)),
         solvedCount + bonusSolved ? legend() : null),
-      [...chapters].map(([ch, list]) => h('section', { class: 'chapter' },
-        chapterHeading(ch),
-        h('div', { class: 'tiles' }, list.map(([lv, i]) => tile(lv, i))))),
-      BONUS.length ? bonusDeck() : null,
+      BONUS.length ? deckTabs() : null,
+      ui.deck === 'bonus' ? bonusDeck() : campaignDeck(),
       pop].flat().filter(Boolean));
     fitBriefs();
+    light();
   };
 
   // What the marks on the cards mean.
@@ -70,15 +101,93 @@ export function levelSelect(root, ctx) {
         : h('span', { class: 'muted' }, 'Sign in to compare with everyone else'));
   }
 
+  // The two decks, as two card boxes: the campaign (red backs) and the bonus
+  // deck (blue backs), each with how much of it is cleared.
+  function deckTabs() {
+    const tab = (deck, title, sub, done, total) => h('button', {
+      class: `deck-tab ${deck}${ui.deck === deck ? ' on' : ''}`, role: 'tab', 'aria-selected': String(ui.deck === deck), 'data-deck': deck,
+      onclick: () => {
+        if (ui.deck === deck) return;
+        ui.deck = deck;
+        saveUi(ui);
+        draw();
+        const tabs = page.querySelector('.decks');
+        if (tabs && tabs.getBoundingClientRect().top < 0) tabs.scrollIntoView({ block: 'start' });
+      },
+    },
+    h('span', { class: 'deck-box', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')),
+    h('span', { class: 'deck-text' },
+      h('b', {}, title),
+      h('span', { class: 'deck-sub' }, sub),
+      h('span', { class: 'deck-count' }, `${done} / ${total} cleared`),
+      h('span', { class: 'deck-bar', 'aria-hidden': 'true' }, h('i', { style: { width: `${total ? (100 * done) / total : 0}%` } }))));
+    return h('nav', { class: 'decks', role: 'tablist', 'aria-label': 'Decks' },
+      tab('campaign', 'Campaign', 'Red deck · the story', solvedCount, LEVELS.length),
+      tab('bonus', 'Bonus deck', 'Blue deck · off the books', bonusSolved, BONUS.length));
+  }
+
+  function campaignDeck() {
+    return h('div', { class: 'deck campaign' }, [...chapters].map(([ch, list]) => {
+      const c = chapterInfo(ch);
+      return suitSection(`c${ch}`, list.map(([lv, i]) => ({ lv, i })), { ...c, chapter: ch });
+    }));
+  }
+
   // The bonus deck: extra floors outside the campaign, each opened by
   // clearing a floor (shown on its card back): a campaign floor or another
   // bonus floor.
   function bonusDeck() {
-    return h('section', { class: 'chapter bonus' },
-      h('h2', { 'data-chapter': 'bonus' }, h('span', { class: 'ch-suit bonus' }, '★'), 'Bonus deck',
-        h('span', { class: 'ch-name' }, ' · Off the books')),
+    const groups = BONUS_GROUPS.map((g) => ({ ...g, floors: BONUS.filter((lv) => bonusGroupOf(floorLabel(lv)) === g.key) }))
+      .filter((g) => g.floors.length);
+    return h('div', { class: 'deck bonus' },
       h('p', { class: 'bonus-note' }, 'Extra floors outside the campaign. Each one opens when you clear the floors named on its back (★ marks a bonus floor).'),
-      h('div', { class: 'tiles' }, BONUS.map((lv) => bonusTile(lv))));
+      groups.map((g) => suitSection(`b${g.key}`, g.floors.map((lv) => ({ lv, i: -1 })),
+        { glyph: g.glyph, suitName: g.name, red: g.red, name: '', chapter: 'bonus' }, true)));
+  }
+
+  // One suit: its heading (a button that folds it away), and its cards, or,
+  // folded, a row of small cards.
+  function suitSection(key, floors, c, bonus = false) {
+    const done = floors.filter(({ lv }) => save.levels[lv.id]?.solved).length;
+    const folded = () => ui.folded.includes(key);
+    const sec = h('section', { class: `chapter${bonus ? ' bonus' : ''}${folded() ? ' folded' : ''}`, 'data-suit': key });
+    const toggle = h('button', {
+      class: 'ch-toggle', 'aria-expanded': String(!folded()), title: 'Fold or unfold this suit',
+      onclick: () => {
+        ui.folded = folded() ? ui.folded.filter((k) => k !== key) : [...ui.folded, key];
+        saveUi(ui);
+        sec.classList.toggle('folded', folded());
+        toggle.setAttribute('aria-expanded', String(!folded()));
+        if (!folded()) { fitBriefs(); light(); }
+      },
+    },
+    h('span', { class: `ch-suit${c.red ? ' red' : ''}` }, c.glyph), c.suitName,
+    c.name ? h('span', { class: 'ch-name' }, ` · ${c.name}`) : '',
+    h('span', { class: 'ch-rule', 'aria-hidden': 'true' }),
+    h('span', { class: `ch-count${done === floors.length ? ' all' : ''}` }, `${done} / ${floors.length}`),
+    h('span', { class: 'ch-chev', 'aria-hidden': 'true' }));
+    sec.append(
+      h('h2', { 'data-chapter': c.chapter }, toggle),
+      h('div', { class: 'tiles' }, floors.map(({ lv, i }) => (bonus ? bonusTile(lv) : tile(lv, i)))),
+      h('div', { class: 'fan' }, floors.map(({ lv, i }) => miniCard(lv, i, bonus))));
+    return sec;
+  }
+
+  // A folded suit's small card: its rank, its state (locked, open, cleared,
+  // foil, holographic), and a link to it when it is open.
+  function miniCard(lv, i, bonus) {
+    const f = bonus ? floorLabel(lv) : floorLabel(i);
+    const open = bonus ? isBonusOpen(save, lv) : isUnlocked(save, i);
+    const st = save.levels[lv.id] ?? {};
+    if (!open) {
+      return h('span', { class: `mini locked${bonus ? ' bonus' : ''}`, 'data-level': lv.id, title: 'Locked' },
+        f.special ? null : h('b', {}, f.rank));
+    }
+    const finish = st.solved ? finishOf(lv) : '';
+    return h('a', {
+      class: `mini ${f.cls}${st.solved ? ' solved' : ''}${finish ? ` ${finish}` : ''}`, href: `#/level/${lv.id}/story`, 'data-level': lv.id,
+      title: `${f.text} · ${lv.title}${st.solved ? ' · cleared' : ''}`,
+    }, h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null);
   }
 
   function bonusTile(lv) {
@@ -109,11 +218,19 @@ export function levelSelect(root, ctx) {
     }
     return tile(lv, -1, f);
   }
-  function chapterHeading(ch) {
-    const c = chapterInfo(ch);
-    return h('h2', { 'data-chapter': ch },
-      h('span', { class: `ch-suit${c.red ? ' red' : ''}` }, c.glyph), c.suitName,
-      c.name ? h('span', { class: 'ch-name' }, ` · ${c.name}`) : '');
+
+  // Where the light catches a foil or holographic card: it depends on where
+  // the card is on the screen (so it moves as the page scrolls), on a tilt of
+  // the card's own (tile() sets it), and on the pointer while it is over it.
+  function light() {
+    for (const el of page.querySelectorAll('a.tile.foil, a.tile.holo')) {
+      if (el.classList.contains('lit')) continue;
+      const r = el.getBoundingClientRect();
+      if (!r.width || r.bottom < -200 || r.top > innerHeight + 200) continue;
+      const x = (r.left + r.width / 2) / innerWidth, y = (r.top + r.height / 2) / innerHeight;
+      el.style.setProperty('--lx', `${(12 + 76 * x).toFixed(1)}%`);
+      el.style.setProperty('--ly', `${(8 + 84 * y).toFixed(1)}%`);
+    }
   }
 
   function tile(lv, i, label) {
@@ -130,7 +247,7 @@ export function levelSelect(root, ctx) {
     const corner = (pos) => h('div', { class: `tile-corner ${pos}` }, h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null);
     const sd = standingOf(lv);
     const tops = AXES.filter((k) => sd.top[k]).length;
-    const finish = tops === 2 ? ' holo' : tops === 1 ? ' foil' : '';
+    const finish = st.solved ? (tops === 2 ? ' holo' : tops === 1 ? ' foil' : '') : '';
     const el = h('a', {
       class: `tile ${kind}${f.bonus ? ' bonus' : ''}${st.solved ? ' solved' : ''}${finish}`, href: `#/level/${lv.id}/story`, 'data-level': lv.id, 'data-card': f.card ?? f.text,
       title: [f.special ? `${f.name}` : `${f.bonus ? 'Bonus floor' : 'Floor'} ${f.text}`,
@@ -146,12 +263,22 @@ export function levelSelect(root, ctx) {
       lv.par ? h('span', { class: 'ts-par' }, `par ${lv.par.croupiers ?? '–'} · ${lv.par.rounds ?? '–'}`) : null),
     friendsLine(sd, st.solved));
     if (finish) {
-      // The foil's shine follows the pointer.
+      // Each card lies at a slightly different angle to the light, and
+      // shimmers at its own pace; the shine follows the pointer over it.
+      const rnd = seeded(lv.id);
+      const vars = {
+        '--tilt-x': `${(rnd() * 44 - 22).toFixed(1)}%`, '--tilt-y': `${(rnd() * 44 - 22).toFixed(1)}%`,
+        '--ang': `${(95 + rnd() * 60).toFixed(0)}deg`, '--hue': `${(rnd() * 70 - 35).toFixed(0)}deg`,
+        '--dur': `${(6 + rnd() * 6).toFixed(1)}s`, '--delay': `${(-rnd() * 12).toFixed(1)}s`,
+      };
+      for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v);
       el.addEventListener('pointermove', (e) => {
         const r = el.getBoundingClientRect();
-        el.style.setProperty('--mx', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
-        el.style.setProperty('--my', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+        el.classList.add('lit');
+        el.style.setProperty('--lx', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+        el.style.setProperty('--ly', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
       });
+      el.addEventListener('pointerleave', () => { el.classList.remove('lit'); light(); });
     }
     // The score chart, once there are scores: on hovering the card, on
     // keyboard focus, or from the chart button (for touch).
@@ -272,8 +399,13 @@ export function levelSelect(root, ctx) {
   const onKey = (e) => { if (e.key === 'Escape' && !pop.classList.contains('hidden')) hidePop(); };
   const onDown = (e) => { if (popPinned && !pop.contains(e.target) && !e.target.closest?.('.tile-chart')) hidePop(); };
   let fitFrame = 0;
-  const onResize = () => { hidePop(); cancelAnimationFrame(fitFrame); fitFrame = requestAnimationFrame(fitBriefs); };
-  const onScroll = () => { if (!pop.classList.contains('hidden')) hidePop(); };
+  let lightFrame = 0;
+  const onResize = () => { hidePop(); cancelAnimationFrame(fitFrame); fitFrame = requestAnimationFrame(() => { fitBriefs(); light(); }); };
+  const onScroll = () => {
+    if (!pop.classList.contains('hidden')) hidePop();
+    cancelAnimationFrame(lightFrame);
+    lightFrame = requestAnimationFrame(light);
+  };
   document.addEventListener('keydown', onKey);
   document.addEventListener('pointerdown', onDown);
   addEventListener('resize', onResize);
@@ -290,11 +422,23 @@ export function levelSelect(root, ctx) {
     removeEventListener('resize', onResize);
     removeEventListener('scroll', onScroll);
     cancelAnimationFrame(fitFrame);
+    cancelAnimationFrame(lightFrame);
     clearTimeout(popTimer);
   };
 }
 
 const AXES = ['croupiers', 'rounds'];
+
+// A repeatable stream of numbers in [0, 1) from a string (a floor's id), so
+// a card keeps its tilt from one visit to the next.
+function seeded(str) {
+  let x = 2166136261;
+  for (const ch of str) x = Math.imul(x ^ ch.codePointAt(0), 16777619);
+  return () => {
+    x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+    return (x >>> 0) / 4294967296;
+  };
+}
 
 // A small staircase chart, for the chart button.
 const chartIcon = () => s('svg', { viewBox: '0 0 16 16', width: 14, height: 14, 'aria-hidden': 'true' },

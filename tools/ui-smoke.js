@@ -78,6 +78,14 @@ await new Promise((res) => server.stdout.once('data', res));
 const base = `http://localhost:${port}/`;
 
 let failures = 0;
+
+// The floors list shows one deck at a time: pick `deck` ('campaign' or
+// 'bonus') if it has a tab and isn't showing.
+async function showDeck(pg, deck) {
+  await pg.waitForSelector('.deck');
+  if (await pg.locator(`.deck-tab.${deck}:not(.on)`).count()) await pg.click(`.deck-tab.${deck}`);
+  await pg.waitForSelector(`.deck.${deck}`);
+}
 const check = (cond, msg) => {
   console.log(`${cond ? 'ok  ' : 'FAIL'} ${msg}`);
   if (!cond) failures++;
@@ -1145,14 +1153,30 @@ try {
       return [r.top, r.bottom, innerHeight];
     }, lv.id);
     check(top >= 0 && bottom <= vh, `back on the floors list, ${lv.id}'s tile is in view (${top.toFixed(0)}–${bottom.toFixed(0)} of ${vh})`);
+    // Folding its suit: a row of small cards instead, one per floor, still
+    // folded after a reload; back from the floor, its small card is in view.
+    const suit = page.locator(`.chapter:has(.tile[data-level="${lv.id}"])`);
+    const n = await suit.locator('.tiles > *').count();
+    await suit.locator('.ch-toggle').click();
+    check(await suit.locator('.tiles').isHidden() && await suit.locator('.fan > .mini').count() === n &&
+      (await suit.locator('.ch-toggle').getAttribute('aria-expanded')) === 'false', `folding a suit shows its ${n} floors as small cards`);
+    await page.goto(`${base}?unlockall#/level/${lv.id}`);
+    await page.waitForSelector('svg.board');
+    await page.click('.topbar .btn.ghost');
+    await page.waitForSelector('.tile');
+    const mini = page.locator(`.mini[data-level="${lv.id}"]`);
+    const box = await mini.boundingBox();
+    check(await mini.isVisible() && box && box.y >= 0 && box.y + box.height <= 860, `it stays folded; back from ${lv.id}, its small card is in view`);
+    await page.locator(`.chapter:has(.mini[data-level="${lv.id}"]) .ch-toggle`).click();
+    check(await page.locator(`a.tile[data-level="${lv.id}"]`).isVisible(), 'unfolding it shows the cards again');
   }
 
 
   // Floor numbering: every floor is labelled by its playing card.
   {
     await page.goto(`${base}?unlockall`);
-    await page.waitForSelector('.tile');
-    const tiles = await page.$$eval('.chapter:not(.bonus) a.tile', (els) => els.map((e) => ({
+    await showDeck(page, 'campaign');
+    const tiles = await page.$$eval('.deck.campaign a.tile', (els) => els.map((e) => ({
       id: e.dataset.level, card: e.dataset.card, corner: e.querySelector('.tile-corner.tl').textContent,
     })));
     const bad = tiles.filter((t) => {
@@ -1167,7 +1191,7 @@ try {
     if (shots) await page.screenshot({ path: join(shots, '8-level-select-cards.png'), fullPage: true });
     await page.goto(base);
     await page.waitForSelector('.tile');
-    const locked = await page.$$eval('.chapter:not(.bonus) .tile.locked .tile-no', (els) => els.map((e) => e.textContent));
+    const locked = await page.$$eval('.deck.campaign .tile.locked .tile-no', (els) => els.map((e) => e.textContent));
     const want = LEVELS.map((_, i) => floorLabel(i)).filter((f) => !f.special);
     check(locked.length > 0 && locked.every((t) => want.some((f) => f.text === t)), `locked tiles are card backs labelled by card (${locked.slice(0, 3).join(' ')} …)`);
     const fin = LEVELS.findIndex((_, i) => floorLabel(i).special);
@@ -1370,21 +1394,21 @@ try {
     await page.goto(T);
     await setSave({});
     await page.reload();
-    await page.waitForSelector('.chapter.bonus');
+    await showDeck(page, 'bonus');
     check(await page.locator('.tile.locked.bonus[data-bonus="test-pay-twice"]').count() === 1 &&
       await page.locator('a.tile[data-level="test-pay-twice"]').count() === 0, 'bonus floor is locked before its unlockAfter floor is solved');
     const lockText = await page.textContent('.tile.locked.bonus[data-bonus="test-pay-twice"]');
     check(lockText.includes(`After ${floorLabel(0).text}`), `locked bonus tile names the floor that opens it ("${lockText.trim()}")`);
-    check((await page.textContent('.marquee-meta')).includes(`0 / ${nBonus} bonus`), `header counts bonus floors (0 / ${nBonus})`);
+    check((await page.textContent('.deck-tab.bonus .deck-count')) === `0 / ${nBonus} cleared`, `the bonus deck's tab counts its floors (0 / ${nBonus})`);
     await page.goto(`${T}#/level/test-pay-twice`);
     await page.waitForSelector('.tile');
     check(await page.locator('svg.board').count() === 0, 'a locked bonus floor cannot be opened by URL');
-    if (shots) await page.locator('.chapter.bonus').screenshot({ path: join(shots, '12-bonus-deck-locked.png') });
+    if (shots) await page.locator('.deck.bonus').screenshot({ path: join(shots, '12-bonus-deck-locked.png') });
 
     await setSave({ 'opening-night': { solved: true } });
     await page.goto(T);
     await page.reload();
-    await page.waitForSelector('.chapter.bonus');
+    await showDeck(page, 'bonus');
     check(await page.locator('.chapter.bonus a.tile.bonus[data-level="test-pay-twice"]').count() === 1 &&
       await page.locator('.chapter.bonus a.tile.bonus[data-level="test-sorted"]').count() === 1 &&
       await page.locator('.tile.locked.bonus[data-bonus="test-locked"]').count() === 1, 'solving opening-night opens its bonus floors only');
@@ -1400,22 +1424,28 @@ try {
       await page.locator(`${keys} .req.done`).count() === 0, 'a bonus floor needing two floors names both, the bonus one starred');
     await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true } });
     await page.reload();
-    await page.waitForSelector('.chapter.bonus');
+    await showDeck(page, 'bonus');
     check(await page.locator(keys).count() === 1 && await page.locator(`${keys} .req.done:not(.bonus)`).count() === 1 &&
       await page.locator(`${keys} .req.bonus.done`).count() === 0, 'it stays locked with one of the two cleared, which is struck through');
     await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true }, 'test-pay-twice': { solved: true } });
     await page.reload();
-    await page.waitForSelector('.chapter.bonus');
+    await showDeck(page, 'bonus');
     check(await page.locator('a.tile[data-level="test-two-keys"]').count() === 1, 'and opens once both are cleared');
     await setSave({ 'opening-night': { solved: true } });
     await page.reload();
-    await page.waitForSelector('.chapter.bonus');
+    await showDeck(page, 'bonus');
 
     if (shots) await page.screenshot({ path: join(shots, '12b-bonus-deck.png'), fullPage: true });
 
     await page.click('a.tile[data-level="test-pay-twice"]');
     await page.waitForSelector('.story-card');
     check(/Bonus deck/.test(await page.textContent('.story-head')) && (await page.textContent('.story-head .floor-badge')) === 'A♠', 'story screen shows the bonus floor');
+    // Back to the floors from a bonus floor: the bonus deck, whichever deck was showing last.
+    await page.evaluate(() => localStorage.setItem('stacked-deck-ui', JSON.stringify({ deck: 'campaign', folded: [] })));
+    await page.click('.story-actions .btn.ghost');
+    await page.waitForSelector('.deck');
+    check(await page.locator('.deck.bonus a.tile[data-level="test-pay-twice"]').isVisible() && await page.locator('.deck-tab.bonus.on').count() === 1,
+      'back from a bonus floor, the floors list shows the bonus deck');
     await setSave({ 'opening-night': { solved: true }, 'test-pay-twice': { cells: SOLUTIONS['test-pay-twice'] } });
     await page.goto(`${T}#/level/test-pay-twice`);
     await page.reload();
@@ -1459,10 +1489,11 @@ try {
     check(ls.solved && ls.solutions?.length === 1, 'ordered floor clears with the sorting machine');
     check(await page.locator('.modal-actions .btn.gold').count() === 0, 'no Next when no other bonus floor is open');
     await page.goto(T);
-    await page.waitForSelector('.chapter.bonus');
-    check((await page.textContent('.marquee-meta')).includes(`1 / ${LEVELS.length} floors cleared · 2 / ${nBonus} bonus`), 'header: 1 campaign floor and 2 bonus floors cleared');
+    await showDeck(page, 'bonus');
+    check((await page.textContent('.deck-tab.campaign .deck-count')) === `1 / ${LEVELS.length} cleared` &&
+      (await page.textContent('.deck-tab.bonus .deck-count')) === `2 / ${nBonus} cleared`, 'deck tabs: 1 campaign floor and 2 bonus floors cleared');
     check(await page.locator('.chapter.bonus a.tile.solved').count() === 2, 'bonus tiles marked solved');
-    if (shots) await page.locator('.chapter.bonus').screenshot({ path: join(shots, '12c-bonus-deck-solved.png') });
+    if (shots) await page.locator('.deck.bonus').screenshot({ path: join(shots, '12c-bonus-deck-solved.png') });
 
     // Check deals: a machine that only fits the published tests (they deal
     // only hearts) passes them and fails a check deal, which is loaded and
