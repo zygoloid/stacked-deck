@@ -1084,3 +1084,12 @@ svg.board { -webkit-touch-callout: none; }
 .doc ul { padding-left: 20px; }
 .doc li { margin: 6px 0; }
 .doc a, .dlg-link, .help a { color: var(--gold-2); }
+
+/* Progress can't be saved in this browser (main.js): above the page and its
+   panels, below dialogs, until dismissed. */
+.save-notice {
+  position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 45; width: max-content; max-width: min(640px, calc(100vw - 16px));
+  display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.4;
+  background: rgba(40, 10, 14, 0.96); color: #ffd6d6; border: 1px solid rgba(255, 120, 120, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.save-notice .btn { flex: none; }
