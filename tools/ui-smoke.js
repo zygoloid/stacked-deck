@@ -1165,6 +1165,20 @@ try {
     check(await suit.locator('.tiles.fan').count() === 1 && (await suit.locator('.ch-toggle').getAttribute('aria-expanded')) === 'false' &&
       folded.join() === flat.join() && new Set(turns).size === turns.length,
     `folding a suit fans its ${flat.length} cards, each turned its own way, at their size (${flat[0]} -> ${folded[0]})`);
+    // Pointing at a card in the hand opens a break after it: the cards after
+    // it move aside, it stays put, and the pointer stays on it.
+    {
+      const kids = suit.locator('.tiles > *');
+      const before = await kids.nth(3).boundingBox();
+      await page.mouse.move(before.x + 12, before.y + before.height * 0.35);
+      await page.waitForTimeout(400);
+      const after = await kids.nth(3).boundingBox();
+      const moved = await kids.evaluateAll((els) => els.map((e) => parseFloat(e.style.getPropertyValue('--brk')) || 0));
+      const hovered = await suit.evaluate((sec) => [...sec.querySelector('.tiles').children].findIndex((e) => e.matches(':hover')));
+      check(hovered === 3 && Math.abs(after.x - before.x) < 1 && moved.slice(0, 4).every((d) => d === 0) && moved.slice(4).every((d) => d > 0),
+        `pointing at a card in a hand opens a break after it, leaving it under the pointer (hovered ${hovered})`);
+      await page.mouse.move(2, 2);
+    }
     await page.goto(`${base}?unlockall#/level/${lv.id}`);
     await page.waitForSelector('svg.board');
     await page.click('.topbar .btn.ghost');
