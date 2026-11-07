@@ -186,26 +186,35 @@ export class Board {
   isBuildable(at) { return this.floorKeys.has(hexKey(at)); }
 
   // state: { cells, selected (key), activePort, hover {at, side, edge}, live (Floor), alert (key), ghost {at, tool},
-  //   anim {from, t} }
+  //   anim {from, t, back} }
   // anim moves the live cards from where they were drawn before the last step
   // (`from`: this.positions then) toward where they are now, t from 0 to 1.
+  // After a step back, `back` is what Sim.back returned ({ copiedFrom }: the
+  // copies Duplicate made in the round undone), and live may be none (back
+  // at the start).
   render(state) {
     const { cells, live } = state;
     this.paidNow = state.paidNow;
     this.paidNowDesk = state.paidNowDesk;
     this.paidWrong = state.paidWrong;
-    this.anim = live ? state.anim : null;
-    this.copiedFrom = live?.copiedFrom;
+    this.anim = live || state.anim?.back ? state.anim : null;
+    // New copies come from the card they copy (not when going back: the
+    // cards that are there now were there before the round undone).
+    this.copiedFrom = this.anim?.back ? null : live?.copiedFrom;
     if (this.anim && !this.anim.vanished) {
       // Cards that left the floor in the step without reaching the chip desk
-      // (dropped, or paid but not shown): they fade out where they were.
+      // (dropped, or paid but not shown), or that a step back unmade: they
+      // fade out where they were, except that copies unmade go back into
+      // the cards they copy.
       const present = new Set(state.paidNow);
-      for (const lc of live.cells.values()) for (const hand of liveHands(lc)) hand.forEach((x) => present.add(x));
-      this.anim.vanished = [...this.anim.from].filter(([x]) => !present.has(x)).map(([, p]) => p);
+      if (live) for (const lc of live.cells.values()) for (const hand of liveHands(lc)) hand.forEach((x) => present.add(x));
+      this.anim.vanished = [...this.anim.from].filter(([x]) => !present.has(x));
     }
     // Card object -> where it is drawn (for the next step's animation), and
-    // what a collapsed stack or label holds ([data-peek] indexes this).
+    // what a collapsed stack or label holds ([data-peek] indexes this);
+    // card object -> where it is going (where the animation ends).
     this.positions = new Map();
+    this.landing = new Map();
     this.peeks = [];
     const svg = this.svg;
     svg.replaceChildren();
@@ -237,9 +246,14 @@ export class Board {
         if (lc) gCards.append(this.liveSvg(lc, t, [x, y]));
       }
     }
-    // Dropped cards fade out where they were.
+    // Dropped cards fade out where they were; unmade copies slide into their originals.
     if (this.anim && this.anim.t < 1) {
-      for (const p of this.anim.vanished) gCards.append(cardSvg(p.c, p.x, p.house, p.y, 1 - ease(this.anim.t)));
+      const e = ease(this.anim.t), copied = this.anim.back?.copiedFrom;
+      for (const [card, p] of this.anim.vanished) {
+        const to = copied && this.landing.get(copied.get(card));
+        if (to) gCards.append(cardSvg(p.c, p.x + (to.x - p.x) * e, p.house, p.y + (to.y - p.y) * e));
+        else gCards.append(cardSvg(p.c, p.x, p.house, p.y, 1 - e));
+      }
     }
 
     // The empty hex the croupier picker is open for, and the edge its first port will point at.
@@ -477,7 +491,10 @@ export class Board {
       const ax = ox + x0 + cx, ay = oy + y0;
       const [dx, dy, op] = this.motion(hand[i], ax, ay);
       for (let j = i; j < i + k; j++) {
-        if (typeof hand[j] === 'object') this.positions.set(hand[j], { x: ax + dx, y: ay + dy, c: cards[j], house: house[j] });
+        if (typeof hand[j] === 'object') {
+          this.positions.set(hand[j], { x: ax + dx, y: ay + dy, c: cards[j], house: house[j] });
+          this.landing.set(hand[j], { x: ax, y: ay });
+        }
       }
       return [dx, dy, op];
     };
