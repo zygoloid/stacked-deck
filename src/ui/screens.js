@@ -85,8 +85,8 @@ export function levelSelect(root, ctx, focus = null) {
       ui.deck === 'bonus' ? bonusDeck() : campaignDeck(),
       pop].flat().filter(Boolean));
     layHands();
+    pinFoil();
     fitBriefs();
-    light();
   };
 
   // What the marks on the cards mean.
@@ -254,33 +254,6 @@ export function levelSelect(root, ctx, focus = null) {
     });
   }
 
-  // While anything on the list moves (any transition of a transform: a
-  // break opening, a suit folding, whatever moves cards next), the foil
-  // follows where the cards are on the screen, frame by frame, until it
-  // stops. Watching the transitions themselves, rather than each thing that
-  // starts one, keeps the foil right whatever moves the cards. A card taken
-  // off the page mid-move (the list drawn again) never says it stopped, so
-  // those are dropped, and the loop gives up a second after the last start.
-  const moving = new Set();
-  let followFrame = 0, lastRun = 0;
-  const follow = () => {
-    for (const el of moving) if (!el.isConnected) moving.delete(el);
-    light();
-    followFrame = moving.size && page.isConnected && performance.now() - lastRun < 1000 ? requestAnimationFrame(follow) : 0;
-    if (!followFrame) moving.clear();
-  };
-  page.addEventListener('transitionrun', (e) => {
-    if (e.propertyName !== 'transform') return;
-    moving.add(e.target);
-    lastRun = performance.now();
-    if (!followFrame) followFrame = requestAnimationFrame(follow);
-  });
-  const stopped = (e) => {
-    if (e.propertyName !== 'transform' || !moving.delete(e.target) || moving.size) return;
-    light();   // where they came to rest
-  };
-  page.addEventListener('transitionend', stopped);
-  page.addEventListener('transitioncancel', stopped);
   // The cards drawn where they are now placed (with no transition: .still),
   // then moving (.moving) to wherever they are placed next.
   const moveTimers = new WeakMap();
@@ -314,6 +287,7 @@ export function levelSelect(root, ctx, focus = null) {
     if (!animate || !animated()) {
       tiles.style.height = `${lay.height}px`;
       kids.forEach((k, j) => place(k, lay.places[j]));
+      pinFoil(sec);
       void tiles.offsetHeight;
       tiles.classList.remove('still');
       return;
@@ -324,6 +298,7 @@ export function levelSelect(root, ctx, focus = null) {
     startMove(tiles);
     kids.forEach((k, j) => place(k, lay.places[j]));
     tiles.style.height = `${lay.height}px`;
+    pinFoil(sec);
   }
 
   function unfold(sec, tiles) {
@@ -336,8 +311,8 @@ export function levelSelect(root, ctx, focus = null) {
     sec.style.width = '';
     tiles.style.height = '';
     kids.forEach(unplace);
+    pinFoil(sec);
     fitBriefs();
-    light();
     if (!lay || !animated()) return;
     const newH = tiles.offsetHeight;
     const after = kids.map((k) => k.getBoundingClientRect());
@@ -386,33 +361,26 @@ export function levelSelect(root, ctx, focus = null) {
     return tile(lv, -1, f);
   }
 
-  // Where the light catches a foil or holographic card (style.css): its
-  // piece of the screen-sized sheen is set by where the card is on the
-  // screen, and its glint by a light above the screen (or the pointer,
-  // while it is over the card). Each change repaints the card, so it is
-  // only written when it moves by a pixel or more.
-  const LIGHT = [0.3, -0.1];   // the light, as a fraction of the screen
-  // The card's top left corner as it lies unturned (in a hand it is turned
-  // about its centre), and the values for it.
-  const shineOf = (el, lx, ly) => {
-    const r = el.getBoundingClientRect();
-    const left = r.left + r.width / 2 - el.offsetWidth / 2, top = r.top + r.height / 2 - el.offsetHeight / 2;
-    return { r, v: [-left, -top, lx - left, ly - top].map((n) => `${Math.round(n)}px`) };
-  };
-  const shine = (el, v) => {
-    const key = v.join();
-    if (el._shine === key) return;
-    el._shine = key;
-    ['--sx', '--sy', '--lx', '--ly'].forEach((k, j) => el.style.setProperty(k, v[j]));
-  };
-  function light() {
-    // Everything is measured first, then written (so as not to lay the page
-    // out again for each card).
-    const lx = LIGHT[0] * innerWidth, ly = LIGHT[1] * innerHeight;
-    const todo = [...page.querySelectorAll('a.tile.foil:not(.lit), a.tile.holo:not(.lit)')]
-      .map((el) => ({ el, ...shineOf(el, lx, ly) }))
-      .filter(({ r }) => r.width && r.bottom > -200 && r.top < innerHeight + 200);
-    for (const { el, v } of todo) shine(el, v);
+  // Where the light catches a foil or holographic card (style.css). The
+  // sheen is one large picture under each suit, and each card shows the
+  // piece under the place it rests in its suit, in the grid or the hand:
+  // --px, --py on the card's slot, set here when the suit is laid out (a
+  // card moved aside for a break adds its --brk, in the CSS). So the cards
+  // of a hand show neighbouring pieces, and nothing has to be worked out or
+  // drawn again as the page scrolls or the cards move. Each suit starts at
+  // its own place in the picture.
+  function pinFoil(sec) {
+    if (!sec) { page.querySelectorAll('.chapter').forEach(pinFoil); return; }
+    const tiles = sec.querySelector('.tiles');
+    const lay = tiles.classList.contains('fan') ? tiles._hand : null;
+    const shift = [...(sec.dataset.suit ?? '')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 997, 7);
+    [...tiles.children].forEach((k, j) => {
+      // offsetLeft/Top leave out transforms: where the card rests in the grid.
+      const x = lay ? lay.places[j].x : k.offsetLeft - tiles.offsetLeft;
+      const y = lay ? lay.places[j].y : k.offsetTop - tiles.offsetTop;
+      k.style.setProperty('--px', `${Math.round(x + shift)}px`);
+      k.style.setProperty('--py', `${Math.round(y + shift * 0.6)}px`);
+    });
   }
 
   function tile(lv, i, label) {
@@ -448,12 +416,15 @@ export function levelSelect(root, ctx, focus = null) {
       lv.par ? h('span', { class: 'ts-par' }, `par ${lv.par.croupiers ?? '–'} · ${lv.par.rounds ?? '–'}`) : null),
     friendsLine(sd, st.solved));
     if (finish) {
-      // The glint follows the pointer over the card.
+      // A glint follows the pointer over the card (measured from the card's
+      // top left corner as it lies unturned, near enough in a hand).
       el.addEventListener('pointermove', (e) => {
+        const r = el.getBoundingClientRect();
         el.classList.add('lit');
-        shine(el, shineOf(el, e.clientX, e.clientY).v);
+        el.style.setProperty('--lx', `${Math.round(e.clientX - (r.left + r.width / 2 - el.offsetWidth / 2))}px`);
+        el.style.setProperty('--ly', `${Math.round(e.clientY - (r.top + r.height / 2 - el.offsetHeight / 2))}px`);
       });
-      el.addEventListener('pointerleave', () => { el.classList.remove('lit'); light(); });
+      el.addEventListener('pointerleave', () => el.classList.remove('lit'));
     }
     // The score chart, once there are scores: on hovering the card, on
     // keyboard focus, or from the chart button (for touch).
@@ -581,13 +552,8 @@ export function levelSelect(root, ctx, focus = null) {
   const onKey = (e) => { if (e.key === 'Escape' && !pop.classList.contains('hidden')) hidePop(); };
   const onDown = (e) => { if (popPinned && !pop.contains(e.target) && !e.target.closest?.('.tile-chart')) hidePop(); };
   let fitFrame = 0;
-  let lightFrame = 0;
-  const onResize = () => { hidePop(); cancelAnimationFrame(fitFrame); fitFrame = requestAnimationFrame(() => { layHands(); fitBriefs(); light(); }); };
-  const onScroll = () => {
-    if (!pop.classList.contains('hidden')) hidePop();
-    cancelAnimationFrame(lightFrame);
-    lightFrame = requestAnimationFrame(light);
-  };
+  const onResize = () => { hidePop(); cancelAnimationFrame(fitFrame); fitFrame = requestAnimationFrame(() => { layHands(); pinFoil(); fitBriefs(); }); };
+  const onScroll = () => { if (!pop.classList.contains('hidden')) hidePop(); };
   document.addEventListener('keydown', onKey);
   document.addEventListener('pointerdown', onDown);
   addEventListener('resize', onResize);
@@ -604,8 +570,6 @@ export function levelSelect(root, ctx, focus = null) {
     removeEventListener('resize', onResize);
     removeEventListener('scroll', onScroll);
     cancelAnimationFrame(fitFrame);
-    cancelAnimationFrame(lightFrame);
-    cancelAnimationFrame(followFrame);
     clearTimeout(popTimer);
   };
 }

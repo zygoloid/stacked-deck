@@ -182,6 +182,10 @@ kbd {
 .tiles.fan > *, .tiles.placed > * {
   transform: translate(calc(var(--x, 0px) + var(--brk, 0px)), var(--y, 0px)) rotate(var(--a, 0rad));
 }
+/* Cards in a hand, or moving, are each a layer of their own, so moving one
+   (a break, folding) doesn't draw it again: a holographic card is slow to
+   draw. */
+.tiles.fan > *, .tiles.placed > *, .tiles.moving > * { will-change: transform; }
 .tiles.fan { display: block; position: relative; }
 .tiles.fan > * { position: absolute; left: 0; top: 0; width: var(--card-w); transition: transform 0.22s ease-out; }
 .tiles.fan > :hover, .tiles.fan > :focus-within { z-index: 30; }
@@ -335,31 +339,38 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
   letter-spacing: 0.14em; opacity: 0.4; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), inset 0 0 0 2.5px rgba(31, 122, 69, 0.55);
 }
 /* the best known score on one count: gold foil; on both: holographic. The
-   sheen and the rainbow are one picture the size of the screen, fixed to it,
-   that every foil card shows its own piece of (--sx, --sy: minus the card's
-   place on the screen, set in screens.js): cards side by side, as in a
-   hand, show neighbouring pieces, and the colours move across the cards as
-   the page scrolls. The glint (--lx, --ly) is a light above the screen, or
-   the pointer over the card. Nothing here animates by itself: a running
-   animation of these would repaint every card's foil on every frame. */
-.tile-foil { position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none; }
-.tile.foil, .tile.holo { --lx: 30%; --ly: 10%; --sx: 0px; --sy: 0px; }
+   sheen and the rainbow are one large picture under each suit, and each
+   card shows the piece under the place it rests in the suit (--px, --py,
+   set in screens.js, plus --brk for a card moved aside in a hand): cards
+   side by side, as in a hand, show neighbouring pieces. Nothing here moves
+   with scrolling or animates by itself (either would draw every foil card
+   again on every frame), and a moving card carries its piece with it. A
+   glint follows the pointer over the card (.lit; --lx, --ly). */
+.tile-foil {
+  position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none;
+  --bx: calc(-1 * (var(--px, 0px) + var(--brk, 0px)));
+  --by: calc(-1 * var(--py, 0px));
+}
+.tile.lit .tile-foil::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(ellipse 70% 50% at var(--lx, 50%) var(--ly, 30%), rgba(255, 255, 255, 0.8), transparent);
+}
 .tile.foil:not(.special) { --paper: #fffaf0; background: linear-gradient(150deg, #fffaf0, #f7e7b4 30%, #fffaf0 50%, #f1dc9c 76%, #fff8e6); }
 .tile.foil .tile-foil {
   box-shadow: inset 0 0 0 2.5px #c9a227, inset 0 0 0 4px rgba(255, 250, 225, 0.8), inset 0 0 0 5px rgba(160, 120, 20, 0.45);
   background:
-    radial-gradient(ellipse 75% 55% at var(--lx) var(--ly), rgba(255, 255, 255, 0.75), transparent),
-    linear-gradient(115deg, transparent 18%, rgba(255, 255, 255, 0.6) 30%, rgba(255, 236, 160, 0.3) 34%, transparent 46%,
-      transparent 62%, rgba(255, 255, 255, 0.55) 72%, rgba(255, 236, 160, 0.3) 76%, transparent 86%) var(--sx) var(--sy) / 100vw 100vh;
+    repeating-linear-gradient(115deg, transparent 0 140px, rgba(255, 255, 255, 0.6) 230px, rgba(255, 236, 160, 0.3) 260px, transparent 340px 520px)
+      var(--bx) var(--by) / 3000px 3000px;
   mix-blend-mode: soft-light;
 }
 .tile.holo:not(.special) { --paper: #fbf9ff; background: linear-gradient(160deg, #fbf8ff, #eef6ff 50%, #fff5fb); }
 .tile.holo .tile-foil {
   box-shadow: inset 0 0 0 2.5px rgba(150, 120, 210, 0.7), inset 0 0 0 4px rgba(255, 255, 255, 0.8);
   background:
-    radial-gradient(ellipse 70% 50% at var(--lx) var(--ly), rgba(255, 255, 255, 0.85), transparent),
     radial-gradient(rgba(255, 255, 255, 0.9) 0.8px, transparent 1.4px) 0 0 / 7px 7px,
-    repeating-linear-gradient(115deg, #ff8fb1 0%, #ffd27f 4%, #b6f28d 8%, #7fe3ff 12%, #b49bff 16%, #ff8fb1 20%) var(--sx) var(--sy) / 100vw 100vh;
+    radial-gradient(ellipse 34% 30% at 50% 50%, rgba(255, 255, 255, 0.8), transparent) var(--bx) var(--by) / 820px 620px,
+    repeating-linear-gradient(115deg, #ff8fb1 0, #ffd27f 70px, #b6f28d 140px, #7fe3ff 210px, #b49bff 280px, #ff8fb1 350px)
+      var(--bx) var(--by) / 3000px 3000px;
   mix-blend-mode: multiply; opacity: 0.42;
 }
 .tile.holo.lit .tile-foil { opacity: 0.55; }
