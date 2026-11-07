@@ -256,7 +256,10 @@ export function levelSelect(root, ctx, focus = null) {
     kids.forEach((el, j) => {
       const open = k >= 0 && j > k && lay.places[j].row === lay.places[k].row;
       el.style.setProperty('--brk', open ? `${lay.gap.toFixed(1)}px` : '0px');
-      el.classList.toggle('shown', j === k);   // in front of the row dealt over it
+      // The card's whole row comes in front of any other row dealt over it,
+      // and the card in front of its row.
+      el.classList.toggle('shown', j === k);
+      el.classList.toggle('row-up', k >= 0 && lay.places[j].row === lay.places[k].row);
     });
   }
 
