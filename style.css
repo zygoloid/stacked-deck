@@ -39,8 +39,19 @@ kbd {
 .small { font-size: 12px; }
 .hidden { display: none !important; }
 
-/* felt texture used on screens */
-.felt-bg, .select, .story, .board-wrap {
+/* felt texture used on screens. On the floors list it is a layer of its
+   own, fixed behind the page (one screenful, drawn once): painted on the
+   page itself, it had to be drawn again wherever a card moved or the page
+   scrolled, which is slow for the fine texture. */
+.select { position: relative; z-index: 0; }
+.select::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; will-change: transform;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.07), transparent 60%),
+    repeating-radial-gradient(circle at 30% 30%, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, var(--felt) 0%, var(--felt-2) 55%, var(--felt-3) 100%);
+}
+.felt-bg, .story, .board-wrap {
   background:
     radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.07), transparent 60%),
     repeating-radial-gradient(circle at 30% 30%, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px),
@@ -174,16 +185,18 @@ kbd {
 .tiles.fan a.tile:hover, .tiles.fan .tile-slot:hover a.tile { transform: none; }
 .tiles.moving { transition: height 0.55s cubic-bezier(0.45, 0, 0.2, 1); }
 .tiles.moving > * { transition: transform 0.55s cubic-bezier(0.45, 0, 0.2, 1); pointer-events: none; }
-/* in a hand: card backs are opaque, and a cleared card has a tick under its
-   corner index, where the hand shows it */
+.tiles.still > * { transition: none; }
+/* in a hand, card backs are opaque */
 .tiles.fan .tile-back { opacity: 1; }
-.tile-tick { display: none; }
-.tiles.fan .tile-tick {
-  position: absolute; z-index: 2; top: 25cqi; left: 5.2cqi; width: max(13px, 8cqi); height: max(13px, 8cqi); border-radius: 50%;
-  display: grid; place-items: center; font: 800 max(8px, 5cqi)/1 var(--sans); color: #fff; background: #1f7a45;
+/* a floor not cleared yet: a ring under the corner index (where a hand
+   shows it), half filled once started */
+.tile-mark {
+  position: absolute; z-index: 2; top: 24cqi; left: 6.6cqi; width: max(10px, 6cqi); height: max(10px, 6cqi); border-radius: 50%;
+  box-shadow: inset 0 0 0 max(1.5px, 0.9cqi) #b8861b;
 }
-.tile.special .tile-tick { left: 4cqi; }
-.tiles.fan > :last-child .tile-tick, .tiles.fan > :hover .tile-tick { display: none; }
+.tile-mark.started { background: linear-gradient(90deg, #b8861b 50%, transparent 50%); }
+.tile.special .tile-mark { left: 5.4cqi; top: 22cqi; }
+.tile.bonus:not(.special) .tile-mark { left: 7.6cqi; top: 25cqi; }
 
 /* the two decks: card boxes to pick from */
 .decks { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; max-width: 1320px; margin: 0 auto 30px; }
@@ -255,7 +268,7 @@ a.tile:hover, .tile-slot:hover a.tile { --lift: 0 14px 28px rgba(0, 0, 0, 0.45),
 }
 .tile.red .tile-pip { color: var(--red); opacity: 0.09; }
 .tile.plain .tile-pip { display: none; }
-a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil):not(.tile-tick) { position: relative; }
+a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil):not(.tile-mark) { position: relative; }
 /* the finale's special-card floors */
 .tile.special { padding-left: 20cqi; }
 .tile.special .tile-corner { font-family: var(--sans); font-weight: 800; font-size: max(12px, 7.8cqi); }
@@ -317,17 +330,17 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil):not(.tile-tick) { pos
   letter-spacing: 0.14em; opacity: 0.4; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), inset 0 0 0 2.5px rgba(31, 122, 69, 0.55);
 }
 /* the best known score on one count: gold foil; on both: holographic. Each
-   card has its own tilt (--tilt-x, --tilt-y), angle (--ang), tint (--hue)
-   and pace (--dur, --delay), set in screens.js; where the light falls
-   (--lx, --ly) follows the card's place on the screen, and the pointer. */
+   card has its own tilt (--tilt-x, --tilt-y), angle (--ang) and tint (--hue),
+   set in screens.js; where the light falls (--lx, --ly, and --glint, -1 to 1
+   across the screen) follows the card's place on the screen, and the
+   pointer. Nothing here animates by itself: a running animation of these
+   would repaint every card's foil on every frame. */
 .tile-foil {
   position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none;
-  --sx: clamp(0%, var(--lx) + var(--tilt-x) + var(--drift) * 12%, 100%);
-  --sy: clamp(0%, var(--ly) + var(--tilt-y) + var(--drift) * 9%, 100%);
-  animation: foil-drift var(--dur) ease-in-out var(--delay) infinite alternate;
+  --sx: clamp(0%, var(--lx) + var(--tilt-x), 100%);
+  --sy: clamp(0%, var(--ly) + var(--tilt-y), 100%);
 }
-.tile.foil, .tile.holo { --lx: 50%; --ly: 40%; --tilt-x: 0%; --tilt-y: 0%; --ang: 120deg; --hue: 0deg; --dur: 8s; --delay: 0s; }
-.tile.lit .tile-foil { animation-play-state: paused; }
+.tile.foil, .tile.holo { --lx: 50%; --ly: 40%; --glint: 0; --tilt-x: 0%; --tilt-y: 0%; --ang: 120deg; --hue: 0deg; }
 .tile.foil:not(.special) { --paper: #fffaf0; background: linear-gradient(var(--ang), #fffaf0, #f7e7b4 30%, #fffaf0 50%, #f1dc9c 76%, #fff8e6); }
 .tile.foil .tile-foil {
   box-shadow: inset 0 0 0 2.5px #c9a227, inset 0 0 0 4px rgba(255, 250, 225, 0.8), inset 0 0 0 5px rgba(160, 120, 20, 0.45);
@@ -344,14 +357,9 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil):not(.tile-tick) { pos
     radial-gradient(rgba(255, 255, 255, 0.9) 0.8px, transparent 1.4px) 0 0 / 7px 7px,
     repeating-linear-gradient(var(--ang), #ff8fb1 0%, #ffd27f 7%, #b6f28d 14%, #7fe3ff 21%, #b49bff 28%, #ff8fb1 35%) var(--sx) var(--sy) / 300% 300%;
   mix-blend-mode: multiply; opacity: 0.42;
-  filter: hue-rotate(calc(var(--hue) + var(--drift) * 25deg));
+  filter: hue-rotate(calc(var(--hue) + var(--glint) * 30deg));
 }
 .tile.holo.lit .tile-foil { opacity: 0.55; }
-@keyframes foil-drift { from { --drift: -1; } to { --drift: 1; } }
-@property --drift { syntax: '<number>'; inherits: true; initial-value: 0; }
-@property --lx { syntax: '<percentage>'; inherits: true; initial-value: 50%; }
-@property --ly { syntax: '<percentage>'; inherits: true; initial-value: 40%; }
-@media (prefers-reduced-motion: reduce) { .tile-foil { animation: none; } }
 /* the chart button, on touch screens (elsewhere hovering a card, or focusing
    it from the keyboard, shows the chart) */
 .tile-chart {

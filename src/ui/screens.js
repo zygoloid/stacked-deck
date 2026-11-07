@@ -226,11 +226,12 @@ export function levelSelect(root, ctx, focus = null) {
     el.style.setProperty('--a', `${p.a.toFixed(4)}rad`);
   };
   const unplace = (el) => ['--x', '--y', '--a'].forEach((k) => el.style.removeProperty(k));
-  // The cards drawn where they are now placed, then moving (style.css
-  // .moving) to wherever they are placed next.
+  // The cards drawn where they are now placed (with no transition: .still),
+  // then moving (.moving) to wherever they are placed next.
   const moveTimers = new WeakMap();
   function startMove(tiles, done) {
     void tiles.offsetHeight;
+    tiles.classList.remove('still');
     tiles.classList.add('moving');
     clearTimeout(moveTimers.get(tiles));
     moveTimers.set(tiles, setTimeout(() => { tiles.classList.remove('moving', 'placed'); done?.(); }, MOVE_MS + 50));
@@ -258,6 +259,7 @@ export function levelSelect(root, ctx, focus = null) {
       return;
     }
     tiles.style.height = `${oldH}px`;
+    tiles.classList.add('still');
     const box = tiles.getBoundingClientRect();
     kids.forEach((k, j) => place(k, { x: before[j].left - box.left, y: before[j].top - box.top, a: 0 }));
     startMove(tiles);
@@ -285,7 +287,7 @@ export function levelSelect(root, ctx, focus = null) {
       place(k, { x: oldBox.left + p.x - after[j].left, y: oldBox.top + p.y - after[j].top, a: p.a });
     });
     tiles.style.height = `${oldH}px`;
-    tiles.classList.add('placed');
+    tiles.classList.add('placed', 'still');
     startMove(tiles, () => { tiles.style.height = ''; kids.forEach(unplace); });
     kids.forEach((k) => place(k, { x: 0, y: 0, a: 0 }));
     tiles.style.height = `${newH}px`;
@@ -328,14 +330,23 @@ export function levelSelect(root, ctx, focus = null) {
   // Where the light catches a foil or holographic card: it depends on where
   // the card is on the screen (so it moves as the page scrolls), on a tilt of
   // the card's own (tile() sets it), and on the pointer while it is over it.
+  // Each change repaints the card, so it is only written when it moves by
+  // a whole percent or so.
+  const shine = (el, lx, ly, glint) => {
+    const v = [`${lx.toFixed(0)}%`, `${ly.toFixed(0)}%`, glint.toFixed(2)];
+    if (el._shine === v.join()) return;
+    el._shine = v.join();
+    el.style.setProperty('--lx', v[0]);
+    el.style.setProperty('--ly', v[1]);
+    el.style.setProperty('--glint', v[2]);
+  };
   function light() {
     for (const el of page.querySelectorAll('a.tile.foil, a.tile.holo')) {
       if (el.classList.contains('lit')) continue;
       const r = el.getBoundingClientRect();
       if (!r.width || r.bottom < -200 || r.top > innerHeight + 200) continue;
       const x = (r.left + r.width / 2) / innerWidth, y = (r.top + r.height / 2) / innerHeight;
-      el.style.setProperty('--lx', `${(12 + 76 * x).toFixed(1)}%`);
-      el.style.setProperty('--ly', `${(8 + 84 * y).toFixed(1)}%`);
+      shine(el, 12 + 76 * x, 8 + 84 * y, Math.max(-1, Math.min(1, x + y - 1)));
     }
   }
 
@@ -362,7 +373,9 @@ export function levelSelect(root, ctx, focus = null) {
     finish ? h('div', { class: 'tile-foil', 'aria-hidden': 'true' }) : null,
     h('div', { class: 'tile-pip', 'aria-hidden': 'true' }, f.special ? f.rank : f.glyph),
     corner('tl'), corner('br'),
-    st.solved ? h('span', { class: 'tile-tick', 'aria-hidden': 'true' }, '✓') : null,
+    // Not cleared yet: a ring under the corner index (half filled once
+    // started), which shows even when the card is in a hand.
+    st.solved ? null : h('span', { class: `tile-mark${st.cells?.length ? ' started' : ''}`, 'aria-hidden': 'true' }),
     h('div', { class: 'tile-title' }, lv.title),
     h('div', { class: 'tile-brief' }, lv.brief ?? ''),
     st.solved ? scoreBox(lv, sd) : h('div', { class: 'tile-score open' },
@@ -370,20 +383,19 @@ export function levelSelect(root, ctx, focus = null) {
       lv.par ? h('span', { class: 'ts-par' }, `par ${lv.par.croupiers ?? '–'} · ${lv.par.rounds ?? '–'}`) : null),
     friendsLine(sd, st.solved));
     if (finish) {
-      // Each card lies at a slightly different angle to the light, and
-      // shimmers at its own pace; the shine follows the pointer over it.
+      // Each card lies at a slightly different angle to the light, and has
+      // its own tint; the shine follows the pointer over it.
       const rnd = seeded(lv.id);
       const vars = {
         '--tilt-x': `${(rnd() * 44 - 22).toFixed(1)}%`, '--tilt-y': `${(rnd() * 44 - 22).toFixed(1)}%`,
         '--ang': `${(95 + rnd() * 60).toFixed(0)}deg`, '--hue': `${(rnd() * 70 - 35).toFixed(0)}deg`,
-        '--dur': `${(6 + rnd() * 6).toFixed(1)}s`, '--delay': `${(-rnd() * 12).toFixed(1)}s`,
       };
       for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v);
       el.addEventListener('pointermove', (e) => {
         const r = el.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
         el.classList.add('lit');
-        el.style.setProperty('--lx', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
-        el.style.setProperty('--ly', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+        shine(el, x * 100, y * 100, x + y - 1);
       });
       el.addEventListener('pointerleave', () => { el.classList.remove('lit'); light(); });
     }
