@@ -10,16 +10,19 @@
 // every special card).
 //
 // The floors that need everything open in lines that follow their stories,
-// from four that Déjà Vu opens:
+// from three that Déjà Vu opens and from Crossed Wires:
 //   Two Apart > Three Apart (the doormen, then the cloakroom);
-//   Crossed Wires, the first floor with seated players, > Uneven Tables,
-//     Mirror Image (> Showdown, Twice Shy) and Casino Numbers (> Times
-//     Tables > Carry the One);
 //   Four of a Kind > The Rest of the Deck (> Head Count: Pryce again);
 //   Counting Up > One Up (Old Thursday's tricks);
+//   Crossed Wires, the first floor with seated players (after Beat the
+//     Dealer: it needs only War), and Déjà Vu > Uneven Tables, Mirror Image
+//     (> Showdown, Twice Shy) and Casino Numbers (> Times Tables > Carry the
+//     One);
 // and Rising (the string quartet again) after Every Other and Déjà Vu, Last
 // In, First Out (the cloakroom again, and closing time) after Three Apart and
-// The Rest of the Deck. Off Suit, Night Off, Skeleton Crew and No Kings are
+// The Rest of the Deck. Bookends opens after Burn Card and After a Pair
+// after Small Pairs, with their palettes cut to what those floors have (what
+// players' machines used: tools/bonus-usage.js). Off Suit, Night Off, Skeleton Crew and No Kings are
 // Red Flush again with croupiers taken away (Suits; Flush; both, for heart
 // flushes only; both, with no kings in the players' hands), each after the
 // one before (Skeleton Crew after Calling Card too, for Sort). Crossed Wires
@@ -337,7 +340,7 @@ export const LEVELS = [
   {
     id: 'crossed-wires',
     card: '6S',
-    unlockAfter: 'deja-vu',
+    unlockAfter: 'beat-the-dealer',
     title: 'Crossed Wires',
     story: [
       'The Owner has had the floor rewired: three card tables down one wall, three cash desks down the other, and a note under the tray. Every player is to be paid at the desk diametrically opposite their seat, so that the money is seen to cross the room.',
@@ -347,9 +350,7 @@ export const LEVELS = [
     handSize: [1, 3],
     floor: floorOf(hexRect(-4, 4, -6, 5), H3),
     fixed: H3,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    specialCards: ['?', '??', '$', '$$'],
+    croupiers: paletteThrough('war'),
     expected: crossed,
     tests: makeMixedTests({
       minSize: 1, maxSize: 3, handsPerTest: 15,
@@ -393,7 +394,7 @@ export const LEVELS = [
   {
     id: 'bookends',
     card: '8S',
-    unlockAfter: 'change-of-heart',
+    unlockAfter: 'burn-card',
     title: 'Bookends',
     story: [
       'The doormen\'s game has outlived the doormen\'s break. Two-card hands again, but now each hand is played against the one before it: a hand wins if its top card beats the bottom card of the previous hand.',
@@ -403,7 +404,7 @@ export const LEVELS = [
     handSize: 2,
     floor: floorOf(hexRect(-2, 2, -7, 3), B5, [[-2, -1]]),
     fixed: B5,
-    croupiers: paletteThrough('hand'),
+    croupiers: paletteThrough('burn'),
     warRules: ALL,
     pays: (h, before) => before.length > 0 && hv(h[0]) > hv(last(before)[1]),
     tests: makeTests({
@@ -420,7 +421,7 @@ export const LEVELS = [
   {
     id: 'uneven-tables',
     card: '9S',
-    unlockAfter: 'crossed-wires',
+    unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Uneven Tables',
     story: [
       'The wiring stays, and so does the rule: every player is paid at the desk diametrically opposite their seat. But the cousins have stopped playing in step. Tonight each of the three plays as many hands as they like, from none at all to six.',
@@ -538,7 +539,7 @@ export const LEVELS = [
   {
     id: 'after-a-pair',
     card: 'KS',
-    unlockAfter: 'suit-yourself',
+    unlockAfter: 'small-pairs',
     title: 'After a Pair',
     story: [
       'Dmitri has a theory about streaks. A pair, he says, warms the table, so the hand after any hand holding a pair or better should win, whatever it holds itself.',
@@ -548,7 +549,7 @@ export const LEVELS = [
     handSize: 5,
     floor: floorOf(hexRect(-3, 3, -7, 5), B4),
     fixed: B4,
-    croupiers: paletteThrough('hand'),
+    croupiers: paletteThrough('deal'),
     warRules: ALL,
     pays: (h, before) => before.length > 0 && largestSet(last(before)) >= 2,
     tests: makeTests({
@@ -727,7 +728,7 @@ export const LEVELS = [
   {
     id: 'mirror-image',
     card: '7H',
-    unlockAfter: 'crossed-wires',
+    unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Mirror Image',
     story: [
       'The Marchetti twins are back, at two tables again, and each has brought a deck of their own. They play five-card hands side by side, one each per deal, and the house pays both hands when the twins hold exactly the same five cards.',
@@ -756,7 +757,7 @@ export const LEVELS = [
   {
     id: 'casino-numbers',
     card: '8H',
-    unlockAfter: 'crossed-wires',
+    unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Casino Numbers',
     story: [
       'The Owner has a new way of counting, and it has no zero in it: nobody at the Stacked Deck has ever been paid nothing. The digits are the cards, ace to king, so a jack is eleven and a king thirteen; fourteen is an ace and an ace, twenty-six an ace and a king, and twenty-seven a two and an ace.',
