@@ -7,7 +7,8 @@
 // From test/emulator:
 //   firebase database:get / --instance zygoloid-stacked-deck --project zygoloid-github-io > live.json
 //   REHEARSE_EXPORT=path/to/live.json npm run rehearse
-// The export holds players' data: keep it on your own machine.
+// The export holds players' data: keep it on your own machine, and delete
+// it within 30 days (docs/online.md, "Copies of the database").
 // For tests (rehearse-test.js): REHEARSE_INSTANCE, the emulator namespace to
 // use (default zygoloid-stacked-deck), and REHEARSE_EXPECT, the dry run's
 // counts as JSON (e.g. {"same": 2, "newly broken": 1}), checked if set.

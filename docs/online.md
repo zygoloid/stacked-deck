@@ -168,7 +168,8 @@ them from a checkout of `main` with your own owner credentials
    and `best` for the new version agree with the solutions
    (`rescore.js --check`) and that `tools/repair-best.js` would change
    nothing, and that nothing outside `solutions` and `config/rulesVersion`
-   changed. Keep the export: it is the backup. Then
+   changed. Keep the export: it is the backup (see "Copies of the
+   database" below: delete it within 30 days). Then
    `node tools/copy-game.js && node functions/tools/rescore.js --dry-run`
    reads the live database (writing nothing) and reports the same changes,
    which also shows the credentials work.
@@ -211,6 +212,23 @@ them from a checkout of `main` with your own owner credentials
 Deploys that don't change `RULES_VERSION` need none of this: the deploy
 workflow does them on every push to `main` ("Deploying (GitHub Actions)"
 below).
+
+### Copies of the database
+
+Exports of the database (the rehearsal's `live.json` above, which is also
+the way back from a release; dumps for `tools/bonus-usage.js`) hold players'
+data, nicknames included. The privacy notice promises:
+
+* **Kept on your own machine, and deleted within 30 days** of being made.
+* **Only counts are published** from an analysis: nothing that identifies a
+  player, and never a machine.
+* **Deletions survive a restore.** Before restoring any part of the
+  database from an export, first take out of the export every account
+  deleted since it was made: the `deleteMyData` entries in the functions'
+  logs (`logger.info('deleteMyData', { uid, floors })`) give their uids.
+  The logs are kept 30 days, the same as the longest an export is kept, so
+  they always cover it. (Still to build when needed: a script that does
+  this to an export, as `deleteMyData` does to the database.)
 
 ## Security rules
 

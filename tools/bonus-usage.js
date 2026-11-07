@@ -10,7 +10,8 @@
 // (or of `/`, the whole database: then its `solutions` and `saves` are both
 // read). `--saves` reads a dump of /saves too, so working machines (cloud
 // saves) count as well as solutions. Players' data: keep the dumps on your
-// own machine. The reference solutions are always included; with no dump the
+// own machine, and delete them within 30 days (docs/online.md, "Copies of
+// the database"). The reference solutions are always included; with no dump the
 // tool reports on those alone.
 //
 // Why it matters: a bonus floor can only open after a campaign floor whose
