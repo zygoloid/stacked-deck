@@ -220,12 +220,10 @@ Database, Backups), and exports (the rehearsal's `live.json` above, which is
 also the way back from a release; dumps for `tools/bonus-usage.js`), hold
 players' data, nicknames included. The privacy notice promises:
 
-* **Backups are deleted 30 days after they are made.** Firebase doesn't
-  expire them itself: the bucket they are written to needs a lifecycle rule
-  deleting objects 30 days old, e.g. with `lifecycle.json` holding
-  `{"rule": [{"action": {"type": "Delete"}, "condition": {"age": 30}}]}`,
-  `gcloud storage buckets update gs://<backup bucket> --lifecycle-file=lifecycle.json`.
-  The bucket is in the United States, as the notice says.
+* **Backups are deleted 30 days after they are made.** Enabling daily
+  backups set up a lifecycle rule on their bucket that deletes objects 30
+  days old (checked in the Cloud console). Keep it: the notice relies on it.
+  The bucket is in us-central1, so in the United States, as the notice says.
 * **Exports are kept on your own machine, and deleted within 30 days** of
   being made.
 * **Only counts are published** from an analysis: nothing that identifies a
