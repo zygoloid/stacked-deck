@@ -313,7 +313,7 @@ what is left (and removed when nothing is), while `solved` stays true.
 The floors list keeps its own settings under a second key,
 `stacked-deck-ui` (this browser only, never synced): `{ deck: 'campaign' |
 'bonus', folded: [suit keys] }`, the deck showing and the suits folded into a
-row of small cards (keys `c<chapter>` in the campaign, `b<S|H|C|D|special|other>`
+fanned hand of small cards (keys `c<chapter>` in the campaign, `b<S|H|C|D|special|other>`
 in the bonus deck, which is grouped by its cards' suits). Coming back from a
 floor shows that floor's deck.
 

@@ -146,7 +146,7 @@ export function levelSelect(root, ctx, focus = null) {
   }
 
   // One suit: its heading (a button that folds it away), and its cards, or,
-  // folded, a row of small cards.
+  // folded, a hand of small cards fanned out (folded suits sit side by side).
   function suitSection(key, floors, c, bonus = false) {
     const done = floors.filter(({ lv }) => save.levels[lv.id]?.solved).length;
     const folded = () => ui.folded.includes(key);
@@ -169,25 +169,34 @@ export function levelSelect(root, ctx, focus = null) {
     sec.append(
       h('h2', { 'data-chapter': c.chapter }, toggle),
       h('div', { class: 'tiles' }, floors.map(({ lv, i }) => (bonus ? bonusTile(lv) : tile(lv, i)))),
-      h('div', { class: 'fan' }, floors.map(({ lv, i }) => miniCard(lv, i, bonus))));
+      h('div', { class: 'fan' }, floors.map(({ lv, i }, k) => miniCard(lv, i, bonus, fanAngle(k, floors.length)))));
     return sec;
   }
 
-  // A folded suit's small card: its rank, its state (locked, open, cleared,
-  // foil, holographic), and a link to it when it is open.
-  function miniCard(lv, i, bonus) {
+  // A card in a folded suit's hand, turned `angle` degrees about a point
+  // below the hand: face down while locked; face up, it shows its index in
+  // the corner (all that shows of most cards in the hand), its state
+  // (cleared, foil, holographic), and links to the floor.
+  function miniCard(lv, i, bonus, angle) {
     const f = bonus ? floorLabel(lv) : floorLabel(i);
     const open = bonus ? isBonusOpen(save, lv) : isUnlocked(save, i);
     const st = save.levels[lv.id] ?? {};
+    const style = `--a: ${angle.toFixed(2)}deg`;
+    const index = (pos) => h('span', { class: `mi-index ${pos}` }, h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null);
     if (!open) {
-      return h('span', { class: `mini locked${bonus ? ' bonus' : ''}`, 'data-level': lv.id, title: 'Locked' },
-        f.special ? null : h('b', {}, f.rank));
+      return h('span', { class: `mini locked${bonus ? ' bonus' : ''}`, 'data-level': lv.id, title: 'Locked', style },
+        f.special ? null : h('span', { class: 'mi-no' }, f.text));
     }
     const finish = st.solved ? finishOf(lv) : '';
     return h('a', {
-      class: `mini ${f.cls}${st.solved ? ' solved' : ''}${finish ? ` ${finish}` : ''}`, href: `#/level/${lv.id}/story`, 'data-level': lv.id,
+      class: `mini ${f.cls}${f.special ? ` ${SPECIAL_TILE[f.card]}` : ''}${st.solved ? ' solved' : ''}${finish ? ` ${finish}` : ''}`,
+      href: `#/level/${lv.id}/story`, 'data-level': lv.id, style,
       title: `${f.text} · ${lv.title}${st.solved ? ' · cleared' : ''}`,
-    }, h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null);
+    },
+    index('tl'),
+    h('span', { class: 'mi-pip', 'aria-hidden': 'true' }, f.special ? f.rank : f.glyph),
+    st.solved ? h('span', { class: 'mi-paid', 'aria-hidden': 'true' }, '✓') : null,
+    index('br'));
   }
 
   function bonusTile(lv) {
@@ -428,6 +437,14 @@ export function levelSelect(root, ctx, focus = null) {
 }
 
 const AXES = ['croupiers', 'rounds'];
+
+// The k-th of n cards in a fanned hand: its angle in degrees, the hand
+// spread evenly over up to 44°, at most 8° between neighbours.
+function fanAngle(k, n) {
+  if (n < 2) return 0;
+  const step = Math.min(8, 44 / (n - 1));
+  return (k - (n - 1) / 2) * step;
+}
 
 // A repeatable stream of numbers in [0, 1) from a string (a floor's id), so
 // a card keeps its tilt from one visit to the next.
