@@ -549,6 +549,79 @@ try {
     await phone.close();
   }
 
+  // A folded suit on a phone: a long press opens the break at the card under
+  // the finger, sliding moves it (without scrolling the page), and it stays
+  // where the finger lifts; a tap on a hidden card shows it, a tap on the
+  // card shown opens it, a tap off the hands closes the break, and a swipe
+  // still scrolls. No context menu or text selection on the hand.
+  {
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    phone.on('pageerror', (e) => errors.push(e.message));
+    const cdp = await phone.context().newCDPSession(phone);
+    const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
+    const tap = async (pt) => { await touch('touchStart', [pt]); await touch('touchEnd', []); await phone.waitForTimeout(350); };
+    await phone.goto(`${base}?unlockall`);
+    await phone.evaluate(() => localStorage.setItem('stacked-deck-ui', JSON.stringify({ deck: 'campaign', folded: ['c1'] })));
+    await phone.reload();
+    await phone.waitForSelector('.tiles.fan');
+    const hand = phone.locator('.chapter[data-suit="c1"] .tiles.fan');
+    await hand.evaluate((t) => t.scrollIntoView({ block: 'center' }));
+    await phone.waitForTimeout(200);
+    // The card a break is open after (-1: none).
+    const after = () => hand.evaluate((t) => {
+      const k = [...t.children].findIndex((c) => (parseFloat(c.style.getPropertyValue('--brk')) || 0) > 0);
+      return k < 0 ? -1 : k - 1;
+    });
+    const strip = async (k) => { const b = await hand.locator(':scope > *').nth(k).boundingBox(); return [b.x + 10, b.y + 40]; };
+    const path = () => new URL(phone.url()).hash;
+    const y0 = await phone.evaluate(() => scrollY);
+    const a = await strip(1);
+    await touch('touchStart', [a]);
+    await phone.waitForTimeout(650);   // the press (300ms), then the break opening
+    const menu = await hand.evaluate((t) => {
+      const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+      t.children[1].firstElementChild.dispatchEvent(ev);
+      return ev.defaultPrevented;
+    });
+    check(await after() === 1 && menu && (await hand.evaluate((t) => getComputedStyle(t).userSelect)) === 'none',
+      'phone: a long press on a hand opens the break at the card pressed, with no context menu or text selection');
+    // Sliding right a little at a time: the break moves on a card at a time.
+    const seen = [1];
+    for (let x = a[0]; seen[seen.length - 1] < 4 && x < a[0] + 300; x += 6) {
+      await touch('touchMove', [[x, a[1]]]);
+      await phone.waitForTimeout(30);
+      const k = await after();
+      if (k !== seen[seen.length - 1]) seen.push(k);
+    }
+    const scrolled = (await phone.evaluate(() => scrollY)) - y0;
+    await touch('touchEnd', []);
+    await phone.waitForTimeout(400);
+    check(seen.join() === '1,2,3,4' && scrolled === 0 && await after() === 4 && path() === '',
+      `phone: sliding moves the break along the hand a card at a time without scrolling, and it stays as the finger lifts (${seen.join(' ')}, scrolled ${scrolled})`);
+    await tap(await strip(2));
+    check(await after() === 2 && path() === '', 'phone: a tap on a hidden card in a hand shows it, without opening it');
+    const shown = await hand.locator(':scope > *').nth(2).boundingBox();
+    await tap([shown.x + shown.width / 2, shown.y + shown.height / 2]);
+    check(path() === `#/level/${LEVELS[2].id}/story`, `phone: a tap on the card shown opens it (${path()})`);
+    await phone.goBack();
+    await phone.waitForSelector('.tiles.fan');
+    await phone.waitForTimeout(300);
+    await tap(await strip(3));
+    const was = await after();
+    await tap([5, 5]);
+    check(was === 3 && await after() === -1, `phone: a tap off the hands closes the break (after ${was}, then ${await after()})`);
+    const s0 = await phone.evaluate(() => scrollY);
+    const f = await strip(5);
+    await touch('touchStart', [f]);
+    for (let i = 1; i <= 6; i++) { await touch('touchMove', [[f[0], f[1] - i * 30]]); await phone.waitForTimeout(16); }
+    await touch('touchEnd', []);
+    await phone.waitForTimeout(400);
+    const swiped = (await phone.evaluate(() => scrollY)) - s0;
+    check(swiped > 50 && await after() === -1, `phone: a swipe on a hand still scrolls the page (by ${swiped}px; after ${await after()})`);
+    if (shots) await phone.screenshot({ path: join(shots, '7f-phone-hand.png') });
+    await phone.close();
+  }
+
   // Touch on a phone: a drag pans; a tap on an empty hex opens the croupier
   // picker there (no palette on a phone), and a tap near an edge points the
   // first port that way; tapping the bare floor deselects, two fingers
