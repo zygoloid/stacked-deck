@@ -157,77 +157,33 @@ kbd {
 }
 .ch-suit.red { color: #ff7a93; }
 .ch-name { color: var(--ink-2); }
-.chapter.folded .tiles, .chapter:not(.folded) .fan { display: none; }
-/* Folded suits sit side by side, each a hand of cards fanned about a point
-   well below it (transform-origin); hovering a card draws it up out of the
-   hand. --a (screens.js) is each card's angle. */
-.deck { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 0 36px; max-width: 1320px; margin: 0 auto; }
+/* Folded suits sit side by side, each the suit's own cards gathered into a
+   hand (screens.js places them: --x, --y, --a, and the card width
+   --card-w); hovering a card draws it up out of the hand. */
+.deck { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 0 40px; max-width: 1320px; margin: 0 auto; }
 .deck > .chapter { flex: 1 1 100%; min-width: 0; margin: 0 0 30px; }
-.deck > .chapter.folded { flex: 0 1 360px; }
+.deck > .chapter.folded { flex: 0 0 auto; max-width: 100%; }
 .deck > .bonus-note { flex: 1 1 100%; }
 .chapter.folded .ch-toggle { gap: 8px; letter-spacing: 0.12em; }
 .deck .chapter.folded .ch-rule { min-width: 0; flex: 1 1 0; background: none; }
-.fan { position: relative; height: 150px; margin-top: 4px; }
-.mini {
-  --w: 60px; --h: 84px;
-  position: absolute; left: calc(50% - var(--w) / 2); top: 18px; width: var(--w); height: var(--h);
-  border-radius: 6px; text-decoration: none; color: #16181d;
-  background: linear-gradient(180deg, #fefefc, #f1f0ec);
-  box-shadow: -1px 0 3px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.16);
-  transform-origin: 50% 480%; transform: rotate(var(--a));
-  transition: transform 0.18s ease-out, box-shadow 0.18s;
+.tiles.placed > *, .tiles.fan > * { --lift: 0px; }
+.tiles.fan > *, .tiles.placed > * { transform: translate(var(--x, 0px), var(--y, 0px)) rotate(var(--a, 0rad)) translateY(var(--lift)); }
+.tiles.fan { display: block; position: relative; }
+.tiles.fan > * { position: absolute; left: 0; top: 0; width: var(--card-w); transition: transform 0.2s ease-out; }
+.tiles.fan > :hover, .tiles.fan > :focus-within { --lift: calc(var(--card-w) * -0.16); z-index: 30; }
+.tiles.fan a.tile:hover, .tiles.fan .tile-slot:hover a.tile { transform: none; }
+.tiles.moving { transition: height 0.55s cubic-bezier(0.45, 0, 0.2, 1); }
+.tiles.moving > * { transition: transform 0.55s cubic-bezier(0.45, 0, 0.2, 1); pointer-events: none; }
+/* in a hand: card backs are opaque, and a cleared card has a tick under its
+   corner index, where the hand shows it */
+.tiles.fan .tile-back { opacity: 1; }
+.tile-tick { display: none; }
+.tiles.fan .tile-tick {
+  position: absolute; z-index: 2; top: 25cqi; left: 5.2cqi; width: max(13px, 8cqi); height: max(13px, 8cqi); border-radius: 50%;
+  display: grid; place-items: center; font: 800 max(8px, 5cqi)/1 var(--sans); color: #fff; background: #1f7a45;
 }
-a.mini:hover, a.mini:focus-visible {
-  z-index: 20; transform: rotate(var(--a)) translateY(-16px);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.45), 0 0 0 2px var(--gold);
-}
-.mi-index { position: absolute; display: flex; flex-direction: column; align-items: center; font: 700 15px/1 var(--serif); }
-.mi-index i { font-style: normal; font-size: 12px; margin-top: 1px; }
-.mi-index.tl { top: 5px; left: 4px; }
-.mi-index.br { bottom: 5px; right: 4px; transform: rotate(180deg); }
-.mi-pip { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 700 30px/1 var(--serif); opacity: 0.85; }
-.mini.red { color: var(--red); }
-.mini.plain .mi-index, .mini.spc .mi-index { font-family: var(--sans); font-size: 12px; font-weight: 800; letter-spacing: -0.04em; }
-.mini.plain { color: #1f3b70; }
-.mini.plain .mi-pip { display: none; }
-.mini.spc .mi-index i { font-size: 8px; }
-.mini.spc .mi-pip { font-family: var(--sans); font-weight: 800; font-size: 22px; letter-spacing: -0.06em; opacity: 0.5; }
-/* cleared: a green tick under the corner index, where the hand shows it */
-.mi-paid {
-  position: absolute; left: 5px; top: 44px; width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center;
-  font: 800 9px/1 var(--sans); color: #fff; background: #1f7a45;
-}
-.mini.foil { background: linear-gradient(calc(140deg + var(--a) * 3), #fff8dc, #ecd27c 38%, #fff7da 55%, #cfa73a); box-shadow: inset 0 0 0 1.5px #c9a227, -1px 0 3px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.25); }
-.mini.holo {
-  background:
-    radial-gradient(rgba(255, 255, 255, 0.8) 0.6px, transparent 1.1px) 0 0 / 5px 5px,
-    linear-gradient(calc(130deg + var(--a) * 6), #ffd6e4, #fff0c8 22%, #ddfbcc 42%, #cdf3ff 62%, #e2d8ff 82%, #ffd6e4);
-  box-shadow: inset 0 0 0 1.5px rgba(150, 120, 210, 0.7), -1px 0 3px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.25);
-}
-/* the finale's faces, small */
-.mini.f-mono { background: #fff; box-shadow: inset 0 0 0 2.5px #fff, inset 0 0 0 3.5px #16181d, -1px 0 3px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.25); }
-.mini.f-colour { background: linear-gradient(180deg, #fffdf6, #fbf3df) padding-box, linear-gradient(135deg, #d62f4b, #e9a100 33%, #1f9d55 66%, #2f6fd6) border-box; border: 3px solid transparent; }
-.mini.f-colour .mi-index b { background: linear-gradient(90deg, #d62f4b, #2f6fd6); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.mini.f-colour .mi-index i { color: #e9a100; }
-.mini.f-front { background: linear-gradient(180deg, #ecf8e6, #d6eecb); color: #1d6b3a; box-shadow: inset 0 0 0 3px #ecf8e6, inset 0 0 0 4px #1d6b3a, -1px 0 3px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.25); }
-.mini.f-back { background: #fdfcf7; color: #f2c14e; box-shadow: inset 0 0 0 4px #1d5a36, inset 0 0 0 4.5px #f2c14e, -1px 0 3px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.25); }
-.mini.f-back .mi-index { background: #1d5a36; padding: 1px 2px; border-radius: 3px; }
-.mini.f-back .mi-pip { color: #1d5a36; }
-/* face down: the deck's back */
-.mini.locked {
-  background:
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0 1.5px, transparent 1.5px 6px),
-    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.1) 0 1.5px, transparent 1.5px 6px),
-    linear-gradient(180deg, #8c2535, #5b1622);
-  box-shadow: inset 0 0 0 3px #f4f2ec, -1px 0 3px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.25);
-}
-.mini.locked.bonus {
-  background:
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0 1.5px, transparent 1.5px 6px),
-    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.1) 0 1.5px, transparent 1.5px 6px),
-    linear-gradient(180deg, #2b4d8c, #142a52);
-}
-.mi-no { position: absolute; top: 6px; left: 6px; padding: 0 3px; border-radius: 3px; font: 700 11px/1.4 var(--serif); color: #fdf8ec; background: rgba(0, 0, 0, 0.35); }
+.tile.special .tile-tick { left: 4cqi; }
+.tiles.fan > :last-child .tile-tick, .tiles.fan > :hover .tile-tick { display: none; }
 
 /* the two decks: card boxes to pick from */
 .decks { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; max-width: 1320px; margin: 0 auto 30px; }
@@ -299,7 +255,7 @@ a.tile:hover, .tile-slot:hover a.tile { --lift: 0 14px 28px rgba(0, 0, 0, 0.45),
 }
 .tile.red .tile-pip { color: var(--red); opacity: 0.09; }
 .tile.plain .tile-pip { display: none; }
-a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative; }
+a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil):not(.tile-tick) { position: relative; }
 /* the finale's special-card floors */
 .tile.special { padding-left: 20cqi; }
 .tile.special .tile-corner { font-family: var(--sans); font-weight: 800; font-size: max(12px, 7.8cqi); }
