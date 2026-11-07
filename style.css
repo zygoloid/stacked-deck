@@ -177,12 +177,19 @@ kbd {
 .deck > .bonus-note { flex: 1 1 100%; }
 .chapter.folded .ch-toggle { gap: 8px; letter-spacing: 0.12em; }
 .deck .chapter.folded .ch-rule { min-width: 0; flex: 1 1 0; background: none; }
-.tiles.placed > *, .tiles.fan > * { --lift: 0px; }
-.tiles.fan > *, .tiles.placed > * { transform: translate(var(--x, 0px), var(--y, 0px)) rotate(var(--a, 0rad)) translateY(var(--lift)); }
+/* --brk: how far a card moves aside to open a break in the hand after the
+   card under the pointer (which shows whole, without moving). */
+.tiles.fan > *, .tiles.placed > * {
+  transform: translate(calc(var(--x, 0px) + var(--brk, 0px)), var(--y, 0px)) rotate(var(--a, 0rad));
+}
 .tiles.fan { display: block; position: relative; }
-.tiles.fan > * { position: absolute; left: 0; top: 0; width: var(--card-w); transition: transform 0.2s ease-out; }
-.tiles.fan > :hover, .tiles.fan > :focus-within { --lift: calc(var(--card-w) * -0.16); z-index: 30; }
+.tiles.fan > * { position: absolute; left: 0; top: 0; width: var(--card-w); transition: transform 0.22s ease-out; }
+.tiles.fan > :hover, .tiles.fan > :focus-within { z-index: 30; }
 .tiles.fan a.tile:hover, .tiles.fan .tile-slot:hover a.tile { transform: none; }
+/* a break can reach past the hand: over the next hand, never off the page */
+.deck > .chapter { position: relative; }
+.deck > .chapter.folded:hover, .deck > .chapter.folded:focus-within { z-index: 2; }
+.select { overflow-x: clip; }
 .tiles.moving { transition: height 0.55s cubic-bezier(0.45, 0, 0.2, 1); }
 .tiles.moving > * { transition: transform 0.55s cubic-bezier(0.45, 0, 0.2, 1); pointer-events: none; }
 .tiles.still > * { transition: none; }
@@ -191,12 +198,10 @@ kbd {
 /* a floor not cleared yet: a ring under the corner index (where a hand
    shows it), half filled once started */
 .tile-mark {
-  position: absolute; z-index: 2; top: 24cqi; left: 6.6cqi; width: max(10px, 6cqi); height: max(10px, 6cqi); border-radius: 50%;
+  display: block; width: max(9px, 5.6cqi); height: max(9px, 5.6cqi); margin-top: max(4px, 2.6cqi); border-radius: 50%;
   box-shadow: inset 0 0 0 max(1.5px, 0.9cqi) #b8861b;
 }
 .tile-mark.started { background: linear-gradient(90deg, #b8861b 50%, transparent 50%); }
-.tile.special .tile-mark { left: 5.4cqi; top: 22cqi; }
-.tile.bonus:not(.special) .tile-mark { left: 7.6cqi; top: 25cqi; }
 
 /* the two decks: card boxes to pick from */
 .decks { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; max-width: 1320px; margin: 0 auto 30px; }
@@ -268,7 +273,7 @@ a.tile:hover, .tile-slot:hover a.tile { --lift: 0 14px 28px rgba(0, 0, 0, 0.45),
 }
 .tile.red .tile-pip { color: var(--red); opacity: 0.09; }
 .tile.plain .tile-pip { display: none; }
-a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil):not(.tile-mark) { position: relative; }
+a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative; }
 /* the finale's special-card floors */
 .tile.special { padding-left: 20cqi; }
 .tile.special .tile-corner { font-family: var(--sans); font-weight: 800; font-size: max(12px, 7.8cqi); }
@@ -329,35 +334,33 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil):not(.tile-mark) { pos
   border: 2px solid #1f7a45; color: #1f7a45; border-radius: 4px; padding: 0 6px; font: 800 max(11px, 7cqi)/1.5 var(--sans);
   letter-spacing: 0.14em; opacity: 0.4; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), inset 0 0 0 2.5px rgba(31, 122, 69, 0.55);
 }
-/* the best known score on one count: gold foil; on both: holographic. Each
-   card has its own tilt (--tilt-x, --tilt-y), angle (--ang) and tint (--hue),
-   set in screens.js; where the light falls (--lx, --ly, and --glint, -1 to 1
-   across the screen) follows the card's place on the screen, and the
-   pointer. Nothing here animates by itself: a running animation of these
-   would repaint every card's foil on every frame. */
-.tile-foil {
-  position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none;
-  --sx: clamp(0%, var(--lx) + var(--tilt-x), 100%);
-  --sy: clamp(0%, var(--ly) + var(--tilt-y), 100%);
-}
-.tile.foil, .tile.holo { --lx: 50%; --ly: 40%; --glint: 0; --tilt-x: 0%; --tilt-y: 0%; --ang: 120deg; --hue: 0deg; }
-.tile.foil:not(.special) { --paper: #fffaf0; background: linear-gradient(var(--ang), #fffaf0, #f7e7b4 30%, #fffaf0 50%, #f1dc9c 76%, #fff8e6); }
+/* the best known score on one count: gold foil; on both: holographic. The
+   sheen and the rainbow are one picture the size of the screen, fixed to it,
+   that every foil card shows its own piece of (--sx, --sy: minus the card's
+   place on the screen, set in screens.js): cards side by side, as in a
+   hand, show neighbouring pieces, and the colours move across the cards as
+   the page scrolls. The glint (--lx, --ly) is a light above the screen, or
+   the pointer over the card. Nothing here animates by itself: a running
+   animation of these would repaint every card's foil on every frame. */
+.tile-foil { position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none; }
+.tile.foil, .tile.holo { --lx: 30%; --ly: 10%; --sx: 0px; --sy: 0px; }
+.tile.foil:not(.special) { --paper: #fffaf0; background: linear-gradient(150deg, #fffaf0, #f7e7b4 30%, #fffaf0 50%, #f1dc9c 76%, #fff8e6); }
 .tile.foil .tile-foil {
   box-shadow: inset 0 0 0 2.5px #c9a227, inset 0 0 0 4px rgba(255, 250, 225, 0.8), inset 0 0 0 5px rgba(160, 120, 20, 0.45);
   background:
-    radial-gradient(circle at var(--lx) var(--ly), rgba(255, 255, 255, 0.75), transparent 40%),
-    linear-gradient(var(--ang), transparent 30%, rgba(255, 255, 255, 0.6) 46%, rgba(255, 236, 160, 0.3) 52%, transparent 66%) var(--sx) var(--sy) / 250% 250%;
+    radial-gradient(ellipse 75% 55% at var(--lx) var(--ly), rgba(255, 255, 255, 0.75), transparent),
+    linear-gradient(115deg, transparent 18%, rgba(255, 255, 255, 0.6) 30%, rgba(255, 236, 160, 0.3) 34%, transparent 46%,
+      transparent 62%, rgba(255, 255, 255, 0.55) 72%, rgba(255, 236, 160, 0.3) 76%, transparent 86%) var(--sx) var(--sy) / 100vw 100vh;
   mix-blend-mode: soft-light;
 }
-.tile.holo:not(.special) { --paper: #fbf9ff; background: linear-gradient(calc(var(--ang) + 40deg), #fbf8ff, #eef6ff 50%, #fff5fb); }
+.tile.holo:not(.special) { --paper: #fbf9ff; background: linear-gradient(160deg, #fbf8ff, #eef6ff 50%, #fff5fb); }
 .tile.holo .tile-foil {
   box-shadow: inset 0 0 0 2.5px rgba(150, 120, 210, 0.7), inset 0 0 0 4px rgba(255, 255, 255, 0.8);
   background:
-    radial-gradient(circle at var(--lx) var(--ly), rgba(255, 255, 255, 0.85), transparent 38%),
+    radial-gradient(ellipse 70% 50% at var(--lx) var(--ly), rgba(255, 255, 255, 0.85), transparent),
     radial-gradient(rgba(255, 255, 255, 0.9) 0.8px, transparent 1.4px) 0 0 / 7px 7px,
-    repeating-linear-gradient(var(--ang), #ff8fb1 0%, #ffd27f 7%, #b6f28d 14%, #7fe3ff 21%, #b49bff 28%, #ff8fb1 35%) var(--sx) var(--sy) / 300% 300%;
+    repeating-linear-gradient(115deg, #ff8fb1 0%, #ffd27f 4%, #b6f28d 8%, #7fe3ff 12%, #b49bff 16%, #ff8fb1 20%) var(--sx) var(--sy) / 100vw 100vh;
   mix-blend-mode: multiply; opacity: 0.42;
-  filter: hue-rotate(calc(var(--hue) + var(--glint) * 30deg));
 }
 .tile.holo.lit .tile-foil { opacity: 0.55; }
 /* the chart button, on touch screens (elsewhere hovering a card, or focusing

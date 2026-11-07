@@ -169,6 +169,16 @@ export function levelSelect(root, ctx, focus = null) {
     h('span', { class: 'ch-rule', 'aria-hidden': 'true' }),
     h('span', { class: `ch-count${done === floors.length ? ' all' : ''}` }, `${done} / ${floors.length}`),
     h('span', { class: 'ch-chev', 'aria-hidden': 'true' }));
+    // In a hand, the card under the pointer (or focused) is shown whole by a
+    // break opening after it.
+    const breakAt = (e) => {
+      const card = [...tiles.children].find((k) => k.contains(e.target));
+      if (card) openBreak(tiles, card);
+    };
+    tiles.addEventListener('pointerover', breakAt);
+    tiles.addEventListener('focusin', breakAt);
+    tiles.addEventListener('pointerleave', () => openBreak(tiles, null));
+    tiles.addEventListener('focusout', (e) => { if (!tiles.contains(e.relatedTarget)) openBreak(tiles, null); });
     sec.append(h('h2', { 'data-chapter': c.chapter }, toggle), tiles);
     if (folded()) sec.classList.add('folded');
     return sec;
@@ -192,7 +202,9 @@ export function levelSelect(root, ctx, focus = null) {
   }
 
   // Each card's place in a hand of n cards w wide that fits in W:
-  // { width, height, places: [{ x, y, a }] }.
+  // { width, height, places: [{ x, y, a, row }], gap }: `gap` is how far the
+  // cards after a card move aside to show it whole. Where the hand is turned
+  // least (at the bottom), each card shows about 0.6 `step` of the last.
   function handLayout(n, W, w) {
     const hgt = (w * 7) / 5, R = 2.4 * hgt, step = 0.17 * w, lift = 0.05 * hgt, pitch = 0.42 * hgt;
     const row = (m) => {
@@ -216,8 +228,8 @@ export function levelSelect(root, ctx, focus = null) {
     per = Math.ceil(n / rows);
     const hands = Array.from({ length: rows }, (_, r) => row(Math.min(per, n - r * per)));
     const width = Math.max(...hands.map((f) => f.width));
-    const places = hands.flatMap((f, r) => f.cards.map((p) => ({ a: p.a, x: p.x + (width - f.width) / 2, y: p.y + lift + r * pitch })));
-    return { width, height: lift + (rows - 1) * pitch + hands[rows - 1].height, places };
+    const places = hands.flatMap((f, r) => f.cards.map((p) => ({ a: p.a, x: p.x + (width - f.width) / 2, y: p.y + lift + r * pitch, row: r })));
+    return { width, height: lift + (rows - 1) * pitch + hands[rows - 1].height, places, gap: 1.04 * w - 0.6 * step };
   }
 
   const place = (el, p) => {
@@ -225,7 +237,22 @@ export function levelSelect(root, ctx, focus = null) {
     el.style.setProperty('--y', `${p.y.toFixed(1)}px`);
     el.style.setProperty('--a', `${p.a.toFixed(4)}rad`);
   };
-  const unplace = (el) => ['--x', '--y', '--a'].forEach((k) => el.style.removeProperty(k));
+  const unplace = (el) => ['--x', '--y', '--a', '--brk'].forEach((k) => el.style.removeProperty(k));
+
+  // A break in a hand after `card` (null: none): the cards after it in its
+  // row move aside, clear of it. The card itself and those before it stay
+  // put, so what is under the pointer doesn't move, and the next card starts
+  // right of the pointer however low on the card it is.
+  function openBreak(tiles, card) {
+    const lay = tiles._hand;
+    if (!lay || !tiles.classList.contains('fan') || tiles.classList.contains('moving')) return;
+    const kids = [...tiles.children];
+    const k = card ? kids.indexOf(card) : -1;
+    kids.forEach((el, j) => {
+      const open = k >= 0 && j > k && lay.places[j].row === lay.places[k].row;
+      el.style.setProperty('--brk', open ? `${lay.gap.toFixed(1)}px` : '0px');
+    });
+  }
   // The cards drawn where they are now placed (with no transition: .still),
   // then moving (.moving) to wherever they are placed next.
   const moveTimers = new WeakMap();
@@ -327,27 +354,33 @@ export function levelSelect(root, ctx, focus = null) {
     return tile(lv, -1, f);
   }
 
-  // Where the light catches a foil or holographic card: it depends on where
-  // the card is on the screen (so it moves as the page scrolls), on a tilt of
-  // the card's own (tile() sets it), and on the pointer while it is over it.
-  // Each change repaints the card, so it is only written when it moves by
-  // a whole percent or so.
-  const shine = (el, lx, ly, glint) => {
-    const v = [`${lx.toFixed(0)}%`, `${ly.toFixed(0)}%`, glint.toFixed(2)];
-    if (el._shine === v.join()) return;
-    el._shine = v.join();
-    el.style.setProperty('--lx', v[0]);
-    el.style.setProperty('--ly', v[1]);
-    el.style.setProperty('--glint', v[2]);
+  // Where the light catches a foil or holographic card (style.css): its
+  // piece of the screen-sized sheen is set by where the card is on the
+  // screen, and its glint by a light above the screen (or the pointer,
+  // while it is over the card). Each change repaints the card, so it is
+  // only written when it moves by a pixel or more.
+  const LIGHT = [0.3, -0.1];   // the light, as a fraction of the screen
+  // The card's top left corner as it lies unturned (in a hand it is turned
+  // about its centre), and the values for it.
+  const shineOf = (el, lx, ly) => {
+    const r = el.getBoundingClientRect();
+    const left = r.left + r.width / 2 - el.offsetWidth / 2, top = r.top + r.height / 2 - el.offsetHeight / 2;
+    return { r, v: [-left, -top, lx - left, ly - top].map((n) => `${Math.round(n)}px`) };
+  };
+  const shine = (el, v) => {
+    const key = v.join();
+    if (el._shine === key) return;
+    el._shine = key;
+    ['--sx', '--sy', '--lx', '--ly'].forEach((k, j) => el.style.setProperty(k, v[j]));
   };
   function light() {
-    for (const el of page.querySelectorAll('a.tile.foil, a.tile.holo')) {
-      if (el.classList.contains('lit')) continue;
-      const r = el.getBoundingClientRect();
-      if (!r.width || r.bottom < -200 || r.top > innerHeight + 200) continue;
-      const x = (r.left + r.width / 2) / innerWidth, y = (r.top + r.height / 2) / innerHeight;
-      shine(el, 12 + 76 * x, 8 + 84 * y, Math.max(-1, Math.min(1, x + y - 1)));
-    }
+    // Everything is measured first, then written (so as not to lay the page
+    // out again for each card).
+    const lx = LIGHT[0] * innerWidth, ly = LIGHT[1] * innerHeight;
+    const todo = [...page.querySelectorAll('a.tile.foil:not(.lit), a.tile.holo:not(.lit)')]
+      .map((el) => ({ el, ...shineOf(el, lx, ly) }))
+      .filter(({ r }) => r.width && r.bottom > -200 && r.top < innerHeight + 200);
+    for (const { el, v } of todo) shine(el, v);
   }
 
   function tile(lv, i, label) {
@@ -361,7 +394,7 @@ export function levelSelect(root, ctx, focus = null) {
         f.special ? null : h('div', { class: `tile-no${f.cls === 'red' ? ' red' : ''}` }, f.text));
     }
     const kind = f.special ? `special ${SPECIAL_TILE[f.card]}` : f.cls === 'red' ? 'red' : f.cls === 'plain' ? 'plain' : 'black';
-    const corner = (pos) => h('div', { class: `tile-corner ${pos}` }, h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null);
+    const corner = (pos, mark) => h('div', { class: `tile-corner ${pos}` }, h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null, mark);
     const sd = standingOf(lv);
     const tops = AXES.filter((k) => sd.top[k]).length;
     const finish = st.solved ? (tops === 2 ? ' holo' : tops === 1 ? ' foil' : '') : '';
@@ -372,10 +405,10 @@ export function levelSelect(root, ctx, focus = null) {
     },
     finish ? h('div', { class: 'tile-foil', 'aria-hidden': 'true' }) : null,
     h('div', { class: 'tile-pip', 'aria-hidden': 'true' }, f.special ? f.rank : f.glyph),
-    corner('tl'), corner('br'),
     // Not cleared yet: a ring under the corner index (half filled once
     // started), which shows even when the card is in a hand.
-    st.solved ? null : h('span', { class: `tile-mark${st.cells?.length ? ' started' : ''}`, 'aria-hidden': 'true' }),
+    corner('tl', st.solved ? null : h('span', { class: `tile-mark${st.cells?.length ? ' started' : ''}`, 'aria-hidden': 'true' })),
+    corner('br'),
     h('div', { class: 'tile-title' }, lv.title),
     h('div', { class: 'tile-brief' }, lv.brief ?? ''),
     st.solved ? scoreBox(lv, sd) : h('div', { class: 'tile-score open' },
@@ -383,19 +416,10 @@ export function levelSelect(root, ctx, focus = null) {
       lv.par ? h('span', { class: 'ts-par' }, `par ${lv.par.croupiers ?? '–'} · ${lv.par.rounds ?? '–'}`) : null),
     friendsLine(sd, st.solved));
     if (finish) {
-      // Each card lies at a slightly different angle to the light, and has
-      // its own tint; the shine follows the pointer over it.
-      const rnd = seeded(lv.id);
-      const vars = {
-        '--tilt-x': `${(rnd() * 44 - 22).toFixed(1)}%`, '--tilt-y': `${(rnd() * 44 - 22).toFixed(1)}%`,
-        '--ang': `${(95 + rnd() * 60).toFixed(0)}deg`, '--hue': `${(rnd() * 70 - 35).toFixed(0)}deg`,
-      };
-      for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v);
+      // The glint follows the pointer over the card.
       el.addEventListener('pointermove', (e) => {
-        const r = el.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
         el.classList.add('lit');
-        shine(el, x * 100, y * 100, x + y - 1);
+        shine(el, shineOf(el, e.clientX, e.clientY).v);
       });
       el.addEventListener('pointerleave', () => { el.classList.remove('lit'); light(); });
     }
@@ -548,16 +572,6 @@ export function levelSelect(root, ctx, focus = null) {
 
 const AXES = ['croupiers', 'rounds'];
 
-// A repeatable stream of numbers in [0, 1) from a string (a floor's id), so
-// a card keeps its tilt from one visit to the next.
-function seeded(str) {
-  let x = 2166136261;
-  for (const ch of str) x = Math.imul(x ^ ch.codePointAt(0), 16777619);
-  return () => {
-    x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
-    return (x >>> 0) / 4294967296;
-  };
-}
 
 // A small staircase chart, for the chart button.
 const chartIcon = () => s('svg', { viewBox: '0 0 16 16', width: 14, height: 14, 'aria-hidden': 'true' },
