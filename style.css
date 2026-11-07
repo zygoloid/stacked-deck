@@ -191,6 +191,7 @@ kbd {
    browser's own long-press actions */
 .tiles.fan { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .tiles.fan > * { position: absolute; left: 0; top: 0; width: var(--card-w); transition: transform 0.22s ease-out; }
+.tiles.fan > .row-up { z-index: 20; }
 .tiles.fan > :hover, .tiles.fan > :focus-within, .tiles.fan > .shown { z-index: 30; }
 .tiles.fan a.tile:hover, .tiles.fan .tile-slot:hover a.tile { transform: none; }
 /* a break can reach past the hand: over the next hand, never off the page */
