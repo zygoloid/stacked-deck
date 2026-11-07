@@ -88,10 +88,13 @@ function route() {
   }
   document.title = 'Stacked Deck';
   document.body.dataset.screen = 'select';
-  cleanup = levelSelect(root, ctx);
-  // Back from a floor: scrolled so that floor's tile is in view.
-  const tile = lastFloor && [...root.querySelectorAll('.tile[data-level]')].find((t) => t.dataset.level === lastFloor);
-  tile?.scrollIntoView({ block: 'center' });
+  cleanup = levelSelect(root, ctx, lastFloor);
+  // Back from a floor: its deck is shown, scrolled so that floor's card is in
+  // view (its small card, in a folded suit). Only once: drawn again later, the
+  // list stays on the deck the player picked.
+  const card = lastFloor && [...root.querySelectorAll('[data-level]')].find((t) => t.dataset.level === lastFloor && t.getClientRects().length);
+  card?.scrollIntoView({ block: 'center' });
+  lastFloor = null;
 }
 
 // An invite link (#invite=<code>): take the code out of the address (so it

@@ -125,27 +125,132 @@ kbd {
 }
 .tagline { color: var(--ink-2); font: italic 17px/1.4 var(--serif); margin: 0 0 12px; }
 .marquee-meta { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; align-items: center; color: var(--muted); font-size: 13px; }
-.chapter { max-width: 1320px; margin: 0 auto 26px; }
-.chapter h2 {
-  font: 600 15px/1 var(--sans); text-transform: uppercase; letter-spacing: 0.18em; color: var(--gold);
-  display: flex; align-items: center; gap: 10px; margin: 0 0 14px;
+.chapter { max-width: 1320px; margin: 0 auto 30px; }
+.chapter h2 { margin: 0 0 14px; font: 600 15px/1 var(--sans); }
+/* a suit's heading folds it away */
+.ch-toggle {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 2px; border: 0; background: none; cursor: pointer;
+  font: inherit; text-transform: uppercase; letter-spacing: 0.18em; color: var(--gold); text-align: left;
 }
-.chapter h2::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--gold-soft), transparent); }
-.ch-suit { font-size: 18px; color: var(--ink); }
+.ch-rule { flex: 1; height: 1px; min-width: 12px; background: linear-gradient(90deg, var(--gold-soft), transparent); }
+.ch-count {
+  font: 600 12px/1 var(--sans); letter-spacing: 0.06em; color: var(--muted); font-variant-numeric: tabular-nums;
+  padding: 4px 9px; border-radius: 999px; border: 1px solid rgba(212, 175, 55, 0.18); background: rgba(0, 0, 0, 0.18);
+}
+.ch-count.all { color: var(--gold-2); border-color: var(--gold-soft); }
+.ch-chev { width: 9px; height: 9px; margin: 0 6px 4px 2px; border: solid var(--gold); border-width: 0 2px 2px 0; transform: rotate(45deg); transition: transform 0.2s; opacity: 0.8; }
+.chapter.folded .ch-chev { transform: rotate(-45deg); margin-bottom: 0; }
+.ch-toggle:hover .ch-chev { opacity: 1; }
+.ch-toggle:hover .ch-count { color: var(--ink); }
+.ch-suit { font-size: 19px; color: var(--ink); letter-spacing: 0; }
+.ch-count { white-space: nowrap; }
+.ch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 600px) {
+  .ch-toggle { gap: 8px; letter-spacing: 0.1em; font-size: 13px; }
+  .ch-rule { min-width: 0; }
+  .decks { gap: 10px; flex-wrap: nowrap; }
+  .deck-tab { width: auto; flex: 1 1 0; gap: 8px; padding: 10px 10px 10px 8px; }
+  .deck-box { transform: scale(0.8); margin: -6px -6px; }
+  .deck-text b { font-size: 16px; white-space: nowrap; }
+  .deck-count { white-space: nowrap; }
+  .deck-sub { display: none; }
+}
 .ch-suit.red { color: #ff7a93; }
 .ch-name { color: var(--ink-2); }
+.chapter.folded .tiles, .chapter:not(.folded) .fan { display: none; }
+/* a folded suit: a row of small cards, fanned a little */
+.fan { display: flex; flex-wrap: wrap; gap: 10px 0; padding: 4px 0 6px 8px; }
+.mini {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; flex: none;
+  width: 42px; height: 59px; margin-left: -8px; border-radius: 5px; text-decoration: none;
+  background: linear-gradient(180deg, #fefefc, #f1f0ec); color: #16181d; font: 700 15px/1 var(--serif);
+  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.18);
+  transition: transform 0.15s;
+}
+.mini i { font-style: normal; font-size: 13px; margin-top: 1px; }
+.mini.red { color: var(--red); }
+.mini.plain, .mini.spc { font-family: var(--sans); font-size: 12px; font-weight: 800; }
+.mini.plain { color: #1f3b70; }
+.mini.spc i { font-size: 8px; }
+a.mini:hover, a.mini:focus-visible { transform: translateY(-6px); z-index: 1; }
+.mini.solved::after {
+  content: ''; position: absolute; left: 5px; right: 5px; bottom: 4px; height: 3px; border-radius: 2px; background: #1f7a45; opacity: 0.85;
+}
+.mini.foil { background: linear-gradient(150deg, #fff8dc, #e9cf77 40%, #fff6d6 58%, #cfa73a); }
+.mini.holo { background: linear-gradient(150deg, #ffd6e4, #fff0c8 25%, #ddfbcc 45%, #cdf3ff 65%, #e2d8ff 85%); }
+.mini.locked {
+  color: rgba(255, 255, 255, 0.8); font-size: 12px;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0 1.5px, transparent 1.5px 5px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.1) 0 1.5px, transparent 1.5px 5px),
+    linear-gradient(180deg, #7a1f2e, #5b1622);
+  box-shadow: inset 0 0 0 2.5px #f4f2ec, -2px 0 4px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.3);
+  opacity: 0.8;
+}
+.mini.locked.bonus {
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0 1.5px, transparent 1.5px 5px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.1) 0 1.5px, transparent 1.5px 5px),
+    linear-gradient(180deg, #24427a, #142a52);
+}
+
+/* the two decks: card boxes to pick from */
+.decks { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; max-width: 1320px; margin: 0 auto 30px; }
+.deck-tab {
+  display: flex; align-items: center; gap: 16px; min-width: 0; width: 300px; max-width: 100%; padding: 12px 18px 12px 14px; border-radius: 14px;
+  border: 1px solid rgba(212, 175, 55, 0.2); background: rgba(0, 0, 0, 0.2); cursor: pointer; text-align: left;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+  opacity: 0.72;
+}
+.deck-tab:hover { opacity: 1; border-color: var(--gold-soft); }
+.deck-tab.on { opacity: 1; border-color: var(--gold); background: rgba(0, 0, 0, 0.32); box-shadow: 0 0 0 1px var(--gold), 0 8px 24px rgba(0, 0, 0, 0.3); cursor: default; }
+.deck-box { position: relative; flex: none; width: 46px; height: 58px; }
+.deck-box i {
+  position: absolute; left: 4px; top: 4px; width: 38px; height: 52px; border-radius: 4px;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.12) 0 1.5px, transparent 1.5px 5px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.12) 0 1.5px, transparent 1.5px 5px),
+    linear-gradient(180deg, #8c2535, #5b1622);
+  box-shadow: inset 0 0 0 2.5px #f4f2ec, 0 2px 4px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s;
+}
+.deck-tab.bonus .deck-box i {
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.12) 0 1.5px, transparent 1.5px 5px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.12) 0 1.5px, transparent 1.5px 5px),
+    linear-gradient(180deg, #2b4d8c, #142a52);
+}
+.deck-box i:nth-child(1) { transform: rotate(-9deg) translate(-3px, 1px); }
+.deck-box i:nth-child(2) { transform: rotate(-3deg); }
+.deck-box i:nth-child(3) { transform: rotate(5deg) translate(3px, 0); }
+.deck-tab:hover .deck-box i:nth-child(1), .deck-tab.on .deck-box i:nth-child(1) { transform: rotate(-14deg) translate(-6px, 2px); }
+.deck-tab:hover .deck-box i:nth-child(3), .deck-tab.on .deck-box i:nth-child(3) { transform: rotate(10deg) translate(6px, 0); }
+.deck-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.deck-text b { font: 700 19px/1.15 var(--serif); color: var(--ink); }
+.deck-sub { font-size: 12px; color: var(--muted); }
+.deck-tab.campaign .deck-sub { color: #f29aa9; }
+.deck-tab.bonus .deck-sub { color: #a9c3f0; }
+.deck-count { margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.deck-bar { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.deck-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #b38b22, var(--gold-2)); }
 /* Every card is the same size, in a playing card's proportions (5:7), and
    what is on it scales with its width: 1cqi is 1% of it (the slot around an
    open card is the container). */
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 18px; }
 .tile-slot { position: relative; display: grid; container-type: inline-size; }
+/* A card's paper is a neutral white (gold is kept for the foil). Its
+   shadow is two parts: --frame, the lines printed on the card (inset), and
+   --lift, the shadow under it, which is all that hovering changes. */
 .tile {
+  --paper: #fdfdfb; --paper-2: #f5f4f0;
+  --frame: inset 0 1px 0 #fff;
+  --lift: 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.2);
   position: relative; display: flex; flex-direction: column; gap: 2.4cqi; aspect-ratio: 5 / 7; min-width: 0; padding: 7cqi 8cqi 6.5cqi 16cqi;
-  border-radius: 12px; background: var(--card); color: #1d1d1d; text-decoration: none;
-  box-shadow: 0 1px 0 #fff inset, 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.2);
+  border-radius: 12px; background: linear-gradient(180deg, var(--paper), var(--paper-2)); color: #1d1d1d; text-decoration: none;
+  box-shadow: var(--frame), var(--lift);
   transition: transform 0.15s, box-shadow 0.15s;
 }
-a.tile:hover, .tile-slot:hover a.tile { transform: translateY(-4px) rotate(-0.6deg); box-shadow: 0 12px 26px rgba(0, 0, 0, 0.45), 0 0 0 2px var(--gold); }
+a.tile:hover, .tile-slot:hover a.tile { --lift: 0 14px 28px rgba(0, 0, 0, 0.45), 0 0 0 2px var(--gold); transform: translateY(-4px) rotate(-0.6deg); }
 .tile-corner { position: absolute; display: flex; flex-direction: column; align-items: center; font: 700 max(13px, 8.4cqi)/1 var(--serif); }
 .tile-corner i { font-style: normal; font-size: 0.88em; margin-top: 2px; }
 .tile-corner.tl { top: 4.5cqi; left: 5cqi; }
@@ -165,7 +270,7 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
 .tile.special .tile-corner { font-family: var(--sans); font-weight: 800; font-size: max(12px, 7.8cqi); }
 .tile.special .tile-corner i { font-size: 0.6em; }
 .tile.special .tile-pip { font-family: var(--sans); font-weight: 800; font-size: 40cqi; opacity: 0.1; }
-.tile.f-mono { background: #fff; box-shadow: inset 0 0 0 4px #fff, inset 0 0 0 6px #16181d, 0 6px 18px rgba(0, 0, 0, 0.35); }
+.tile.f-mono { background: #fff; --frame: inset 0 0 0 4px #fff, inset 0 0 0 6px #16181d; }
 .tile.f-mono .tile-corner, .tile.f-mono .tile-pip { color: #16181d; }
 .tile.f-colour {
   border: 5px solid transparent; padding: calc(7cqi - 5px) calc(8cqi - 5px) calc(6.5cqi - 5px) calc(20cqi - 5px);
@@ -179,9 +284,9 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
 }
 .tile.f-colour .tile-pip { opacity: 0.16; }
 .tile.f-colour .tile-corner i { color: #e9a100; }
-.tile.f-front { background: linear-gradient(180deg, #ecf8e6, #d6eecb); box-shadow: inset 0 0 0 5px #ecf8e6, inset 0 0 0 7px #1d6b3a, 0 6px 18px rgba(0, 0, 0, 0.35); }
+.tile.f-front { background: linear-gradient(180deg, #ecf8e6, #d6eecb); --frame: inset 0 0 0 5px #ecf8e6, inset 0 0 0 7px #1d6b3a; }
 .tile.f-front .tile-corner, .tile.f-front .tile-pip { color: #1d6b3a; }
-.tile.f-back { background: linear-gradient(180deg, #fdf8ec, #f1ead2); box-shadow: inset 0 0 0 8px #1d5a36, inset 0 0 0 9px #f2c14e, 0 6px 18px rgba(0, 0, 0, 0.35); }
+.tile.f-back { background: linear-gradient(180deg, #fdfcf7, #efede2); --frame: inset 0 0 0 8px #1d5a36, inset 0 0 0 9px #f2c14e; }
 .tile.f-back .tile-corner { color: #f2c14e; background: #1d5a36; padding: 2px 3px; border-radius: 4px; top: 6px; left: 7px; }
 .tile.f-back .tile-corner.br { top: auto; left: auto; bottom: 6px; right: 7px; }
 .tile.f-back .tile-pip { color: #1d5a36; opacity: 0.12; }
@@ -214,41 +319,48 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
   background: rgba(60, 50, 20, 0.08); color: #5d5640;
 }
 .tile-friends.beaten { background: rgba(180, 90, 20, 0.12); color: #934810; }
-.tile.solved { background: linear-gradient(180deg, #fffdf6, #f1ead2); }
+.tile.solved:not(.special) { --paper: #fafaf8; --paper-2: #ecebe6; }
 .tile.solved::after {
   content: 'PAID'; position: absolute; left: 50%; top: 56%; transform: translate(-50%, -50%) rotate(-14deg);
   border: 2px solid #1f7a45; color: #1f7a45; border-radius: 4px; padding: 0 6px; font: 800 max(11px, 7cqi)/1.5 var(--sans);
-  letter-spacing: 0.14em; opacity: 0.4; pointer-events: none;
+  letter-spacing: 0.14em; opacity: 0.4; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7), inset 0 0 0 2.5px rgba(31, 122, 69, 0.55);
 }
-/* the best known score on one count: gold foil; on both: holographic. The
-   shine follows the pointer (--mx, --my, set in screens.js). */
+/* the best known score on one count: gold foil; on both: holographic. Each
+   card has its own tilt (--tilt-x, --tilt-y), angle (--ang), tint (--hue)
+   and pace (--dur, --delay), set in screens.js; where the light falls
+   (--lx, --ly) follows the card's place on the screen, and the pointer. */
 .tile-foil {
   position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none;
-  --mx: 30%; --my: 20%;
+  --sx: clamp(0%, var(--lx) + var(--tilt-x) + var(--drift) * 12%, 100%);
+  --sy: clamp(0%, var(--ly) + var(--tilt-y) + var(--drift) * 9%, 100%);
+  animation: foil-drift var(--dur) ease-in-out var(--delay) infinite alternate;
 }
-.tile.foil { background: linear-gradient(150deg, #fffaf0, #f7e7b4 30%, #fffaf0 50%, #f1dc9c 76%, #fff8e6); }
+.tile.foil, .tile.holo { --lx: 50%; --ly: 40%; --tilt-x: 0%; --tilt-y: 0%; --ang: 120deg; --hue: 0deg; --dur: 8s; --delay: 0s; }
+.tile.lit .tile-foil { animation-play-state: paused; }
+.tile.foil:not(.special) { --paper: #fffaf0; background: linear-gradient(var(--ang), #fffaf0, #f7e7b4 30%, #fffaf0 50%, #f1dc9c 76%, #fff8e6); }
 .tile.foil .tile-foil {
   box-shadow: inset 0 0 0 2.5px #c9a227, inset 0 0 0 4px rgba(255, 250, 225, 0.8), inset 0 0 0 5px rgba(160, 120, 20, 0.45);
   background:
-    radial-gradient(circle at var(--mx) var(--my), rgba(255, 255, 255, 0.75), transparent 40%),
-    linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.55) 46%, rgba(255, 236, 160, 0.25) 52%, transparent 66%) var(--mx) var(--my) / 250% 250%;
+    radial-gradient(circle at var(--lx) var(--ly), rgba(255, 255, 255, 0.75), transparent 40%),
+    linear-gradient(var(--ang), transparent 30%, rgba(255, 255, 255, 0.6) 46%, rgba(255, 236, 160, 0.3) 52%, transparent 66%) var(--sx) var(--sy) / 250% 250%;
   mix-blend-mode: soft-light;
 }
-.tile.holo { background: linear-gradient(160deg, #fbf8ff, #eef6ff 50%, #fff5fb); }
+.tile.holo:not(.special) { --paper: #fbf9ff; background: linear-gradient(calc(var(--ang) + 40deg), #fbf8ff, #eef6ff 50%, #fff5fb); }
 .tile.holo .tile-foil {
   box-shadow: inset 0 0 0 2.5px rgba(150, 120, 210, 0.7), inset 0 0 0 4px rgba(255, 255, 255, 0.8);
   background:
-    radial-gradient(circle at var(--mx) var(--my), rgba(255, 255, 255, 0.85), transparent 38%),
+    radial-gradient(circle at var(--lx) var(--ly), rgba(255, 255, 255, 0.85), transparent 38%),
     radial-gradient(rgba(255, 255, 255, 0.9) 0.8px, transparent 1.4px) 0 0 / 7px 7px,
-    repeating-linear-gradient(115deg, #ff8fb1 0%, #ffd27f 7%, #b6f28d 14%, #7fe3ff 21%, #b49bff 28%, #ff8fb1 35%) var(--mx) var(--my) / 300% 300%;
+    repeating-linear-gradient(var(--ang), #ff8fb1 0%, #ffd27f 7%, #b6f28d 14%, #7fe3ff 21%, #b49bff 28%, #ff8fb1 35%) var(--sx) var(--sy) / 300% 300%;
   mix-blend-mode: multiply; opacity: 0.42;
-  animation: holo-drift 7s ease-in-out infinite alternate;
+  filter: hue-rotate(calc(var(--hue) + var(--drift) * 25deg));
 }
-.tile.holo:hover .tile-foil { animation: none; opacity: 0.55; }
-@keyframes holo-drift { from { --mx: 15%; --my: 10%; } to { --mx: 85%; --my: 90%; } }
-@property --mx { syntax: '<percentage>'; inherits: true; initial-value: 30%; }
-@property --my { syntax: '<percentage>'; inherits: true; initial-value: 20%; }
-@media (prefers-reduced-motion: reduce) { .tile.holo .tile-foil { animation: none; } }
+.tile.holo.lit .tile-foil { opacity: 0.55; }
+@keyframes foil-drift { from { --drift: -1; } to { --drift: 1; } }
+@property --drift { syntax: '<number>'; inherits: true; initial-value: 0; }
+@property --lx { syntax: '<percentage>'; inherits: true; initial-value: 50%; }
+@property --ly { syntax: '<percentage>'; inherits: true; initial-value: 40%; }
+@media (prefers-reduced-motion: reduce) { .tile-foil { animation: none; } }
 /* the chart button, on touch screens (elsewhere hovering a card, or focusing
    it from the keyboard, shows the chart) */
 .tile-chart {
@@ -285,30 +397,29 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
 .lg-foil { background: linear-gradient(150deg, #fff8dc, #e6c55a 45%, #fff4cc 60%, #c9a227); box-shadow: inset 0 0 0 1px #a8851d; }
 .lg-holo { background: linear-gradient(150deg, #ff8fb1, #ffd27f, #b6f28d, #7fe3ff, #b49bff); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6); }
 .tile.locked { background: none; box-shadow: none; padding: 0; color: var(--ink-2); }
+.tile.locked::before, .tile.locked::after { display: none; }
 .tile-back {
   position: absolute; inset: 0; border-radius: 12px; display: grid; place-items: center;
   background:
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px 9px),
     repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px 9px),
     linear-gradient(180deg, #7a1f2e, #5b1622);
-  box-shadow: inset 0 0 0 6px #fdf8ec, inset 0 0 0 7px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 6px #f4f2ec, inset 0 0 0 7px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.35);
   opacity: 0.75;
 }
-/* the bonus deck: navy card backs and a navy frame */
-.chapter.bonus { margin-top: 40px; padding-top: 22px; border-top: 1px dashed rgba(143, 176, 230, 0.35); }
-.chapter.bonus h2 { color: #a9c3f0; }
-.chapter.bonus h2::after { background: linear-gradient(90deg, rgba(143, 176, 230, 0.45), transparent); }
-.ch-suit.bonus { color: #f2c14e; }
-.bonus-note { margin: -6px 0 14px; color: var(--ink-2); font: italic 14px/1.4 var(--serif); }
-.tile.bonus {
-  box-shadow: inset 0 0 0 5px var(--card), inset 0 0 0 7px #1f3b70, 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.2);
+/* the bonus deck: navy card backs, and a navy line printed round each face */
+.deck.bonus .chapter h2 { color: #a9c3f0; }
+.deck.bonus .ch-toggle { color: #a9c3f0; }
+.deck.bonus .ch-rule { background: linear-gradient(90deg, rgba(143, 176, 230, 0.45), transparent); }
+.deck.bonus .ch-chev { border-color: #a9c3f0; }
+.deck.bonus .ch-count.all { color: #cfe0ff; border-color: rgba(143, 176, 230, 0.5); }
+.bonus-note { max-width: 1320px; margin: -14px auto 22px; text-align: center; color: var(--ink-2); font: italic 14px/1.4 var(--serif); }
+.tile.bonus:not(.special)::before {
+  content: ''; position: absolute; inset: 2.6cqi; border: 1.5px solid #1f3b70; border-radius: 8px; pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 2.75px rgba(31, 59, 112, 0.45);
 }
-.tile.bonus::before {
-  content: 'BONUS'; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font: 800 9.5px/1.6 var(--sans); letter-spacing: 0.14em;
-  color: #fdf8ec; background: #1f3b70; padding: 0 8px; border-radius: 3px; box-shadow: 0 0 0 2px var(--card);
-}
-.tile.locked.bonus::before { display: none; }
-.tile.bonus.solved::before { background: #1f7a45; }
+.tile.bonus:not(.special) .tile-corner.tl { top: 6.5cqi; left: 6.8cqi; }
+.tile.bonus:not(.special) .tile-corner.br { bottom: 6.5cqi; right: 6.8cqi; }
 .tile.bonus.plain .tile-corner { color: #1f3b70; }
 .tile.locked.bonus .tile-back {
   background:
@@ -318,7 +429,6 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
 }
 .floor-badge.bonus { box-shadow: inset 0 0 0 1.5px #1f3b70; }
 .floor-badge.bonus.plain { color: #1f3b70; }
-.meta-bonus { color: #a9c3f0; }
 .bonus-star { color: #b38b22; }
 .lock { background: rgba(0, 0, 0, 0.45); padding: 4px 12px; border-radius: 999px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
 /* what opens a locked bonus floor: campaign floors plain, bonus floors on a navy chip with a star */
