@@ -41,7 +41,7 @@ export function openEditor(root, ctx, level) {
   let drag = null;                // { kind: 'move'|'new'|'pan'|'pinch', key|tool, x0, y0, active, over, overPalette, id }
   const pointers = new Map();     // pointers down on the board: id -> [x, y] (two pinch-zoom)
   let peekAt = null;              // { x, y, tap } where a collapsed stack or label is being looked at
-  let anim = null, animRaf = 0;   // cards moving after a step: { from, start, dur }
+  let anim = null, animRaf = 0;   // cards moving after a step: { from, start, dur, back }
   let watching = false;           // play mode: the palette and inspector are hidden, nothing is selected
   let pick = null;                // { at, side } the empty hex the croupier picker is open for
   let lift = null;                // a group picked up to move or turn: { items: [{ key, cell }], copy }
@@ -280,9 +280,10 @@ export function openEditor(root, ctx, level) {
     const d = Math.min(0.32, 0.7 / rate);
     return d >= 0.06 ? d : 0;
   }
-  // Animate the cards from where they were drawn before the step just taken.
-  function startAnim(from, dur) {
-    anim = dur && from ? { from, start: performance.now(), dur: dur * 1000 } : null;
+  // Animate the cards from where they were drawn before the step just taken
+  // (or undone: `back` is what Sim.back returned).
+  function startAnim(from, dur, back) {
+    anim = dur && from ? { from, start: performance.now(), dur: dur * 1000, back } : null;
     animate();
   }
   // While playing, tick() draws the frames; otherwise this does.
@@ -337,8 +338,9 @@ export function openEditor(root, ctx, level) {
     if (!sim || running) return;
     enterPlay();
     stop();
-    sim.back();
-    anim = null;
+    const from = board.positions;
+    const undone = sim.back();
+    if (undone) startAnim(from, animDuration(2), undone);
     hideToast();
     renderBoard(); renderTests(); renderTransport();
   }

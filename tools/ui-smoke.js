@@ -8,7 +8,8 @@
 // checks floor numbering (playing-card labels), special card faces, the shoe
 // deck parser's special-card rules, and placing Burn and Hand croupiers (with
 // a Hand's held cards drawn on the board), step animation (copies of a card
-// each moving from their own place), pausing with a
+// each moving from their own place; stepping back too, a Duplicate's copies
+// going back into their originals), pausing with a
 // slow mouse click, touch (drag pans with a croupier picked, tap places,
 // tapping the bare floor deselects, pinch zoom, a selected croupier's panel
 // right under the floor on a phone, tap to see a cut-short Deal
@@ -191,6 +192,11 @@ try {
     await page.waitForTimeout(500);
     const after = await where();
     check(during !== after, 'a step animates the cards');
+    await page.keyboard.press(',');
+    const backDuring = await where();
+    await page.waitForTimeout(500);
+    const backAfter = await where();
+    check(backDuring !== backAfter, 'a step back animates the cards');
   }
   // Copies of a card each move from their own place: Duplicate's copies go on
   // to two passes, and in one step one is paid and the other dropped. The
@@ -237,6 +243,53 @@ try {
     });
     check(r && r.paid && r.desk === r.paid && r.fading.includes(r.dropped) && !r.fading.includes(r.paid),
       `a paid copy of a card slides from its own place, the dropped copy fades (${JSON.stringify(r)})`);
+  }
+  // Stepping back over a Duplicate: its copies slide back into the card they
+  // copy (rather than fading), and the hand it took slides back to its slot.
+  {
+    const r = await page.evaluate(async () => {
+      const { Board } = await import('./src/ui/board.js');
+      const { Sim } = await import('./src/ui/sim.js');
+      const level = {
+        floor: [[0, 0], [1, 0], [2, 0], [3, 0], [1, 1], [0, 2], [1, 2]],
+        fixed: [{ at: [0, 0], kind: 'source', out: 0 }, { at: [3, 0], kind: 'payout' }],
+      };
+      const cells = [
+        { at: [1, 1], kind: 'croupier', fn: 'pass', out: { out: 2 } },
+        { at: [1, 0], kind: 'croupier', fn: 'duplicate', out: { a: 1, b: 0 } },
+        { at: [2, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } },
+      ];
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.style.cssText = 'position:fixed;left:0;top:0;width:600px;height:400px';
+      document.body.append(svg);
+      const board = new Board(svg, level);
+      const sim = new Sim({ cells: [...level.fixed, ...cells] }, [['AS', 'KH']], () => true);
+      const draw = (anim) => board.render({ cells, live: sim.floor, paidNow: sim.paidNow, paidNowDesk: sim.paidNowDesk, anim });
+      const loose = () => [...svg.querySelectorAll('.l-cards > .scard')].map((e) => {
+        const [x, y] = e.getAttribute('transform').match(/translate\(([^,]*),([^)]*)\)/).slice(1).map(Number);
+        return { x, y, op: e.getAttribute('opacity') };
+      });
+      const near = (p) => (e) => Math.abs(e.x - p.x) < 0.3 && Math.abs(e.y - p.y) < 0.3 && !e.op;
+      draw(null);
+      for (let i = 0; i < 10 && !sim.floor.copiedFrom.size; i++) { sim.step(); draw(null); }
+      const copies = [...sim.floor.copiedFrom];
+      if (!copies.length) { svg.remove(); return null; }
+      const from = board.positions;
+      const back = sim.back();
+      const anim = { from, t: 0, back };
+      draw(anim);
+      const start = loose();
+      const origins = copies.map(([copy, orig]) => [from.get(copy), board.landing.get(orig)]);
+      anim.t = 0.9999;
+      draw(anim);
+      const end = loose();
+      svg.remove();
+      return {
+        start, end, copies: copies.length,
+        moved: origins.every(([a, b]) => a && b && start.some(near(a)) && end.some(near(b))),
+      };
+    });
+    check(r?.moved, `stepping back, Duplicate's copies slide back into their originals (${JSON.stringify(r)})`);
   }
 
   // Pause with a real (slow) mouse click while playing: the transport isn't

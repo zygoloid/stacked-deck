@@ -38,6 +38,9 @@ export class Sim {
   reset() {
     if (this.run.round) this.run = new Run(this.spec, this.inputs, this.rule);
     this.snaps = new Map([[0, this.floor.snapshot()]]);
+    // Round -> the cards Duplicate made in it (copy -> original), for
+    // drawing a step back from it (the copies go back into their originals).
+    this.copies = new Map();
     this.lookedAhead = null; // the round it last ran a copy ahead from
     this.status = { kind: 'ready' };
     this.paidNow = null;
@@ -149,25 +152,41 @@ export class Sim {
   store() {
     const r = this.floor.round;
     this.snaps.set(r, this.floor.snapshot());
+    this.storeCopies(r);
     const old = r - KEEP_ALL;
     if (old > 0 && old % CHECKPOINT) this.snaps.delete(old);
+    // (Stepping back past here replays, making new cards: no use for these.)
+    if (old > 0) this.copies.delete(old);
   }
 
-  // Go back one round (restoring the nearest snapshot and replaying if needed).
+  storeCopies(r) {
+    if (this.floor.copiedFrom.size) this.copies.set(r, this.floor.copiedFrom);
+    else this.copies.delete(r);
+  }
+
+  // Go back one round (restoring the nearest snapshot and replaying if
+  // needed). Returns false if there is no round to go back to; else, for
+  // drawing it, { copiedFrom }: the cards Duplicate made in the round undone.
   back() {
     const target = this.floor.round - 1;
-    if (target < 0) return;
+    if (target < 0) return false;
+    const copiedFrom = this.copies.get(this.floor.round) ?? new Map();
     let from = target;
     while (!this.snaps.has(from)) from--;
     this.floor.restore(this.snaps.get(from));
     while (this.floor.round < target) this.floor.step();
+    if (from < target) this.storeCopies(target);
+    this.floor.copiedFrom = this.copies.get(target) ?? new Map();
+    this.floor.justPaid = [];
     this.run.reset();
     for (const k of this.snaps.keys()) if (k > target) this.snaps.delete(k);
+    for (const k of this.copies.keys()) if (k > target) this.copies.delete(k);
     this.snaps.set(target, this.floor.snapshot());
     if (this.lookedAhead !== null && this.lookedAhead > target) this.lookedAhead = null;
     this.status = { kind: target === 0 ? 'ready' : 'paused' };
     this.paidNow = null;
     this.paidNowDesk = undefined;
     this.paidWrong = false;
+    return { copiedFrom };
   }
 }
