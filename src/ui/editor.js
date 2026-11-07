@@ -1739,6 +1739,11 @@ export function openEditor(root, ctx, level) {
   document.addEventListener('keydown', onKey);
 
   renderAll();
+  // Opened to load one of the floor's saved solutions (a point clicked on
+  // its chart in the floors list): loaded as from the solutions list, so the
+  // machine that was here is an undo away.
+  const picked = ctx.takeSolution?.(level.id);
+  if (picked != null) loadSolution(picked);
   void R;
 
   return () => {

@@ -539,7 +539,12 @@ export function levelSelect(root, ctx, focus = null) {
         h('tbody', {}, rows)),
       sd.beatenBy.length ? h('ul', { class: 'pop-friends' }, sd.beatenBy.map((b) => h('li', {}, h('b', {}, b.name ?? 'A friend'), ': ',
         AXES.filter((k) => b[k] !== null).map((k) => `${b[k]} ${k}`).join(', ')))) : null,
-      scatterPlot({ solutions: st.solutions ?? [], par: lv.par, others: sc.stats?.points ?? [], friends: sc.friends, width: 340, height: 230 }),
+      // Clicking one of the player's points opens the floor with that machine.
+      scatterPlot({
+        solutions: st.solutions ?? [], par: lv.par, others: sc.stats?.points ?? [], friends: sc.friends, width: 340, height: 230,
+        onPick: ctx.openSolution ? (i) => { hidePop(); ctx.openSolution(lv, i); } : undefined,
+      }),
+      (st.solutions ?? []).length && ctx.openSolution ? h('p', { class: 'pop-note muted small' }, 'Click one of your points to open the floor with that machine.') : null,
       note ? h('p', { class: 'pop-note muted small' }, note) : null,
     ].filter(Boolean);
   }

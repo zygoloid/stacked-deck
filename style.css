@@ -192,7 +192,10 @@ kbd {
 .tiles.fan a.tile:hover, .tiles.fan .tile-slot:hover a.tile { transform: none; }
 /* a break can reach past the hand: over the next hand, never off the page */
 .deck > .chapter { position: relative; }
-.deck > .chapter.folded:hover, .deck > .chapter.folded:focus-within { z-index: 2; }
+/* (the hand under the pointer first: a suit's own fold button keeps the
+   focus after a click, and must not lift its hand over the one pointed at) */
+.deck > .chapter.folded:has(.tiles :focus-visible) { z-index: 2; }
+.deck > .chapter.folded:hover { z-index: 3; }
 .select { overflow-x: clip; }
 .tiles.moving { transition: height 0.55s cubic-bezier(0.45, 0, 0.2, 1); }
 .tiles.moving > * { transition: transform 0.55s cubic-bezier(0.45, 0, 0.2, 1); pointer-events: none; }
