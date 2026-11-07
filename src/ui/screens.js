@@ -1,11 +1,12 @@
 // Level select, story and help screens.
 import { h, s, handEl, SPECIAL_FACE, SUIT_GLYPH, SUIT_NAME } from './dom.js';
 import { CROUPIERS, PORT_STYLE, chipLabel, sampleCell } from './croupiers.js';
-import { CAMPAIGN as LEVELS, BONUS, findLevel } from './catalog.js';
+import { CAMPAIGN as LEVELS, BONUS, ALL_LEVELS, findLevel } from './catalog.js';
 import { RULES_VERSION } from '../engine.js';
 import { isUnlocked, isBonusOpen, unlockIds, specialCardsUnlocked } from './model.js';
 import { floorLabel, chapterInfo, floorBadge } from './floors.js';
 import { accountButton } from './account.js';
+import { saveFileDialog } from './savefile.js';
 import { scatterPlot, parMark } from './scatter.js';
 import { standing } from '../online.js';
 
@@ -79,6 +80,7 @@ export function levelSelect(root, ctx, focus = null) {
           BONUS.length ? null : h('span', { class: 'meta-count' }, `${solvedCount} / ${LEVELS.length} floors cleared`),
           h('button', { class: 'btn ghost small', onclick: () => ctx.help() }, '? How to play'),
           cloud ? accountButton(cloud) : null,
+          h('button', { class: 'btn ghost small', title: 'Download your progress, or load a save file', onclick: () => saveFileDialog(ctx, ALL_LEVELS) }, 'Save file'),
           h('span', { class: 'rules-version', title: 'Version of the game rules this page is running' }, `rules v${RULES_VERSION}`)),
         solvedCount + bonusSolved ? legend() : null),
       BONUS.length ? deckTabs() : null,

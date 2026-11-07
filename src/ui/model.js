@@ -11,16 +11,76 @@ export {
 
 const KEY = 'stacked-deck-v1';
 
-export function loadSave() {
+// The stored save as this tab last read or wrote it. Another tab of the game
+// writes the same key: when the stored save differs from this, that tab's
+// changes are merged into this tab's copy (mergeSave below) before anything
+// is written, so neither tab's progress overwrites the other's.
+let lastRaw = null;
+// Why the save can't be kept in this browser just now: null, 'blocked'
+// (storage turned off, as in some private windows) or 'full'.
+let problem = null;
+export const saveProblem = () => problem;
+
+const problemOf = (e) => (e?.name === 'QuotaExceededError' || e?.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e?.code === 22 || e?.code === 1014
+  ? 'full' : 'blocked');
+const isSave = (s) => !!s && typeof s === 'object' && !!s.levels && typeof s.levels === 'object' && !Array.isArray(s.levels);
+const parseSave = (raw) => {
   try {
-    const s = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (s && typeof s === 'object' && s.levels && typeof s.levels === 'object') return s;
-  } catch { /* unreadable or blocked storage */ }
+    const s = JSON.parse(raw ?? 'null');
+    return isSave(s) ? s : null;
+  } catch { return null; }
+};
+
+export function loadSave() {
+  let raw;
+  try { raw = localStorage.getItem(KEY); } catch (e) { problem = problemOf(e); return { levels: {} }; }
+  lastRaw = raw;
+  const s = parseSave(raw);
+  if (s) return s;
+  // Unreadable: keep a copy before it is overwritten.
+  if (raw) try { localStorage.setItem(`${KEY}-unreadable`, raw); } catch { /* storage full */ }
   return { levels: {} };
 }
 
+// Merge in what another tab stored since this tab last read or wrote the
+// save (`raw`, the stored save now). Returns the ids of the floors that
+// changed here, or null if `raw` isn't a save.
+function catchUp(save, raw) {
+  const theirs = parseSave(raw);
+  if (!theirs) return null;
+  const changed = mergeSave(parseSave(lastRaw) ?? { levels: {} }, theirs, save);
+  lastRaw = raw;
+  return changed;
+}
+
+// Returns saveProblem(): null if the save was written.
 export function writeSave(save) {
-  try { localStorage.setItem(KEY, JSON.stringify(save)); } catch { /* storage full or blocked */ }
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw !== lastRaw) catchUp(save, raw);
+    const out = JSON.stringify(save);
+    localStorage.setItem(KEY, out);
+    lastRaw = out;
+    problem = null;
+  } catch (e) { problem = problemOf(e); }
+  return problem;
+}
+
+// Keep `save` up to date with the game's other tabs: onChange(ids) after
+// another tab's changes to those floors were merged into it. Nothing is
+// written here (this tab's next write includes them), so two tabs can never
+// keep answering each other.
+export function watchSave(save, onChange) {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== KEY && e.key !== null) return;
+    let raw;
+    try { raw = localStorage.getItem(KEY); } catch { return; }
+    // Unchanged (an event this tab already caught up with when writing), or
+    // removed (this tab's next write puts its copy back).
+    if (raw === lastRaw || raw === null) return;
+    const changed = catchUp(save, raw);
+    if (changed?.length) onChange(changed);
+  });
 }
 
 export const levelSave = (save, id) => (save.levels[id] ??= {});
@@ -146,4 +206,90 @@ export async function rescoreStale(save, levels, onChange) {
     changed = true;
   }
   if (changed) onChange?.();
+}
+
+// ---------- merging saves ----------
+// mergeSave(base, theirs, mine) changes `mine` (in place, so the editor's
+// references to a floor's save and its solutions stay good) to hold the
+// changes `theirs` made since `base` as well as its own. Where both changed
+// the same thing, `mine` wins: it is this tab's (or, loading a save file,
+// this browser's). Nothing is lost that either has: `solved` stays set once
+// either set it, solutions are matched by machine (canonicalCells), and a
+// solution goes only if `theirs` deleted it. Returns the ids of the floors
+// that changed in `mine`.
+//
+// For another tab, `base` is the save as this tab last read or wrote it; for
+// a save file it is empty, which keeps everything either has.
+
+// JSON with keys sorted, so equal values give equal strings.
+const stable = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x)
+  ? Object.fromEntries(Object.keys(x).sort().map((key) => [key, x[key]])) : x));
+const same = (a, b) => stable(a) === stable(b);
+// Whether to take `theirs`: it changed, and `mine` didn't.
+const theirsWins = (base, theirs, mine) => !same(theirs, base) && same(mine, base);
+const setKey = (o, k, v) => { if (v === undefined) delete o[k]; else o[k] = v; };
+const keysOf = (...os) => [...new Set(os.flatMap((o) => Object.keys(o ?? {})))];
+// The working machine and its cloud save times change together.
+const WORK = ['cells', 'workAt', 'workSynced'];
+const MERGED = new Set([...WORK, 'solved', 'solutions', 'deleted', 'best']);
+
+export function mergeSave(base, theirs, mine) {
+  for (const k of keysOf(base, theirs, mine)) {
+    if (k !== 'levels' && theirsWins(base[k], theirs[k], mine[k])) setKey(mine, k, theirs[k]);
+  }
+  const bl = base.levels ?? {}, tl = theirs.levels ?? {};
+  const changed = [];
+  for (const id of keysOf(bl, tl, mine.levels)) {
+    const b = bl[id], t = tl[id], m = mine.levels[id];
+    if (same(t, b)) continue;
+    if (!m) {
+      if (t) { mine.levels[id] = t; changed.push(id); }
+    } else if (!t) {
+      // Gone there (progress cleared): here too, unless changed here since.
+      if (same(m, b)) { delete mine.levels[id]; changed.push(id); }
+    } else {
+      const before = stable(m);
+      mergeLevel(b ?? {}, t, m);
+      if (stable(m) !== before) changed.push(id);
+    }
+  }
+  return changed;
+}
+
+function mergeLevel(b, t, m) {
+  for (const k of keysOf(b, t, m)) {
+    if (!MERGED.has(k) && theirsWins(b[k], t[k], m[k])) setKey(m, k, t[k]);
+  }
+  const work = (o) => WORK.map((k) => o[k]);
+  if (theirsWins(work(b), work(t), work(m))) WORK.forEach((k) => setKey(m, k, t[k]));
+  if (t.solved || m.solved) m.solved = true;
+  if (b.deleted || t.deleted || m.deleted) {
+    const bd = new Set(b.deleted ?? []), td = new Set(t.deleted ?? []);
+    const out = new Set([...(m.deleted ?? []).filter((h) => td.has(h) || !bd.has(h)), ...[...td].filter((h) => !bd.has(h))]);
+    setKey(m, 'deleted', out.size || m.deleted ? [...out].sort() : undefined);
+  }
+  if (!Array.isArray(t.solutions) && !Array.isArray(m.solutions)) {
+    if (theirsWins(b.best, t.best, m.best)) setKey(m, 'best', t.best);
+    return;
+  }
+  const key = (s) => canonicalCells(s?.cells);
+  const bs = new Map((Array.isArray(b.solutions) ? b.solutions : []).map((s) => [key(s), s]));
+  const ts = new Map((Array.isArray(t.solutions) ? t.solutions : []).map((s) => [key(s), s]));
+  const list = solutionsOf(m);
+  const here = new Set();
+  for (let i = list.length - 1; i >= 0; i--) {
+    const s = list[i], k = key(s);
+    here.add(k);
+    // Deleted there.
+    if (bs.has(k) && !ts.has(k)) { list.splice(i, 1); continue; }
+    // Rescored or uploaded there.
+    if (bs.has(k) && theirsWins(bs.get(k), ts.get(k), s)) {
+      const src = ts.get(k);
+      for (const f of Object.keys(s)) if (!(f in src)) delete s[f];
+      Object.assign(s, src);
+    }
+  }
+  // Found there (and not deleted here).
+  for (const [k, s] of ts) if (!here.has(k) && !bs.has(k)) list.push(s);
+  recomputeBest(m);
 }

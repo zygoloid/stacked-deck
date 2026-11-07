@@ -13,7 +13,9 @@
 // tapping the bare floor deselects, pinch zoom, a selected croupier's panel
 // right under the floor on a phone, tap to see a cut-short Deal
 // label), a croupier's settings before placing, and the floors list scrolled
-// back to the floor just left. With `?testlevels` the page adds the
+// back to the floor just left; two tabs keeping each other's progress, the
+// Save file dialog (download, load), and the notice when storage is turned off
+// or full. With `?testlevels` the page adds the
 // fixture floors of test/ui-levels.js to the bonus deck; those cover an
 // `expected` floor (expected-payouts list, clearing), an `ordered` floor
 // (a wrong card order is rejected) and bonus unlocking, saves and Next.
@@ -1562,6 +1564,106 @@ try {
     check(!(await getSave())['test-hearts'].solved, 'a floor is not cleared by fitting its tests');
     if (shots) await page.locator('.panel.tests').screenshot({ path: join(shots, '15-check-deal-failed.png') });
     await setSave({});
+  }
+
+  // Keeping progress: two tabs of the game don't overwrite each other's
+  // progress, the floors list's Save file dialog downloads the save and loads
+  // one back (adding to what is there), and a browser that won't keep the
+  // save says so and offers the file instead.
+  {
+    const [l0, l1] = LEVELS;
+    const ref = async (lv) => (await import(join(repo, 'solutions/levels', `${lv.id}.js`))).default.cells;
+    const KEY = 'stacked-deck-v1';
+    const stored = (pg) => pg.evaluate((k) => JSON.parse(localStorage.getItem(k)).levels, KEY);
+    const shared = await browser.newContext({ viewport: { width: 1440, height: 860 } });
+    const tab1 = await shared.newPage();
+    tab1.on('pageerror', (e) => errors.push(e.message));
+    tab1.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+    await tab1.goto(base);
+    await tab1.evaluate(([k, l, cells]) => {
+      localStorage.setItem(k, JSON.stringify({ levels: { [l]: { cells } } }));
+      localStorage.setItem('stacked-deck-ui', JSON.stringify({ deck: 'campaign', folded: [] }));
+    }, [KEY, l0.id, await ref(l0)]);
+    await tab1.reload();
+    await tab1.waitForSelector('.tile');
+    // A second tab clears the first floor; the first tab's list shows it.
+    const tab2 = await shared.newPage();
+    tab2.on('pageerror', (e) => errors.push(e.message));
+    await tab2.goto(`${base}#/level/${l0.id}`);
+    await tab2.waitForSelector('svg.board');
+    await tab2.click('.speeds .sp:last-child');
+    await tab2.waitForSelector('.modal.results', { timeout: 60000 });
+    await tab1.waitForSelector(`a.tile.solved[data-level="${l0.id}"]`, { timeout: 5000 }).catch(() => {});
+    check(await tab1.locator(`a.tile.solved[data-level="${l0.id}"]`).count() === 1, 'a floor cleared in another tab shows as cleared in this one');
+
+    // Download the save.
+    await tab1.click('button:has-text("Save file")');
+    await tab1.waitForSelector('.modal.dialog h2:has-text("Save file")');
+    const [download] = await Promise.all([tab1.waitForEvent('download'), tab1.click('.modal.dialog button:has-text("Download save")')]);
+    const { readFileSync } = await import('node:fs');
+    const file = JSON.parse(readFileSync(await download.path(), 'utf8'));
+    check(/^stacked-deck-save-\d{4}-\d\d-\d\d\.json$/.test(download.suggestedFilename()) && file.format === 'stacked-deck-save' &&
+      file.levels[l0.id]?.solutions?.length === 1, `the save downloads as a file (${download.suggestedFilename()})`);
+
+    // Load a file that clears the second floor: added to this tab's save
+    // (keeping the floor the other tab cleared), and the other tab hears.
+    const upload = (pg, levels) => pg.setInputFiles('.modal.dialog input[type=file]', {
+      name: 'save.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'stacked-deck-save', version: 1, levels })),
+    });
+    await upload(tab1, { [l1.id]: { solutions: [{ cells: await ref(l1), at: 1 }] } });
+    await tab1.waitForFunction(() => /^Loaded/.test(document.querySelector('.modal.dialog .dlg-status')?.textContent ?? ''));
+    check((await tab1.textContent('.modal.dialog .dlg-status')) === 'Loaded: 1 floor cleared and 1 solution added.', `loading a save file says what it added: "${await tab1.textContent('.modal.dialog .dlg-status')}"`);
+    let levels = await stored(tab1);
+    check(levels[l0.id]?.solved && levels[l0.id].solutions.length === 1 && levels[l1.id]?.solved && levels[l1.id].best?.rounds === l1.par.rounds,
+      'the loaded floor is saved alongside the one cleared in the other tab, and rescored');
+    await upload(tab1, { [l1.id]: { solutions: [{ cells: await ref(l1), at: 1 }] } });
+    await tab1.waitForFunction(() => /^Nothing new/.test(document.querySelector('.modal.dialog .dlg-status')?.textContent ?? ''));
+    check(true, 'loading it again adds nothing');
+    await tab1.setInputFiles('.modal.dialog input[type=file]', { name: 'x.json', mimeType: 'application/json', buffer: Buffer.from('not json') });
+    await tab1.waitForFunction(() => /isn't a Stacked Deck save/.test(document.querySelector('.modal.dialog .dlg-status')?.textContent ?? ''));
+    check(true, 'a file that isn\'t a save is refused');
+    if (shots) await tab1.locator('.modal.dialog').screenshot({ path: join(shots, 'save-file.png') });
+    await tab1.click('.modal.dialog button:has-text("Close")');
+    check(await tab1.locator(`a.tile.solved[data-level="${l1.id}"]`).count() === 1, 'the list shows the loaded floor cleared');
+    await tab2.goto(`${base}#/`);
+    await tab2.waitForSelector('.tile');
+    check(await tab2.locator(`a.tile.solved[data-level="${l1.id}"]`).count() === 1, 'and so does the other tab, without reloading');
+    await tab2.close();
+
+    // Storage turned off: the notice shows at once, with the file.
+    const blocked = await browser.newPage({ viewport: { width: 1440, height: 860 } });
+    blocked.on('pageerror', (e) => errors.push(e.message));
+    await blocked.addInitScript(() => {
+      const no = () => { throw new DOMException('blocked', 'SecurityError'); };
+      Storage.prototype.getItem = no;
+      Storage.prototype.setItem = no;
+    });
+    await blocked.goto(base);
+    await blocked.waitForSelector('.tile');
+    check(/isn't letting the game save/.test(await blocked.textContent('.save-notice').catch(() => '')), 'with storage turned off, a notice says progress isn\'t being saved');
+    if (shots) await blocked.screenshot({ path: join(shots, 'save-notice.png') });
+    const [d2] = await Promise.all([blocked.waitForEvent('download'), blocked.click('.save-notice button:has-text("Download save")')]);
+    check(!!d2.suggestedFilename(), 'the notice downloads the save');
+    await blocked.click('.save-notice button[aria-label="Dismiss"]');
+    check(await blocked.locator('.save-notice').count() === 0, 'the notice can be dismissed');
+    await blocked.close();
+
+    // Storage full: the notice shows when a write fails.
+    const full = await browser.newPage({ viewport: { width: 1440, height: 860 } });
+    full.on('pageerror', (e) => errors.push(e.message));
+    await full.addInitScript(() => {
+      Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError'); };
+    });
+    await full.goto(base);
+    await full.waitForSelector('.tile');
+    check(await full.locator('.save-notice').count() === 0, 'no notice while nothing has failed');
+    await full.click('button:has-text("Save file")');
+    await upload(full, { [l0.id]: { solved: true } });
+    await full.waitForFunction(() => /^Loaded/.test(document.querySelector('.modal.dialog .dlg-status')?.textContent ?? ''));
+    check(/couldn't be saved/.test(await full.textContent('.modal.dialog .dlg-status')) && /storage for the game is full/.test(await full.textContent('.save-notice')),
+      'with storage full, a failed write shows the notice');
+    await full.close();
+    await shared.close();
   }
 
   if (all) {

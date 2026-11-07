@@ -10,7 +10,7 @@ export const dialogOpen = () => !!host()?.firstChild;
 
 // Show a dialog; `build(close)` returns its content. Resolves with the value
 // passed to close() (undefined when dismissed).
-function dialog(build, { dismissable = true } = {}) {
+export function dialog(build, { dismissable = true } = {}) {
   return new Promise((resolve) => {
     const close = (value) => { host().replaceChildren(); resolve(value); };
     const back = h('div', {
@@ -22,7 +22,7 @@ function dialog(build, { dismissable = true } = {}) {
       },
     }, h('div', { class: 'modal dialog', role: 'dialog', 'aria-modal': 'true' }, build(close)));
     host().replaceChildren(back);
-    (back.querySelector('input') ?? back.querySelector('.btn.gold') ?? back.querySelector('button'))?.focus();
+    (back.querySelector('input:not([type=file])') ?? back.querySelector('.btn.gold') ?? back.querySelector('button'))?.focus();
   });
 }
 

@@ -4,22 +4,33 @@
 //   #/level/<id>           editor
 //   ?unlockall             every floor open; ?testlevels adds test fixtures (catalog.js)
 import { CAMPAIGN, BONUS, ALL_LEVELS, findLevel } from './catalog.js';
-import { loadSave, writeSave, isOpen, rescoreStale } from './model.js';
+import { loadSave, writeSave, watchSave, saveProblem, isOpen, rescoreStale } from './model.js';
 import { levelSelect, storyScreen, helpPanel } from './screens.js';
 import { openEditor } from './editor.js';
 import { createCloud } from './cloud.js';
 import { LEVELS as REAL_LEVELS, BONUS as REAL_BONUS } from '../levels.js';
 import { confirmOtherAccount, askName, inviteFlow } from './account.js';
+import { downloadSave } from './savefile.js';
+import { h } from './dom.js';
 
 const root = document.getElementById('app');
 const helpHost = document.getElementById('help');
+const noticeHost = document.getElementById('notice');
 const save = loadSave();
 let cleanup = null;
 let lastFloor = null; // the floor last opened, shown when coming back to the floors list
+let problemShown = null, problemDismissed = false; // the save notice (showProblem)
 
 const ctx = {
   save,
-  persist: () => writeSave(save),
+  // Returns saveProblem() (null when saved).
+  persist: () => { const p = writeSave(save); showProblem(p); return p; },
+  // Floors whose saves changed from outside the screen showing (another tab,
+  // or a save file): draw it again if it shows them.
+  savesChanged: (ids) => {
+    const m = /^#\/level\/([^/]+)(\/story)?$/.exec(location.hash);
+    if (document.body.dataset.screen === 'select' || (m && ids.includes(decodeURIComponent(m[1])))) rerender();
+  },
   go: (hash) => { if (location.hash === hash) route(); else location.hash = hash; },
   help: () => {
     helpHost.replaceChildren(helpPanel(() => helpHost.replaceChildren(), save));
@@ -53,6 +64,30 @@ ctx.cloud = createCloud({
   },
 });
 ctx.cloud.onChange(() => { if (document.body.dataset.screen === 'select') rerender(); });
+
+// The game's other tabs: their progress is merged into this tab's save as
+// they write it (watchSave in model.js).
+watchSave(save, ctx.savesChanged);
+
+// A notice while progress can't be saved in this browser, offering the save
+// file instead. Dismissed, it stays away for the rest of this visit; it goes
+// by itself once saving works again.
+function showProblem(p) {
+  if (p === problemShown) return;
+  problemShown = p;
+  if (!p || problemDismissed) { noticeHost.replaceChildren(); return; }
+  const text = p === 'full'
+    ? 'This browser\'s storage for the game is full, so your latest progress isn\'t being saved here.'
+    : 'This browser isn\'t letting the game save (storage may be turned off, as in some private windows), so your progress will be lost when you close the page.';
+  noticeHost.replaceChildren(h('div', { class: 'save-notice', role: 'alert' },
+    h('span', {}, `⚠ ${text} Download your save to keep a copy; you can load it again from the floors list.`),
+    h('button', { class: 'btn small gold', onclick: () => downloadSave(save) }, 'Download save'),
+    h('button', {
+      class: 'btn small ghost', title: 'Dismiss', 'aria-label': 'Dismiss',
+      onclick: () => { problemDismissed = true; noticeHost.replaceChildren(); },
+    }, '×')));
+}
+showProblem(saveProblem());
 
 // The floor to offer after clearing `level`: the next campaign floor; for a
 // bonus floor, the next open bonus floor (after it, else an earlier unsolved
@@ -123,7 +158,7 @@ if (!takeInvite()) route();
 
 // Saved solutions scored under older rules are re-run in the background.
 rescoreStale(save, ALL_LEVELS, () => {
-  writeSave(save);
+  ctx.persist();
   if (document.body.dataset.screen === 'select') rerender();
   ctx.cloud.queueUploads();
 });

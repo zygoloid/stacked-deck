@@ -310,6 +310,34 @@ position). The same machine built elsewhere on the floor is a different
 solution. The player can delete solutions; `best` is then recomputed from
 what is left (and removed when nothing is), while `solved` stays true.
 
+**Several tabs.** Each tab keeps the save in memory and writes all of it on
+every change, so `src/ui/model.js` remembers the stored save as the tab last
+read or wrote it. When another tab has written since (its `storage` event, or
+a stored save that differs when this tab next writes), its changes are merged
+into this tab's copy before anything is written (`mergeSave`, a three-way
+merge against what this tab last saw): floors and solutions either tab added
+are kept, `solved` is never lost, a solution goes only if the other tab
+deleted it, and where both tabs changed the same thing (say, the working
+machine) this tab's change wins. Merging in place keeps the editor's
+references good; a floor list, or an editor whose floor changed, is drawn
+again. A tab only writes for its own changes, so two tabs never answer each
+other. A stored save that can't be read is copied to
+`stacked-deck-v1-unreadable` before it is overwritten.
+
+**When storage fails.** `writeSave` returns why the save couldn't be written
+(`'full'`, or `'blocked'` when storage is turned off), and the page shows a
+notice offering the save file until a write works again or it is dismissed.
+
+**Save files.** The floors list's Save file dialog (`src/ui/savefile.js`)
+downloads the save as `stacked-deck-save-<date>.json`: `{ format:
+'stacked-deck-save', version: 1, saved, levels }`, the levels as above without
+the account or the cloud save's bookkeeping (`workSynced`, `deleted`,
+`uploaded`, `hash`). Loading a file (a save file, or a bare save) keeps only
+floors the game has and machines `validateCells` accepts, scores every
+solution again, and adds the result with `mergeSave` from an empty base, so
+nothing already in the browser is lost or replaced (the working machine is
+taken only for floors without one).
+
 The floors list keeps its own settings under a second key,
 `stacked-deck-ui` (this browser only, never synced): `{ deck: 'campaign' |
 'bonus', folded: [suit keys] }`, the deck showing and the suits folded (their cards,
