@@ -84,6 +84,7 @@ export function levelSelect(root, ctx, focus = null) {
       BONUS.length ? deckTabs() : null,
       ui.deck === 'bonus' ? bonusDeck() : campaignDeck(),
       pop].flat().filter(Boolean));
+    layHands();
     fitBriefs();
     light();
   };
@@ -145,20 +146,22 @@ export function levelSelect(root, ctx, focus = null) {
         { glyph: g.glyph, suitName: g.name, red: g.red, name: '', chapter: 'bonus' }, true)));
   }
 
-  // One suit: its heading (a button that folds it away), and its cards, or,
-  // folded, a hand of small cards fanned out (folded suits sit side by side).
+  // One suit: its heading (a button that folds it away), and its cards; or,
+  // folded, the same cards gathered into a hand (folded suits sit side by
+  // side).
   function suitSection(key, floors, c, bonus = false) {
     const done = floors.filter(({ lv }) => save.levels[lv.id]?.solved).length;
     const folded = () => ui.folded.includes(key);
-    const sec = h('section', { class: `chapter${bonus ? ' bonus' : ''}${folded() ? ' folded' : ''}`, 'data-suit': key });
+    const sec = h('section', { class: `chapter${bonus ? ' bonus' : ''}`, 'data-suit': key });
+    const tiles = h('div', { class: 'tiles' }, floors.map(({ lv, i }) => (bonus ? bonusTile(lv) : tile(lv, i))));
     const toggle = h('button', {
       class: 'ch-toggle', 'aria-expanded': String(!folded()), title: 'Fold or unfold this suit',
       onclick: () => {
         ui.folded = folded() ? ui.folded.filter((k) => k !== key) : [...ui.folded, key];
         saveUi(ui);
-        sec.classList.toggle('folded', folded());
         toggle.setAttribute('aria-expanded', String(!folded()));
-        if (!folded()) { fitBriefs(); light(); }
+        hidePop();
+        if (folded()) fold(sec, tiles, true); else unfold(sec, tiles);
       },
     },
     h('span', { class: `ch-suit${c.red ? ' red' : ''}` }, c.glyph), c.suitName,
@@ -166,37 +169,131 @@ export function levelSelect(root, ctx, focus = null) {
     h('span', { class: 'ch-rule', 'aria-hidden': 'true' }),
     h('span', { class: `ch-count${done === floors.length ? ' all' : ''}` }, `${done} / ${floors.length}`),
     h('span', { class: 'ch-chev', 'aria-hidden': 'true' }));
-    sec.append(
-      h('h2', { 'data-chapter': c.chapter }, toggle),
-      h('div', { class: 'tiles' }, floors.map(({ lv, i }) => (bonus ? bonusTile(lv) : tile(lv, i)))),
-      h('div', { class: 'fan' }, floors.map(({ lv, i }, k) => miniCard(lv, i, bonus, fanAngle(k, floors.length)))));
+    sec.append(h('h2', { 'data-chapter': c.chapter }, toggle), tiles);
+    if (folded()) sec.classList.add('folded');
     return sec;
   }
 
-  // A card in a folded suit's hand, turned `angle` degrees about a point
-  // below the hand: face down while locked; face up, it shows its index in
-  // the corner (all that shows of most cards in the hand), its state
-  // (cleared, foil, holographic), and links to the floor.
-  function miniCard(lv, i, bonus, angle) {
-    const f = bonus ? floorLabel(lv) : floorLabel(i);
-    const open = bonus ? isBonusOpen(save, lv) : isUnlocked(save, i);
-    const st = save.levels[lv.id] ?? {};
-    const style = `--a: ${angle.toFixed(2)}deg`;
-    const index = (pos) => h('span', { class: `mi-index ${pos}` }, h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null);
-    if (!open) {
-      return h('span', { class: `mini locked${bonus ? ' bonus' : ''}`, 'data-level': lv.id, title: 'Locked', style },
-        f.special ? null : h('span', { class: 'mi-no' }, f.text));
+  // ---------- folding a suit into a hand ----------
+  // The cards keep their size: a folded suit's cards are fanned about a point
+  // below them, each turned a little more than the last, so that each card's
+  // corner index shows; where one hand would be wider than the deck, it is
+  // dealt in overlapping rows. Folding and unfolding move each card from one
+  // place to the other. A card's place in the hand is --x, --y (its top left
+  // corner, unturned) and --a (its turn about its centre); see style.css.
+  const MOVE_MS = 550;
+
+  // The width of a card: as many columns of at least 150px as fit the deck,
+  // as the grid in style.css lays them out.
+  function cardWidth() {
+    const W = page.querySelector('.deck')?.clientWidth ?? 0;
+    const cols = Math.max(1, Math.floor((W + 18) / (150 + 18)));
+    return { W, w: (W - 18 * (cols - 1)) / cols };
+  }
+
+  // Each card's place in a hand of n cards w wide that fits in W:
+  // { width, height, places: [{ x, y, a }] }.
+  function handLayout(n, W, w) {
+    const hgt = (w * 7) / 5, R = 2.4 * hgt, step = 0.17 * w, lift = 0.05 * hgt, pitch = 0.42 * hgt;
+    const row = (m) => {
+      const da = step / (R + hgt / 2);
+      const cards = Array.from({ length: m }, (_, k) => {
+        const a = (k - (m - 1) / 2) * da;
+        return { a, cx: R * Math.sin(a), cy: -R * Math.cos(a) };
+      });
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const p of cards) {
+        for (const [ux, uy] of [[-w / 2, -hgt / 2], [w / 2, -hgt / 2], [-w / 2, hgt / 2], [w / 2, hgt / 2]]) {
+          const X = p.cx + ux * Math.cos(p.a) - uy * Math.sin(p.a), Y = p.cy + ux * Math.sin(p.a) + uy * Math.cos(p.a);
+          x0 = Math.min(x0, X); x1 = Math.max(x1, X); y0 = Math.min(y0, Y); y1 = Math.max(y1, Y);
+        }
+      }
+      return { width: x1 - x0, height: y1 - y0, cards: cards.map((p) => ({ a: p.a, x: p.cx - x0 - w / 2, y: p.cy - y0 - hgt / 2 })) };
+    };
+    let per = n;
+    while (per > 1 && row(per).width > W) per--;
+    const rows = Math.ceil(n / per);
+    per = Math.ceil(n / rows);
+    const hands = Array.from({ length: rows }, (_, r) => row(Math.min(per, n - r * per)));
+    const width = Math.max(...hands.map((f) => f.width));
+    const places = hands.flatMap((f, r) => f.cards.map((p) => ({ a: p.a, x: p.x + (width - f.width) / 2, y: p.y + lift + r * pitch })));
+    return { width, height: lift + (rows - 1) * pitch + hands[rows - 1].height, places };
+  }
+
+  const place = (el, p) => {
+    el.style.setProperty('--x', `${p.x.toFixed(1)}px`);
+    el.style.setProperty('--y', `${p.y.toFixed(1)}px`);
+    el.style.setProperty('--a', `${p.a.toFixed(4)}rad`);
+  };
+  const unplace = (el) => ['--x', '--y', '--a'].forEach((k) => el.style.removeProperty(k));
+  // The cards drawn where they are now placed, then moving (style.css
+  // .moving) to wherever they are placed next.
+  const moveTimers = new WeakMap();
+  function startMove(tiles, done) {
+    void tiles.offsetHeight;
+    tiles.classList.add('moving');
+    clearTimeout(moveTimers.get(tiles));
+    moveTimers.set(tiles, setTimeout(() => { tiles.classList.remove('moving', 'placed'); done?.(); }, MOVE_MS + 50));
+  }
+  const animated = () => !matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Lay a folded suit out as a hand; `animate`: moving the cards there from
+  // where they are.
+  function fold(sec, tiles, animate) {
+    const kids = [...tiles.children];
+    const before = animate ? kids.map((k) => k.getBoundingClientRect()) : null;
+    const oldH = tiles.offsetHeight;
+    tiles.classList.remove('moving', 'placed');
+    clearTimeout(moveTimers.get(tiles));
+    const { W, w } = cardWidth();
+    const lay = handLayout(kids.length, W, w);
+    sec.classList.add('folded');
+    sec.style.width = `${lay.width}px`;
+    tiles.style.setProperty('--card-w', `${w}px`);
+    tiles.classList.add('fan');
+    tiles._hand = lay;
+    if (!animate || !animated()) {
+      tiles.style.height = `${lay.height}px`;
+      kids.forEach((k, j) => place(k, lay.places[j]));
+      return;
     }
-    const finish = st.solved ? finishOf(lv) : '';
-    return h('a', {
-      class: `mini ${f.cls}${f.special ? ` ${SPECIAL_TILE[f.card]}` : ''}${st.solved ? ' solved' : ''}${finish ? ` ${finish}` : ''}`,
-      href: `#/level/${lv.id}/story`, 'data-level': lv.id, style,
-      title: `${f.text} · ${lv.title}${st.solved ? ' · cleared' : ''}`,
-    },
-    index('tl'),
-    h('span', { class: 'mi-pip', 'aria-hidden': 'true' }, f.special ? f.rank : f.glyph),
-    st.solved ? h('span', { class: 'mi-paid', 'aria-hidden': 'true' }, '✓') : null,
-    index('br'));
+    tiles.style.height = `${oldH}px`;
+    const box = tiles.getBoundingClientRect();
+    kids.forEach((k, j) => place(k, { x: before[j].left - box.left, y: before[j].top - box.top, a: 0 }));
+    startMove(tiles);
+    kids.forEach((k, j) => place(k, lay.places[j]));
+    tiles.style.height = `${lay.height}px`;
+  }
+
+  function unfold(sec, tiles) {
+    const kids = [...tiles.children];
+    const lay = tiles._hand;
+    const oldBox = tiles.getBoundingClientRect(), oldH = tiles.offsetHeight;
+    tiles.classList.remove('moving', 'placed', 'fan');
+    clearTimeout(moveTimers.get(tiles));
+    sec.classList.remove('folded');
+    sec.style.width = '';
+    tiles.style.height = '';
+    kids.forEach(unplace);
+    fitBriefs();
+    light();
+    if (!lay || !animated()) return;
+    const newH = tiles.offsetHeight;
+    const after = kids.map((k) => k.getBoundingClientRect());
+    kids.forEach((k, j) => {
+      const p = lay.places[j];
+      place(k, { x: oldBox.left + p.x - after[j].left, y: oldBox.top + p.y - after[j].top, a: p.a });
+    });
+    tiles.style.height = `${oldH}px`;
+    tiles.classList.add('placed');
+    startMove(tiles, () => { tiles.style.height = ''; kids.forEach(unplace); });
+    kids.forEach((k) => place(k, { x: 0, y: 0, a: 0 }));
+    tiles.style.height = `${newH}px`;
+  }
+
+  // Every folded suit laid out again (after drawing, or a resize).
+  function layHands() {
+    for (const sec of page.querySelectorAll('.chapter.folded')) fold(sec, sec.querySelector('.tiles'), false);
   }
 
   function bonusTile(lv) {
@@ -265,6 +362,7 @@ export function levelSelect(root, ctx, focus = null) {
     finish ? h('div', { class: 'tile-foil', 'aria-hidden': 'true' }) : null,
     h('div', { class: 'tile-pip', 'aria-hidden': 'true' }, f.special ? f.rank : f.glyph),
     corner('tl'), corner('br'),
+    st.solved ? h('span', { class: 'tile-tick', 'aria-hidden': 'true' }, '✓') : null,
     h('div', { class: 'tile-title' }, lv.title),
     h('div', { class: 'tile-brief' }, lv.brief ?? ''),
     st.solved ? scoreBox(lv, sd) : h('div', { class: 'tile-score open' },
@@ -409,7 +507,7 @@ export function levelSelect(root, ctx, focus = null) {
   const onDown = (e) => { if (popPinned && !pop.contains(e.target) && !e.target.closest?.('.tile-chart')) hidePop(); };
   let fitFrame = 0;
   let lightFrame = 0;
-  const onResize = () => { hidePop(); cancelAnimationFrame(fitFrame); fitFrame = requestAnimationFrame(() => { fitBriefs(); light(); }); };
+  const onResize = () => { hidePop(); cancelAnimationFrame(fitFrame); fitFrame = requestAnimationFrame(() => { layHands(); fitBriefs(); light(); }); };
   const onScroll = () => {
     if (!pop.classList.contains('hidden')) hidePop();
     cancelAnimationFrame(lightFrame);
@@ -437,14 +535,6 @@ export function levelSelect(root, ctx, focus = null) {
 }
 
 const AXES = ['croupiers', 'rounds'];
-
-// The k-th of n cards in a fanned hand: its angle in degrees, the hand
-// spread evenly over up to 44°, at most 8° between neighbours.
-function fanAngle(k, n) {
-  if (n < 2) return 0;
-  const step = Math.min(8, 44 / (n - 1));
-  return (k - (n - 1) / 2) * step;
-}
 
 // A repeatable stream of numbers in [0, 1) from a string (a floor's id), so
 // a card keeps its tilt from one visit to the next.

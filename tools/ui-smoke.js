@@ -1153,21 +1153,28 @@ try {
       return [r.top, r.bottom, innerHeight];
     }, lv.id);
     check(top >= 0 && bottom <= vh, `back on the floors list, ${lv.id}'s tile is in view (${top.toFixed(0)}–${bottom.toFixed(0)} of ${vh})`);
-    // Folding its suit: a row of small cards instead, one per floor, still
-    // folded after a reload; back from the floor, its small card is in view.
+    // Folding its suit gathers the same cards, the same size, into a fanned
+    // hand, still folded after a reload; back from the floor, its card is in view.
     const suit = page.locator(`.chapter:has(.tile[data-level="${lv.id}"])`);
-    const n = await suit.locator('.tiles > *').count();
+    const sizeOf = () => suit.locator('.tiles > *').evaluateAll((els) => els.map((e) => `${e.offsetWidth}x${e.offsetHeight}`));
+    const flat = await sizeOf();
     await suit.locator('.ch-toggle').click();
-    check(await suit.locator('.tiles').isHidden() && await suit.locator('.fan > .mini').count() === n &&
-      (await suit.locator('.ch-toggle').getAttribute('aria-expanded')) === 'false', `folding a suit shows its ${n} floors as small cards`);
+    await page.waitForTimeout(700);
+    const folded = await sizeOf();
+    const turns = await suit.locator('.tiles > *').evaluateAll((els) => els.map((e) => getComputedStyle(e).transform));
+    check(await suit.locator('.tiles.fan').count() === 1 && (await suit.locator('.ch-toggle').getAttribute('aria-expanded')) === 'false' &&
+      folded.join() === flat.join() && new Set(turns).size === turns.length,
+    `folding a suit fans its ${flat.length} cards, each turned its own way, at their size (${flat[0]} -> ${folded[0]})`);
     await page.goto(`${base}?unlockall#/level/${lv.id}`);
     await page.waitForSelector('svg.board');
     await page.click('.topbar .btn.ghost');
     await page.waitForSelector('.tile');
-    const mini = page.locator(`.mini[data-level="${lv.id}"]`);
-    const box = await mini.boundingBox();
-    check(await mini.isVisible() && box && box.y >= 0 && box.y + box.height <= 860, `it stays folded; back from ${lv.id}, its small card is in view`);
-    await page.locator(`.chapter:has(.mini[data-level="${lv.id}"]) .ch-toggle`).click();
+    const card = page.locator(`.tile[data-level="${lv.id}"]`);
+    const box = await card.boundingBox();
+    check(await page.locator(`.chapter.folded .tiles.fan .tile[data-level="${lv.id}"]`).count() === 1 && box && box.y >= 0 && box.y + box.height <= 860,
+      `it stays folded; back from ${lv.id}, its card in the hand is in view`);
+    await page.locator(`.chapter:has(.tile[data-level="${lv.id}"]) .ch-toggle`).click();
+    await page.waitForTimeout(700);
     check(await page.locator(`a.tile[data-level="${lv.id}"]`).isVisible(), 'unfolding it shows the cards again');
   }
 
