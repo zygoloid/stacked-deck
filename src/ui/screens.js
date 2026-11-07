@@ -471,7 +471,14 @@ export function levelSelect(root, ctx, focus = null) {
     const r = anchor.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
     const pw = pop.offsetWidth, ph = pop.offsetHeight, gap = 10;
     let left, top;
-    if (r.right + gap + pw <= vw - 8 || r.left - gap - pw >= 8) {
+    // In a hand, beside the card would cover the cards after it (the ones
+    // the pointer moves on to): below it, else above it, if either fits.
+    const inHand = !!anchor.closest('.tiles.fan');
+    const below = r.bottom + gap + ph <= vh - 8, above = r.top - gap - ph >= 8;
+    if (inHand && (below || above)) {
+      left = r.left + r.width / 2 - pw / 2;
+      top = below ? r.bottom + gap : r.top - gap - ph;
+    } else if (r.right + gap + pw <= vw - 8 || r.left - gap - pw >= 8) {
       left = r.right + gap + pw <= vw - 8 ? r.right + gap : r.left - gap - pw;
       top = r.top + r.height / 2 - ph / 2;
     } else {
