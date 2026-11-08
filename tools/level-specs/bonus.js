@@ -420,6 +420,22 @@ export const SPECS = {
       war([-1, -1], { dealer: E, out: { win: SE } }),
     ],
   },
+  'two-by-two': {
+    // Two Pair's reference, unchanged: nothing bigger than pairs; the copy's
+    // set loses its first card to the floor, and what's left still holds a
+    // pair only if there were two. The verdict (2 or ace) comes by routes of
+    // equal length to a high-card gate.
+    cells: [
+      c([-2, -1], 'kind', { n: 3, out: { no: E } }),
+      c([-1, -1], 'duplicate', { out: { a: NE, b: SE } }), pass([0, -2], E), pass([1, -2], E),
+      c([-1, 0], 'set', { out: { set: SE } }),
+      c([-1, 1], 'deal', { out: { to: [W, NE, NE, NE] } }),
+      c([0, 0], 'kind', { n: 2, out: { yes: NE, no: E } }),
+      shoe([0, -1], '2C', { out: E }), war([1, -1], { dealer: W, out: { dwin: E, dlose: E } }),
+      shoe([1, 1], 'AC', { out: NW }), war([1, 0], { dealer: SE, out: { dwin: NE, dlose: NE } }),
+      pass([2, -1], NW), war([2, -2], { dealer: SE, out: { win: E } }),
+    ],
+  },
   bookends: {
     // A copy of each hand loses its top card; its bottom card waits in the
     // gate's dealer line for the next hand, behind an ace for the first.
