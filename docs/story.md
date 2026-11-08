@@ -209,11 +209,12 @@ regulation; Ace Count does).
 | 7♥ | Head Count | The Rest of the Deck | Pryce's regulation on honest labelling |
 | 8♥ | Mirror Image | Crossed Wires and Déjà Vu | the Marchetti twins, a deck each |
 | 9♥ | Casino Numbers | Crossed Wires and Déjà Vu | the Owner counts in thirteens, with no zero |
-| 10♥ | Last In, First Out | Three Apart and The Rest of the Deck | the cloakroom's new attendant |
-| J♥ | Times Tables | Casino Numbers | Dmitri finds the multiplication sheet |
-| Q♥ | Showdown | Mirror Image | Sal and Dmitri settle things at the table |
-| K♥ | Twice Shy | Mirror Image | the twins again; the Owner won't pay twice |
-| A♣ | Carry the One | Times Tables | two-digit casino numbers; totals of three cards |
+| 10♥ | Split the Difference | Casino Numbers | the bottom dealer and his cousin settle up |
+| J♥ | Last In, First Out | Three Apart and The Rest of the Deck | the cloakroom's new attendant |
+| Q♥ | Times Tables | Casino Numbers | Dmitri finds the multiplication sheet |
+| K♥ | Showdown | Mirror Image | Sal and Dmitri settle things at the table |
+| A♣ | Twice Shy | Mirror Image | the twins again; the Owner won't pay twice |
+| 2♣ | Carry the One | Times Tables | two-digit casino numbers; totals of three cards |
 
 ## Notes for writers
 
