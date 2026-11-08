@@ -144,6 +144,14 @@ export const MUTANTS = {
     'total of the ranks': showdown((h) => [h.reduce((a, c) => a + hv(c), 0)]),
     'in dealt order': showdown((h) => h.map(hv)),
   },
+  'split-the-difference': {
+    'the sum': (t) => deals(t).map(([[a], [b]]) => casinoOf(rv(a) + rv(b))),
+    'aces high': (t) => deals(t).flatMap(([[a], [b]]) => { const d = Math.abs(hv(a) - hv(b)); return d ? [casinoOf(d)] : []; }),
+    'a king for a tie': (t) => deals(t).map(([[a], [b]]) => casinoOf(Math.abs(rv(a) - rv(b)) || 13)),
+    'only when A is higher': (t) => deals(t).filter(([[a], [b]]) => rv(a) > rv(b)).map(([[a], [b]]) => casinoOf(rv(a) - rv(b))),
+    'the higher card': (t) => deals(t).filter(([[a], [b]]) => rv(a) !== rv(b)).map(([[a], [b]]) => [rv(a) > rv(b) ? a : b]),
+    'one more': (t) => deals(t).filter(([[a], [b]]) => rv(a) !== rv(b)).map(([[a], [b]]) => casinoOf(Math.abs(rv(a) - rv(b)) + 1)),
+  },
   'last-in-first-out': {
     'in the order played': (t) => t,
     'last first, then in order': (t) => [t[t.length - 1], ...t.slice(0, -1)],

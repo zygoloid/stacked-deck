@@ -71,6 +71,39 @@ export function casinoSums(digits) {
   ];
   return { nodes, links };
 }
+// Split the Difference (casino differences, one digit). As Casino Numbers,
+// but player B's lookup keeps the spade and the clubs instead of the hearts:
+// 14 - b cards. With A's count (a cards) that is n = 14 + (a - b) cards on
+// the ruler, and Deal pays card 26, ruler[12 - (a - b)]: the spade for the
+// difference, or a diamond when the cards are the same rank, which Suits
+// drops by the desk.
+function diffDeck() {
+  const ruler = Array.from({ length: 25 }, (_, i) => (i === 12 ? '2D' : `${RANKS[Math.abs(12 - i) - 1]}S`));
+  const table = [];
+  for (let r = 1; r <= 13; r++) for (let i = 0; i < 12; i++) table.push(RANKS[r - 1] + (i < r - 1 ? 'H' : 'C'));
+  const order = ['?', ...ruler, ...table];
+  while (order.length % 13) order.push('$');
+  const chunks = [];
+  for (let i = 0; i < order.length; i += 13) chunks.push(order.slice(i, i + 13));
+  return chunks.reverse().flat();
+}
+export function casinoDiffs() {
+  const { nodes, links } = casinoSums();
+  nodes.SH = shoe(nodes.SH.at, diffDeck(), { once: true });
+  nodes.DL = c([-1, 1], 'deal', { out: { to: Array(27).fill(SE) } });
+  nodes.SU = c([-1, 0], 'suits');
+  const swap = (from, ports, to) => {
+    const i = links.findIndex(([f, , t]) => f === from && t === to);
+    links[i] = [from, ports, to];
+  };
+  swap('UB', ['S', 'C'], 'G3');
+  const sp = links.findIndex(([f, p]) => f === 'SP' && p === 'S');
+  links[sp] = ['SP', ['S', 'D'], 'PR'];
+  links.pop();
+  links.push(['DL', [26], 'SU'], ['SU', 'S', 'desk']);
+  return { nodes, links };
+}
+
 const at = ([q, r], [dq, dr]) => [q + dq, r + dr];
 
 // Times Tables (casino products). The players' cards are counted as in
@@ -762,6 +795,7 @@ export const SPECS = {
   },
 
   'casino-numbers': casinoSums(),
+  'split-the-difference': casinoDiffs(),
   'times-tables': casinoProducts(),
   'carry-the-one': casinoLongSums(),
   'off-suit': offSuit(),

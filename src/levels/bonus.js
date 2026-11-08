@@ -16,8 +16,8 @@
 //   Counting Up > One Up (Old Thursday's tricks);
 //   Crossed Wires, the first floor with seated players (after Beat the
 //     Dealer: it needs only War), and Déjà Vu > Uneven Tables, Mirror Image
-//     (> Showdown, Twice Shy) and Casino Numbers (> Times Tables > Carry the
-//     One);
+//     (> Showdown, Twice Shy) and Casino Numbers (> Split the Difference;
+//     > Times Tables > Carry the One);
 // and Rising (the string quartet again) after Every Other and Déjà Vu, Last
 // In, First Out (the cloakroom again, and closing time) after Three Apart and
 // The Rest of the Deck. Bookends opens after Burn Card and After a Pair
@@ -28,8 +28,8 @@
 // flushes only; both, with no kings in the players' hands), each after the
 // one before (Skeleton Crew after Calling Card too, for Sort). Crossed Wires
 // and Uneven Tables seat three players (and label three desks); Mirror Image,
-// Casino Numbers, Showdown, Twice Shy, Times Tables and Carry the One seat
-// two. See docs/campaign.md.
+// Casino Numbers, Split the Difference, Showdown, Twice Shy, Times Tables and
+// Carry the One seat two. See docs/campaign.md.
 import {
   hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, SW, W, NW, NE,
   hv, high, one, paletteThrough, finishChapter,
@@ -845,8 +845,39 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'last-in-first-out',
+    id: 'split-the-difference',
     card: 'TH',
+    unlockAfter: 'casino-numbers',
+    title: 'Split the Difference',
+    story: [
+      'The Kesslers\' bottom dealer and his cousin have argued for years about who owes whom, and have agreed to settle it at the table, in casino numbers. Each plays one spade per deal, ace to king, and the house pays the difference between them: the higher card less the lower, as one spade.',
+      'When both play the same rank there is no difference to split, and the house pays nothing. Dmitri keeps the score; nobody else is allowed to.',
+    ],
+    brief: 'Two players, one spade each per deal, ace (1) to king (13). Pay the difference (the higher card less the lower) as one house spade, ace (1) to queen (12); pay nothing when both are the same rank.',
+    handSize: 1,
+    floor: floorOf(hexRect(-6, 2, -5, 12), H6),
+    fixed: H6,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => deals(inputs).flatMap(([[a], [b]]) => {
+      const d = Math.abs(rankValue(a) - rankValue(b));
+      return d ? [casino(d)] : [];
+    }),
+    tests: dealtTests({
+      deal: (rand, n) => digitDeals(rand, n, 8),
+      fixed: [
+        // the largest differences both ways round, every difference, and ties
+        one('AS KS KS AS KS KS AS AS 2S KS 5S 7S 7S 5S QS 2S 3S JS 9S 4S TS 4S 8S 2S 6S 3S 4S 9S 2S 3S AS 2S'),
+        one('6S 6S 3S 4S JS JS 9S 8S 2S QS 7S 7S 8S 9S 5S 9S 9S 2S 2S JS'),
+        one('4S 9S'),
+      ],
+      nRandom: 4, seed: 192,
+    }),
+  },
+  {
+    id: 'last-in-first-out',
+    card: 'JH',
     unlockAfter: ['three-apart', 'rest-of-the-deck'],
     title: 'Last In, First Out',
     story: [
@@ -875,7 +906,7 @@ export const LEVELS = [
   },
   {
     id: 'times-tables',
-    card: 'JH',
+    card: 'QH',
     unlockAfter: 'casino-numbers',
     title: 'Times Tables',
     story: [
@@ -903,7 +934,7 @@ export const LEVELS = [
   },
   {
     id: 'showdown',
-    card: 'QH',
+    card: 'KH',
     unlockAfter: 'mirror-image',
     title: 'Showdown',
     story: [
@@ -935,7 +966,7 @@ export const LEVELS = [
   },
   {
     id: 'twice-shy',
-    card: 'KH',
+    card: 'AC',
     unlockAfter: 'mirror-image',
     title: 'Twice Shy',
     story: [
@@ -965,7 +996,7 @@ export const LEVELS = [
   },
   {
     id: 'carry-the-one',
-    card: 'AC',
+    card: '2C',
     unlockAfter: 'times-tables',
     title: 'Carry the One',
     story: [
@@ -1022,6 +1053,7 @@ const PAR = {
   'head-count': { croupiers: 19, rounds: 676 },
   'mirror-image': { croupiers: 25, rounds: 383 },
   'casino-numbers': { croupiers: 27, rounds: 1574 },
+  'split-the-difference': { croupiers: 28, rounds: 1504 },
   'last-in-first-out': { croupiers: 20, rounds: 835 },
   'times-tables': { croupiers: 34, rounds: 3720 },
   'showdown': { croupiers: 43, rounds: 296 },
