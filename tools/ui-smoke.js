@@ -1473,6 +1473,18 @@ try {
     await page.goto(`${base}?unlockall#/level/${lv.id}`);
     await page.waitForSelector('svg.board');
     await placeAt('shoe', spot.a);
+    // Pasted line breaks become spaces (a one-line field would drop them,
+    // joining "KH" and "10C").
+    await page.fill('.deck-in', '');
+    await page.focus('.deck-in');
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', 'AS\nKH\r\n10C');
+      document.querySelector('.deck-in').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    await page.press('.deck-in', 'Enter');
+    const pasted = await page.inputValue('.deck-in');
+    check(pasted === 'AS KH 10C' && !(await page.$('.inspector .err')), `${lv.id}: pasted line breaks in a deck become spaces ("${pasted}")`);
     await setDeck('? AS');
     let err = await page.textContent('.inspector .err').catch(() => '');
     check(/"\?" is not a card/.test(err) && !/joker|special/i.test(err), `${lv.id}: deck rejects "?" where no special cards are allowed ("${err}")`);
