@@ -855,6 +855,19 @@ export function openEditor(root, ctx, level) {
       const input = h('input', {
         class: `deck-in${draft.error ? ' bad' : ''}`, value: draft.text, spellcheck: false, placeholder: specials.length ? `AS KH 10C ${specials[0]}` : 'AS KH 10C',
         onkeydown: (e) => { if (e.key === 'Enter') input.blur(); e.stopPropagation(); },
+        // A one-line field drops pasted line breaks, joining the cards either
+        // side ("KH\n10C" would become "KH10C"); paste them as spaces instead.
+        // insertText counts as typing, so it can be undone and the field still
+        // fires change when it loses focus (setRangeText alone does neither).
+        onpaste: (e) => {
+          const text = e.clipboardData?.getData('text/plain');
+          if (!text || !/[\r\n]/.test(text)) return;
+          e.preventDefault();
+          const spaced = text.replace(/\r\n?|\n/g, ' ');
+          if (!document.execCommand('insertText', false, spaced)) {
+            input.setRangeText(spaced, input.selectionStart, input.selectionEnd, 'end');
+          }
+        },
         onchange: () => {
           const res = parseCards(input.value, specials);
           if (res.error) { deckDraft = { key, text: input.value, error: res.error }; renderInspector(); return; }
