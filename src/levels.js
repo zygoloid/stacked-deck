@@ -40,9 +40,10 @@ export const CHAPTER_FILES = { 1: 'hearts', 2: 'diamonds', 3: 'clubs', 4: 'spade
 export const CHAPTER_SUITS = { 1: 'H', 2: 'D', 3: 'C', 4: 'S', 5: null };
 export const FINALE_CARDS = ['?', '??', '$', '$$'];
 // The bonus deck's module name (src/levels/, tools/level-specs/, test/mutants/)
-// and its cards: A..K of spades, then A..K of hearts, in BONUS order.
+// and its cards: A..K of spades, then of hearts, clubs and diamonds (the
+// order the level select groups them in), in BONUS order.
 export const BONUS_FILE = 'bonus';
-export const BONUS_SUITS = ['S', 'H'];
+export const BONUS_SUITS = ['S', 'H', 'C', 'D'];
 
 export const LEVELS = [...HEARTS, ...DIAMONDS, ...CLUBS, ...SPADES, ...FINALE];
 export const BONUS = BONUS_LEVELS;

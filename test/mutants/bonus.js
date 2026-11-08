@@ -86,6 +86,13 @@ export const MUTANTS = {
     'after any earlier pair': (h, b) => b.some((x) => largestSet(x) >= 2),
     'two before': (h, b) => b.length > 1 && largestSet(b[b.length - 2]) >= 2,
   },
+  'two-by-two': {
+    'two pair or better': (h) => ['2,2', '1,3', '4'].includes(countsOf(h)),
+    'pair or better': (h) => largestSet(h) >= 2, 'one pair': (h) => countsOf(h) === '1,1,2',
+    'two pair or quads': (h) => ['2,2', '4'].includes(countsOf(h)),
+    'largest set a pair': (h) => largestSet(h) === 2,
+    'no pairs': (h) => largestSet(h) === 1,
+  },
   bookends: {
     'own bottom card': (h) => hv(h[0]) > hv(h[1]),
     'ties pay': (h, b) => b.length > 0 && hv(h[0]) >= hv(last(b)[1]),

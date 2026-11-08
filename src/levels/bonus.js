@@ -22,7 +22,8 @@
 // In, First Out (the cloakroom again, and closing time) after Three Apart and
 // The Rest of the Deck. Bookends opens after Burn Card and After a Pair
 // after Small Pairs, with their palettes cut to what those floors have (what
-// players' machines used: tools/bonus-usage.js). Off Suit, Night Off, Skeleton Crew and No Kings are
+// players' machines used: tools/bonus-usage.js). Two by Two is Two Pair on
+// four-card hands, after Two Pair. Off Suit, Night Off, Skeleton Crew and No Kings are
 // Red Flush again with croupiers taken away (Suits; Flush; both, for heart
 // flushes only; both, with no kings in the players' hands), each after the
 // one before (Skeleton Crew after Calling Card too, for Sort). Crossed Wires
@@ -63,6 +64,8 @@ const H7 = [...H6.slice(0, 2), desk([-4, 4])];
 const H8 = [seated([2, -2], SW, 0), seated([2, -1], SE, 1), desk([1, 4])];
 // Red Flush's player and desk (its floor is two rings smaller).
 const H9 = [source([-2, 0], E), desk([2, 0])];
+// Two Pair's player and desk, on the same floor.
+const H10 = [source([-3, -1], E), desk([3, -2])];
 const labelled = (at, n) => ({ ...desk(at), desk: n });
 const H3 = [
   seated([-2, -2], E, 0), seated([-3, 0], E, 1), seated([-4, 2], E, 2),
@@ -192,6 +195,32 @@ function kinglessDeals(rand, nTests, per) {
   return Array.from({ length: nTests }, () => {
     const deck = shuffled(fullDeck().filter((c) => rankOf(c) !== 'K'), rand);
     return Array.from({ length: per }, (_, i) => deck.slice(3 * i, 3 * i + 3));
+  });
+}
+
+// Four-card hands rich in pairs, each test dealt from one deck: mostly two
+// pair, often one pair, sometimes trips, quads or nothing (a shape that the
+// deck can no longer make falls back to the next one).
+function pairedDeals(rand, nTests, per) {
+  const SHAPES = [[2, 2], [2, 2], [2, 2], [2, 1, 1], [2, 1, 1], [3, 1], [4], [1, 1, 1, 1]];
+  return Array.from({ length: nTests }, () => {
+    const deck = shuffled(fullDeck(), rand);
+    return Array.from({ length: per }, () => {
+      const first = Math.floor(rand() * SHAPES.length);
+      for (const shape of [...SHAPES.slice(first), [1, 1, 1, 1]]) {
+        const hand = [];
+        for (const n of shape) {
+          const ranks = RANKS.filter((r) => !hand.some((c) => rankOf(c) === r) && deck.filter((c) => rankOf(c) === r).length >= n);
+          if (!ranks.length) break;
+          const r = ranks[Math.floor(rand() * ranks.length)];
+          hand.push(...deck.filter((c) => rankOf(c) === r).slice(0, n));
+        }
+        if (hand.length < 4) continue;
+        for (const c of hand) deck.splice(deck.indexOf(c), 1);
+        return shuffled(hand, rand);
+      }
+      throw new Error('pairedDeals: deck ran out');
+    });
   });
 }
 
@@ -568,8 +597,40 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'rest-of-the-deck',
+    id: 'two-by-two',
     card: 'AH',
+    unlockAfter: 'two-pair',
+    title: 'Two by Two',
+    story: [
+      'The rival casino\'s last big night ran until dawn, and its orchestra\'s brass section came over for breakfast. There are four of them, they say, so they would like four-card hands, and they would like Two Pair.',
+      'A four-card hand wins if it holds exactly two pairs. Three of a kind and four of a kind are too much of a good thing and pay nothing, and a single pair is not enough.',
+    ],
+    brief: 'Four-card hands. Pay out every hand with exactly two pair (not three of a kind or four of a kind).',
+    handSize: 4,
+    floor: floorOf(hexRect(-3, 2, -9, 7), H10),
+    fixed: H10,
+    croupiers: paletteThrough('deal'),
+    warRules: ALL,
+    pays: (h) => [...rankCounts(h).values()].every((n) => n === 2),
+    tests: dealtTests({
+      deal: (rand, n) => pairedDeals(rand, n, 10),
+      fixed: [
+        ['KS KD 5C 5H', 'KS 5D KC 5H', 'KS 5D 5C KH', 'KS KD 2C 5H', 'KS KD KC 5H', 'KS KD KC KH',
+          'AS KD QC JH', '2S 2D 3C 3H', '5S KD KC 5H', 'AS AD 2C 3H', '9S 9D 9C 2H', 'TS JD TC JH'],
+        // winners back to back, then losers that decide late
+        ['KS KD 5C 5H', 'AS 3D AC 3H', '7S 8D 8C 7H', '2S QD QC 2H', '4S 6D 6C 4H', 'JS 9D 9C JH',
+          'KS KD 2C 3H', '2S 9D 3C 9H', 'AS QD JC JH', '5S 6D 8C 8H', 'TS TD 2C 3H', '4S 4D 7C 9H'],
+        // winners alternating with hands that fail fast, then runs of each
+        ['KS KD 5C 5H', 'KS KD KC 5H', 'AS 3D AC 3H', '9S 9D 9C 2H', '7S 8D 8C 7H', 'QS QD QC QH',
+          '2S QD QC 2H', '4S 4D 4C 6H', '6S 6D 3C 3H', 'JS 2D JC 2H', '8S 3D 3C 8H', 'AS KD QC JH',
+          '2S 3D 4C 5H', '9S 9D 9C 9H', '3S 4D 5C 3H', 'KS QD JC TH'],
+      ],
+      nRandom: 4, seed: 191,
+    }),
+  },
+  {
+    id: 'rest-of-the-deck',
+    card: '2H',
     unlockAfter: 'four-of-a-kind',
     title: 'The Rest of the Deck',
     story: [
@@ -598,7 +659,7 @@ export const LEVELS = [
   },
   {
     id: 'night-off',
-    card: '2H',
+    card: '3H',
     unlockAfter: 'off-suit',
     title: 'Night Off',
     story: [
@@ -623,7 +684,7 @@ export const LEVELS = [
   },
   {
     id: 'skeleton-crew',
-    card: '3H',
+    card: '4H',
     unlockAfter: ['calling-card', 'night-off'],
     title: 'Skeleton Crew',
     story: [
@@ -649,7 +710,7 @@ export const LEVELS = [
   },
   {
     id: 'no-kings',
-    card: '4H',
+    card: '5H',
     unlockAfter: 'skeleton-crew',
     title: 'No Kings',
     story: [
@@ -675,7 +736,7 @@ export const LEVELS = [
   },
   {
     id: 'one-up',
-    card: '5H',
+    card: '6H',
     unlockAfter: 'counting-up',
     title: 'One Up',
     story: [
@@ -698,7 +759,7 @@ export const LEVELS = [
   },
   {
     id: 'head-count',
-    card: '6H',
+    card: '7H',
     unlockAfter: 'rest-of-the-deck',
     title: 'Head Count',
     story: [
@@ -727,7 +788,7 @@ export const LEVELS = [
   },
   {
     id: 'mirror-image',
-    card: '7H',
+    card: '8H',
     unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Mirror Image',
     story: [
@@ -756,7 +817,7 @@ export const LEVELS = [
   },
   {
     id: 'casino-numbers',
-    card: '8H',
+    card: '9H',
     unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Casino Numbers',
     story: [
@@ -785,7 +846,7 @@ export const LEVELS = [
   },
   {
     id: 'last-in-first-out',
-    card: '9H',
+    card: 'TH',
     unlockAfter: ['three-apart', 'rest-of-the-deck'],
     title: 'Last In, First Out',
     story: [
@@ -814,7 +875,7 @@ export const LEVELS = [
   },
   {
     id: 'times-tables',
-    card: 'TH',
+    card: 'JH',
     unlockAfter: 'casino-numbers',
     title: 'Times Tables',
     story: [
@@ -842,7 +903,7 @@ export const LEVELS = [
   },
   {
     id: 'showdown',
-    card: 'JH',
+    card: 'QH',
     unlockAfter: 'mirror-image',
     title: 'Showdown',
     story: [
@@ -874,7 +935,7 @@ export const LEVELS = [
   },
   {
     id: 'twice-shy',
-    card: 'QH',
+    card: 'KH',
     unlockAfter: 'mirror-image',
     title: 'Twice Shy',
     story: [
@@ -904,7 +965,7 @@ export const LEVELS = [
   },
   {
     id: 'carry-the-one',
-    card: 'KH',
+    card: 'AC',
     unlockAfter: 'times-tables',
     title: 'Carry the One',
     story: [
@@ -952,6 +1013,7 @@ const PAR = {
   'counting-up': { croupiers: 9, rounds: 290 },
   'rising': { croupiers: 12, rounds: 214 },
   'after-a-pair': { croupiers: 13, rounds: 171 },
+  'two-by-two': { croupiers: 13, rounds: 114 },
   'rest-of-the-deck': { croupiers: 14, rounds: 1506 },
   'night-off': { croupiers: 25, rounds: 398 },
   'skeleton-crew': { croupiers: 10, rounds: 69 },
