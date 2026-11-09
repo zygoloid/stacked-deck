@@ -39,7 +39,7 @@ import {
   runTest, expectedPayouts, payoutKey, payoutHand, FUNCTIONS, DIRS,
 } from '../src/engine.js';
 import { RANKS, SUITS, SPECIALS } from '../src/cards.js';
-import { checkDeals, totalRounds, MAX_HAND, cellError } from '../src/score.js';
+import { checkDeals, totalRounds, MAX_HAND, cellError, countCroupiers } from '../src/score.js';
 
 const MUTANTS = {}, DOOR = [];
 for (const name of [...Object.values(CHAPTER_FILES), BONUS_FILE]) {
@@ -271,7 +271,8 @@ for (const level of [...LEVELS, ...BONUS]) {
   const results = runAll(level, all);
   results.forEach((r, i) => check(r.ok, `test ${i}: stop ${r.stop}, wrong ${JSON.stringify(r.wrong)} missing ${JSON.stringify(r.missing)}`));
   const rounds = totalRounds(results);
-  check(level.par && level.par.croupiers === results[0].croupiers, `par croupiers ${level.par?.croupiers} = ${results[0].croupiers}`);
+  // (Only the player's own cells count: not shoes and croupiers bolted to the floor.)
+  check(level.par && level.par.croupiers === countCroupiers(cells), `par croupiers ${level.par?.croupiers} = ${countCroupiers(cells)}`);
   check(level.par && level.par.rounds === rounds, `par rounds ${level.par?.rounds} = ${rounds}`);
   check(level.tests.deal, 'tests made by dealtTests (so it has check deals)');
   (await checkDeals(level, cells)).forEach((t, i) => {
