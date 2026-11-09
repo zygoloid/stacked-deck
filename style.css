@@ -691,6 +691,10 @@ svg.board.placing { cursor: copy; }
   color: var(--gold-2); border: 1px solid var(--gold-soft); border-radius: 999px; padding: 0 7px; white-space: nowrap;
 }
 .queue .card, .paid .card { min-width: 22px; height: 19px; font-size: 11px; line-height: 19px; }
+/* Long hands (21 cards and more) wrap rather than widen the list. */
+.queue .hand, .paid .hand { flex-wrap: wrap; min-width: 0; }
+.q-item > .hand, .p-item > .hand { flex: 0 1 auto; }
+.paid .card.placed { outline: 2px solid var(--gold-2); outline-offset: 1px; }
 
 /* drag ghost */
 .drag-ghost { position: fixed; left: -21px; top: -21px; pointer-events: none; z-index: 50; display: flex; align-items: center; gap: 6px; }
