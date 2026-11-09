@@ -29,6 +29,7 @@ export const LEVELS = [
     chapter: 1,
     card: 'AH',
     title: 'Opening Night',
+    difficulty: 1,
     story: [
       'Congratulations on your new job as floor manager of The Stacked Deck. The pay is good, the carpet is loud, and every croupier on staff knows exactly one move.',
       'Tonight\'s game is generous: every card a player lays down wins. Have your croupiers carry each card from the player to the cashier\'s desk.',
@@ -46,6 +47,7 @@ export const LEVELS = [
     chapter: 1,
     card: '2H',
     title: 'Around the Bar',
+    difficulty: 1,
     story: [
       'The Owner, whom nobody has met, had a bar installed overnight. It sits squarely between the card table and the cashier.',
       'A note under the cash tray reads: "Do not move the bar." It is signed with a single ace of spades.',
@@ -63,6 +65,7 @@ export const LEVELS = [
     chapter: 1,
     card: '3H',
     title: 'Two Tables',
+    difficulty: 2,
     story: [
       'The Marchetti twins insist on sitting at separate tables and insist even harder on being paid at the same desk.',
       'Cards can merge: any croupier takes cards from any side. But a croupier handles only one card a round, and the twins do not like to wait.',
@@ -80,6 +83,7 @@ export const LEVELS = [
     chapter: 1,
     card: '4H',
     title: 'Hearts Only',
+    difficulty: 2,
     story: [
       'Old Thursday, a retired stage magician, has bet on hearts every night for forty years. Tonight the house finally agrees to pay him for them.',
       'Your new croupier splits cards by suit. Any suit you don\'t give a direction to is dropped on the carpet, and cards on the carpet are gone for good.',
@@ -101,6 +105,7 @@ export const LEVELS = [
     chapter: 1,
     card: '5H',
     title: 'Seeing Red',
+    difficulty: 2,
     story: [
       'The Vellani family runs the diamond trade across the river. Their nephew Sal is here to "see how the place works" and wants red cards paid: hearts and diamonds both.',
       'Suits that share a side leave the splitter together. Mind the roulette wheel in the middle of the floor; the Owner says it stays.',
@@ -122,6 +127,7 @@ export const LEVELS = [
     chapter: 1,
     card: '6H',
     title: 'Standing Room',
+    difficulty: 3,
     story: [
       'Word has got around. Old Thursday has talked the Marchetti twins into a third table, and all three want paying in hearts and spades: hearts for luck, spades to be polite to the house.',
       'The Owner has had potted palms put on the floor. They are not to be moved.',
@@ -143,6 +149,7 @@ export const LEVELS = [
     chapter: 1,
     card: '7H',
     title: 'Black Tie',
+    difficulty: 4,
     story: [
       'Not to be outdone, the Kessler crew from the coal yards books both tables for a black-tie evening. Spades and clubs only, please; the red cards can stay on the carpet.',
       'The floor is cramped tonight: the Owner has rented half of it to a string quartet.',
@@ -164,6 +171,7 @@ export const LEVELS = [
     chapter: 1,
     card: '8H',
     title: 'Back to Back',
+    difficulty: 3,
     story: [
       'Business is good, so the house now deals two cards at a time, and the Marchetti twins have taken the two tables by the door. A two-card hand wins if its ranks are next to each other, like 7 and 8.',
       'Aces play high or low (A-2 and K-A both count), but a run does not wrap around the corner: K-2 is no good. A pair is not a run either.',
@@ -185,6 +193,7 @@ export const LEVELS = [
     chapter: 1,
     card: '9H',
     title: 'Next Door',
+    difficulty: 4,
     story: [
       'The Owner\'s next note: "The house lucky number is 7. Pay the neighbours." Back to single cards: a 6 or an 8 wins.',
       'Your new croupiers: a shoe deals the same stacked card over and over; a gatherer stacks two hands into one; a cutter splits a hand into its top half and the rest.',
@@ -207,6 +216,7 @@ export const LEVELS = [
     chapter: 1,
     card: 'TH',
     title: 'Lucky Seven',
+    difficulty: 5,
     story: [
       'The neighbours were a success, and the Owner is warming to the theme. Tonight\'s note says: "Pay the sevens. All four suits. Nothing else."',
       'Old Thursday claims he once pulled a seven out of a mayor\'s ear. He has brought a pocketful of them, just in case.',
@@ -228,6 +238,7 @@ export const LEVELS = [
     chapter: 1,
     card: 'JH',
     title: 'Penny Ante',
+    difficulty: 5,
     story: [
       'Old Thursday\'s pension has run out before the end of the month again, so tonight he plays penny ante: any card from the ace to the 4 wins.',
       'At this table the ace counts low. The Owner\'s note says the house can afford it.',
@@ -249,6 +260,7 @@ export const LEVELS = [
     chapter: 1,
     card: 'QH',
     title: 'Royalty',
+    difficulty: 6,
     story: [
       'A minor royal from somewhere small and mountainous has booked the whole room. She will only be paid in court cards: every jack, queen and king.',
       'Her bodyguards stand very still in the middle of the floor and do not care for small talk.',
@@ -270,6 +282,7 @@ export const LEVELS = [
     chapter: 1,
     card: 'KH',
     title: 'Even Money',
+    difficulty: 7,
     story: [
       'Dmitri, an accountant who plays exactly one hour a night, wants to bet on even cards: 2, 4, 6, 8, 10 and Q.',
       'Management says yes, if you can tell them apart. Across the river, the Vellanis have started asking who Dmitri is.',

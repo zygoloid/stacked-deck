@@ -32,6 +32,7 @@
 //
 //   node test/levels.js [id | chapter]      (chapter: 1-5 or hearts, diamonds, ..., bonus)
 import assert from 'node:assert';
+import { readFileSync } from 'node:fs';
 import {
   LEVELS, BONUS, CHAPTERS, CHAPTER_FILES, CHAPTER_SUITS, FINALE_CARDS, BONUS_FILE, BONUS_SUITS,
 } from '../src/levels.js';
@@ -158,6 +159,43 @@ BONUS.forEach((level, i) => {
     check(!SPECIAL_WORDS.test(text), `${where} doesn't mention special cards before they're introduced`);
   }
 });
+// Difficulty: every floor rates 1 to 10, as the Diff column of its row in
+// docs/campaign.md says. The bonus deck is in difficulty order, then par
+// croupiers (ties in any order), except that a floor comes straight after
+// the bonus floors it needs when they would otherwise come later.
+const docDiffs = new Map();
+{
+  const lines = readFileSync(new URL('../docs/campaign.md', import.meta.url), 'utf8').split('\n');
+  lines.forEach((line, i) => {
+    if (!/^\| Card \| id \|/.test(line)) return;
+    const d = line.split('|').map((x) => x.trim()).indexOf('Diff');
+    for (let j = i + 2; lines[j]?.startsWith('|'); j++) {
+      const c = lines[j].split('|').map((x) => x.trim());
+      docDiffs.set(c[2], Number(c[d]));
+    }
+  });
+}
+for (const level of [...LEVELS, ...BONUS]) {
+  check(Number.isInteger(level.difficulty) && level.difficulty >= 1 && level.difficulty <= 10, `${level.id}: difficulty is 1 to 10`);
+  check(docDiffs.get(level.id) === level.difficulty, `${level.id}: difficulty ${level.difficulty} is the Diff in its docs/campaign.md row (${docDiffs.get(level.id)})`);
+}
+{
+  const sortKey = (l) => [l.difficulty ?? 0, l.par?.croupiers ?? 0, BONUS.indexOf(l)];
+  const pending = [...BONUS].sort((a, b) => {
+    const x = sortKey(a), y = sortKey(b);
+    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+  });
+  const placed = new Set(), order = [];
+  while (pending.length) {
+    let i = pending.findIndex((l) => unlockIds(l).every((id) => !bonusById.has(id) || placed.has(id)));
+    if (i < 0) i = 0; // a cycle (reported above)
+    const [l] = pending.splice(i, 1);
+    order.push(l.id);
+    placed.add(l.id);
+  }
+  const at = order.findIndex((id, i) => id !== BONUS[i].id);
+  check(at < 0, `bonus deck is in difficulty order: ${BONUS[at]?.id} (card ${BONUS[at]?.card}) should be ${order[at]} (difficulty, then par croupiers; after the bonus floors it needs)`);
+}
 for (const [ch, name] of Object.entries(CHAPTER_FILES)) {
   const have = perChapter.get(Number(ch)) ?? 0, full = CHAPTER_SUITS[ch] ? 13 : FINALE_CARDS.length;
   if (have < full) console.log(`(chapter ${ch}, ${name}: ${have} of ${full} floors so far)`);

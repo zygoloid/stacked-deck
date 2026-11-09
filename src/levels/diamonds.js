@@ -31,6 +31,7 @@ export const LEVELS = [
     chapter: 2,
     card: 'AD',
     title: 'Red Flush',
+    difficulty: 3,
     story: [
       'Sal Vellani is back with an uncle. The uncle would like three-card hands, and he would like the house to pay any hand that is all hearts or all diamonds.',
       'Your new croupier checks for a flush: every card in the hand the same suit. "A heart and two diamonds is not a flush," you remind the uncle. He smiles in a way that suggests he knew.',
@@ -52,6 +53,7 @@ export const LEVELS = [
     chapter: 2,
     card: '2D',
     title: 'Either Or',
+    difficulty: 3,
     story: [
       'The uncle has a second game, and opinions about it. A two-card hand wins if it is suited or if it is a run. Both at once is greedy, and greed pays nothing.',
       'Sal says his uncle is very strict about greed. Sal is wearing three gold watches.',
@@ -73,6 +75,7 @@ export const LEVELS = [
     chapter: 2,
     card: '3D',
     title: 'Pair Night',
+    difficulty: 3,
     story: [
       'Five-card hands tonight: the regulars like to hold something. Thursday is Pair Night, which pays a pair or two pair. Your new croupier spots n of a kind: you choose the n.',
       'Three of a kind is too much of a good thing and pays nothing on Pair Night. Nor does a full house, nor four of a kind. The regulars think this is very funny.',
@@ -95,6 +98,7 @@ export const LEVELS = [
     chapter: 2,
     card: '4D',
     title: 'Inside Seven',
+    difficulty: 4,
     story: [
       'The Owner\'s note this week: "Pay any two cards that would make a run with a seven." So 5-6, 6-8 and 8-9 win.',
       'Sal asks whether a seven in his own hand counts double. It does not: a pair is never a run.',
@@ -116,6 +120,7 @@ export const LEVELS = [
     chapter: 2,
     card: '5D',
     title: 'Seven Up',
+    difficulty: 5,
     story: [
       'Sal has discovered Seven Up. Two cards each, and any hand holding a seven wins. A pair of sevens wins too, but not twice.',
       'The uncle points out that the house deals from a very large shoe, and the house pretends not to hear.',
@@ -137,6 +142,7 @@ export const LEVELS = [
     chapter: 2,
     card: '6D',
     title: 'Lucky Number',
+    difficulty: 6,
     story: [
       'Dmitri has worked it out. A five-card hand with exactly one seven is lucky; two sevens are unlucky, and no sevens at all is merely Tuesday.',
       'He would like the house to pay the lucky ones. He has brought a spreadsheet.',
@@ -159,6 +165,7 @@ export const LEVELS = [
     chapter: 2,
     card: '7D',
     title: 'Beat the Dealer',
+    difficulty: 4,
     story: [
       'A new croupier joins: she plays War. Your card against the dealer\'s card, high card wins, aces high, and ties go to the house. Both cards come out of her ports, so you choose where the winner and loser go.',
       'Back to single cards for her first night. The dealer always plays a 9.',
@@ -180,6 +187,7 @@ export const LEVELS = [
     chapter: 2,
     card: '8D',
     title: 'Ace in the Hole',
+    difficulty: 3,
     story: [
       'The Kessler crew claims the house never deals aces. To settle it, the Owner\'s note says: pay any five-card hand with an ace in it.',
       'War compares a whole hand by its highest card.',
@@ -201,6 +209,7 @@ export const LEVELS = [
     chapter: 2,
     card: '9D',
     title: 'Inside Bet',
+    difficulty: 4,
     story: [
       'Sal\'s uncle bets the middle of the deck. A five-card hand wins if its high card is a 9, 10, jack or queen: nothing too small, nothing too grand.',
       'A king, he says, attracts attention. An ace attracts the police.',
@@ -223,6 +232,7 @@ export const LEVELS = [
     chapter: 2,
     card: 'TD',
     title: 'Top Dog',
+    difficulty: 5,
     story: [
       'Two-card hands, and a game the doormen invented on their break: you win if your top card beats your bottom card. Aces high, and a tie is a loss, as always.',
       'Pay out the whole hand, both cards. The doormen are very particular about that.',
@@ -244,6 +254,7 @@ export const LEVELS = [
     chapter: 2,
     card: 'JD',
     title: 'Top of the Heap',
+    difficulty: 5,
     story: [
       'The doormen\'s game has gone to their heads. Now it is five cards, and the top card has to beat every other card in the hand. A tie with any of them is a loss.',
       'The head doorman has started calling himself the top dog. Nobody has the heart to stop him.',
@@ -266,6 +277,7 @@ export const LEVELS = [
     chapter: 2,
     card: 'QD',
     title: 'Royal Flush',
+    difficulty: 7,
     story: [
       'Sal\'s uncle has waited forty years to see a royal flush dealt: ten, jack, queen, king and ace, all one suit. Tonight the house will pay one, if it comes.',
       'He is very clear that the ace-to-five straight flush, however pretty, is not royal. Neither is nine to king.',
@@ -292,6 +304,7 @@ export const LEVELS = [
     chapter: 2,
     card: 'KD',
     title: 'Acey-Deucey',
+    difficulty: 8,
     story: [
       'The Vellanis have asked for the whole floor for one night of their family game. Three cards: the player wins if the middle card falls strictly between the top card and the bottom card, whichever way round they are.',
       'A middle card that ties either end loses, and so does any hand whose ends are a pair. Aces are high. Two blocks away, the builders have finished something with a lot of neon on it.',

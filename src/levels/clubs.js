@@ -34,6 +34,7 @@ export const LEVELS = [
     chapter: 3,
     card: 'AC',
     title: 'Upper Hand',
+    difficulty: 4,
     story: [
       'The rival casino two blocks away opened last night with a brass band and free shrimp, and half the regulars went to have a look. The note under the cash tray says only: "Be generous."',
       'Tonight\'s house game: a five-card hand wins if its highest card is one of its top two cards. If the highest rank turns up twice, one of them in the top two is enough. A new croupier makes perfect copies of a hand.',
@@ -61,6 +62,7 @@ export const LEVELS = [
     chapter: 3,
     card: '2C',
     title: 'High Spade',
+    difficulty: 6,
     story: [
       'It is the Owner\'s birthday, apparently, though nobody knows which one. The Owner\'s calling card is the ace of spades, so tonight any hand whose best card is a spade wins.',
       'If the best rank is shared, a spade holding it is enough. The regulars who went to look at the shrimp are drifting back.',
@@ -88,6 +90,7 @@ export const LEVELS = [
     chapter: 3,
     card: '3C',
     title: 'Top Pair',
+    difficulty: 6,
     story: [
       'The rival has started paying pairs. The Owner\'s answer is Top Pair: a hand wins if it holds a pair or better and its highest card is part of its biggest set.',
       'Two pair counts both pairs as the set; a full house counts only the three of a kind. A new croupier pulls out exactly that set: every card of the most common rank, or ranks, one way, and the rest the other.',
@@ -119,6 +122,7 @@ export const LEVELS = [
     chapter: 3,
     card: '4C',
     title: 'New Rules',
+    difficulty: 3,
     story: [
       'The city Gaming Commission has visited. Commissioner Pryce left with a fruit basket, an envelope, and a new regulation: until further notice, War is played by the top card only.',
       'Your War croupiers can still play, but they look only at the first card of each hand.',
@@ -141,6 +145,7 @@ export const LEVELS = [
     chapter: 3,
     card: '5C',
     title: 'Bottom Dealer',
+    difficulty: 4,
     story: [
       'The Kessler crew have brought their own dealer, who deals from the bottom of the deck and sees nothing wrong with it. Rather than argue, the Owner pays the bottom card: a four-card hand wins if its bottom card beats a 10.',
       'Two new croupiers riffle a hand: they split it in half and interleave the halves perfectly. The out-shuffle keeps the top card on top; the in-shuffle does not. Top-card War is still the law.',
@@ -164,6 +169,7 @@ export const LEVELS = [
     chapter: 3,
     card: '6C',
     title: 'Upside Down',
+    difficulty: 4,
     story: [
       'The bottom dealer has a cousin, who also deals from the bottom, but only on Sundays. Today is Sunday. He would like every hand handed to him upside down, so that the card he deals first is the one that came last.',
       'The Owner likes a family business. Tonight the chip desk pays every five-card hand, but upside down: bottom card on top, top card at the bottom. The cashier checks the order of every card.',
@@ -188,6 +194,7 @@ export const LEVELS = [
     chapter: 3,
     card: '7C',
     title: 'Second Fiddle',
+    difficulty: 5,
     story: [
       'The string quartet is back, and the second violin has a grievance. To keep the peace, tonight\'s house game is his: a five-card hand wins if its top card beats the card just below it.',
       'Aces high, and a tie goes to the house, as always. The first violin thinks the whole thing is very funny.',
@@ -216,6 +223,7 @@ export const LEVELS = [
     chapter: 3,
     card: '8C',
     title: 'Knockout',
+    difficulty: 6,
     story: [
       'The Kesslers are still sure the house is hiding aces. Under the regulation an ace in the middle of a hand is invisible, so the Owner pays any hand with an ace in it, wherever it hides.',
       'A new croupier deals a hand out one card at a time, round the table, to whichever sides you list.',
@@ -244,6 +252,7 @@ export const LEVELS = [
     chapter: 3,
     card: '9C',
     title: 'Low Ball',
+    difficulty: 7,
     story: [
       'Commissioner Pryce plays a quiet game every Tuesday, and he prefers it when he wins. His game: a hand wins only if every one of its cards beats a 5. Aces are high.',
       'Nobody has told him that the house always wins. Tonight somebody will.',
@@ -272,6 +281,7 @@ export const LEVELS = [
     chapter: 3,
     card: 'TC',
     title: 'Ace Count',
+    difficulty: 5,
     story: [
       'Commissioner Pryce lost his own game on Tuesday. On Wednesday his regulation was withdrawn "pending review", and nobody expects the review. War croupiers may play by the high card or by the top card again, whichever you ask for.',
       'The Kesslers have stopped asking whether the house hides aces and started counting them. So tonight the house pays by the ace: a three-card hand is paid out once for every ace in it. Two aces, two payouts of the same hand; no aces, nothing.',
@@ -300,6 +310,7 @@ export const LEVELS = [
     chapter: 3,
     card: 'JC',
     title: 'Bottom Pair',
+    difficulty: 6,
     story: [
       'The bottom dealer has been practising. Now he wants a five-card hand paid if its bottom two cards are a pair: two cards of the same rank, one on top of the other at the very bottom.',
       'A third card of that rank elsewhere in the hand is no trouble. The Owner\'s note says the house can afford to be fair, as long as it is exactly fair.',
@@ -331,6 +342,7 @@ export const LEVELS = [
     chapter: 3,
     card: 'QC',
     title: 'Small Pairs',
+    difficulty: 7,
     story: [
       'Old Thursday is back from the rival casino, which he says had no soul and very small shrimp. He plays Small Pairs: a five-card hand wins if its biggest set is a pair, one pair or two, and every paired card is a 6 or lower.',
       'Aces are high, so a pair of aces is not small. Three of a kind is not a pair, and neither is a full house.',
@@ -362,6 +374,7 @@ export const LEVELS = [
     chapter: 3,
     card: 'KC',
     title: 'Two Pair',
+    difficulty: 7,
     story: [
       'The rival casino is throwing one last big night: fireworks, an orchestra, and a rumour about free cars. The Owner\'s answer is Two Pair, and the whole floor is open for it.',
       'A five-card hand wins if it holds exactly two pairs. Three of a kind, a full house and four of a kind are all too much of a good thing, and pay nothing.',

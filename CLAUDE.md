@@ -15,8 +15,9 @@ easy to forget.
 
 ## The bonus deck
 
-- BONUS (src/levels/bonus.js) is in difficulty order: the Diff column of
-  docs/campaign.md, then par croupiers. Exception: if bonus floor A opens
+- BONUS (src/levels/bonus.js) is in difficulty order: each level's
+  `difficulty` (which must match the Diff column of docs/campaign.md), then
+  par croupiers; test/levels.js checks both. Exception: if bonus floor A opens
   bonus floor B (`unlockAfter`), B comes after A. Cards follow list order
   (A♠..K♠, then A♥..), so reordering renumbers them; that's fine (saves are
   keyed by id).
@@ -25,6 +26,7 @@ easy to forget.
 
 ## Adding or changing a floor
 
+- Give the level a `difficulty` (1-10) matching its Diff in docs/campaign.md.
 - Recipe in tools/level-specs/<chapter>.js, mutants in
   test/mutants/<chapter>.js, docs rows in docs/campaign.md and
   docs/story.md.

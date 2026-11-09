@@ -174,10 +174,12 @@ solved and doesn't count towards the campaign's unlock window.
 **Cards.** The bonus deck is a second deck: the n-th bonus floor is the
 n-th card A♠, 2♠, ... K♠, then A♥ ... K♥, A♣ ... K♣ and A♦ ... K♦
 (`BONUS_SUITS`, the order the level select groups them in), and BONUS is
-kept in difficulty order (the Diff column, then par croupiers), not the
-order the floors open in, with one exception: if bonus floor A opens bonus
-floor B, B comes after A (test/levels.js checks this). Adding a floor renumbers the ones after it (cards
-are labels only; saves are keyed by id).
+kept in difficulty order (the Diff column, which each level repeats as
+`difficulty`, then par croupiers), not the order the floors open in, with
+one exception: if bonus floor A opens bonus floor B, B comes after A
+(test/levels.js checks all of this). Adding a floor renumbers the ones
+after it (cards are labels only; saves are keyed by id). The deck holds
+52 floors: a 53rd would need a third deck (`BONUS_SUITS`).
 
 **Opening.** A bonus floor opens when its `unlockAfter` floors are all
 solved: one id or a list, of campaign floors or other bonus floors. Every
@@ -327,6 +329,8 @@ the same idea).
 
 ### What test/levels.js enforces
 
+* Difficulty: every level's `difficulty` is the Diff in its row of the
+  tables here.
 * Cards: the n-th floor of a chapter is the n-th card (A..K of the chapter's
   suit; `?`, `??`, `$`, `$$` in the finale); unique. Add floors in card order.
 * A level has exactly one of `pays(hand, earlierHands)` and

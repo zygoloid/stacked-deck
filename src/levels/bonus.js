@@ -247,6 +247,7 @@ export const LEVELS = [
     card: 'AS',
     unlockAfter: 'top-pair',
     title: 'Split Pot',
+    difficulty: 2,
     story: [
       'The rival casino has started splitting its pots, and the Owner will not be outdone. Any five-card hand with a pair or better is paid out in two parts: first its biggest set, then everything else, each part as a hand of its own.',
       'Two pair is one set of four cards; in a full house the set is the three of a kind and the pair goes with the rest. Hands without a pair pay nothing.',
@@ -269,6 +270,7 @@ export const LEVELS = [
     card: '2S',
     unlockAfter: 'beat-the-dealer',
     title: 'Small Change',
+    difficulty: 2,
     story: [
       'Sal Vellani has a rule about kings: a king is too much money to leave on the table. Tonight, for every king played, the house hands over the ace of spades from its own cards, and keeps the king.',
       'Queens, aces and everything else are just cards, and pay nothing.',
@@ -290,6 +292,7 @@ export const LEVELS = [
     card: '3S',
     unlockAfter: 'deja-vu',
     title: 'Two Apart',
+    difficulty: 3,
     story: [
       'The doormen are back on their break, and they have a new game for it. A two-card hand wins if its cards are exactly two ranks apart: a 5 with a 7, a 10 with a queen.',
       'The ace plays high or low, so an ace with a 3 wins, and so does a queen with an ace. A king with a 2 is not two apart, however you count it.',
@@ -318,6 +321,7 @@ export const LEVELS = [
     card: '4S',
     unlockAfter: 'two-apart',
     title: 'Three Apart',
+    difficulty: 3,
     story: [
       'The doormen have told the cloakroom, and the cloakroom plays it one better: a two-card hand wins if its cards are exactly three ranks apart, a 4 with a 7 or a 10 with a king.',
       'The ace still plays high or low: an ace with a 4 wins, and so does a jack with an ace.',
@@ -346,6 +350,7 @@ export const LEVELS = [
     card: '5S',
     unlockAfter: 'red-flush',
     title: 'Off Suit',
+    difficulty: 4,
     story: [
       'The croupier who splits hands by suit has gone to a cousin\'s wedding, and Sal Vellani\'s uncle has come back for his red flushes: three-card hands, and the house pays any hand that is all hearts or all diamonds.',
       'The uncle says he would have gone to the wedding himself, if anyone had thought to invite him.',
@@ -371,6 +376,7 @@ export const LEVELS = [
     card: '6S',
     unlockAfter: 'beat-the-dealer',
     title: 'Crossed Wires',
+    difficulty: 4,
     story: [
       'The Owner has had the floor rewired: three card tables down one wall, three cash desks down the other, and a note under the tray. Every player is to be paid at the desk diametrically opposite their seat, so that the money is seen to cross the room.',
       'Player A, at the top, is paid at desk Z, at the bottom; player B, in the middle, at desk Y; player C, at the bottom, at desk X. The Marchetti twins have brought a cousin, and all three are already arguing about the view.',
@@ -397,6 +403,7 @@ export const LEVELS = [
     card: '7S',
     unlockAfter: 'ace-count',
     title: 'Every Other',
+    difficulty: 5,
     story: [
       'Commissioner Pryce has taken his regulation home and framed it. With War played any way you like again, the string quartet has a game for the bar: a five-card hand wins if its highest card is its first or its third card. The first violin says those are the beats that matter.',
       'If the highest rank turns up twice, one of them in either place is enough. The second violin says this is no better than last time.',
@@ -425,6 +432,7 @@ export const LEVELS = [
     card: '8S',
     unlockAfter: 'burn-card',
     title: 'Bookends',
+    difficulty: 5,
     story: [
       'The doormen\'s game has outlived the doormen\'s break. Two-card hands again, but now each hand is played against the one before it: a hand wins if its top card beats the bottom card of the previous hand.',
       'Aces are high and a tie loses, as ever. The first hand of the night has nothing to lean on and never wins. The Kesslers\' bottom dealer says he has always known the bottom card was the important one.',
@@ -452,6 +460,7 @@ export const LEVELS = [
     card: '9S',
     unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Uneven Tables',
+    difficulty: 5,
     story: [
       'The wiring stays, and so does the rule: every player is paid at the desk diametrically opposite their seat. But the cousins have stopped playing in step. Tonight each of the three plays as many hands as they like, from none at all to six.',
       'Each player still plays their own hands in their own order. The cousin at table B says he is only here for the view.',
@@ -480,6 +489,7 @@ export const LEVELS = [
     card: 'TS',
     unlockAfter: 'deja-vu',
     title: 'Four of a Kind',
+    difficulty: 6,
     story: [
       'The city has learned your game, and asks for one more: single cards all night, and every time the fourth card of a rank turns up, the house pays out all four of them together, as one four of a kind, however long ago the first was played.',
       'Then that rank starts again from nothing. Cards still waiting for their fourth at closing time stay with the house.',
@@ -509,6 +519,7 @@ export const LEVELS = [
     card: 'JS',
     unlockAfter: 'deja-vu',
     title: 'Counting Up',
+    difficulty: 6,
     story: [
       'Old Thursday is counting his way through the deck tonight. He pays the first five-card hand that holds a 2, then the first hand after that which holds a 3, then a 4, and so on up through the king to the ace.',
       'After the ace he starts again at 2. A hand only ever counts for the rank he is waiting for, however many others it holds.',
@@ -541,6 +552,7 @@ export const LEVELS = [
     card: 'QS',
     unlockAfter: ['every-other', 'deja-vu'],
     title: 'Rising',
+    difficulty: 6,
     story: [
       'The string quartet has given up on beats and taken up scales. Hands of any size from one card to six win if they climb: every card at least as high as the card above it, aces high.',
       'A card may repeat the rank above it, so 3 7 7 J climbs. A single card climbs on its own, the second violin points out, and nobody argues.',
@@ -570,6 +582,7 @@ export const LEVELS = [
     card: 'KS',
     unlockAfter: 'small-pairs',
     title: 'After a Pair',
+    difficulty: 6,
     story: [
       'Dmitri has a theory about streaks. A pair, he says, warms the table, so the hand after any hand holding a pair or better should win, whatever it holds itself.',
       'Two pair, three of a kind and the rest all count as a pair or better. The first hand of the night follows nothing and never wins. Dmitri has a spreadsheet for this as well.',
@@ -601,6 +614,7 @@ export const LEVELS = [
     card: 'AH',
     unlockAfter: 'two-pair',
     title: 'Two by Two',
+    difficulty: 6,
     story: [
       'The rival casino\'s last big night ran until dawn, and its orchestra\'s brass section came over for breakfast. There are four of them, they say, so they would like four-card hands, and they would like Two Pair.',
       'A four-card hand wins if it holds exactly two pairs. Three of a kind and four of a kind are too much of a good thing and pay nothing, and a single pair is not enough.',
@@ -633,6 +647,7 @@ export const LEVELS = [
     card: '2H',
     unlockAfter: 'four-of-a-kind',
     title: 'The Rest of the Deck',
+    difficulty: 6,
     story: [
       'Commissioner Pryce is auditing the house deck. Tonight one deck is played, in hands of one to five cards, and at closing time the house must hand him every card that was not played, one card at a time, so that he can count them.',
       'The cards played are the guests\' business and leave the floor as usual. The Commissioner counts slowly, and he has brought his own pencil.',
@@ -662,6 +677,7 @@ export const LEVELS = [
     card: '3H',
     unlockAfter: 'off-suit',
     title: 'Night Off',
+    difficulty: 6,
     story: [
       'The suits croupier is back from the wedding, and now the croupier who checks for flushes has the night off. Sal Vellani\'s uncle has come back for his red flushes anyway: three-card hands, and the house pays any hand that is all hearts or all diamonds.',
       'He has brought a slice of the wedding cake for the croupier who missed it, and is in no hurry.',
@@ -687,6 +703,7 @@ export const LEVELS = [
     card: '4H',
     unlockAfter: ['calling-card', 'night-off'],
     title: 'Skeleton Crew',
+    difficulty: 6,
     story: [
       'The croupiers who split hands by suit and check for flushes have both taken the night off, together, and the rest of the floor is covering for them. Sal Vellani\'s uncle has heard, and has come in with a simpler request: three-card hands, and the house pays any hand that is all hearts.',
       'He has brought a get-well card for the absent croupiers, and everyone on the floor has signed it, twice.',
@@ -713,6 +730,7 @@ export const LEVELS = [
     card: '5H',
     unlockAfter: 'skeleton-crew',
     title: 'No Kings',
+    difficulty: 7,
     story: [
       'The suits croupier and the flush croupier are off at a No Kings rally, and Sal Vellani\'s uncle is back for his red flushes, hearts and diamonds both: three-card hands, and the house pays any hand that is all hearts or all diamonds.',
       'In solidarity, the players have taken the kings out of their decks for the night. The uncle says it is the least he can do.',
@@ -739,6 +757,7 @@ export const LEVELS = [
     card: '6H',
     unlockAfter: 'counting-up',
     title: 'One Up',
+    difficulty: 7,
     story: [
       'Old Thursday has one trick left, and he insists it is the best one. You show him a card, and he produces the next card up in the same suit: a 7 of clubs for a 6 of clubs, the ace for the king.',
       'The house pays out his card and keeps yours. Nobody has ever caught him doing it.',
@@ -762,6 +781,7 @@ export const LEVELS = [
     card: '7H',
     unlockAfter: 'rest-of-the-deck',
     title: 'Head Count',
+    difficulty: 8,
     story: [
       'Commissioner Pryce has a new regulation, and this one he wrote himself. A hand of one to six cards wins if its top card says how many cards it holds: an ace on a hand of one, a 4 on a hand of four.',
       'He calls it honest labelling. A king on top never wins, since nobody holds thirteen cards, and nor does an ace on anything but a single card.',
@@ -791,6 +811,7 @@ export const LEVELS = [
     card: '8H',
     unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Mirror Image',
+    difficulty: 8,
     story: [
       'The Marchetti twins are back, at two tables again, and each has brought a deck of their own. They play five-card hands side by side, one each per deal, and the house pays both hands when the twins hold exactly the same five cards.',
       'The order the cards come in doesn\'t matter, but the suits do: a pair of sevens is not the same as a pair of sevens.',
@@ -820,6 +841,7 @@ export const LEVELS = [
     card: '9H',
     unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Casino Numbers',
+    difficulty: 8,
     story: [
       'The Owner has a new way of counting, and it has no zero in it: nobody at the Stacked Deck has ever been paid nothing. The digits are the cards, ace to king, so a jack is eleven and a king thirteen; fourteen is an ace and an ace, twenty-six an ace and a king, and twenty-seven a two and an ace.',
       'Tonight two players each play one spade, ace to king, per deal, and the house pays the total in casino numbers, in its own spades, the leading digit on top. Dmitri is converting his spreadsheet, and has asked for a bigger one.',
@@ -849,6 +871,7 @@ export const LEVELS = [
     card: 'TH',
     unlockAfter: 'casino-numbers',
     title: 'Split the Difference',
+    difficulty: 8,
     story: [
       'The Kesslers\' bottom dealer and his cousin have argued for years about who owes whom, and have agreed to settle it at the table, in casino numbers. Each plays one spade per deal, ace to king, and the house pays the difference between them: the higher card less the lower, as one spade.',
       'When both play the same rank there is no difference to split, and the house pays nothing. Dmitri keeps the score; nobody else is allowed to.',
@@ -880,6 +903,7 @@ export const LEVELS = [
     card: 'JH',
     unlockAfter: ['three-apart', 'rest-of-the-deck'],
     title: 'Last In, First Out',
+    difficulty: 9,
     story: [
       'The cloakroom has a new attendant, and a new rule: tickets are for amateurs. Guests hand over hands of one to five cards on the way in, and at the end of the night the house pays every one of them back, the last hand handed in first, then the one before it, and so on back to the first.',
       'The cards of a hand may come back in any order, but the hands must come back in exactly that order. The attendant knows the night is over when the guests stop arriving.',
@@ -909,6 +933,7 @@ export const LEVELS = [
     card: 'QH',
     unlockAfter: 'casino-numbers',
     title: 'Times Tables',
+    difficulty: 9,
     story: [
       'Dmitri has found the multiplication sheet. Tonight two players each play one spade per deal, ace to king, and the house pays the product in casino numbers, in its own spades, the leading digit on top: one card up to thirteen, two from fourteen (an ace and an ace) all the way to a hundred and sixty-nine (a queen and a king).',
       'The Owner asked why the house pays more for a king and a queen than for a king and an ace. Dmitri said it was a long story; the Owner said to keep it short.',
@@ -937,6 +962,7 @@ export const LEVELS = [
     card: 'KH',
     unlockAfter: 'mirror-image',
     title: 'Showdown',
+    difficulty: 9,
     story: [
       'Sal Vellani and Dmitri have agreed to settle things at the table, three cards each, one hand each per deal. The house pays the better hand: highest card against highest card, and if those match, middle against middle, then lowest against lowest.',
       'Aces are high. Suits don\'t count, and if all three ranks match the house pays neither of them, which both agree is the only fair result.',
@@ -969,6 +995,7 @@ export const LEVELS = [
     card: 'AC',
     unlockAfter: 'mirror-image',
     title: 'Twice Shy',
+    difficulty: 10,
     story: [
       'The Marchetti twins have each brought a deck of their own again, and the Owner is tired of paying twice for the same card. Tonight the twins play five-card hands side by side, one each per deal, and every hand is paid out, less any card that turns up more than once over the whole night.',
       'Both copies of such a card go to the house, whichever twin played them and however many deals apart. A hand that loses all five pays nothing. The twins call it double jeopardy; the Owner calls it bookkeeping.',
@@ -999,6 +1026,7 @@ export const LEVELS = [
     card: '2C',
     unlockAfter: 'times-tables',
     title: 'Carry the One',
+    difficulty: 10,
     story: [
       'Dmitri\'s spreadsheet now has two columns, and so do the players: tonight each of them plays a two-digit casino number per deal, the leading digit a club on top of the units digit, a spade. That is fourteen (an ace and an ace) up to a hundred and eighty-two (a king and a king).',
       'The house pays the total in casino numbers, in its own spades, the leading digit on top. The biggest totals take three cards, which the Owner has decided to be proud of.',
