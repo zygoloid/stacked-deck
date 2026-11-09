@@ -737,8 +737,9 @@ game's rules and functions.
 deployed by hand except a rules version change (below) and the kill switch
 (from its own repository, first). It has three jobs:
 
-* **test**, on every push and pull request, with no credentials: `npm test`,
-  `tools/ui-smoke.js`, both emulator suites, and `tools/build-site.js`.
+* **test**, on every push and pull request (and pushes to `beta`), with no
+  credentials: `npm test`, `tools/ui-smoke.js`, both emulator suites, and
+  `tools/build-site.js`.
 * **firebase**, on `main` after the tests pass, in the `production`
   environment; the only job that can get Google credentials. It checks that
   the server's `config/rulesVersion` equals `RULES_VERSION` (if not, it is a
@@ -749,15 +750,42 @@ deployed by hand except a rules version change (below) and the kill switch
   best known score (`tools/repair-best.js`, above), and last it scores any
   submission the trigger missed (`rescore.js`, a sweep: normally there are
   none). A dry run only reports what they would write.
-* **pages**, after that: builds `_site/` (`index.html`, `privacy.html`,
-  `style.css`, `src/`; `tools/build-site.js` checks every import stays
-  inside it) and publishes it. The site goes live last, after the server
-  can handle it, and not at all if anything before failed.
+* **pages**, after that: builds `_site/` from `main` (`index.html`,
+  `privacy.html`, `style.css`, `src/`; `tools/build-site.js` checks every
+  import stays inside it), and the `beta` branch, if there is one, into
+  `_site/beta/` (see "The beta" below), and publishes it. The site goes
+  live last, after the server can handle it, and not at all if anything
+  before failed. A push to `beta` runs this job too, after the tests, with
+  no Firebase job: it republishes `main`'s site as it is, with the new
+  beta.
 
 Running the workflow by hand (Actions → Test and deploy → Run workflow, on
 `main`) defaults to a **dry run**: `firebase deploy --dry-run` for both
 deploys and no Pages deploy, which checks the deploy account's permissions
 without changing anything.
+
+### The beta
+
+New floors are tried out in a beta before they ship: once a floor is on
+`main`, the database rules accept it, its scores are kept and
+`test/compat.json` records it, so from then on it may only grow. The beta
+is the `beta` branch (point it at whatever is being tried:
+`git push --force-with-lease origin <branch>:beta`), published at
+`/stacked-deck/beta/` by the deploy workflow (above).
+
+It is built with `tools/build-site.js --beta` (docs/architecture.md,
+"Builds and dev mode"): its own saves in the browser (every github.io
+project page shares one origin, so the beta would otherwise share the
+live game's), no online features (the live server would refuse its new
+floors, and cloud save writes all of a player's floors in one update, so
+one refused floor would stop the rest syncing too), a Beta badge, and the
+reference solutions, so testers can turn on dev mode (`?dev`). Testers
+move progress either way with the floors list's Save file dialog; loading
+a file keeps only floors the game has, and scores every machine again.
+
+One-off setup: the `github-pages` environment (Settings → Environments)
+must allow deployments from `beta` as well as `main`, or the beta's
+deploys wait for approval or fail.
 
 **Rules version changes** are still done by hand, following "Rules
 versions" above: the workflow refuses to deploy while the server's version

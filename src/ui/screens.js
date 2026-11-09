@@ -3,6 +3,8 @@ import { h, s, handEl, SPECIAL_FACE, SUIT_GLYPH, SUIT_NAME } from './dom.js';
 import { CROUPIERS, PORT_STYLE, chipLabel, sampleCell } from './croupiers.js';
 import { CAMPAIGN as LEVELS, BONUS, ALL_LEVELS, findLevel } from './catalog.js';
 import { RULES_VERSION } from '../engine.js';
+import { CHANNEL } from '../build.js';
+import { devMode, devBar, channelBadge } from './dev.js';
 import { isUnlocked, isBonusOpen, unlockIds, specialCardsUnlocked } from './model.js';
 import { floorLabel, chapterInfo, floorBadge } from './floors.js';
 import { accountButton } from './account.js';
@@ -15,7 +17,7 @@ const SPECIAL_TILE = { '?': 'f-mono', '??': 'f-colour', '$': 'f-front', '$$': 'f
 
 // The floors list's own settings, kept in this browser only: which deck is
 // showing and which suits are folded away.
-const UI_KEY = 'stacked-deck-ui';
+const UI_KEY = CHANNEL === 'beta' ? 'stacked-deck-beta-ui' : 'stacked-deck-ui';
 function loadUi() {
   try {
     const u = JSON.parse(localStorage.getItem(UI_KEY) || 'null');
@@ -81,8 +83,10 @@ export function levelSelect(root, ctx, focus = null) {
           h('button', { class: 'btn ghost small', onclick: () => ctx.help() }, '? How to play'),
           cloud ? accountButton(cloud) : null,
           h('button', { class: 'btn ghost small', title: 'Download your progress, or load a save file', onclick: () => saveFileDialog(ctx, ALL_LEVELS) }, 'Save file'),
-          h('span', { class: 'rules-version', title: 'Version of the game rules this page is running' }, `rules v${RULES_VERSION}`)),
-        solvedCount + bonusSolved ? legend() : null),
+          h('span', { class: 'rules-version', title: 'Version of the game rules this page is running' }, `rules v${RULES_VERSION}`),
+          channelBadge()),
+        solvedCount + bonusSolved ? legend() : null,
+        devBar(draw)),
       BONUS.length ? deckTabs() : null,
       ui.deck === 'bonus' ? bonusDeck() : campaignDeck(),
       pop].flat().filter(Boolean));
@@ -101,7 +105,7 @@ export function levelSelect(root, ctx, focus = null) {
         ? [h('span', {}, h('b', { class: 'ts-top' }, '★'), ' best known score'),
           h('span', {}, h('i', { class: 'lg-foil' }), 'best known on one count'),
           h('span', {}, h('i', { class: 'lg-holo' }), 'on both')]
-        : h('span', { class: 'muted' }, 'Sign in to compare with everyone else'));
+        : cloud ? h('span', { class: 'muted' }, 'Sign in to compare with everyone else') : null);
   }
 
   // The two decks, as two card boxes: the campaign (red backs) and the bonus
@@ -441,12 +445,12 @@ export function levelSelect(root, ctx, focus = null) {
       const list = needs.map(named);
       const title = needs.length
         ? `Clear ${list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list[0]} to open` : 'Locked';
-      return h('div', {
+      return devEnter(lv, h('div', {
         class: 'tile locked bonus', 'data-bonus': lv.id, 'data-card': f.card ?? f.text, title,
       },
       h('div', { class: 'tile-back' }, h('span', { class: 'lock' },
         needs.length ? ['After ', needs.map((x, i) => [i ? ' + ' : '', chip(x)])] : 'Locked')),
-      h('div', { class: `tile-no${f.cls === 'red' ? ' red' : ''}` }, f.text));
+      h('div', { class: `tile-no${f.cls === 'red' ? ' red' : ''}` }, f.text)));
     }
     return tile(lv, -1, f);
   }
@@ -473,15 +477,29 @@ export function levelSelect(root, ctx, focus = null) {
     });
   }
 
+  // Dev mode: a locked floor's card back still goes to the floor (marked).
+  function devEnter(lv, el) {
+    if (!devMode()) return el;
+    el.classList.add('dev-enter');
+    el.dataset.diff = `diff ${lv.difficulty ?? '?'}`;
+    el.setAttribute('title', `${el.getAttribute('title')} (dev mode: click to enter) · difficulty ${lv.difficulty ?? '?'}`);
+    el.setAttribute('role', 'link');
+    el.tabIndex = 0;
+    const go = () => ctx.go(`#/level/${lv.id}`);
+    el.addEventListener('click', go);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    return el;
+  }
+
   function tile(lv, i, label) {
     const st = save.levels[lv.id] ?? {};
     const open = i < 0 || isUnlocked(save, i);
     const f = label ?? floorLabel(i);
     if (!open) {
       // A card back. Special floors keep their card hidden until they open.
-      return h('div', { class: 'tile locked', title: 'Clear the previous floors to unlock', 'data-card': f.special ? null : f.card },
+      return devEnter(lv, h('div', { class: 'tile locked', title: 'Clear the previous floors to unlock', 'data-card': f.special ? null : f.card },
         h('div', { class: 'tile-back' }, h('span', { class: 'lock' }, 'Locked')),
-        f.special ? null : h('div', { class: `tile-no${f.cls === 'red' ? ' red' : ''}` }, f.text));
+        f.special ? null : h('div', { class: `tile-no${f.cls === 'red' ? ' red' : ''}` }, f.text)));
     }
     const kind = f.special ? `special ${SPECIAL_TILE[f.card]}` : f.cls === 'red' ? 'red' : f.cls === 'plain' ? 'plain' : 'black';
     const corner = (pos, mark) => h('div', { class: `tile-corner ${pos}` }, h('b', {}, f.rank), f.glyph ? h('i', {}, f.glyph) : null, mark);
@@ -504,7 +522,8 @@ export function levelSelect(root, ctx, focus = null) {
     st.solved ? scoreBox(lv, sd) : h('div', { class: 'tile-score open' },
       h('span', { class: 'ts-state' }, st.cells?.length ? 'In progress' : 'New floor'),
       lv.par ? h('span', { class: 'ts-par' }, `par ${lv.par.croupiers ?? '–'} · ${lv.par.rounds ?? '–'}`) : null),
-    friendsLine(sd, st.solved));
+    friendsLine(sd, st.solved),
+    devMode() ? h('div', { class: 'tile-dev', title: 'Difficulty (dev mode)' }, `diff ${lv.difficulty ?? '?'}`) : null);
     if (finish) {
       // A glint follows the pointer over the card (measured from the card's
       // top left corner as it lies unturned, near enough in a hand).

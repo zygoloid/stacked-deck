@@ -11,7 +11,11 @@ desk and everything else ends up on the floor.
     npm run serve        # then open http://localhost:8000
 
 There are no dependencies and no build step. Any static file server works.
-Add `?unlockall` to the URL to open every floor.
+Add `?unlockall` to the URL to open every floor, or `?dev` for dev mode
+(enter any floor, load its par machine, see its difficulty and measure a
+machine test by test; `?dev=0` turns it off). New floors are tried out in
+a beta, published from the `beta` branch at `/beta/` ("The beta" in
+docs/online.md).
 
 ## Develop
 

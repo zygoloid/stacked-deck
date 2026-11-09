@@ -178,6 +178,7 @@ whenever a rule changes; the level select shows it.
   id: 'opening-night',          // stable; used for saves and solutions/levels/<id>.js
   chapter: 1,
   title: 'Opening Night',
+  difficulty: 1,                // 1-10, the Diff column of docs/campaign.md (test/levels.js checks)
   story: ['paragraph', ...],    // shown before the level
   brief: 'Pay out every card.', // one-line goal, always visible
   handSize: 1,                  // or [min, max] for hands of mixed sizes
@@ -296,6 +297,26 @@ unsolved levels are open at once. The UI reads both lists through
 `src/ui/catalog.js`; with `?testlevels` in the URL it also appends the
 test-only fixture floors of `test/ui-levels.js` to the bonus deck (used by
 `tools/ui-smoke.js`).
+
+## Builds and dev mode
+
+`src/build.js` says which build the page is: `'dev'` in the repository
+(served as it is by `npm run serve`), and `tools/build-site.js` rewrites
+it in the builds it makes: `'live'` for the published site, `'beta'` with
+`--beta` for the beta (published at `/beta/`: docs/online.md, "The beta").
+The beta keeps its own saves (`stacked-deck-beta-v1`, `stacked-deck-beta-ui`),
+has no online features (`ctx.cloud` is null), shows a Beta badge, and
+carries `solutions/levels/`. `test/build.js` builds both.
+
+**Dev mode** (`src/ui/dev.js`): `?dev` turns it on and `?dev=0` off, and
+the choice is remembered in the browser (`stacked-deck-dev`); never on the
+live site. In dev mode a locked floor's card can be clicked to enter it,
+cards show each floor's `difficulty`, and the editor's floor panel has a
+Dev box: difficulty and par, what opens the floor and what it opens, a
+button that loads the par machine (an undo away), and one that measures
+the machine on the floor test by test (rounds, the most cards on the floor
+at once, and the longest stretch without progress, which `STALL_ROUNDS`
+limits).
 
 ## Save format (localStorage key `stacked-deck-v1`)
 
