@@ -11,6 +11,13 @@ const KEEP_ALL = 400;             // keep every snapshot for the last N rounds
 const CHECKPOINT = 25;            // older rounds keep one snapshot in N
 
 export const canon = (h) => handKey(h);
+// The places a floor with `ordered: [places]` checks, in words: "11th from
+// the top", "1st and 3rd from the top".
+const nth = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+export const placesText = (places) => {
+  const ns = places.map((i) => nth(i + 1));
+  return `${ns.length > 1 ? `${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}` : ns[0]} from the top`;
+};
 // Labelled desks' names (desk 0, 1, ...), as players are lettered A, B, ...
 export const DESK_NAMES = 'XYZW';
 
@@ -87,7 +94,11 @@ export class Sim {
     if (!this.listed) return dup ? 'Paid out a winning hand a second time.' : 'Paid out a hand that should have been dropped.';
     if (this.inOrder && dup) return 'Paid out a hand out of turn (payouts must come in the order listed).';
     if (dup) return 'Paid out that hand more times than expected.';
-    if (this.ordered && this.expected.some((x) => canon(payoutHand(x)) === canon(hand))) return 'Paid out a hand with its cards in the wrong order (card order matters here).';
+    if (this.ordered && this.expected.some((x) => canon(payoutHand(x)) === canon(hand))) {
+      return Array.isArray(this.ordered)
+        ? `Paid out a hand with the wrong card ${placesText(this.ordered)}.`
+        : 'Paid out a hand with its cards in the wrong order (card order matters here).';
+    }
     return 'Paid out a hand that isn\'t one of the expected payouts.';
   }
 

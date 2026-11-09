@@ -1,5 +1,6 @@
 // Saved solutions must keep working: once a floor ships, its fixed cells
-// (players and chip desks) must not move and its buildable area may only
+// (players and chip desks, and any shoes and croupiers bolted to the floor)
+// must not move or change and its buildable area may only
 // grow. test/compat.json records every shipped floor; new floors are added
 // automatically with --update.
 //
@@ -13,7 +14,11 @@ const file = new URL('./compat.json', import.meta.url);
 const update = process.argv.includes('--update');
 const snap = JSON.parse(readFileSync(file, 'utf8'));
 const key = (h) => h.join(',');
-const fixedOf = (l) => l.fixed.map((c) => ({ at: c.at, kind: c.kind, ...(c.out !== undefined ? { out: c.out } : {}), ...(c.seat !== undefined ? { seat: c.seat } : {}), ...(c.desk !== undefined ? { desk: c.desk } : {}) }));
+// Players and desks are recorded by position, direction and label; shoes and
+// croupiers bolted to the floor in full (a saved machine relies on all of it).
+const fixedOf = (l) => l.fixed.map((c) => (c.kind === 'source' || c.kind === 'payout'
+  ? { at: c.at, kind: c.kind, ...(c.out !== undefined ? { out: c.out } : {}), ...(c.seat !== undefined ? { seat: c.seat } : {}), ...(c.desk !== undefined ? { desk: c.desk } : {}) }
+  : c));
 const levels = [...LEVELS, ...(BONUS ?? [])];
 const ids = new Set(levels.map((l) => l.id));
 

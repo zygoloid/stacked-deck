@@ -39,7 +39,7 @@ import {
   runTest, expectedPayouts, payoutKey, payoutHand, FUNCTIONS, DIRS,
 } from '../src/engine.js';
 import { RANKS, SUITS, SPECIALS } from '../src/cards.js';
-import { checkDeals, totalRounds, MAX_HAND } from '../src/score.js';
+import { checkDeals, totalRounds, MAX_HAND, cellError } from '../src/score.js';
 
 const MUTANTS = {}, DOOR = [];
 for (const name of [...Object.values(CHAPTER_FILES), BONUS_FILE]) {
@@ -69,7 +69,7 @@ const runAll = (level, cells, opts) => level.tests.map((t) => runTest({ cells },
 // whose payouts must come in order.) Null hands (a player's missing hands)
 // are skipped.
 const payoutKeys = (level, hands) => {
-  const keys = hands.filter(Boolean).map((p) => payoutKey(p, !!level.ordered));
+  const keys = hands.filter(Boolean).map((p) => payoutKey(p, level.ordered ?? false));
   return (level.inOrder ? keys : keys.sort()).join(' | ');
 };
 
@@ -180,22 +180,37 @@ for (const level of [...LEVELS, ...BONUS]) {
   check(Number.isInteger(minSize) && Number.isInteger(maxSize) && minSize >= 1 && minSize <= maxSize, 'handSize');
   const hasPays = typeof level.pays === 'function', hasExpected = typeof level.expected === 'function';
   check(hasPays !== hasExpected, 'has exactly one of pays(hand, earlierHands) and expected(inputs)');
-  check(level.ordered === undefined || typeof level.ordered === 'boolean', 'ordered is a boolean');
+  check(level.ordered === undefined || typeof level.ordered === 'boolean' ||
+    (Array.isArray(level.ordered) && level.ordered.length && level.ordered.every((i) => Number.isInteger(i) && i >= 0 && i < maxSize)),
+  'ordered is a boolean, or a list of card places (0 for the top card) within the hand size');
   check(!level.ordered || hasExpected, 'ordered only on an expected level');
   check(level.inOrder === undefined || (typeof level.inOrder === 'boolean' && hasExpected), 'inOrder is a boolean, only on an expected level');
   check(level.croupiers.every((c) => PALETTE.has(c)), `palette names ${level.croupiers}`);
   const warRules = level.warRules ?? ['high'];
   check(warRules.length && warRules.every((r) => r === 'high' || r === 'top'), 'warRules');
   const specials = level.specialCards ?? [];
+  const decks = level.decks ?? 1;
+  check(Number.isInteger(decks) && decks >= 1 && decks <= 8, 'decks is 1 to 8');
   const floor = new Set(level.floor.map(key));
   check(floor.size === level.floor.length, 'floor has no repeated hexes');
   const fixedAt = new Set(level.fixed.map((c) => key(c.at)));
   check(fixedAt.size === level.fixed.length, 'fixed cells do not overlap');
-  check(level.fixed.every((c) => c.kind === 'source' || c.kind === 'payout'), 'fixed cells are sources and desks');
+  // Fixed cells: players and desks, and shoes and croupiers bolted to the
+  // floor (any croupier, palette or not; well formed, as the editor would
+  // make it, except that its War rule needn't be one the player may pick).
+  check(level.fixed.every((c) => ['source', 'payout', 'shoe', 'croupier'].includes(c.kind)), 'fixed cells are players, desks, shoes and croupiers');
+  for (const c of level.fixed.filter((f) => f.kind === 'shoe' || f.kind === 'croupier')) {
+    const bolted = { ...level, croupiers: [...PALETTE], warRules: ['high', 'top'] };
+    const err = cellError(bolted, c);
+    check(!err, `fixed ${c.fn ?? c.kind} at ${c.at}: ${err}`);
+    if (c.kind === 'shoe') check(c.deck.every((x) => CARDS.has(x) || specials.includes(x)), `fixed shoe at ${c.at}: deck uses natural cards${specials.length ? ` and ${specials}` : ''}`);
+    check(c.kind === 'shoe' ? c.out !== undefined : c.fn !== 'deal' || c.out.to?.length, `fixed ${c.fn ?? c.kind} at ${c.at} hands its cards somewhere`);
+  }
   check(level.fixed.some((c) => c.kind === 'source') && level.fixed.some((c) => c.kind === 'payout'), 'has a source and a desk');
   check(level.floor.every((h) => !fixedAt.has(key(h))), 'floor excludes fixed cells');
   for (const s of level.fixed.filter((c) => c.kind === 'source')) {
-    check(floor.has(key(step(s.at, s.out))), `source ${s.at} hands cards onto the floor`);
+    const to = key(step(s.at, s.out));
+    check(floor.has(to) || level.fixed.some((c) => c.kind === 'croupier' && key(c.at) === to), `source ${s.at} hands cards onto the floor or to a fixed croupier`);
   }
   // Seats and desk labels: all or none, numbered 0, 1, ...
   const labels = (kind, field) => level.fixed.filter((c) => c.kind === kind).map((c) => c[field]);
@@ -217,11 +232,12 @@ for (const level of [...LEVELS, ...BONUS]) {
       check(i + seats >= t.length || !t[i + seats], `test hand ${i} is missing, but the same player has a later hand`);
     });
     // Fixed tests may reuse cards between hands (the house plays from a
-    // multi-deck shoe), but a hand never holds the same card twice. Players
-    // only ever hold natural cards.
+    // multi-deck shoe), but a hand never holds the same card twice, unless
+    // the floor deals from `decks` decks (then at most that many times).
+    // Players only ever hold natural cards.
     for (const h of t.filter(Boolean)) {
       check(h.length >= minSize && h.length <= maxSize, `hand ${h} has ${minSize === maxSize ? minSize : `${minSize}-${maxSize}`} cards`);
-      check(new Set(h).size === h.length, `hand ${h} repeats a card`);
+      check(h.every((c) => h.filter((x) => x === c).length <= decks), `hand ${h} repeats a card${decks > 1 ? ` more than ${decks} times` : ''}`);
       for (const c of h) check(CARDS.has(c), `card ${c}`);
     }
   }

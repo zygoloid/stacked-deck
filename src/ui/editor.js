@@ -15,7 +15,7 @@ import {
 } from './model.js';
 import { checkDeals, CHECK_DEALS, totalRounds } from '../score.js';
 import { signInDialog, dialogOpen } from './account.js';
-import { Sim, DESK_NAMES } from './sim.js';
+import { Sim, DESK_NAMES, placesText } from './sim.js';
 import { scatterPlot, solutionList, scoreText, parMark } from './scatter.js';
 
 const ARROW = ['→', '↘', '↙', '←', '↖', '↗'];
@@ -1010,7 +1010,10 @@ export function openEditor(root, ctx, level) {
       const done = matched.filter(Boolean).length;
       parts.push(h('div', { class: 'sub-title' }, 'Expected payouts',
         h('span', { class: 'muted' }, ` ${done}/${expected.length} paid${wrong.length ? `, ${wrong.length} wrong` : ''}`)));
-      if (level.ordered) {
+      if (Array.isArray(level.ordered)) {
+        parts.push(h('div', { class: 'order-note' }, h('span', { class: 'order-tag' }, 'card places matter'),
+          h('span', { class: 'muted small' }, `each payout must have the right card ${placesText(level.ordered)}; the rest in any order`)));
+      } else if (level.ordered) {
         parts.push(h('div', { class: 'order-note' }, h('span', { class: 'order-tag' }, 'card order matters'),
           h('span', { class: 'muted small' }, 'each payout must match card for card, top card first')));
       }

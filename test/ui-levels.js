@@ -1,7 +1,7 @@
 // Test-only bonus floors for tools/ui-smoke.js. The UI appends these to the
 // bonus deck only when the page URL has `?testlevels` (src/ui/catalog.js), so
-// the smoke test can cover `expected` / `ordered` floors and bonus unlocking
-// whatever the real content is. Not part of the game; ids start with `test-`.
+// the smoke test can cover `expected` / `ordered` floors, croupiers bolted
+// to the floor and bonus unlocking whatever the real content is. Not part of the game; ids start with `test-`.
 import { newDeckIndex } from '../src/cards.js';
 import { makeTests } from '../src/levels/shared.js';
 
@@ -79,6 +79,20 @@ export const BONUS = [
     pays: (hand) => hand[0][1] === 'H',
     tests: makeTests({ handSize: 1, handsPerTest: 4, nRandom: 0, fixed: [['AH', '2H', '3H', '4H'], ['KH', 'QH']] }),
   },
+  {
+    id: 'test-bolted',
+    unlockAfter: 'around-the-bar',
+    title: 'Bolted Down',
+    story: ['Test floor: a Sort croupier is bolted to the floor; only the top card\'s place matters.'],
+    brief: 'Pay every hand with its first card in new deck order on top.',
+    handSize: 3,
+    floor: floor.filter(([q, r]) => q !== 0 || r !== 0),
+    fixed: [...FIXED, { at: [0, 0], kind: 'croupier', fn: 'sort', out: { out: 1 } }],
+    croupiers: ['pass'],
+    ordered: [0],
+    expected: (inputs) => inputs.map((hand) => { const [top, ...rest] = deckOrder(hand); return [top, ...rest.reverse()]; }),
+    tests: tests(['KS AS 5D', '2H 3H 7C'], ['QD JC TS']),
+  },
 ];
 
 // Machines for the floors above (player cells, as saved).
@@ -90,4 +104,5 @@ export const SOLUTIONS = {
   'test-sorted': [{ at: [0, 0], kind: 'croupier', fn: 'sort', out: { out: 0 } }],
   'test-sorted-wrong': [{ at: [0, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } }],
   'test-hearts-everything': [{ at: [0, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } }],
+  'test-bolted': [{ at: [0, 1], kind: 'croupier', fn: 'pass', out: { out: 5 } }],
 };

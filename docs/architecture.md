@@ -73,6 +73,16 @@ coordinates: `0 E [1,0]`, `1 SE [0,1]`, `2 SW [-1,1]`, `3 W [-1,0]`,
 | `shoe` (croupier dealing a stacked deck) | `at, out, deck: ['AS', ...], once?` |
 | `croupier` | `at, fn, out: {port: side}, facing?, ...params` |
 
+A level's fixed cells are its players and chip desks, and may also include
+shoes and croupiers **bolted to the floor**: cells of the two kinds above
+that the level places, which the player can't move, change or remove, and
+which don't count towards the croupiers score. A bolted croupier needn't be
+in the level's palette (a floor can bolt down the only War, or the only
+shoe), and its War rule needn't be one the player may pick. The editor
+draws them on a dark table with bolts in the corners (`.cell.bolted` in
+`src/ui/board.js`); `test/compat.js` records them in full, since saved
+machines depend on every field.
+
 `facing` (the side a croupier starts looking for input on, default east) is
 for the engine and its tests only: the editor never sets it, so players'
 machines don't have it (`sanitizeCells` drops it, `validateCells` rejects it).
@@ -171,8 +181,10 @@ whenever a rule changes; the level select shows it.
   story: ['paragraph', ...],    // shown before the level
   brief: 'Pay out every card.', // one-line goal, always visible
   handSize: 1,                  // or [min, max] for hands of mixed sizes
+  decks: 1,                     // a hand may hold the same card up to this many times (default 1)
   floor: [[q, r], ...],         // hexes where the player may place croupiers
-  fixed: [cells],               // sources and payouts (not editable)
+  fixed: [cells],               // sources and payouts, and any shoes and croupiers
+                                //   bolted to the floor (not editable)
   croupiers: ['pass', 'shoe', ...],  // palette: fn names plus 'shoe'
   warRules: ['high', 'top'],    // War rules allowed (when 'war' is in the palette)
   card: 'AS',                   // the floor's playing card: 'AS'…'KS' (suit floors), '?' '??' '$' '$$' (finale);
@@ -181,7 +193,8 @@ whenever a rule changes; the level select shows it.
                                 //   mentions special cards only once such a floor is open)
   pays: (hand, earlierHands) => boolean,   // either this…
   expected: (inputs) => [hand, ...],       // …or this: the exact payouts (see below)
-  ordered: false,                          // compare card order within payouts
+  ordered: false,                          // compare card order within payouts (true), or
+                                           //   only the cards in some places ([10]: the 11th card)
   inOrder: false,                          // payouts must come in the listed order
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays);
                                 //   made by dealtTests (src/levels/shared.js; makeTests and
@@ -197,7 +210,10 @@ inputs: hands may repeat (pay a hand once per ace), be regrouped from cards of
 several inputs (each four of a kind across all cards played), or be made of
 house cards from shoes (pay the next higher spade). Payouts may arrive in any
 order, and each must match a distinct expected hand; hands are compared as
-multisets of cards unless `ordered: true`. With `inOrder: true` the payouts
+multisets of cards unless `ordered: true` (card for card, top card first). With
+`ordered` a list of places (0 for the top card), the cards in those places
+must match and the rest of the hand is compared as a multiset; the UI says
+"card places matter" and names the places. With `inOrder: true` the payouts
 must also arrive in the order listed: the n-th payout must match the n-th
 expected hand (the UI marks such a floor "payout order matters").
 On a floor with labelled desks an expected payout is `{ desk, hand }`, and a

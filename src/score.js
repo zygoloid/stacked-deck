@@ -87,8 +87,9 @@ export const MAX_DEAL_SIDES = 60;  // entries in a deal's `to` list
 
 const isPlain = (v) => v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype;
 
-// Check one cell; returns an error message or null.
-function cellError(level, c) {
+// Check one cell; returns an error message or null. (Exported for
+// test/levels.js, which checks the cells a floor bolts to the floor with it.)
+export function cellError(level, c) {
   if (!isPlain(c)) return 'not an object';
   const extra = (allowed) => Object.keys(c).find((k) => !allowed.includes(k));
   if (c.kind === 'shoe') {

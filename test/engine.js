@@ -223,6 +223,14 @@ console.log('rules v7 ok');
   const passPay = { cells: [{ at: [-1, 0], kind: 'source', out: 0 }, { at: [0, 0], kind: 'payout' }] };
   assert(!runTest(passPay, [['KS', 'AS']], sorted).ok, 'ordered: KS AS is not AS KS');
   assert(runTest(passPay, [['AS', 'KS']], sorted).ok);
+  // ordered as a list of places: those cards must match, the rest is a multiset.
+  const second = { expected: () => [['2S', 'KS', 'AS', 'QS']], ordered: [1] };
+  assert(runTest(passPay, [['AS', 'KS', 'QS', '2S']], second).ok, 'ordered [1]: only the 2nd card\'s place matters');
+  assert(!runTest(passPay, [['KS', 'AS', 'QS', '2S']], second).ok, 'ordered [1]: the wrong 2nd card');
+  assert(!runTest(passPay, [['AS', 'KS', 'QS']], second).ok, 'ordered [1]: the rest must still match');
+  // Shoes and croupiers among the level's fixed cells run like any others.
+  const bolted = { cells: [{ at: [-1, 0], kind: 'source', out: 0 }, { at: [0, 0], kind: 'croupier', fn: 'sort', out: { out: 0 } }, { at: [1, 0], kind: 'payout' }] };
+  assert(runTest(bolted, [['KS', 'AS']], sorted).ok, 'a bolted Sort');
   // inOrder: the n-th payout must be the n-th expected hand.
   const reversed = { expected: (inputs) => [...inputs].reverse(), inOrder: true };
   const r = runTest(passPay, [['AS'], ['KS']], reversed);
