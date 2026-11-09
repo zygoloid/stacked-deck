@@ -1701,6 +1701,23 @@ try {
     check((await page.textContent('.tp-round')).includes('Check deal'), 'the transport names the check deal');
     check(!(await getSave())['test-hearts'].solved, 'a floor is not cleared by fitting its tests');
     if (shots) await page.locator('.panel.tests').screenshot({ path: join(shots, '15-check-deal-failed.png') });
+
+    // A croupier bolted to the floor: drawn as such, can't be selected, isn't
+    // counted; and a floor where only some card places matter says so.
+    await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true }, 'test-bolted': { cells: SOLUTIONS['test-bolted'] } });
+    await page.goto(`${T}#/level/test-bolted`);
+    await page.reload();
+    await page.waitForSelector('svg.board');
+    check(await page.locator('svg.board .cell.bolted').count() === 1 && await page.locator('svg.board .cell.bolted .bolt').count() === 6, 'a bolted croupier is drawn with its bolts');
+    await page.click('svg.board .cell.bolted');
+    check(await page.locator('svg.board .cell.selected').count() === 0, 'a bolted croupier cannot be selected');
+    check((await page.textContent('.order-tag').catch(() => '')) === 'card places matter' &&
+      (await page.textContent('.order-note').catch(() => '')).includes('1st from the top'), 'a floor checking card places says which');
+    if (shots) await page.screenshot({ path: join(shots, '15b-bolted.png') });
+    await page.click('.speeds .sp:last-child');
+    await page.waitForSelector('.modal.results', { timeout: 20000 });
+    const lb = (await getSave())['test-bolted'];
+    check(lb.solved && lb.best.croupiers === 1, `the bolted croupier doesn't count (${JSON.stringify(lb.best)})`);
     await setSave({});
   }
 

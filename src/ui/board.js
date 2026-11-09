@@ -337,8 +337,18 @@ export class Board {
       return g;
     }
     const info = infoFor(cell) ?? { family: '#555', name: cell.fn };
+    // A shoe or croupier the floor bolts down (part of the level's fixed
+    // cells): drawn on a darker table with a bolt in each corner.
+    const bolted = this.level.fixed.includes(cell);
+    if (bolted) g.classList.add('bolted');
     g.append(s('polygon', { class: 'hex table', points: HEX }),
       s('polygon', { class: 'hex table-in', points: HEX_IN }));
+    if (bolted) {
+      for (let i = 0; i < 6; i++) {
+        const a = rad(i) - Math.PI / 6;
+        g.append(s('circle', { class: 'bolt', cx: ((R - 9) * Math.cos(a)).toFixed(2), cy: ((R - 9) * Math.sin(a)).toFixed(2), r: 2.2 }));
+      }
+    }
     const chip = s('g', { class: 'chip' },
       s('circle', { r: CHIP, fill: info.family }),
       s('circle', { class: 'chip-ring', r: CHIP - 2.5 }),
@@ -365,7 +375,7 @@ export class Board {
           s('rect', { class: 'peek-hit', x: -w / 2, y: CHIP + 4, width: w, height: 9 }), label));
       } else g.append(label);
     }
-    g.append(s('title', {}, `${info.name}: ${info.desc}`));
+    g.append(s('title', {}, `${bolted ? 'Bolted to the floor (part of the floor: it can\'t be moved or changed, and doesn\'t count as one of your croupiers). ' : ''}${info.name}: ${info.desc}`));
     return g;
   }
 

@@ -475,8 +475,14 @@ export function expectedPayouts(rule, inputs) {
   return inputs.filter((h, i) => pays(h, inputs.slice(0, i)));
 }
 
-// Hands are compared as multisets of cards unless the level says `ordered`.
-export const handKey = (hand, ordered = false) => (ordered ? [...hand] : [...hand].sort()).join(' ');
+// Hands are compared as multisets of cards unless the level says `ordered`:
+// `true` compares them card for card, top card first; a list of places
+// (0 for the top card) compares the cards in those places, and the rest of
+// the hand as a multiset.
+export const handKey = (hand, ordered = false) => {
+  if (Array.isArray(ordered)) return `${ordered.map((i) => hand[i] ?? '-').join(' ')} / ${[...hand].sort().join(' ')}`;
+  return (ordered ? [...hand] : [...hand].sort()).join(' ');
+};
 
 // On a floor with labelled desks (`desk: 0, 1, ...` on each payout cell) an
 // expected payout is { desk, hand }: that hand, paid at that desk. Elsewhere
@@ -522,7 +528,7 @@ export class Run {
     Object.assign(this, { spec, inputs, rule, stall });
     this.floor = new Floor(spec, inputs);
     this.expected = expectedPayouts(rule, inputs);
-    this.ordered = typeof rule === 'object' && !!rule?.ordered;
+    this.ordered = typeof rule === 'object' && (Array.isArray(rule?.ordered) ? rule.ordered : !!rule?.ordered);
     this.inOrder = typeof rule === 'object' && !!rule?.inOrder;
     this.keys = this.expected.map((p) => payoutKey(p, this.ordered));
     this.reset();
