@@ -785,7 +785,9 @@ a file keeps only floors the game has, and scores every machine again.
 
 One-off setup: the `github-pages` environment (Settings → Environments)
 must allow deployments from `beta` as well as `main`, or the beta's
-deploys wait for approval or fail.
+deploys wait for approval or fail. Running the workflow by hand on `beta`
+(dry run unticked) tests it and deploys the site with the beta, with no
+Firebase job.
 
 **Rules version changes** are still done by hand, following "Rules
 versions" above: the workflow refuses to deploy while the server's version
