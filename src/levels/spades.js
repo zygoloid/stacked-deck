@@ -46,6 +46,7 @@ export const LEVELS = [
     chapter: 4,
     card: 'AS',
     title: 'Hot Streak',
+    difficulty: 5,
     story: [
       'Two blocks away the neon has gone dark. The rival casino closed last week, and its owner now deals for you on Tuesdays; he says he never saw it coming. The Owner\'s note says only: "The house remembers."',
       'Single cards. A card wins if it beats the card played just before it: aces high, and a tie is no good. The first card of the night has nothing to beat, so it never wins.',
@@ -68,6 +69,7 @@ export const LEVELS = [
     chapter: 4,
     card: '2S',
     title: 'High Roller',
+    difficulty: 5,
     story: [
       'The mayor has started playing at your tables. He likes records: a five-card hand wins if its high card ties or beats the high card of every hand before it tonight.',
       'He keeps his own tally on a napkin. The house had better keep one too.',
@@ -91,6 +93,7 @@ export const LEVELS = [
     chapter: 4,
     card: '3S',
     title: 'Burn Card',
+    difficulty: 3,
     story: [
       'The rival\'s old owner brought a habit with him from across the street: before every deal he burns a card, sliding it off the top of the deck where nobody can see it. The Owner approves of anything that looks like tradition.',
       'Your new croupier burns: the top card to one port, the rest of the hand to the other. Tonight a five-card hand wins if its second card beats a 10. Aces are high, and a tie is a loss.',
@@ -114,6 +117,7 @@ export const LEVELS = [
     chapter: 4,
     card: '4S',
     title: 'Third Time Lucky',
+    difficulty: 3,
     story: [
       'The mayor is superstitious about threes. Tonight every third hand at his table wins, whatever it holds: the third, the sixth, the ninth, and so on through the night.',
       'The council calls it a lottery. The mayor calls it a tradition, and the Owner, for once, calls it cheap.',
@@ -139,6 +143,7 @@ export const LEVELS = [
     chapter: 4,
     card: '5S',
     title: 'Full House',
+    difficulty: 8,
     story: [
       'The city council now meets in the back room, between the bar and the string quartet. To celebrate, the house pays a full house: three of a kind plus a pair. Four of a kind is not a full house, and neither is two pair.',
       'Sal\'s uncle swears there is a full house in every deck. The house intends to pay out exactly as many as there are.',
@@ -172,6 +177,7 @@ export const LEVELS = [
     chapter: 4,
     card: '6S',
     title: 'The Wheel',
+    difficulty: 5,
     story: [
       'Old Thursday has a new favourite hand: the wheel, the straight from the ace up to the five. A 2 3 4 5, any suits, and the ace plays low.',
       'Ten to ace is a fine straight, he says, but it is not a wheel. Neither is two to six. Thursday has been waiting for one since the casino opened.',
@@ -199,6 +205,7 @@ export const LEVELS = [
     chapter: 4,
     card: '7S',
     title: 'Calling Card',
+    difficulty: 6,
     story: [
       'The Vellanis and the Kesslers have stopped fighting each other. Both now work for the house, and both carry a spade in their hatband. Pay any hand that holds a spade.',
       'A new croupier sorts a hand into new deck order, the way a fresh pack comes out of the box: spades ace to king, then diamonds ace to king, then clubs and hearts from king down to ace.',
@@ -229,6 +236,7 @@ export const LEVELS = [
     chapter: 4,
     card: '8S',
     title: 'Seven Heaven',
+    difficulty: 4,
     story: [
       'The Owner\'s note this week is three sevens long. A five-card hand with three or more sevens wins, and the note adds that the house is not superstitious.',
       'Your newest croupier collects cards until she holds as many as you tell her, then deals the first of them out as one hand and keeps the rest for the next.',
@@ -252,6 +260,7 @@ export const LEVELS = [
     chapter: 4,
     card: '9S',
     title: 'Suit Yourself',
+    difficulty: 4,
     story: [
       'Dmitri has a new spreadsheet, with one column for each suit. Every card played tonight goes into its suit\'s column, in the order it was played, top card first, and every time a column reaches five cards, those five are a flush and the house pays them out as one hand, however many hands they came from.',
       'Then the column starts again. Cards left in a column at closing time stay with the house. Dmitri calls this fair; the Owner calls it accounting.',
@@ -281,6 +290,7 @@ export const LEVELS = [
     chapter: 4,
     card: 'TS',
     title: 'Change of Heart',
+    difficulty: 6,
     story: [
       'It is Old Thursday\'s birthday, and the families have had a whip-round. Every spade played tonight is changed at the chip desk for the heart of the same rank, out of the house\'s own cards: a 7 of hearts for the 7 of spades, an ace for an ace. The hearts all go to Thursday.',
       'The spades stay with the house, and every other card is just a card. Thursday says it is the best birthday he has had in forty years of betting on hearts.',
@@ -308,6 +318,7 @@ export const LEVELS = [
     chapter: 4,
     card: 'JS',
     title: 'Next in Line',
+    difficulty: 6,
     story: [
       'The mayor\'s napkin has grown a new column. A single card wins if it is next in rank to the card played just before it, one up or one down: a 9 after an 8 or a 10.',
       'The ace sits next to both the 2 and the king, but the king and the 2 are not neighbours, and a card is never next to itself. The first card of the night is compared with a 7, because the Owner says so.',
@@ -334,6 +345,7 @@ export const LEVELS = [
     chapter: 4,
     card: 'QS',
     title: 'Jacks or Better',
+    difficulty: 9,
     story: [
       'The rival\'s old owner has one last thing to sell: a video poker machine. The Owner had it put in by the bar, then replaced it overnight with a croupier, on principle.',
       'Jacks or Better: a five-card hand wins with a pair of jacks or better (jacks, queens, kings or aces), two pair, three of a kind, a straight (aces high or low), a flush, a full house, four of a kind or a straight flush. A pair of tens wins nothing.',
@@ -367,6 +379,7 @@ export const LEVELS = [
     chapter: 4,
     card: 'KS',
     title: 'House Record',
+    difficulty: 10,
     story: [
       'Tonight the city belongs to The Stacked Deck. The mayor, the commissioner, the council and both families are at one table, and there is one game left: a hand wins if its largest set ties or beats the largest set of every hand before it.',
       'When it\'s over, there will be an envelope under the cash tray with your name on it, sealed with an ace of spades.',
