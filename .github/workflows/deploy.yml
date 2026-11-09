@@ -126,15 +126,16 @@ jobs:
           node tools/copy-game.js
           node functions/tools/rescore.js $DRY_RUN
 
-  # After a deploy from main (its Firebase job done), or a push to beta (no
-  # Firebase job: the beta talks to no server).
+  # After a deploy from main (its Firebase job done), or on beta (no Firebase
+  # job: the beta talks to no server): on a push, or a run by hand that
+  # isn't a dry run.
   pages:
     needs: [test, firebase]
     if: >-
       always() && needs.test.result == 'success' &&
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)) &&
       (needs.firebase.result == 'success' ||
-        (needs.firebase.result == 'skipped' && github.ref == 'refs/heads/beta' && github.event_name == 'push')) &&
-      (github.event_name == 'push' || !inputs.dry_run)
+        (needs.firebase.result == 'skipped' && github.ref == 'refs/heads/beta'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
