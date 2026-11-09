@@ -16,6 +16,7 @@ import {
 import { checkDeals, CHECK_DEALS, totalRounds } from '../score.js';
 import { signInDialog, dialogOpen } from './account.js';
 import { Sim, DESK_NAMES, placesText } from './sim.js';
+import { devMode, devPanel, parMachine, measureTest, channelBadge } from './dev.js';
 import { scatterPlot, solutionList, scoreText, parMark } from './scatter.js';
 
 const ARROW = ['→', '↘', '↙', '←', '↖', '↗'];
@@ -89,7 +90,8 @@ export function openEditor(root, ctx, level) {
       h('button', { class: 'btn ghost', onclick: () => ctx.go('#/'), title: 'Level select' }, '← Floors'),
       h('div', { class: 'title' },
         floorBadge(level, 'lvl-no'),
-        h('span', { class: 'lvl-title' }, level.title)),
+        h('span', { class: 'lvl-title' }, level.title),
+        channelBadge()),
       h('div', { class: 'brief', title: 'The goal for this floor' }, level.brief ?? ''),
       h('div', { class: 'stats' },
         h('span', { class: 'stat', title: 'Croupiers placed' }, h('span', { class: 'stat-k' }, 'Croupiers'), elCount),
@@ -126,6 +128,7 @@ export function openEditor(root, ctx, level) {
   function redoStep() { if (redo.length) { undo.push(editState()); restoreCells(redo.pop()); } }
   function changed() {
     closeRadial();
+    devMeasured = null;
     ls.cells = cells;
     ctx.persist();
     ctx.cloud?.levelChanged(level.id, { work: true });
@@ -516,6 +519,37 @@ export function openEditor(root, ctx, level) {
     modal.querySelector('.btn.gold, .btn')?.focus();
   }
 
+  // ---------- dev mode (dev.js) ----------
+  // The current machine measured test by test (null until asked; dropped on
+  // any edit).
+  let devMeasured = null;
+  async function loadPar() {
+    if (running) return;
+    const par = await parMachine(level);
+    if (!par) { showToast('There is no reference solution for this floor here.', 'bad'); return; }
+    commit(() => {
+      cells = sanitizeCells(level, par);
+      selected = null;
+      activePort = null;
+      deckDraft = null;
+    });
+    showToast('Loaded the par machine. Ctrl+Z to undo.', 'good');
+  }
+  function measure() {
+    const results = [];
+    devMeasured = results;
+    renderAll();
+    const machine = structuredClone(cells);
+    const next = (i) => {
+      if (devMeasured !== results) return; // edited meanwhile
+      if (i >= level.tests.length) { results.done = true; renderAll(); return; }
+      results.push(measureTest(level, machine, level.tests[i]));
+      renderAll();
+      setTimeout(() => next(i + 1), 0);
+    };
+    setTimeout(() => next(0), 0);
+  }
+
   // ---------- saved solutions ----------
   function loadSolution(i) {
     const sol = ls.solutions?.[i];
@@ -796,6 +830,7 @@ export function openEditor(root, ctx, level) {
           h('li', { class: 'touch-only' }, 'Long-press to pick up croupiers.'),
           h('li', { class: 'kbd-only' }, 'Shift-drag to pick up croupiers.'),
           h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
+        devMode() ? devPanel(level, { measured: devMeasured, loadPar, measure }) : null,
         roster,
         h('p', { class: 'keys kbd-only' }, h('kbd', {}, 'Space'), ' play  ', h('kbd', {}, '.'), ' step  ', h('kbd', {}, ','), ' back  ',
           h('kbd', {}, '1'), '–', h('kbd', {}, '9'), ' place at the pointer  ', h('kbd', {}, 'Del'), ' remove  ', h('kbd', {}, '?'), ' help'));

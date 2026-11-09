@@ -4,12 +4,15 @@ import { RULES_VERSION } from '../engine.js';
 import { CAMPAIGN as LEVELS, BONUS, ALL_LEVELS, campaignIndex } from './catalog.js';
 import { SPECIALS } from '../cards.js';
 import { specialCardsOf, canonicalCells, scoreMachine } from '../score.js';
+import { CHANNEL } from '../build.js';
 
 export {
   hexKey, addDir, warRules, specialCardsOf, sanitizeCells, toSpec, countCroupiers, canonicalCells, scoreMachine,
 } from '../score.js';
 
-const KEY = 'stacked-deck-v1';
+// The beta keeps its own save: every github.io project page shares one
+// origin, so the beta at /beta/ would otherwise share the live game's.
+export const KEY = CHANNEL === 'beta' ? 'stacked-deck-beta-v1' : 'stacked-deck-v1';
 
 // The stored save as this tab last read or wrote it. Another tab of the game
 // writes the same key: when the stored save differs from this, that tab's

@@ -1721,6 +1721,42 @@ try {
     await setSave({});
   }
 
+  // Dev mode (src/ui/dev.js; the checkout served as it is is a 'dev' build):
+  // ?dev turns it on and it is remembered; a locked floor can be entered,
+  // its par machine loaded and measured (the measured total is par's
+  // rounds); turned off, it stays off.
+  {
+    const devCtx = await browser.newContext({ viewport: { width: 1440, height: 860 } });
+    const dp = await devCtx.newPage();
+    dp.on('pageerror', (e) => errors.push(e.message));
+    await dp.goto(`${base}?dev`);
+    await showDeck(dp, 'bonus');
+    check(await dp.locator('.dev-bar').count() === 1 && await dp.locator('.deck.bonus .tile.locked.dev-enter').count() === BONUS_LEVELS.length,
+      'dev mode: the dev bar shows and every locked bonus floor can be entered');
+    const first = BONUS_LEVELS[0];
+    await dp.click(`.tile.locked.dev-enter[data-bonus="${first.id}"]`);
+    await dp.waitForSelector('svg.board');
+    check(dp.url().endsWith(`#/level/${first.id}`) && (await dp.textContent('.dev-panel')).includes(`Difficulty ${first.difficulty}`),
+      `dev mode enters a locked floor, and its panel gives the difficulty (${first.id}: ${first.difficulty})`);
+    await dp.click('.dev-panel >> text=Load par machine');
+    await dp.waitForFunction((n) => document.querySelectorAll('svg.board .cell.croupier, svg.board .cell.shoe').length === n, first.par.croupiers);
+    check(true, `the par machine loads (${first.par.croupiers} croupiers)`);
+    await dp.click('.dev-panel >> text=Measure machine');
+    await dp.waitForFunction(() => /Total \d+ rounds/.test(document.querySelector('.dev-panel')?.textContent ?? ''), null, { timeout: 60000 });
+    const total = Number((await dp.textContent('.dev-panel')).match(/Total (\d+) rounds/)[1]);
+    check(total === first.par.rounds && await dp.locator('.dev-measure tbody tr').count() === first.tests.length,
+      `measuring the par machine gives each test and par's rounds (${total})`);
+    if (shots) await dp.screenshot({ path: join(shots, '16-dev-mode.png') });
+    await dp.goto(base);
+    await dp.reload();
+    await dp.waitForSelector('.dev-bar');
+    await dp.click('.dev-bar button');
+    await dp.reload();
+    await showDeck(dp, 'bonus');
+    check(await dp.locator('.dev-bar').count() === 0 && await dp.locator('.tile.dev-enter').count() === 0, 'dev mode is remembered, and turned off stays off');
+    await devCtx.close();
+  }
+
   // Keeping progress: two tabs of the game don't overwrite each other's
   // progress, the floors list's Save file dialog downloads the save and loads
   // one back (adding to what is there), and a browser that won't keep the

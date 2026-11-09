@@ -1103,3 +1103,33 @@ svg.board { -webkit-touch-callout: none; }
   background: rgba(40, 10, 14, 0.96); color: #ffd6d6; border: 1px solid rgba(255, 120, 120, 0.45); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 .save-notice .btn { flex: none; }
+
+/* ---------- builds and dev mode (src/ui/dev.js) ---------- */
+.channel-badge {
+  display: inline-block; padding: 0 7px; border-radius: 999px; background: #6fb7ff; color: #06213a;
+  font: 800 10px/1.7 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; vertical-align: middle; white-space: nowrap;
+}
+.topbar .channel-badge { margin-left: 6px; }
+.dev-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px auto 0; padding: 4px 10px; width: fit-content; max-width: 100%;
+  border: 1px dashed #6fb7ff; border-radius: 8px; color: var(--ink-2); font-size: 12.5px;
+}
+.dev-bar b { color: #6fb7ff; text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; }
+.tile.dev-enter { cursor: pointer; outline: 1px dashed #6fb7ff; outline-offset: 2px; }
+.tile-dev { position: absolute; left: 6px; bottom: 4px; font: 700 9.5px/1 var(--sans); color: #6fb7ff; letter-spacing: 0.04em; }
+.dev-panel { margin: 10px 0; padding: 6px 10px; border: 1px dashed #6fb7ff; border-radius: 8px; font-size: 12.5px; }
+.dev-panel > summary { color: #6fb7ff; cursor: pointer; }
+.dev-panel p { margin: 4px 0; }
+.dev-panel .floor-badge { transform: scale(0.85); }
+.dev-floor { color: var(--ink); text-decoration: none; white-space: nowrap; }
+.dev-floor:hover { text-decoration: underline; }
+.dev-actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.dev-measure { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.dev-measure th, .dev-measure td { padding: 1px 8px 1px 0; text-align: right; }
+.dev-measure th:nth-child(2), .dev-measure td:nth-child(2) { text-align: left; }
+.dev-measure tr.bad td { color: var(--bad); }
+.dev-measure td.warn { color: var(--gold-2); font-weight: 700; }
+.tile.dev-enter::after {
+  content: attr(data-diff); position: absolute; left: 0; right: 0; bottom: 8%; text-align: center;
+  font: 700 10px/1 var(--sans); color: #6fb7ff; letter-spacing: 0.04em; pointer-events: none;
+}

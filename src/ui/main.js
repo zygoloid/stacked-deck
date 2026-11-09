@@ -3,6 +3,7 @@
 //   #/level/<id>/story     story
 //   #/level/<id>           editor
 //   ?unlockall             every floor open; ?testlevels adds test fixtures (catalog.js)
+//   ?dev, ?dev=0           dev mode on or off, remembered (dev.js; not on the live site)
 import { CAMPAIGN, BONUS, ALL_LEVELS, findLevel } from './catalog.js';
 import { loadSave, writeSave, watchSave, saveProblem, isOpen, rescoreStale } from './model.js';
 import { levelSelect, storyScreen, helpPanel } from './screens.js';
@@ -12,6 +13,8 @@ import { LEVELS as REAL_LEVELS, BONUS as REAL_BONUS } from '../levels.js';
 import { confirmOtherAccount, askName, inviteFlow } from './account.js';
 import { downloadSave } from './savefile.js';
 import { h } from './dom.js';
+import { CHANNEL } from '../build.js';
+import { devMode } from './dev.js';
 
 const root = document.getElementById('app');
 const helpHost = document.getElementById('help');
@@ -51,8 +54,9 @@ let pendingSolution = null;
 // The online features (src/ui/cloud.js): nothing loads unless the player
 // signed in last time or signs in now. Only real floors go online (not the
 // ?testlevels fixtures). When cloud save changes the floor being edited, the
-// editor reopens with it.
-ctx.cloud = createCloud({
+// editor reopens with it. The beta has none: its floors aren't the live
+// game's, so the server would refuse them (ctx.cloud is null).
+ctx.cloud = CHANNEL === 'beta' ? null : createCloud({
   save, persist: ctx.persist, levels: [...REAL_LEVELS, ...(REAL_BONUS ?? [])],
   ui: {
     confirmOtherAccount, askName,
@@ -63,7 +67,8 @@ ctx.cloud = createCloud({
     },
   },
 });
-ctx.cloud.onChange(() => { if (document.body.dataset.screen === 'select') rerender(); });
+ctx.cloud?.onChange(() => { if (document.body.dataset.screen === 'select') rerender(); });
+document.body.dataset.channel = CHANNEL;
 
 // The game's other tabs: their progress is merged into this tab's save as
 // they write it (watchSave in model.js).
@@ -122,7 +127,8 @@ function route() {
   const m = /^#\/level\/([^/]+)(\/story)?$/.exec(location.hash);
   if (m) {
     const level = findLevel(decodeURIComponent(m[1]));
-    if (level && isOpen(save, level)) {
+    // (Dev mode enters any floor, open or not.)
+    if (level && (isOpen(save, level) || devMode())) {
       document.title = `${level.title} · Stacked Deck`;
       document.body.dataset.screen = m[2] ? 'story' : 'editor';
       lastFloor = level.id;
@@ -149,7 +155,7 @@ function takeInvite() {
   if (!m) return false;
   history.replaceState(null, '', `${location.pathname}${location.search}#/`);
   route();
-  inviteFlow(ctx.cloud, m[1]).catch((e) => console.warn('invite:', e));
+  if (ctx.cloud) inviteFlow(ctx.cloud, m[1]).catch((e) => console.warn('invite:', e));
   return true;
 }
 
@@ -160,6 +166,6 @@ if (!takeInvite()) route();
 rescoreStale(save, ALL_LEVELS, () => {
   ctx.persist();
   if (document.body.dataset.screen === 'select') rerender();
-  ctx.cloud.queueUploads();
+  ctx.cloud?.queueUploads();
 });
-ctx.cloud.start();
+ctx.cloud?.start();
