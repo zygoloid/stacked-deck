@@ -925,7 +925,18 @@ export function openEditor(root, ctx, level) {
   // A payout's desk, on a floor with labelled desks.
   const deskTag = (d) => (d === undefined ? null : h('span', { class: 'desk-tag', title: `At desk ${DESK_NAMES[d]}` }, `→ ${DESK_NAMES[d]}`));
   // A payout ({ desk, hand } on a floor with labelled desks), with its desk.
-  const payoutEl = (p) => [handEl(payoutHand(p)), deskTag(payoutDesk(p))];
+  // An expected payout; on a floor that checks only some card places, the
+  // cards in those places are marked.
+  const payoutEl = (p) => {
+    const el = handEl(payoutHand(p));
+    if (Array.isArray(level.ordered)) {
+      for (const i of level.ordered) {
+        el.children[i]?.classList.add('placed');
+        el.children[i]?.setAttribute('title', `This card must be ${placesText([i])}`);
+      }
+    }
+    return [el, deskTag(payoutDesk(p))];
+  };
 
   // Expected payouts for a test before any run (cached per test).
   const expectedCache = new Map();
