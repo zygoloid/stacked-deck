@@ -124,8 +124,18 @@ export function openEditor(root, ctx, level) {
     fn();
     changed();
   }
-  function undoStep() { if (undo.length) { redo.push(editState()); restoreCells(undo.pop()); } }
-  function redoStep() { if (redo.length) { undo.push(editState()); restoreCells(redo.pop()); } }
+  // With a group up, undo first puts it down where it is (so undo takes back
+  // the move, and redo brings it back); one that can't go there just goes back.
+  function undoStep() {
+    if (lift && liftClashes().size) { endLift(); return; }
+    settleLift();
+    if (undo.length) { redo.push(editState()); restoreCells(undo.pop()); }
+  }
+  function redoStep() {
+    if (lift && liftClashes().size) { endLift(); return; }
+    settleLift();
+    if (redo.length) { undo.push(editState()); restoreCells(redo.pop()); }
+  }
   function changed() {
     closeRadial();
     devMeasured = null;
@@ -173,8 +183,8 @@ export function openEditor(root, ctx, level) {
   // Place a croupier. Placed by an edge (`side`: tapped or dropped near one,
   // or the hovered edge), its first port points there.
   function place(toolName, at, side) {
+    settleLift();
     if (!board.isBuildable(at) || cellAt(hexKey(at))) return;
-    lift = null;
     commit(() => {
       const c = newCell(toolName, at, lastSide);
       const t = toolCell(toolName);
@@ -197,7 +207,7 @@ export function openEditor(root, ctx, level) {
   // Pick a palette tool (or none). Picking one shows its settings, so it
   // deselects the selected croupier.
   function setTool(name) {
-    if (name) { leavePlay(); lift = null; closePicker(); }
+    if (name) { leavePlay(); settleLift(); closePicker(); }
     tool = name;
     if (name) { selected = null; activePort = null; deckDraft = null; }
     renderPalette(); renderBoard(); renderInspector();
@@ -223,7 +233,7 @@ export function openEditor(root, ctx, level) {
   }
   // Selecting a croupier starts at its first port.
   function select(key) {
-    if (key) lift = null;
+    if (key) settleLift();
     if (selected !== key) {
       closeRadial();
       selected = key;
@@ -303,8 +313,9 @@ export function openEditor(root, ctx, level) {
   // button leave it (and pause), keeping the run where it is.
   function enterPlay() {
     if (watching) return;
+    settleLift();
     watching = true;
-    tool = null; selected = null; activePort = null; deckDraft = null; lift = null;
+    tool = null; selected = null; activePort = null; deckDraft = null;
     closePicker();
     side.classList.add('watching');
     editorEl.classList.add('watching');
@@ -340,6 +351,7 @@ export function openEditor(root, ctx, level) {
   function back() {
     if (!sim || running) return;
     enterPlay();
+    if (!sim) return; // putting a picked-up group down resets the run
     stop();
     const from = board.positions;
     const undone = sim.back();
@@ -729,7 +741,7 @@ export function openEditor(root, ctx, level) {
         h('div', { class: 'pal-tools' },
           h('button', {
             class: 'btn small danger', disabled: !cells.length, title: 'Remove every croupier',
-            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; }); },
+            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; lift = null; }); },
           }, 'Clear floor'))),
       h('div', { class: 'pal-grid' }, level.croupiers.map((name, i) => {
         const info = CROUPIERS[name];
@@ -821,7 +833,7 @@ export function openEditor(root, ctx, level) {
           // On a phone the palette (and its Clear floor) is hidden.
           h('button', {
             class: 'btn small danger phone-only', disabled: !cells.length, title: 'Remove every croupier',
-            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; }); },
+            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; lift = null; }); },
           }, 'Clear floor')),
         h('p', { class: 'brief-big' }, level.brief ?? ''),
         h('ul', { class: 'howto' },
@@ -1614,9 +1626,20 @@ export function openEditor(root, ctx, level) {
   }
   function placeLift() {
     if (!lift || liftClashes().size) return;
-    const keep = staying(), moved = lift.items.map((i) => i.cell);
+    const before = cells, next = [...staying(), ...lift.items.map((i) => i.cell)];
     lift = null;
-    commit(() => { cells = [...keep, ...moved]; });
+    putDown(next);
+    if (cells === before) renderAll();
+  }
+  // Doing something else with a group up (picking a croupier from the
+  // palette, selecting one, placing one, playing, undo) puts it down where it
+  // is. Only if it can't go there does it go back, as ✕ would; and a floating
+  // copy that hasn't been moved or turned since it appeared is let go.
+  const liftMoved = () => lift.items.some((i) => i.orig === undefined || JSON.stringify(i.cell) !== i.orig);
+  function settleLift() {
+    if (!lift) return;
+    if (liftClashes().size || (lift.copy && !liftMoved())) lift = null;
+    else placeLift();
   }
   function deleteLift() {
     if (!lift) return;
@@ -1656,6 +1679,7 @@ export function openEditor(root, ctx, level) {
         }
       }
     }
+    for (const i of lift.items) i.orig = JSON.stringify(i.cell);
     renderAll();
   }
   // A touch on these acts when the finger lifts off the button: a browser
