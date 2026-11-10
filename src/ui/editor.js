@@ -1633,12 +1633,11 @@ export function openEditor(root, ctx, level) {
   }
   // Doing something else with a group up (picking a croupier from the
   // palette, selecting one, placing one, playing, undo) puts it down where it
-  // is. Only if it can't go there does it go back, as ✕ would; and a floating
-  // copy that hasn't been moved or turned since it appeared is let go.
-  const liftMoved = () => lift.items.some((i) => i.orig === undefined || JSON.stringify(i.cell) !== i.orig);
+  // is (a floating copy too). Only if it can't go there does it go back, as
+  // ✕ would.
   function settleLift() {
     if (!lift) return;
-    if (liftClashes().size || (lift.copy && !liftMoved())) lift = null;
+    if (liftClashes().size) lift = null;
     else placeLift();
   }
   function deleteLift() {
@@ -1679,7 +1678,6 @@ export function openEditor(root, ctx, level) {
         }
       }
     }
-    for (const i of lift.items) i.orig = JSON.stringify(i.cell);
     renderAll();
   }
   // A touch on these acts when the finger lifts off the button: a browser

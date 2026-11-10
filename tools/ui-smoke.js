@@ -1158,6 +1158,14 @@ try {
     await page.click('.lift-bar [data-act="place"]');
     check(copyOk && (await cellsNow()).length === 6, `⧉ then ✓ copies the group (${(await cellsNow()).length} croupiers)`);
     await page.keyboard.press('Control+z');
+    // ⧉, then a croupier picked from the palette: the copy goes down where it floats.
+    await shiftBox();
+    await page.click('.lift-bar [data-act="copy"]');
+    await page.click('.pal-item[data-tool="pass"]');
+    check(!(await page.isVisible('.lift-bar')) && (await cellsNow()).length === 6,
+      `⧉, then a croupier picked from the palette: the copy goes down (${(await cellsNow()).length} croupiers)`);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Control+z');
     // Moved, then copied: put down where it was moved to (not back where it
     // came from), with a copy floating; ⧉ again stamps another.
     {
