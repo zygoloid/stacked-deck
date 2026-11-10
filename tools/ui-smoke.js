@@ -1191,6 +1191,32 @@ try {
       check(JSON.stringify(await cellsNow()) === JSON.stringify(now), 'Esc then leaves the rest there too');
       await page.keyboard.press('Control+z');
       check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'one undo puts them back');
+      // Moved, then a croupier picked from the palette: the group goes down
+      // where it was moved to, not back. Where it clashes, it goes back.
+      await shiftBox();
+      await page.keyboard.press('c');
+      await page.click('.pal-item[data-tool="pass"]');
+      const left = await cellsNow();
+      check(!(await page.isVisible('.lift-bar')) && await page.locator('.pal-item.on[data-tool="pass"]').count() === 1 &&
+        left.map((c) => c.at.join()).sort().join(' ') === row.map((x) => south(x).join()).sort().join(' '),
+        `moved, then a croupier picked from the palette: the group stays where it was moved to (${left.map((c) => c.at.join()).join(' ')})`);
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('Control+z');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'one undo puts them back');
+      // Moved, then undo: undo takes back the move, and redo brings it back.
+      await shiftBox();
+      await page.keyboard.press('c');
+      await page.keyboard.press('Control+z');
+      const undone = JSON.stringify(await cellsNow()) === JSON.stringify(orig) && !(await page.isVisible('.lift-bar'));
+      await page.keyboard.press('Control+y');
+      check(undone && JSON.stringify(await cellsNow()) === JSON.stringify(left), 'moved, then undo takes back just the move, and redo brings it back');
+      await page.keyboard.press('Control+z');
+      await shiftBox();
+      for (let i = 0; !(await page.locator('.lift-bar.bad').count()) && i < 12; i++) await page.keyboard.press('a');
+      await page.click('.pal-item[data-tool="pass"]');
+      check(!(await page.isVisible('.lift-bar')) && JSON.stringify(await cellsNow()) === JSON.stringify(orig),
+        'moved where it clashes, then a croupier picked from the palette: the group goes back');
+      await page.keyboard.press('Escape');
       await shiftBox();
       let n = 0;
       while (!(await page.locator('.lift-bar.bad').count()) && n++ < 12) await page.keyboard.press('a');
