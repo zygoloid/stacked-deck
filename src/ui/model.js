@@ -135,8 +135,35 @@ export function specialCardsUnlocked(save) {
 // stays true once set.
 
 // Each solution also records `rules` (the RULES_VERSION it was scored under)
-// and `broken` (it no longer clears the floor under the current rules).
-// rescoreStale() re-runs solutions scored under older rules.
+// and `broken` (it no longer clears the floor under the current rules), and
+// `floor`, the floorPrint of the floor as it was scored on.
+// rescoreStale() re-runs solutions scored under older rules (and, outside
+// the live site, on a floor that has changed since).
+
+// A fingerprint of everything a floor's scoring depends on: the rules
+// version, its layout and palette, its tests and the code of its rule and
+// of its check deals' deal function. A floor changed in the beta (new tests,
+// a stricter rule) gets a new one, so its saved solutions are re-scored
+// without a rules version change. (Code that the rule only calls, a helper
+// defined elsewhere, isn't in it: dev mode's "Re-score all" covers that.)
+const prints = new WeakMap();
+export function floorPrint(level) {
+  if (!prints.has(level)) {
+    const text = JSON.stringify([
+      RULES_VERSION, level.id, level.floor, level.fixed, level.croupiers, level.warRules ?? null, level.specialCards ?? null,
+      level.decks ?? 1, level.ordered ?? false, level.inOrder ?? false, level.handSize, level.tests,
+      String(level.pays ?? level.expected), String(level.tests?.deal ?? ''),
+    ]);
+    let h1 = 0x811c9dc5, h2 = 0x01000193; // FNV-1a, twice over (64 bits)
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 0x01000193);
+      h2 = Math.imul(h2 ^ c, 0x5bd1e995);
+    }
+    prints.set(level, (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0'));
+  }
+  return prints.get(level);
+}
 
 // The level's saved solutions (an old save without any starts with an empty
 // list; the best it recorded is kept as `legacyBest` so best never gets worse).
@@ -163,17 +190,18 @@ export function findSolution(ls, cells) {
   return solutionsOf(ls).findIndex((s) => canonicalCells(s.cells) === key);
 }
 
-// Record a machine that cleared the floor. Returns { index, isNew }.
-export function recordSolution(ls, cells, { croupiers, rounds }) {
+// Record a machine that cleared `level`. Returns { index, isNew }.
+export function recordSolution(ls, cells, { croupiers, rounds }, level) {
   const list = solutionsOf(ls);
   let index = findSolution(ls, cells);
   const isNew = index < 0;
+  const floor = level ? { floor: floorPrint(level) } : {};
   if (isNew) {
-    list.push({ cells: structuredClone(cells), croupiers, rounds, at: Date.now(), rules: RULES_VERSION });
+    list.push({ cells: structuredClone(cells), croupiers, rounds, at: Date.now(), rules: RULES_VERSION, ...floor });
     index = list.length - 1;
   } else {
     // Re-clearing a saved machine refreshes its score (the rules may have changed).
-    Object.assign(list[index], { croupiers, rounds, rules: RULES_VERSION, broken: false });
+    Object.assign(list[index], { croupiers, rounds, rules: RULES_VERSION, broken: false, ...floor });
   }
   ls.solved = true;
   recomputeBest(ls);
@@ -186,29 +214,36 @@ export function deleteSolution(ls, index) {
 }
 
 // Re-score saved solutions that were scored under older rules, a few at a
-// time so the page stays responsive. Old-format bests (legacyBest) can't be
-// re-run, so they are dropped once a level is re-scored. Calls onChange()
-// after anything changed.
-export async function rescoreStale(save, levels, onChange) {
-  let changed = false;
+// time so the page stays responsive: with `floors`, also those scored on a
+// floor that has changed since (floorPrint), and with `all`, every one.
+// Old-format bests (legacyBest) can't be re-run, so they are dropped once a
+// level is re-scored. Calls onChange() after anything changed, and returns
+// { rescored, broken }: how many were re-run, and how many of those no
+// longer clear their floor.
+export async function rescoreStale(save, levels, onChange, { floors = false, all = false } = {}) {
+  let changed = false, rescored = 0, broken = 0;
   for (const level of levels) {
     const ls = save.levels?.[level.id];
     if (!ls || !Array.isArray(ls.solutions)) continue;
-    const stale = ls.solutions.filter((s) => s.rules !== RULES_VERSION);
+    const print = floorPrint(level);
+    const stale = ls.solutions.filter((s) => all || s.rules !== RULES_VERSION || (floors && s.floor !== print));
     if (!stale.length) continue;
     for (const sol of stale) {
       await new Promise((r) => setTimeout(r, 0));
       let res;
       try { res = await scoreMachine(level, sol.cells); } catch { res = { ok: false }; }
       if (res.ok) Object.assign(sol, { croupiers: res.croupiers, rounds: res.rounds, broken: false });
-      else sol.broken = true;
+      else { sol.broken = true; broken++; }
       sol.rules = RULES_VERSION;
+      sol.floor = print;
+      rescored++;
     }
     delete ls.legacyBest;
     recomputeBest(ls);
     changed = true;
   }
   if (changed) onChange?.();
+  return { rescored, broken };
 }
 
 // ---------- merging saves ----------

@@ -487,7 +487,7 @@ export function openEditor(root, ctx, level) {
       solutionsOf(ls);
       const prev = ls.best ? { ...ls.best } : undefined;
       const wasSolved = !!ls.solved;
-      const { index: found, isNew } = recordSolution(ls, machine, { croupiers, rounds });
+      const { index: found, isNew } = recordSolution(ls, machine, { croupiers, rounds }, level);
       ls.last = { croupiers, rounds };
       ctx.persist();
       ctx.cloud?.levelChanged(level.id, { solved: true });

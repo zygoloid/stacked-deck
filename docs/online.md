@@ -779,7 +779,10 @@ project page shares one origin, so the beta would otherwise share the
 live game's), no online features (the live server would refuse its new
 floors, and cloud save writes all of a player's floors in one update, so
 one refused floor would stop the rest syncing too), a Beta badge, and the
-reference solutions, so testers can turn on dev mode (`?dev`). Testers
+reference solutions, so testers can turn on dev mode (`?dev`). A floor
+changed in the beta has its testers' saved solutions re-scored when they
+next load it (docs/architecture.md, "Floor changes"), so a machine a new
+test catches is marked broken with no rules version change. Testers
 move progress either way with the floors list's Save file dialog; loading
 a file keeps only floors the game has, and scores every machine again.
 

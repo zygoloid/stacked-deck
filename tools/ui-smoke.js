@@ -1868,10 +1868,22 @@ try {
     check(total === first.par.rounds && await dp.locator('.dev-measure tbody tr').count() === first.tests.length,
       `measuring the par machine gives each test and par's rounds (${total})`);
     if (shots) await dp.screenshot({ path: join(shots, '16-dev-mode.png') });
+    // Outside the live site, a solution scored on a floor that has changed
+    // since (here: one saved with no record of its floor) is re-scored on
+    // load; dev mode's button re-scores every one.
+    const parCells = (await import(join(repo, 'solutions/levels', `${first.id}.js`))).default.cells;
+    await dp.evaluate(([id, cells, par]) => localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: { [id]: {
+      solved: true, solutions: [{ cells, croupiers: par.croupiers, rounds: 1, at: 1, rules: 0 }],
+    } } })), [first.id, parCells, first.par]);
     await dp.goto(base);
     await dp.reload();
-    await dp.waitForSelector('.dev-bar');
-    await dp.click('.dev-bar button');
+    await dp.waitForFunction((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].solutions[0].floor, first.id);
+    const sol = await dp.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].solutions[0], first.id);
+    check(sol.rounds === first.par.rounds && !sol.broken && /^[0-9a-f]{16}$/.test(sol.floor), 'a solution from before its floor changed is re-scored on load');
+    await dp.click('.dev-bar >> text=Re-score all solutions');
+    await dp.waitForFunction(() => /Re-scored 1 solution\./.test(document.querySelector('.dev-bar')?.textContent ?? ''));
+    check(true, 'dev mode re-scores every saved solution');
+    await dp.click('.dev-bar >> text=Turn off');
     await dp.reload();
     await showDeck(dp, 'bonus');
     check(await dp.locator('.dev-bar').count() === 0 && await dp.locator('.tile.dev-enter').count() === 0, 'dev mode is remembered, and turned off stays off');

@@ -9,7 +9,7 @@
 // solution is scored again here rather than trusting the file's scores.
 import { RULES_VERSION } from '../engine.js';
 import { validateCells, scoreMachine, countCroupiers } from '../score.js';
-import { mergeSave, recomputeBest } from './model.js';
+import { mergeSave, recomputeBest, floorPrint } from './model.js';
 import { h } from './dom.js';
 import { dialog } from './account.js';
 
@@ -60,7 +60,7 @@ export async function readSaveFile(text, levels) {
       try { sc = await scoreMachine(level, cells); } catch { /* broken */ }
       (l.solutions ??= []).push({
         cells, croupiers: countCroupiers(cells), rounds: sc.rounds ?? 0, at: Number.isFinite(sol.at) ? sol.at : Date.now(),
-        rules: RULES_VERSION, ...(sc.ok ? {} : { broken: true }),
+        rules: RULES_VERSION, floor: floorPrint(level), ...(sc.ok ? {} : { broken: true }),
       });
       if (sc.ok) l.solved = true;
     }

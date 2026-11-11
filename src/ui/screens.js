@@ -86,7 +86,7 @@ export function levelSelect(root, ctx, focus = null) {
           h('span', { class: 'rules-version', title: 'Version of the game rules this page is running' }, `rules v${RULES_VERSION}`),
           channelBadge()),
         solvedCount + bonusSolved ? legend() : null,
-        devBar(draw)),
+        devBar(() => (ctx.rerender ?? draw)(), () => ctx.rescoreAll())),
       BONUS.length ? deckTabs() : null,
       ui.deck === 'bonus' ? bonusDeck() : campaignDeck(),
       pop].flat().filter(Boolean));

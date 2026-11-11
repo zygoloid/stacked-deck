@@ -19,7 +19,7 @@ import { validateCells, scoreMachine, countCroupiers } from '../score.js';
 import {
   uploadCandidates, prepareUpload, submission, readStats, readFrontier, readRecord, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS,
 } from '../online.js';
-import { solutionsOf, recomputeBest } from './model.js';
+import { solutionsOf, recomputeBest, floorPrint } from './model.js';
 
 const EMULATOR = typeof location !== 'undefined' && /[?&]emulator\b/.test(location.search);
 const stalled = () => EMULATOR && sessionStorage.getItem('stacked-deck-test-stall') === '1';
@@ -352,7 +352,7 @@ export function createCloud({ save, persist, levels, ui }) {
         try { sc = await scoreMachine(level, cells); } catch { /* broken */ }
         solutionsOf(l).push({
           cells, croupiers: countCroupiers(cells), rounds: sc.rounds ?? 0, at: Number.isFinite(add.at) ? add.at : Date.now(),
-          rules: RULES_VERSION, uploaded: uid, hash: add.hash, ...(sc.ok ? {} : { broken: true }),
+          rules: RULES_VERSION, floor: floorPrint(level), uploaded: uid, hash: add.hash, ...(sc.ok ? {} : { broken: true }),
         });
         if (sc.ok) l.solved = true;
         touched = true;
