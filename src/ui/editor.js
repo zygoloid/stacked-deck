@@ -41,7 +41,7 @@ export function openEditor(root, ctx, level) {
   let hover = null;
   let drag = null;                // { kind: 'move'|'new'|'pan'|'pinch', key|tool, x0, y0, active, over, overPalette, id }
   const pointers = new Map();     // pointers down on the board: id -> [x, y] (two pinch-zoom)
-  let peekAt = null;              // { x, y, tap } where a collapsed stack or label is being looked at
+  let peekAt = null;              // { x, y, tap } where a stack or cut-short label is being looked at
   let anim = null, animRaf = 0;   // cards moving after a step: { from, start, dur, back }
   let watching = false;           // play mode: the palette and inspector are hidden, nothing is selected
   let pick = null;                // { at, side } the empty hex the croupier picker is open for
@@ -700,9 +700,10 @@ export function openEditor(root, ctx, level) {
     updatePeek();
   }
 
-  // ---------- peeking at collapsed stacks and labels ----------
-  // A long hand shows its first cards and "+n"; a shoe's deck and a Deal's
-  // positions are cut short. Hovering one (or tapping it) shows it in full.
+  // ---------- peeking at stacks and labels ----------
+  // A long hand shows its first cards and "+n", and a short one is small (or
+  // partly under another); a shoe's deck and a Deal's positions are cut
+  // short. Hovering one (or tapping it) shows it in full.
   let peekKey = null;
   function updatePeek() {
     if (typeInfo) return; // the picker's croupier details have the popover
@@ -842,7 +843,7 @@ export function openEditor(root, ctx, level) {
           h('li', { class: 'touch-only' }, 'Long-press to pick up croupiers.'),
           h('li', { class: 'kbd-only' }, 'Shift-drag to pick up croupiers.'),
           h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
-        devMode() ? devPanel(level, { measured: devMeasured, loadPar, measure }) : null,
+        ...(devMode() ? [devPanel(level, { measured: devMeasured, loadPar, measure })] : []), // (replaceChildren writes out a null)
         roster,
         h('p', { class: 'keys kbd-only' }, h('kbd', {}, 'Space'), ' play  ', h('kbd', {}, '.'), ' step  ', h('kbd', {}, ','), ' back  ',
           h('kbd', {}, '1'), '–', h('kbd', {}, '9'), ' place at the pointer  ', h('kbd', {}, 'Del'), ' remove  ', h('kbd', {}, '?'), ' help'));
@@ -1186,7 +1187,7 @@ export function openEditor(root, ctx, level) {
     }
     if (e.button === 1) { e.preventDefault(); drag = { kind: 'pan', ...base, active: true, middle: true }; return; }
     if (e.button !== 0) return;
-    // A tap on a cut-short stack or label shows it in full (a mouse hovers instead).
+    // A tap on a stack or a cut-short label shows it in full (a mouse hovers instead).
     const peekEl = e.target.closest?.('[data-peek]');
     if (peekEl && e.pointerType !== 'mouse') { drag = { kind: 'pan', ...base, active: false, peek: true }; return; }
     if (lift) {

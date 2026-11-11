@@ -80,14 +80,19 @@ kbd {
 :focus-visible { outline: 2px solid var(--gold-2); outline-offset: 2px; }
 
 /* ---------- little HTML cards ---------- */
-.hand { display: inline-flex; gap: 2px; vertical-align: middle; }
+/* Every card is the same width (whatever its face), so hands that wrap line
+   up in columns; a wrapping hand is at most 13 cards wide. */
+:root { --mini-w: 28px; --mini-gap: 2px; }
+.hand { display: inline-flex; gap: var(--mini-gap); vertical-align: middle; }
 .card {
-  display: inline-flex; align-items: baseline; justify-content: center; gap: 1px;
-  min-width: 26px; height: 22px; padding: 0 3px; border-radius: 3px;
+  display: inline-flex; align-items: baseline; justify-content: center; gap: 1px; flex: none;
+  width: var(--mini-w); height: 22px; padding: 0; border-radius: 3px; overflow: hidden; white-space: nowrap;
   background: var(--card); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.12);
   font: 700 12px/22px var(--serif);
 }
 .card b { font-weight: 700; }
+.card b.ten { letter-spacing: -0.06em; }
+.peek .hand, .deck-prev .hand, .queue .hand, .paid .hand { flex-wrap: wrap; max-width: calc(13 * var(--mini-w) + 12 * var(--mini-gap)); }
 .card i { font-style: normal; font-size: 12px; }
 .card.red { color: var(--red); }
 .card.black { color: #16181d; }
@@ -271,13 +276,20 @@ kbd {
   transition: transform 0.15s, box-shadow 0.15s;
 }
 a.tile:hover, .tile-slot:hover a.tile { --lift: 0 14px 28px rgba(0, 0, 0, 0.45), 0 0 0 2px var(--gold); transform: translateY(-4px) rotate(-0.6deg); }
-.tile-corner { position: absolute; display: flex; flex-direction: column; align-items: center; font: 700 max(13px, 8.4cqi)/1 var(--serif); }
+/* --corner-f: the corner index's size; --corner-x: how far in it is. */
+.tile { --corner-f: max(13px, 8.4cqi); --corner-x: 5cqi; }
+.tile-corner { position: absolute; display: flex; flex-direction: column; align-items: center; font: 700 var(--corner-f)/1 var(--serif); }
 .tile-corner i { font-style: normal; font-size: 0.88em; margin-top: 2px; }
-.tile-corner.tl { top: 4.5cqi; left: 5cqi; }
+.tile-corner.tl { top: 4.5cqi; left: var(--corner-x); }
+/* A two-figure index (10): set a little tighter, with the text moved over
+   to clear it. */
+.tile.wide-rank { padding-left: calc(var(--corner-x) + 1.2 * var(--corner-f) + 3cqi); }
+.tile.wide-rank .tile-corner b { letter-spacing: -0.06em; }
 .tile-corner.br { bottom: 4.5cqi; right: 5cqi; transform: rotate(180deg); }
 .tile.red .tile-corner { color: var(--red); }
 .tile.black .tile-corner { color: #16181d; }
-.tile.plain .tile-corner { color: #8a6420; font-size: 14px; }
+.tile.plain { --corner-f: 14px; }
+.tile.plain .tile-corner { color: #8a6420; }
 .tile-pip {
   position: absolute; left: 50%; top: 56%; transform: translate(-50%, -50%); font: 700 56cqi/1 var(--serif);
   opacity: 0.07; pointer-events: none; user-select: none;
@@ -438,7 +450,8 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
   content: ''; position: absolute; inset: 2.6cqi; border: 1.5px solid #1f3b70; border-radius: 8px; pointer-events: none;
   box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 2.75px rgba(31, 59, 112, 0.45);
 }
-.tile.bonus:not(.special) .tile-corner.tl { top: 6.5cqi; left: 6.8cqi; }
+.tile.bonus:not(.special) { --corner-x: 6.8cqi; }
+.tile.bonus:not(.special) .tile-corner.tl { top: 6.5cqi; }
 .tile.bonus:not(.special) .tile-corner.br { bottom: 6.5cqi; right: 6.8cqi; }
 .tile.bonus.plain .tile-corner { color: #1f3b70; }
 .tile.locked.bonus .tile-back {
@@ -618,7 +631,6 @@ svg.board.placing { cursor: copy; }
 }
 .deck-in.bad { border-color: var(--bad); }
 .deck-prev { display: flex; flex-wrap: wrap; }
-.deck-prev .hand { flex-wrap: wrap; }
 .err { color: var(--bad); font-size: 12px; }
 .check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
 .ports-title { margin-top: 14px; display: flex; align-items: baseline; gap: 4px; }
@@ -690,9 +702,10 @@ svg.board.placing { cursor: copy; }
 .order-tag { font: 700 10px/1.6 var(--sans); letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--gold-2); border: 1px solid var(--gold-soft); border-radius: 999px; padding: 0 7px; white-space: nowrap;
 }
-.queue .card, .paid .card { min-width: 22px; height: 19px; font-size: 11px; line-height: 19px; }
-/* Long hands (21 cards and more) wrap rather than widen the list. */
-.queue .hand, .paid .hand { flex-wrap: wrap; min-width: 0; }
+.queue, .paid { --mini-w: 25px; }
+.queue .card, .paid .card { height: 19px; font-size: 11px; line-height: 19px; }
+/* Long hands wrap rather than widen the list. */
+.queue .hand, .paid .hand { min-width: 0; }
 .q-item > .hand, .p-item > .hand { flex: 0 1 auto; }
 .paid .card.placed { outline: 2px solid var(--gold-2); outline-offset: 1px; }
 
@@ -750,7 +763,7 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .hex.drop.bad { fill: rgba(255, 107, 107, 0.12); stroke: var(--bad); }
 
 .l-cards { pointer-events: none; }
-.l-cards .peekable { pointer-events: auto; } /* a cut-short stack: hover or tap to see it all */
+.l-cards .peekable { pointer-events: auto; } /* a hand: hover or tap to see it all, in bigger cards */
 .scard rect { fill: var(--card); stroke: rgba(0, 0, 0, 0.55); stroke-width: 0.6; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
 .scard text { font-family: var(--serif); font-weight: 700; }
 .scard .rank { font-size: 8.4px; }
@@ -948,13 +961,12 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .history button:disabled { opacity: 0.35; cursor: default; }
 svg.board.panning { cursor: grabbing; }
 
-/* A cut-short stack or label shown in full (hover, or tap on a touch screen). */
+/* A stack or cut-short label shown in full (hover, or tap on a touch screen). */
 .peek {
   position: absolute; left: 0; top: 0; z-index: 4; pointer-events: none; max-width: min(420px, calc(100% - 12px));
   padding: 6px 8px; border-radius: 8px; background: rgba(6, 28, 18, 0.96); border: 1px solid var(--gold-soft);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); font-size: 12.5px;
 }
-.peek .hand { flex-wrap: wrap; }
 .peek-t { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
 .peek.type-info { z-index: 6; max-width: min(300px, calc(100% - 8px)); }
 .card.house { box-shadow: inset 0 0 0 1px #8a6420; outline: 1px dashed #8a6420; outline-offset: -1px; background: #efe2bd; }
