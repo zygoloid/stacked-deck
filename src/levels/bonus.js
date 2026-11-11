@@ -1020,6 +1020,15 @@ export const LEVELS = [
           'QS QD QC QH 7S', '3S 3D 3C 7H 7C', 'AS KS QS JS TS', '7S 2D 3C 4H 5S'],
         // a winner after a run of losers
         ['2S 3D 4C 5H 6S', '7S 8D 9C TH JS', 'KS KD 7C 7H AS', '9S 9D 9C 2H 2S', '7H 7D 7S 2C 3C'],
+        // four of a kind of every rank, and three of every rank but 7 (so a
+        // machine testing with only two 7s and other cards is caught,
+        // whichever other cards it uses)
+        ['AS AD AC AH 2S', '2S 2D 2C 2H 3S', '3S 3D 3C 3H 4S', '4S 4D 4C 4H 7S', '5S 5D 5C 5H 6S',
+          '6S 6D 6C 6H 5S', '7S 7D 7C 7H 8S', '8S 8D 8C 8H 9S', '9S 9D 9C 9H 7D', 'TS TD TC TH JS',
+          'JS JD JC JH QS', 'QS QD QC QH KS', 'KS KD KC KH AS'],
+        ['AS AD AC 2H 3S', '2S 2D 2C 7H 3S', '3S 3D 3C 4H 5S', '4S 4D 4C 7H 7S', '5S 5D 5C 6H 8S',
+          '6S 6D 6C 5H 9S', '8S 8D 8C 9H TS', '9S 9D 9C 7H JS', 'TS TD TC JH QS', 'JS JD JC QH KS',
+          'QS QD QC KH AS', 'KS KD KC AH 7D', '7S 7D 7C 2H 3H'],
       ],
       nRandom: 4, seed: 201,
     }),
@@ -2304,7 +2313,7 @@ const PAR = {
   'crossed-wires': { croupiers: 14, rounds: 68 },
   'every-other': { croupiers: 4, rounds: 90 },
   'bookends': { croupiers: 5, rounds: 134 },
-  'one-deck': { croupiers: 10, rounds: 634 },
+  'one-deck': { croupiers: 10, rounds: 837 },
   'cut-to-the-ace': { croupiers: 11, rounds: 913 },
   'uneven-tables': { croupiers: 18, rounds: 94 },
   'four-of-a-kind': { croupiers: 6, rounds: 533 },

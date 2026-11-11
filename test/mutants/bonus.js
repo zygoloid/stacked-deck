@@ -423,6 +423,14 @@ export const MUTANTS = {
     'two or more sevens': (h) => count(h, '7') >= 2, 'exactly three': (h) => count(h, '7') === 3,
     'any three of a kind': (h) => largestSet(h) >= 3, 'any seven': (h) => has(h, '7'),
     'four sevens': (h) => count(h, '7') === 4,
+    // Machines that test with fewer than four 7s, which the tests must
+    // catch for every other rank: two 7s and two other cards (Kind 5 also
+    // says yes to four of a kind of a filler's rank), or two 7s and two of
+    // one rank (three of a kind of it).
+    ...Object.fromEntries(RANKS.filter((r) => r !== '7').flatMap((r) => [
+      [`two 7s and a ${r}`, (h) => count(h, '7') >= 3 || count(h, r) >= 4],
+      [`two 7s and two ${r}s`, (h) => count(h, '7') >= 3 || count(h, r) >= 3],
+    ])),
   },
   'one-war': {
     '9 to K': (h) => high(h) >= 9 && high(h) <= 13, '10 to Q': (h) => high(h) >= 10 && high(h) <= 12,
