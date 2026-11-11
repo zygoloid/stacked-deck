@@ -1147,11 +1147,15 @@ export function openEditor(root, ctx, level) {
   // elsewhere puts it down. Two fingers pinch-zoom.
   const tapSlop = (e) => (e.pointerType === 'mouse' ? 6 : 10);
   // The side of the selected croupier a point is by, if it is in that
-  // side's edge zone: from halfway out to a little past the hex (but short of
-  // a neighbour's middle, where a tap selects the neighbour). Else null.
-  function selectedEdge(x, y) {
+  // side's edge zone: from halfway out to the edge of its hex; with `reach`,
+  // a little past it (short of a neighbour's middle). Else null. Only a long
+  // press with a finger reaches past the hex (a finger is less precise than
+  // a mouse): a tap there acts on the hex it lands on, so a croupier can be
+  // put down next to the selected one.
+  function selectedEdge(x, y, reach = false) {
     const c = selCell(), m = svg.getScreenCTM();
     if (!c || !m) return null;
+    if (!reach && board.locate(x, y)?.at.join() !== c.at.join()) return null;
     const p = new DOMPoint(x, y).matrixTransform(m.inverse());
     const [cx, cy] = center(c.at);
     const dx = p.x - cx, dy = p.y - cy, dist = Math.hypot(dx, dy) / R;
@@ -1201,13 +1205,22 @@ export function openEditor(root, ctx, level) {
       drag = { kind: 'box', ...base, active: false, ...(c ? { seed: key, add: key } : {}) };
       return;
     }
-    // An edge of the selected croupier (reaching a little past its hex): a
-    // tap points the active port there, a long press opens the port menu.
+    // An edge of the selected croupier: a tap points the active port there,
+    // a long press opens the port menu.
     const edgeSide = selectedEdge(e.clientX, e.clientY);
     if (edgeSide !== null) { drag = { kind: 'pan', ...base, active: false, assign: edgeSide }; holdFor(edgeSide); return; }
+    // Just past an edge, with a finger: a long press opens the port menu for
+    // that side; anything else acts on the hex pressed, as below (only a
+    // neighbour is selected when the finger lifts, not at once).
+    const reachSide = base.touch ? selectedEdge(e.clientX, e.clientY, true) : null;
     // A croupier: a tap selects it, a drag moves it, a long press picks it
     // up (and a drag then grows a box from it).
     if (c) {
+      if (reachSide !== null) {
+        drag = { kind: 'move', key, ...base, active: false, selectLater: true };
+        holdFor(reachSide);
+        return;
+      }
       if (tool && key !== selected) setTool(null);
       select(key);
       drag = { kind: 'move', key, ...base, active: false };
@@ -1223,7 +1236,7 @@ export function openEditor(root, ctx, level) {
       kind: 'pan', ...base, active: false, side,
       place: tool && free ? loc.at : null, pick: !tool && free && pickedAt !== key ? loc.at : null,
     };
-    holdBox();
+    if (reachSide !== null) holdFor(reachSide); else holdBox();
   });
   svg.addEventListener('auxclick', (e) => e.preventDefault());
   svg.addEventListener('wheel', (e) => {
@@ -1374,6 +1387,7 @@ export function openEditor(root, ctx, level) {
       dropSelection();
       return;
     }
+    if (d.selectLater) { if (tool && d.key !== selected) setTool(null); select(d.key); }
     if (!d.active) {
       if (d.kind === 'new') setTool(tool === d.tool ? null : d.tool);
       return;

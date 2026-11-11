@@ -846,6 +846,45 @@ try {
     await tap(await undoAt());
     check(after1 === 0 && visible && await passOut() === 4, `phone: undo stays in reach with the restored selection; two taps undo two steps (1 -> ${after1} -> ${await passOut()})`);
     await tap([box.x + 3, box.y + 3]);
+    // Just past the selected croupier's east edge (in the empty hex next to
+    // it): a tap opens the picker there, leaving the port alone; a long press
+    // opens the port menu for that side.
+    const pastEdge = (d) => phone.evaluate(([[q, r], d]) => {
+      const R = 50, svg = document.querySelector('svg.board');
+      const x = R * Math.sqrt(3) * (q + r / 2) + Math.cos(d * Math.PI / 3) * R * 1.04, y = R * 1.5 * r + Math.sin(d * Math.PI / 3) * R * 1.04;
+      const pt = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+      return [pt.x, pt.y];
+    }, [free[0], d]);
+    await tap(await hexAt(free[0]));
+    await tap(await pastEdge(0));
+    check(await phone.isVisible('.picker') && await passOut() === 4 && await placed() === 1,
+      `phone: a tap just past the selected croupier's edge, on an empty hex, opens the picker there (out ${await passOut()})`);
+    await tapItem('pass');
+    check(await placed() === 2 && await passOut() === 4, 'phone: and a croupier can be put down there');
+    // Just past the edge on that neighbour: a long press opens the port menu
+    // of the selected croupier, which stays selected; a tap selects the neighbour.
+    const selAt = () => phone.evaluate(() => document.querySelector('.inspector .insp-at')?.textContent);
+    await tap(await hexAt(free[0]));
+    const firstAt = await selAt();
+    await touch('touchStart', [await pastEdge(0)]);
+    await phone.waitForTimeout(500);
+    await touch('touchEnd', []);
+    await phone.waitForTimeout(200);
+    check(await phone.isVisible('.radial-hub') && /E/.test(await phone.textContent('.radial-hub')) && await selAt() === firstAt,
+      `phone: a long press just past the edge, on a neighbour, opens the selected croupier's port menu (${await selAt()})`);
+    await phone.keyboard.press('Escape');
+    await tap(await pastEdge(0));
+    check(await selAt() !== firstAt && await passOut() === 4 && await placed() === 2, `phone: and a tap there selects the neighbour (${firstAt} -> ${await selAt()})`);
+    await tap(await undoAt());
+    await tap(await hexAt(free[0]));
+    await touch('touchStart', [await pastEdge(0)]);
+    await phone.waitForTimeout(500);
+    await touch('touchEnd', []);
+    await phone.waitForTimeout(200);
+    check(await phone.isVisible('.radial-hub') && /E/.test(await phone.textContent('.radial-hub')) && !(await phone.isVisible('.box-select:not(.hidden)')),
+      'phone: a long press there opens the port menu for that side');
+    await phone.keyboard.press('Escape');
+    await tap([box.x + 3, box.y + 3]);
     // A long press on the bare floor, then a drag: a box that picks up the
     // croupiers in it; turn them and put them down.
     const passCell = () => phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells[0]);
@@ -1027,19 +1066,19 @@ try {
     await page.mouse.up();
     cs = await cellsNow();
     check(cs.find(at(free[1])).out.yes === 2, 'or hold, slide onto a port and let go');
-    // The edge zones reach a little past the hex: just outside its east edge
-    // (in the next hex) a click points the active port east, and a long press
-    // opens the menu for that side.
+    // With a mouse the edge zones stop at the hex: just outside its east
+    // edge (in the empty hex next to it) a long press opens no menu, and
+    // letting go opens the picker there, leaving the ports alone.
     const [ox, oy] = await hexPoint(free[1], 0, 1.2);
-    const portBefore = await page.textContent('.inspector .port-row.active .port-tag');
-    await page.mouse.click(ox, oy);
-    cs = await cellsNow();
-    check(cs.find(at(free[1])).out[portBefore] === 0, `a click just outside the selected croupier's edge points its port that way (${portBefore} -> ${cs.find(at(free[1])).out[portBefore]})`);
+    const outBefore = JSON.stringify(cs.find(at(free[1])).out);
     await page.mouse.move(ox, oy);
     await page.mouse.down();
     await page.waitForTimeout(650);
+    const noMenu = !(await page.isVisible('.radial-hub'));
     await page.mouse.up();
-    check(await page.isVisible('.radial-hub') && /E/.test(await page.textContent('.radial-hub')), 'and a long press there opens the port menu for that side');
+    cs = await cellsNow();
+    check(noMenu && JSON.stringify(cs.find(at(free[1])).out) === outBefore && await page.isVisible('.picker'),
+      `with a mouse, a press just outside the selected croupier's edge acts on the next hex: no port menu, and the picker opens there (${JSON.stringify(cs.find(at(free[1])).out)})`);
     await page.keyboard.press('Escape');
   }
 
