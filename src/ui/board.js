@@ -1,5 +1,5 @@
 // SVG rendering of a casino floor: hexes, tables, port arrows and live cards.
-import { s, SUIT_GLYPH, rankText, cardText, cardName, cardClass, isSpecialCard, SPECIAL_FACE } from './dom.js';
+import { s, SUIT_GLYPH, rankText, cardText, cardClass, isSpecialCard, SPECIAL_FACE } from './dom.js';
 import {
   PORT_STYLE, infoFor, chipLabel, arrowsOf, SIDE_NAMES,
 } from './croupiers.js';
@@ -67,6 +67,7 @@ export function dealLabel(positions, maxW = Infinity) {
 }
 
 const CARD_W = 15, CARD_H = 20, CARD_STEP = 11, MAX_SHOWN = 6;
+const cardCount = (n) => `${n} card${n === 1 ? '' : 's'}`;
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 const JOKER_COLOURS = ['#d62f4b', '#e9a100', '#1f9d55', '#2f6fd6'];
@@ -341,12 +342,15 @@ export class Board {
     // cells): drawn on a darker table with a bolt in each corner.
     const bolted = this.level.fixed.includes(cell);
     if (bolted) g.classList.add('bolted');
-    g.append(s('polygon', { class: 'hex table', points: HEX }),
+    // The table and chip (a group of their own, for a bolted one's tooltip).
+    const face = s('g', {});
+    g.append(face);
+    face.append(s('polygon', { class: 'hex table', points: HEX }),
       s('polygon', { class: 'hex table-in', points: HEX_IN }));
     if (bolted) {
       for (let i = 0; i < 6; i++) {
         const a = rad(i) - Math.PI / 6;
-        g.append(s('circle', { class: 'bolt', cx: ((R - 9) * Math.cos(a)).toFixed(2), cy: ((R - 9) * Math.sin(a)).toFixed(2), r: 2.2 }));
+        face.append(s('circle', { class: 'bolt', cx: ((R - 9) * Math.cos(a)).toFixed(2), cy: ((R - 9) * Math.sin(a)).toFixed(2), r: 2.2 }));
       }
     }
     const chip = s('g', { class: 'chip' },
@@ -355,7 +359,7 @@ export class Board {
       s('circle', { class: 'chip-face', r: CHIP - 6 }));
     const label = chipLabel(cell);
     chip.append(s('text', { class: `chip-t${label.length > 4 ? ' small' : ''}`, y: 3.3, 'text-anchor': 'middle' }, label));
-    g.append(chip);
+    face.append(chip);
     if (cell.kind === 'croupier') {
       // Placeholder until the croupier art exists: a small chevron showing
       // which side the croupier faces (it looks there first, then clockwise).
@@ -368,14 +372,18 @@ export class Board {
       const deck = cell.deck ?? [];
       const prev = deck.slice(0, 3).map(cardText).join(' ') + (deck.length > 3 ? ' …' : '');
       const label = s('text', { class: 'shoe-deck', y: CHIP + 11, 'text-anchor': 'middle' }, prev + (cell.once ? ' ¹' : ''));
-      if (deck.length > 3) {
+      if (deck.length) {
         // The whole deck on hover or tap (an invisible hit area: text ignores the pointer).
         const w = [...label.textContent].length * 4.2 + 6;
-        g.append(s('g', { class: 'peekable', 'data-peek': this.peek({ cards: deck, title: `Shoe deck (${deck.length} cards, top first)` }) },
+        g.append(s('g', { class: 'peekable', 'data-peek': this.peek({ cards: deck, title: `Shoe deck (${cardCount(deck.length)}, top first)` }) },
           s('rect', { class: 'peek-hit', x: -w / 2, y: CHIP + 4, width: w, height: 9 }), label));
       } else g.append(label);
     }
-    g.append(s('title', {}, `${bolted ? 'Bolted to the floor (part of the floor: it can\'t be moved or changed, and doesn\'t count as one of your croupiers). ' : ''}${info.name}: ${info.desc}`));
+    // A placed croupier is explained by its panel when selected, so it has
+    // no tooltip (one would cover the cards shown on hover). A bolted one
+    // can't be selected: it has one on its table and chip, not on the shoe
+    // deck under it.
+    if (bolted) face.append(s('title', {}, `Bolted to the floor (part of the floor: it can't be moved or changed, and doesn't count as one of your croupiers). ${info.name}: ${info.desc}`));
     return g;
   }
 
@@ -451,7 +459,7 @@ export class Board {
     s('text', { y: 2.5, 'text-anchor': 'middle' }, text));
   }
 
-  // Register what a collapsed stack or label holds; returns its [data-peek] index.
+  // Register what a stack or cut-short label holds; returns its [data-peek] index.
   peek(item) {
     this.peeks.push(item);
     return this.peeks.length - 1;
@@ -474,7 +482,7 @@ export class Board {
 
   // A hand as little cards centred on (x, y) in a cell at `origin` (board
   // coordinates). Live hands are [{c, src}]. Long hands show their first
-  // cards and a "+n" card; hovering or tapping it shows them all.
+  // cards and a "+n" card; hovering or tapping any hand shows it all.
   handSvg(hand, x, y, cls, [ox, oy]) {
     const cards = hand.map((v) => (typeof v === 'string' ? v : v.c));
     const house = hand.map((v) => typeof v !== 'string' && v.src === 'house');
@@ -483,11 +491,12 @@ export class Board {
     const w = CARD_W + (n - 1) * CARD_STEP;
     const x0 = x - w / 2, y0 = y - CARD_H / 2;
     const collapsed = cards.length > shown;
+    // Every hand shows in full, in bigger cards, on hover or tap (a short one
+    // can be small to read, or partly under another).
     const g = s('g', {
-      class: `hand ${cls}${collapsed ? ' peekable' : ''}`, transform: `translate(${x0.toFixed(1)},${y0.toFixed(1)})`,
-      'data-peek': collapsed ? this.peek({ cards, house, title: `${cards.length} cards, top first` }) : undefined,
+      class: `hand ${cls} peekable`, transform: `translate(${x0.toFixed(1)},${y0.toFixed(1)})`,
+      'data-peek': this.peek({ cards, house, title: `${cardCount(cards.length)}${cards.length > 1 ? ', top first' : ''}${house.some(Boolean) ? ' (house cards dashed)' : ''}` }),
     });
-    if (!collapsed) g.append(s('title', {}, cards.map(cardName).join(' ') + (house.some(Boolean) ? '  (house cards dashed)' : '')));
     let deco = null;
     if (cls.includes('pending')) {
       deco = s('rect', { class: 'hand-glow', x: -3, y: -3, width: w + 6, height: CARD_H + 6, rx: 4 });

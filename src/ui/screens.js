@@ -507,7 +507,7 @@ export function levelSelect(root, ctx, focus = null) {
     const tops = AXES.filter((k) => sd.top[k]).length;
     const finish = st.solved ? (tops === 2 ? ' holo' : tops === 1 ? ' foil' : '') : '';
     const el = h('a', {
-      class: `tile ${kind}${f.bonus ? ' bonus' : ''}${st.solved ? ' solved' : ''}${finish}`, href: `#/level/${lv.id}/story`, 'data-level': lv.id, 'data-card': f.card ?? f.text,
+      class: `tile ${kind}${f.bonus ? ' bonus' : ''}${!f.special && [...f.rank].length > 1 ? ' wide-rank' : ''}${st.solved ? ' solved' : ''}${finish}`, href: `#/level/${lv.id}/story`, 'data-level': lv.id, 'data-card': f.card ?? f.text,
       title: [f.special ? `${f.name}` : `${f.bonus ? 'Bonus floor' : 'Floor'} ${f.text}`,
         tops ? `best known ${AXES.filter((k) => sd.top[k]).join(' and ')}` : null].filter(Boolean).join(' · '),
     },

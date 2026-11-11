@@ -50,7 +50,8 @@ export function cardEl(c, cls = '') {
     return h('span', { class: `card ${cardClass(c)} ${cls}`, title: f.name },
       h('b', {}, f.face), f.pip ? h('i', {}, f.pip) : null);
   }
-  return h('span', { class: `card ${cardClass(c)} ${cls}` }, h('b', {}, rankText(c)), h('i', {}, SUIT_GLYPH[c[1]]));
+  const rank = rankText(c);
+  return h('span', { class: `card ${cardClass(c)} ${cls}` }, h('b', rank.length > 1 ? { class: 'ten' } : {}, rank), h('i', {}, SUIT_GLYPH[c[1]]));
 }
 
 // A hand as a row of little HTML cards.
