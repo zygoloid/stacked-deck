@@ -316,7 +316,8 @@ Dev box: difficulty and par, what opens the floor and what it opens, a
 button that loads the par machine (an undo away), and one that measures
 the machine on the floor test by test (rounds, the most cards on the floor
 at once, and the longest stretch without progress, which `STALL_ROUNDS`
-limits).
+limits). The floors list's dev bar re-scores every saved solution
+("Floor changes", below).
 
 ## Save format (localStorage key `stacked-deck-v1`)
 
@@ -325,7 +326,7 @@ limits).
   cells: [placed cells],          // the working machine (autosaved)
   solved: true,                   // set once the floor is first cleared; never unset
   best: { croupiers, rounds },    // each minimised on its own over all solutions
-  solutions: [{ cells, croupiers, rounds, at, rules, broken?,  // every distinct machine that cleared it
+  solutions: [{ cells, croupiers, rounds, at, rules, floor?, broken?,  // every distinct machine that cleared it
                 uploaded?, hash? }],   // online: the account it was uploaded to, its hash
   legacyBest: { croupiers, rounds },  // only for saves from before `solutions`
   last: { croupiers, rounds },    // score of the latest clear
@@ -393,4 +394,16 @@ score, ones that no longer clear the floor get `broken: true` (left off the
 plot and out of `best`, kept in the list so they can be loaded and fixed), and
 `legacyBest` is dropped. Clearing the floor again with a saved machine also
 refreshes its score.
+
+**Floor changes.** Each solution also records `floor`, a fingerprint of the
+floor it was scored on (`floorPrint` in `src/ui/model.js`: the rules
+version, the layout, palette and tests, and the code of the rule and of
+the check deals' deal function). Outside the live site (the beta and a
+checkout, where floors change without a rules version) a solution whose
+floor's print has changed is re-run on startup too, so a machine that a new
+test or a stricter rule catches is marked `broken`. A change only inside a
+helper the rule calls doesn't change the print: dev mode's Re-score all
+solutions (on the floors list) re-runs every saved solution. On the live
+site the print is recorded but only the rules version triggers re-scoring,
+since the server re-scores only on a rules version change.
 The editor plots the list (`src/ui/scatter.js`, rounds against croupiers).

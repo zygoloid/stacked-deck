@@ -119,6 +119,7 @@ function rerender() {
   route();
   window.scrollTo(0, y);
 }
+ctx.rerender = rerender;
 
 function route() {
   cleanup?.();
@@ -162,10 +163,15 @@ function takeInvite() {
 window.addEventListener('hashchange', () => { if (!takeInvite()) route(); });
 if (!takeInvite()) route();
 
-// Saved solutions scored under older rules are re-run in the background.
-rescoreStale(save, ALL_LEVELS, () => {
+// Saved solutions scored under older rules are re-run in the background;
+// outside the live site (the beta, a checkout), so are those scored on a
+// floor that has changed since (floorPrint in model.js): floors there change
+// without a rules version. Dev mode can re-run every one (ctx.rescoreAll).
+const rescored = () => {
   ctx.persist();
   if (document.body.dataset.screen === 'select') rerender();
   ctx.cloud?.queueUploads();
-});
+};
+rescoreStale(save, ALL_LEVELS, rescored, { floors: CHANNEL !== 'live' });
+ctx.rescoreAll = () => rescoreStale(save, ALL_LEVELS, rescored, { all: true });
 ctx.cloud?.start();
