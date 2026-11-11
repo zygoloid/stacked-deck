@@ -41,13 +41,29 @@ export const channelBadge = () => (CHANNEL === 'beta'
   ? h('span', { class: 'channel-badge', title: 'The beta: new floors being tried out. Its progress is kept apart from the main game\'s (use Save file to move it), and it has no online features.' }, 'Beta')
   : null);
 
-// The floors list's dev bar: says dev mode is on, and turns it off.
-export function devBar(onOff) {
+// The floors list's dev bar: says dev mode is on, re-scores every saved
+// solution (`rescoreAll()`, resolving to { rescored, broken }), and turns
+// dev mode off.
+let rescoreNote = null; // what the last re-score found, shown until the page reloads
+// `redraw()` draws the floors list again.
+export function devBar(redraw, rescoreAll) {
   if (!on) return null;
+  const note = h('span', { class: 'dev-note muted' }, rescoreNote ?? '');
+  const btn = h('button', {
+    class: 'btn ghost small', title: 'Run every saved solution again on its floor as it is now',
+    onclick: async () => {
+      btn.disabled = true;
+      note.textContent = 'Re-scoring…';
+      const { rescored, broken } = await rescoreAll();
+      rescoreNote = `Re-scored ${rescored} solution${rescored === 1 ? '' : 's'}${broken ? `: ${broken} no longer ${broken === 1 ? 'clears its floor' : 'clear their floors'}` : ''}.`;
+      redraw();
+    },
+  }, 'Re-score all solutions');
   return h('div', { class: 'dev-bar' },
     h('b', {}, 'Dev mode'),
     h('span', {}, 'Locked floors open on a click; each floor shows its difficulty.'),
-    h('button', { class: 'btn ghost small', onclick: () => { setDevMode(false); onOff(); } }, 'Turn off'));
+    btn, note,
+    h('button', { class: 'btn ghost small', onclick: () => { setDevMode(false); redraw(); } }, 'Turn off'));
 }
 
 // A floor's reference solution (solutions/levels/<id>.js): its cells, or

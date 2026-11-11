@@ -3,7 +3,7 @@
 // writing, reporting a save that can't be written, and save files.
 import assert from 'node:assert';
 import { LEVELS } from '../src/levels.js';
-import { mergeSave, loadSave, writeSave, watchSave, saveProblem } from '../src/ui/model.js';
+import { mergeSave, loadSave, writeSave, watchSave, saveProblem, recordSolution, rescoreStale, floorPrint } from '../src/ui/model.js';
 import { saveFileText, readSaveFile, loadSaveFile, saveFileName, FILE_FORMAT } from '../src/ui/savefile.js';
 import { RULES_VERSION } from '../src/engine.js';
 import { countCroupiers } from '../src/score.js';
@@ -228,3 +228,27 @@ console.log('storage ok');
   assert.deepStrictEqual(fresh.levels[l1.id].cells, c1);
 }
 console.log('save files ok');
+
+// Re-scoring when a floor changes (the beta): a solution records the floor
+// it was scored on, and rescoreStale with `floors` runs it again once the
+// floor changes; `all` runs every one.
+{
+  const level = LEVELS[0];
+  const ref = (await import(`../solutions/levels/${level.id}.js`)).default.cells;
+  const save = { levels: { [level.id]: {} } };
+  const ls = save.levels[level.id];
+  recordSolution(ls, ref, { croupiers: countCroupiers(ref), rounds: level.par.rounds }, level);
+  assert.strictEqual(ls.solutions[0].floor, floorPrint(level), 'a solution records the floor it cleared');
+  assert.deepStrictEqual(await rescoreStale(save, [level], null, { floors: true }), { rescored: 0, broken: 0 }, 'an unchanged floor re-runs nothing');
+  // The same floor with a stricter rule: nothing pays.
+  const stricter = { ...level, pays: () => false };
+  assert.notStrictEqual(floorPrint(stricter), floorPrint(level), 'a changed rule changes the floor\'s print');
+  assert.deepStrictEqual(await rescoreStale(save, [stricter], null), { rescored: 0, broken: 0 }, 'without `floors` (the live site) only the rules version counts');
+  let changed = 0;
+  assert.deepStrictEqual(await rescoreStale(save, [stricter], () => changed++, { floors: true }), { rescored: 1, broken: 1 });
+  assert.ok(ls.solutions[0].broken && changed === 1 && !ls.best, 'the solution no longer clears the changed floor');
+  assert.deepStrictEqual(await rescoreStale(save, [stricter], null, { floors: true }), { rescored: 0, broken: 0 }, 'and is not re-run again');
+  assert.deepStrictEqual(await rescoreStale(save, [level], null, { all: true }), { rescored: 1, broken: 0 }, '`all` re-runs it (on the floor as it was: it clears it again)');
+  assert.ok(!ls.solutions[0].broken && ls.best.croupiers === countCroupiers(ref));
+}
+console.log('re-scoring changed floors ok');
