@@ -1445,7 +1445,7 @@ export const LEVELS = [
     difficulty: 6,
     story: [
       'The house has started dealing from a shoe of two decks shuffled together, and Sal Vellani was the first to notice what that means: a hand can hold the same card twice. He calls it a perfect pair, and the Owner has agreed to pay for it.',
-      'A perfect pair is two cards of the same rank and the same suit, two queens of hearts, say. A queen of hearts with a queen of diamonds is only an ordinary pair and pays nothing, however red it looks. With two decks no card can turn up three times.',
+      'A perfect pair is two cards of the same rank and the same suit, two queens of hearts, say. A queen of hearts with a queen of diamonds is only an ordinary pair and pays nothing, however red it looks.',
     ],
     brief: 'Five-card hands from a two-deck shoe. Pay out every hand holding two identical cards (the same rank and the same suit). Cards of the same rank in different suits don\'t count.',
     handSize: 5,
@@ -1787,7 +1787,7 @@ export const LEVELS = [
     difficulty: 7,
     story: [
       'The Kessler crew have looked hard at the new two-deck shoe and decided that the second of any two identical cards must be a forgery. They want a reward every time one turns up, and the Owner, who likes to be seen taking forgery seriously, has agreed.',
-      'Single cards all night. A card is a counterfeit if the very same card, rank and suit, has already been played tonight, however long ago; the first copy is genuine and pays nothing. Another card of the same rank in a different suit is no forgery. With two decks no card turns up a third time.',
+      'Single cards all night. A card is a counterfeit if the very same card, rank and suit, has already been played tonight, however long ago; the first copy is genuine and pays nothing. Another card of the same rank in a different suit is no forgery.',
     ],
     brief: 'Single cards from a two-deck shoe. Pay out every card identical to one already played tonight (the same rank and the same suit): the second copy of a card pays, the first never does.',
     handSize: 1,
