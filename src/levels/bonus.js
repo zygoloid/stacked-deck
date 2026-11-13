@@ -439,11 +439,12 @@ function eightsDeals(rand, nTests, per) {
 }
 
 // Every Twenty-One and Hit Me.
-// Every Twenty-One: the card takes the night's running total (ace 1 to
-// king 13) to or past the next multiple of 21.
+// Every Twenty-One: the card takes the night's running total, counted as in
+// blackjack (ace 1, picture cards 10), to or past the next multiple of 21.
+const pointsOf = (c) => Math.min(10, rankValue(c));
 function everyTwentyOne(h, before) {
-  const s = before.reduce((a, [c]) => a + rankValue(c), 0);
-  return Math.floor((s + rankValue(h[0])) / 21) > Math.floor(s / 21);
+  const s = before.reduce((a, [c]) => a + pointsOf(c), 0);
+  return Math.floor((s + pointsOf(h[0])) / 21) > Math.floor(s / 21);
 }
 const E21 = [source([-1, 0], E), desk([-1, -2])];
 // Hit Me: a hand's total with every ace counted as 1 and picture cards as 10.
@@ -1946,10 +1947,10 @@ export const LEVELS = [
     title: 'Every Twenty-One',
     difficulty: 7,
     story: [
-      'Word has got out that the Owner means to bring blackjack to the Stacked Deck, and Dmitri has started practising. Tonight the players hand over one card at a time, of any suit, and he keeps the night\'s running total: an ace is one, a jack eleven, a queen twelve and a king thirteen, as in casino numbers.',
-      'Each time the total reaches or passes another twenty-one (twenty-one, forty-two, sixty-three and so on), the house pays out the card that took it there. Nothing is ever taken off the total: a king that takes it from twenty to thirty-three is paid, and the next card counts on from thirty-three. Dmitri has a column for this.',
+      'Word has got out that the Owner means to bring blackjack to the Stacked Deck, and Dmitri has started practising. Tonight the players hand over one card at a time, of any suit, and he keeps the night\'s running total the blackjack way: number cards count their face value, and jacks, queens and kings ten. An ace counts one; Dmitri says he will think about elevens when the tables open.',
+      'Each time the total reaches or passes another twenty-one (twenty-one, forty-two, sixty-three and so on), the house pays out the card that took it there. Nothing is ever taken off the total: a king that takes it from nineteen to twenty-nine is paid, and the next card counts on from twenty-nine. Dmitri has a column for this.',
     ],
-    brief: 'Single cards of any suit, ace (1) to king (13). Keep the night\'s running total, and pay out each card that brings it to or past the next multiple of 21 (21, 42, 63, ...). The total is never reset.',
+    brief: 'Single cards of any suit, counted as in blackjack: 2 to 10 their face value, J, Q and K 10, an ace 1. Keep the night\'s running total, and pay out each card that brings it to or past the next multiple of 21 (21, 42, 63, ...). The total is never reset.',
     handSize: 1,
     floor: floorOf(hexRect(-4, 3, -7, 7), E21),
     fixed: E21,
@@ -1960,11 +1961,15 @@ export const LEVELS = [
     tests: makeTests({
       handSize: 1, handsPerTest: 26,
       fixed: [
-        // exactly 21, past 42, exactly 63, two payers back to back, 147 on an ace
+        // picture cards count ten: 21 exactly on the 3 (in casino numbers it
+        // would be the 8), 42 exactly on an ace, a king across 63, and 126
+        // exactly on an ace
+        one('KS 8D 3C QC JH AS TD 9H KD QS 2C JD KH 9S QH 3D AD'),
+        // a queen past 21, a king past 63 and another onto 105 exactly
         one('KS 8D QC JH AS 9D 9H KD TS 7S 6H 5C KC 9S AH 2C QS 5D AD 3H'),
         // small cards: the eleventh reaches 21 exactly
         one('AS AH AD AC 2S 2H 2D 2C 3S 3H 3D KD QH JD 4C'),
-        // a whole deck: 364 is seventeen 21s and 7
+        // a whole deck: 340 is sixteen 21s and 4
         one('9C 4D KH 2S JC 7C AD 5S QD 3H TC 8S 6D KS 2H 9D 4C JS 7H AC 5H QS 3D TH 8D 6C ' +
           'KD 2C 9H 4S JH 7D AS 5C QH 3S TD 8C 6H KC 2D 9S 4H JD 7S AH 5D QC 3C TS 8H 6S'),
       ],
@@ -2343,7 +2348,7 @@ const PAR = {
   'head-count': { croupiers: 19, rounds: 676 },
   'mirror-image': { croupiers: 25, rounds: 383 },
   'casino-numbers': { croupiers: 27, rounds: 1574 },
-  'every-twenty-one': { croupiers: 20, rounds: 1988 },
+  'every-twenty-one': { croupiers: 20, rounds: 2240 },
   'hit-me': { croupiers: 27, rounds: 2077 },
   'punto-banco': { croupiers: 24, rounds: 2626 },
   'split-the-difference': { croupiers: 28, rounds: 1504 },
