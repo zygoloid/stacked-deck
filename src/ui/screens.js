@@ -784,7 +784,7 @@ export function helpPanel(close, save) {
           ['Pinch / drag', 'zoom / pan the floor', 'touch'],
           ['Space', 'play / pause', 'kbd'], ['.', 'step', 'kbd'], [',', 'step back', 'kbd'], ['R', 'reset the run', 'kbd'], ['F', 'next speed', 'kbd'],
           ['1–9', 'place a croupier at the pointer', 'kbd'], ['Del', 'remove selected', 'kbd'],
-          ['[ ] M', 'turn / mirror the selected croupier or group', 'kbd'], ['Shift-drag', 'pick up croupiers in a box', 'kbd'], ['Enter / Esc', 'put a group down / back', 'kbd'],
+          ['[ ] M', 'turn / mirror the selected croupier or group', 'kbd'], ['Shift-drag', 'pick up croupiers in a box', 'kbd'], ['Enter / Esc', 'put a group down', 'kbd'],
           ['Q E A D Z C', 'point the active port NW NE W E SW SE, then the next', 'kbd'],
           ['X', 'active port to floor', 'kbd'], ['Tab', 'next port', 'kbd'], ['Ctrl+Z', 'undo', 'kbd'], ['Wheel / drag', 'zoom / pan the floor', 'kbd'], ['+ − 0', 'zoom in, out, fit', 'kbd'],
           ['Esc', 'cancel / deselect', 'kbd'], ['Right-click', 'remove a croupier', 'kbd']]

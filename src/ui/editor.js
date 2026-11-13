@@ -47,7 +47,7 @@ export function openEditor(root, ctx, level) {
   let anim = null, animRaf = 0;   // cards moving after a step: { from, start, dur, back }
   let watching = false;           // play mode: the palette and inspector are hidden, nothing is selected
   let pick = null;                // { at, side } the empty hex the croupier picker is open for
-  let lift = null;                // a group picked up to move or turn: { items: [{ key, cell }], copy }
+  let lift = null;                // a group picked up to move or turn: { items: [{ src, cell }] } (src: the croupier it was lifted from, null for a copy)
   let lastSide = 0;
   const undo = [], redo = [];
   let sim = null, testIndex = 0, playing = false, speed = 1, raf = 0, lastT = 0, acc = 0;
@@ -149,15 +149,13 @@ export function openEditor(root, ctx, level) {
     for (const [k, t] of listTexts) if (t.bad) listTexts.delete(k);
   }
   // With a group up, undo first puts it down where it is (so undo takes back
-  // the move, and redo brings it back); one that can't go there just goes back.
+  // the move, and redo brings it back).
   function undoStep() {
-    if (lift && liftClashes().size) { endLift(); return; }
-    settleLift();
+    placeLift();
     if (undo.length) { redo.push(editState()); restoreCells(undo.pop()); }
   }
   function redoStep() {
-    if (lift && liftClashes().size) { endLift(); return; }
-    settleLift();
+    placeLift();
     if (redo.length) { undo.push(editState()); restoreCells(redo.pop()); }
   }
   function changed({ keepInspector = false } = {}) {
@@ -209,7 +207,7 @@ export function openEditor(root, ctx, level) {
   // Place a croupier. Placed by an edge (`side`: tapped or dropped near one,
   // or the hovered edge), its first port points there.
   function place(toolName, at, side) {
-    settleLift();
+    placeLift();
     if (!board.isBuildable(at) || cellAt(hexKey(at))) return;
     commit(() => {
       const c = newCell(toolName, at, lastSide);
@@ -233,7 +231,7 @@ export function openEditor(root, ctx, level) {
   // Pick a palette tool (or none). Picking one shows its settings, so it
   // deselects the selected croupier.
   function setTool(name) {
-    if (name) { leavePlay(); settleLift(); closePicker(); }
+    if (name) { leavePlay(); placeLift(); closePicker(); }
     tool = name;
     if (name) { selected = null; activePort = null; dropDrafts(); }
     renderPalette(); renderBoard(); renderInspector();
@@ -259,7 +257,7 @@ export function openEditor(root, ctx, level) {
   }
   // Selecting a croupier starts at its first port.
   function select(key) {
-    if (key) settleLift();
+    if (key) placeLift();
     if (selected !== key) {
       closeRadial();
       selected = key;
@@ -344,7 +342,7 @@ export function openEditor(root, ctx, level) {
   // button leave it (and pause), keeping the run where it is.
   function enterPlay() {
     if (watching) return;
-    settleLift();
+    placeLift();
     watching = true;
     tool = null; selected = null; activePort = null; dropDrafts();
     closePicker();
@@ -719,7 +717,7 @@ export function openEditor(root, ctx, level) {
     const t = anim ? Math.min(1, (performance.now() - anim.start) / anim.dur) : 1;
     const lifted = lift ? lift.items.map((i) => i.cell) : [];
     board.render({
-      cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftClashes() } : null, pick,
+      cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftOff() } : null, pick,
       selected, activePort, hover, live, tool, drag: drag?.active && drag.kind !== 'box' && drag.kind !== 'group' ? drag : null,
       paidNow: live ? sim.paidNow : null, paidNowDesk: sim?.paidNowDesk, paidWrong: sim?.paidWrong,
       alert: sim?.status.kind === 'wrong' && desk ? hexKey(desk.at) : null,
@@ -872,13 +870,13 @@ export function openEditor(root, ctx, level) {
     if (lift) {
       const n = lift.items.length;
       inspector.replaceChildren(
-        h('h3', {}, `${lift.copy ? 'A copy of ' : ''}${n} croupier${n === 1 ? '' : 's'}`),
+        h('h3', {}, `${n} croupier${n === 1 ? '' : 's'}`),
         h('ul', { class: 'howto' },
-          h('li', {}, `Drag one of them to move them all. ${Tap()} a croupier to add it or leave it out.`),
-          h('li', {}, h('b', {}, '⟲ ⟳'), ' turn, ', h('b', {}, '⇋'), ' mirrors, ', h('b', {}, '⧉'), ' copies, ', h('b', {}, '🗑'), ' deletes.'),
-          h('li', {}, h('b', {}, '✓'), ' puts them down, ', h('b', {}, '✕'), ' puts them back.')),
+          h('li', {}, `Drag one of them to move them all. ${Tap()} a croupier to add it, or one of these to put it down.`),
+          h('li', {}, h('b', {}, '⟲ ⟳'), ' turn, ', h('b', {}, '⇋'), ' mirrors, ', h('b', {}, '⧉'), ' puts them down and picks up a copy, ', h('b', {}, '🗑'), ' deletes.'),
+          h('li', {}, h('b', {}, '✓'), ' or a tap elsewhere puts them down, in place of any croupier under them; red ones, off the floor, are deleted. Undo puts it all back.')),
         h('p', { class: 'keys kbd-only' }, h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'), ' move  ',
-          h('kbd', {}, '['), h('kbd', {}, ']'), ' turn  ', h('kbd', {}, 'M'), ' mirror  ', h('kbd', {}, 'Enter'), ' put down  ', h('kbd', {}, 'Esc'), ' put back  ', h('kbd', {}, 'Del'), ' delete'));
+          h('kbd', {}, '['), h('kbd', {}, ']'), ' turn  ', h('kbd', {}, 'M'), ' mirror  ', h('kbd', {}, 'Enter'), ' ', h('kbd', {}, 'Esc'), ' put down  ', h('kbd', {}, 'Del'), ' delete'));
       return;
     }
     let c = selCell();
@@ -1221,7 +1219,7 @@ export function openEditor(root, ctx, level) {
     const c = cellAt(key);
     const base = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId, slop: tapSlop(e), touch: e.pointerType !== 'mouse' };
     if (e.button === 2) {
-      if (lift) { endLift(); return; }
+      if (lift) { placeLift(); return; }
       if (tool) { setTool(null); return; }
       if (c) remove(key);
       return;
@@ -1233,7 +1231,7 @@ export function openEditor(root, ctx, level) {
     if (peekEl && e.pointerType !== 'mouse') { drag = { kind: 'pan', ...base, active: false, peek: true }; return; }
     if (lift) {
       const item = lift.items.find((i) => hexKey(i.cell.at) === key);
-      // On one of the group: a drag moves them all, a tap leaves it out.
+      // On one of the group: a drag moves them all, a tap puts it down.
       if (item) { drag = { kind: 'group', ...base, active: false, item, from: loc.at, start: lift.items.map((i) => [...i.cell.at]) }; return; }
       if (e.shiftKey) { drag = { kind: 'box', ...base, active: false }; return; }
       const other = staying().find((x) => hexKey(x.at) === key);
@@ -1408,7 +1406,7 @@ export function openEditor(root, ctx, level) {
     if (d.kind === 'box') {
       boxSel.className = 'box-select hidden';
       if (e.type !== 'pointerup') return;
-      if (!d.active && d.add) startLift([...(selected ? [selected] : []), d.add]); // a Shift-click
+      if (!d.active && d.add) liftMore([selected, d.add]); // a Shift-click
       else boxSelect(d);
       return;
     }
@@ -1421,7 +1419,7 @@ export function openEditor(root, ctx, level) {
       svg.classList.remove('panning');
       if (d.active) return;
       if (d.peek) { peekAt = { x: e.clientX, y: e.clientY, tap: true }; updatePeek(); return; }
-      if (d.add) { startLift([...(lift ? liftKeys() : selected ? [selected] : []), d.add]); return; }
+      if (d.add) { liftMore(lift ? [d.add] : [selected, d.add]); return; }
       if (d.putDown) { placeLift(); return; }
       if (d.assign !== undefined) { assign(d.assign); return; }
       if (d.place) { place(tool, d.place, d.side); return; }
@@ -1636,72 +1634,68 @@ export function openEditor(root, ctx, level) {
   // A box drawn on the floor (long press on the bare floor, then drag; or
   // Shift-drag with a mouse) picks up the croupiers in it. A picked-up group
   // floats: drag one of them to move them all, turn them, copy or delete
-  // them, then put them down (✓, Enter, or a tap elsewhere on the floor) or
-  // back (✕, Esc). Where they can't go they show red. Putting them down is
-  // one undo step.
-  const liftKeys = () => new Set(lift ? lift.items.map((i) => i.key) : []);
-  // The croupiers left where they were.
-  const staying = () => (lift && !lift.copy ? cells.filter((c) => !liftKeys().has(hexKey(c.at))) : cells);
-  // Lifted croupiers' hexes that are off the floor or taken.
-  function liftClashes() {
-    const taken = new Set(staying().map((c) => hexKey(c.at)));
-    return new Set(lift.items.map((i) => i.cell.at).filter((at) => !board.isBuildable(at) || taken.has(hexKey(at))).map(hexKey));
+  // them; a tap on one of them puts that one down, a tap on another croupier
+  // adds it. Put down (✓, Enter, Esc, a tap elsewhere on the floor, or doing
+  // anything else), they take the place of any croupier under them; any off
+  // the floor (shown red) are deleted. There is no putting them back but
+  // undo: putting them down is one undo step.
+  // The croupiers left where they were (not the ones picked up).
+  function staying() {
+    if (!lift) return cells;
+    const srcs = new Set(lift.items.map((i) => i.src));
+    return cells.filter((c) => !srcs.has(c));
   }
-  function startLift(keys) {
-    const have = new Map((lift?.items ?? []).map((i) => [i.key, i]));
-    const items = [...new Set(keys)].filter((k) => cellAt(k)).map((k) => have.get(k) ?? { key: k, cell: structuredClone(cellAt(k)) });
-    if (!items.length) { endLift(); return; }
+  const liftHexes = () => new Set(lift.items.map((i) => hexKey(i.cell.at)));
+  // Picked-up croupiers' hexes that are off the floor: they are deleted when put down.
+  const liftOff = () => new Set(lift.items.map((i) => i.cell.at).filter((at) => !board.isBuildable(at)).map(hexKey));
+  // Pick up these croupiers (hex keys; any missing are skipped), adding them
+  // to the group already up.
+  function liftMore(keys) {
+    const items = [...(lift?.items ?? [])];
+    const have = new Set(items.map((i) => i.src));
+    const covered = lift ? liftHexes() : new Set();
+    for (const k of keys) {
+      const src = k && cellAt(k);
+      if (!src || have.has(src) || covered.has(k)) continue;
+      have.add(src);
+      items.push({ src, cell: structuredClone(src) });
+    }
+    if (!items.length) return;
     leavePlay(); resetSim(); closePicker(); closeRadial();
-    lift = { items, copy: lift?.copy ?? false };
+    lift = { items };
     tool = null; selected = null; activePort = null; dropDrafts();
     renderAll();
   }
-  function endLift() { lift = null; renderAll(); }
   // The same croupiers, in any order.
   const sameCells = (a, b) => JSON.stringify(a.map((c) => JSON.stringify(c)).sort()) === JSON.stringify(b.map((c) => JSON.stringify(c)).sort());
-  // Put the group down where it is, as one undo step (none if it hasn't moved).
-  function putDown(next) { if (!sameCells(next, cells)) commit(() => { cells = next; }); }
-  // A tap on one of the group leaves it out, where it is (so only where it
-  // fits). Of a group picked up, the rest go down where they are too (staying
-  // up): so all of it must fit. Of a floating copy, the rest still float.
-  function dropMember(item) {
-    const rest = lift.items.filter((i) => i !== item);
-    if (lift.copy) {
-      if (liftClashes().has(hexKey(item.cell.at))) return;
-      lift = null;
-      putDown([...cells, item.cell]);
-      if (rest.length) lift = { copy: true, items: rest };
-    } else {
-      if (liftClashes().size) return;
-      const next = [...staying(), ...lift.items.map((i) => i.cell)];
-      lift = null;
-      putDown(next);
-      if (rest.length) lift = { copy: false, items: rest.map((i) => ({ key: hexKey(i.cell.at), cell: structuredClone(i.cell) })) };
-    }
-    renderAll();
+  // Put down these of the group where they are, as one undo step (none if
+  // nothing changes): each in place of whatever croupier is under it, or
+  // deleted off the floor. The rest stay up. One put down where another of
+  // the group was picked up from takes that hex: the other, still up, is
+  // then a new croupier (as a copy is).
+  function putDown(items) {
+    const hexes = new Set(items.map((i) => hexKey(i.cell.at)));
+    const going = new Set(items.map((i) => i.src));
+    const rest = lift.items.filter((i) => !items.includes(i));
+    for (const i of rest) if (i.src && hexes.has(hexKey(i.src.at))) i.src = null;
+    const next = [
+      ...cells.filter((c) => !going.has(c) && !hexes.has(hexKey(c.at))),
+      ...items.map((i) => i.cell).filter((c) => board.isBuildable(c.at)),
+    ];
+    lift = rest.length ? { items: rest } : null;
+    if (!sameCells(next, cells)) commit(() => { cells = next; });
+    else renderAll();
   }
-  function placeLift() {
-    if (!lift || liftClashes().size) return;
-    const before = cells, next = [...staying(), ...lift.items.map((i) => i.cell)];
-    lift = null;
-    putDown(next);
-    if (cells === before) renderAll();
-  }
-  // Doing something else with a group up (picking a croupier from the
-  // palette, selecting one, placing one, playing, undo) puts it down where it
-  // is (a floating copy too). Only if it can't go there does it go back, as
-  // ✕ would.
-  function settleLift() {
-    if (!lift) return;
-    if (liftClashes().size) lift = null;
-    else placeLift();
-  }
+  // A tap on one of the group puts it down.
+  function dropMember(item) { putDown([item]); }
+  // Put the whole group down (with any other action, too).
+  function placeLift() { if (lift) putDown(lift.items); }
   function deleteLift() {
     if (!lift) return;
-    if (lift.copy) { endLift(); return; }
     const keep = staying();
     lift = null;
-    commit(() => { cells = keep; });
+    if (keep.length !== cells.length) commit(() => { cells = keep; });
+    else renderAll();
   }
   const shiftLift = (dq, dr) => { for (const { cell } of lift.items) cell.at = [cell.at[0] + dq, cell.at[1] + dr]; };
   function moveLift(dq, dr) { shiftLift(dq, dr); renderAll(); }
@@ -1715,23 +1709,23 @@ export function openEditor(root, ctx, level) {
   }
   const turnLift = (k) => transformLift((at, p) => rotateAt(at, p, k), (c) => rotateCell(c, k));
   const mirrorLift = () => transformLift(mirrorAt, mirrorCell);
-  // Copy: put the group down where it is (as ✓ does, so only where it
-  // fits), and float a copy of it, nudged to the nearest place it fits; again
-  // and again, to stamp out more.
+  // Copy: put the group down where it is (as ✓ does), and pick up a copy of
+  // it, nudged to the nearest place where it is all on the floor and covers
+  // no croupier (if there is one near); again and again, to stamp out more.
   function copyLift() {
-    if (!lift || liftClashes().size) return;
-    const keep = staying(), placed = lift.items.map((i) => i.cell);
-    const copies = placed.map((c) => structuredClone(c));
-    lift = null;
-    putDown([...keep, ...placed]);
-    lift = { copy: true, items: copies.map((c) => ({ key: hexKey(c.at), cell: c })) };
-    if (liftClashes().size) {
-      nudge: for (let dist = 1; dist <= 6; dist++) {
-        for (const [dq, dr] of DIRS) {
-          shiftLift(dq * dist, dr * dist);
-          if (!liftClashes().size) break nudge;
-          shiftLift(-dq * dist, -dr * dist);
-        }
+    if (!lift) return;
+    const copies = lift.items.map((i) => ({ src: null, cell: structuredClone(i.cell) }));
+    placeLift();
+    lift = { items: copies };
+    const fits = () => {
+      const taken = new Set(cells.map((c) => hexKey(c.at)));
+      return lift.items.every((i) => board.isBuildable(i.cell.at) && !taken.has(hexKey(i.cell.at)));
+    };
+    nudge: for (let dist = 1; dist <= 6; dist++) {
+      for (const [dq, dr] of DIRS) {
+        shiftLift(dq * dist, dr * dist);
+        if (fits()) break nudge;
+        shiftLift(-dq * dist, -dr * dist);
       }
     }
     renderAll();
@@ -1754,18 +1748,14 @@ export function openEditor(root, ctx, level) {
     barButton({ title: 'Turn anticlockwise ([)', 'data-act': 'ccw' }, '⟲', () => turnLift(-1)),
     barButton({ title: 'Turn clockwise (])', 'data-act': 'cw' }, '⟳', () => turnLift(1)),
     barButton({ title: 'Mirror left to right (M)', 'data-act': 'mirror' }, '⇋', () => mirrorLift()),
-    barButton({ title: 'Put them down here, and copy them', 'data-act': 'copy' }, '⧉', () => copyLift()),
+    barButton({ title: 'Put them down here, and pick up a copy', 'data-act': 'copy' }, '⧉', () => copyLift()),
     barButton({ title: 'Delete them (Delete)', 'data-act': 'delete' }, '🗑', () => deleteLift()),
-    barButton({ title: 'Put them back (Esc)', 'data-act': 'cancel' }, '✕', () => endLift()),
     barButton({ class: 'ok', title: 'Put them down here (Enter)', 'data-act': 'place' }, '✓', () => placeLift()));
   function renderLiftBar() {
     liftBar.classList.toggle('hidden', !lift);
     if (!lift) return;
-    const bad = liftClashes().size > 0;
-    liftBar.querySelector('.lift-n').textContent = `${lift.copy ? 'Copy of ' : ''}${lift.items.length} croupier${lift.items.length === 1 ? '' : 's'}`;
-    liftBar.querySelector('[data-act="place"]').disabled = bad;
-    liftBar.querySelector('[data-act="copy"]').disabled = bad;
-    liftBar.classList.toggle('bad', bad);
+    liftBar.querySelector('.lift-n').textContent = `${lift.items.length} croupier${lift.items.length === 1 ? '' : 's'}`;
+    liftBar.classList.toggle('bad', liftOff().size > 0);
   }
   // The box being drawn, in client coordinates.
   function showMarquee(d) {
@@ -1780,12 +1770,13 @@ export function openEditor(root, ctx, level) {
     const m = svg.getScreenCTM();
     if (!m) return;
     const [x0, x1] = [Math.min(d.x0, d.x), Math.max(d.x0, d.x)], [y0, y1] = [Math.min(d.y0, d.y), Math.max(d.y0, d.y)];
+    // (Not those under the group: they are hidden.)
+    const covered = lift ? liftHexes() : new Set();
     const inBox = staying().filter((c) => {
       const p = new DOMPoint(...center(c.at)).matrixTransform(m);
-      return p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1;
+      return p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && !covered.has(hexKey(c.at));
     }).map((c) => hexKey(c.at));
-    const add = [...(d.seed ? [d.seed] : []), ...inBox].filter((k) => !liftKeys().has(k));
-    if (add.length) startLift([...liftKeys(), ...add]);
+    liftMore([d.seed, ...inBox]);
   }
   // A long press (off the selected croupier's edges) starts a box, taking
   // in the croupier pressed on (`seed`), if any. On a touch screen: a mouse
@@ -1833,10 +1824,9 @@ export function openEditor(root, ctx, level) {
     if (lower === 'f') { speed = (speed + 1) % SPEEDS.length; renderTransport(); return; }
     if (lower === 'h') { ctx.help(); return; }
     // A picked-up group: direction keys move it a hex, [ ] turn it, Enter
-    // puts it down, Esc puts it back, Delete deletes it.
+    // or Esc puts it down, Delete deletes it.
     if (lift) {
-      if (k === 'Escape') endLift();
-      else if (k === 'Enter') placeLift();
+      if (k === 'Escape' || k === 'Enter') placeLift();
       else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); deleteLift(); }
       else if (k === '[' || k === ']') turnLift(k === ']' ? 1 : -1);
       else if (lower === 'm') mirrorLift();
