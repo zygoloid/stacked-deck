@@ -824,8 +824,9 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .desk-sign { font: 800 13px var(--serif); fill: #3a2a05; }
 .paid-badge { fill: #1f7a45; stroke: #fff; stroke-width: 1.2; }
 .paid-badge-t { font-size: 9px; font-weight: 800; fill: #fff; }
-.cell.alert .hex { animation: alert 0.9s ease-in-out infinite alternate; }
-@keyframes alert { from { stroke: #fff; stroke-width: 2; } to { stroke: var(--bad); stroke-width: 5; } }
+/* Only the ring's opacity changes: nothing is laid out or restyled per frame. */
+.alert-ring { fill: none; stroke: var(--bad); stroke-width: 5; pointer-events: none; animation: alert 0.9s ease-in-out infinite alternate; }
+@keyframes alert { from { opacity: 1; } to { opacity: 0.2; } }
 
 .port-line { stroke-width: 2.6; stroke-linecap: round; opacity: 0.95; }
 .port-head { stroke: rgba(0, 0, 0, 0.55); stroke-width: 0.8; stroke-linejoin: round; }
