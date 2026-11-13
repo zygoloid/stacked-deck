@@ -15,7 +15,7 @@
 // entry makes it NEx2), so the shorthand is learned by watching the field.
 import { h, cardEl, SPECIAL_FACE } from './dom.js';
 import {
-  readList, tokenAt, setCount, removeRange, moveToken, ungroup, wrapGroup, tapEntry, cardTextOf, SIDE_TEXT, SIDE_ARROWS,
+  readList, tokenAt, setCount, removeRange, moveToken, ungroup, wrapGroup, tapEntry, padSpecials, isLoneSpecial, isPadded, SIDE_TEXT, SIDE_ARROWS,
 } from './listtext.js';
 
 // One colour per side, E round to NE (the painted Deal list and its pad).
@@ -52,14 +52,18 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
     const m = /^(\s*)([xX×*])(.*)$/s.exec(t.text.slice(t.be - t.s));
     return h('span', { class: 'lf-n' }, m[1], glyph('×'), m[3]);
   }
-  function cardPart(str) { // "KH", "10h", "K♥", "$$", or a bare rank (the "A" of "A-KH")
-    if (SPECIAL_FACE[str]) return h('span', { class: `lf-card ${str[0] === '$' ? 'ad' : 'joker'}` }, str);
-    if (/^(10|[A2-9TJQK])$/i.test(str)) return h('span', { class: 'lf-card' }, str);
+  // A rank: T is drawn as a small 10 in one character's width.
+  const rankPart = (r) => (/^t$/i.test(r) ? h('span', { class: 'g ten' }, h('i', {}, '1'), h('i', {}, '0')) : r);
+  // A card: "KH", "10h", "K♥", "$$", or a bare rank (the "A" of "A-KH");
+  // `lead`: the space in front of a one-character card, drawn as part of it.
+  function cardPart(str, lead = '') {
+    if (SPECIAL_FACE[str]) return h('span', { class: `lf-card ${str[0] === '$' ? 'ad' : 'joker'}` }, lead + str);
+    if (/^(10|[A2-9TJQK])$/i.test(str)) return h('span', { class: 'lf-card' }, rankPart(str));
     const suit = str.at(-1);
     const s = { '♠': 'S', '♥': 'H', '♦': 'D', '♣': 'C' }[suit] ?? suit.toUpperCase();
-    return h('span', { class: `lf-card${s === 'H' || s === 'D' ? ' red' : ''}` }, str.slice(0, -1), glyph(SUIT_GLYPH[s]));
+    return h('span', { class: `lf-card${s === 'H' || s === 'D' ? ' red' : ''}` }, rankPart(str.slice(0, -1)), glyph(SUIT_GLYPH[s]));
   }
-  function tokenEl(t, i) {
+  function tokenEl(t, i, lead) {
     const entry = t.text.slice(0, t.be - t.s);
     let body;
     if (t.kind === 'bad' || t.val === null) body = h('span', { class: 'lf-bad' }, t.text);
@@ -68,10 +72,10 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
     else if (t.val.t === 'deck') body = [h('span', { class: 'lf-deck' }, entry), countPart(t)];
     else if (t.val.t === 'run' && entry.includes('-')) {
       const k = entry.indexOf('-');
-      body = [cardPart(entry.slice(0, k)), h('span', { class: 'lf-dash' }, '-'), cardPart(entry.slice(k + 1)), countPart(t)];
+      body = [cardPart(entry.slice(0, k)), h('span', { class: 'lf-dash' }, glyph('–')), cardPart(entry.slice(k + 1)), countPart(t)];
     } else if (t.val.t === 'run') {
       body = [h('span', { class: `lf-card${t.val.s === 'H' || t.val.s === 'D' ? ' red' : ''}` }, glyph(SUIT_GLYPH[t.val.s])), countPart(t)];
-    } else body = [cardPart(entry), countPart(t)];
+    } else body = [cardPart(entry, lead), countPart(t)];
     const el = h('span', { class: `lf-tok${t.err ? ' err' : ''}`, 'data-t': i, title: t.err ?? undefined }, body);
     return el;
   }
@@ -80,7 +84,13 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
     ({ toks, list, error } = readList(kind, text, { specials }));
     const out = [];
     let pos = 0;
-    toks.forEach((t, i) => { if (t.s > pos) out.push(text.slice(pos, t.s)); out.push(tokenEl(t, i)); pos = t.e; });
+    toks.forEach((t, i) => {
+      // A padded one-character card takes its space into its face.
+      const lead = !deal && isLoneSpecial(t) && isPadded(text, t.s) ? ' ' : '';
+      if (t.s - lead.length > pos) out.push(text.slice(pos, t.s - lead.length));
+      out.push(tokenEl(t, i, lead));
+      pos = t.e;
+    });
     out.push(text.slice(pos));
     // A last empty line still takes a line's height in the textarea.
     if (!text || text.endsWith('\n')) out.push('​');
@@ -147,8 +157,11 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
     renderStatus();
     onEdit?.({ text: ta.value, caret: at, list, typed });
   }
+  // An edit by the pad or a tool (typing is left as typed): one-character
+  // cards get their space, so they draw as wide as the rest.
   function apply(fn) {
-    const next = fn();
+    let next = fn();
+    if (next && !deal) next = padSpecials(next.text, next.caret);
     if (next && (next.text !== ta.value || next.caret !== at)) setText(next);
   }
   function setMode(m) {
@@ -208,7 +221,7 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
       }, SUIT_GLYPH[s]));
       for (const r of RANKS) {
         const face = cardEl(r + s, 'lf-key');
-        grid.push(h('button', { class: face.className, title: cardTextOf(r + s), 'data-card': r + s, onpointerdown: noFocus, onclick: tap(cardTextOf(r + s)) }, ...face.childNodes));
+        grid.push(h('button', { class: face.className, title: `${r === 'T' ? '10' : r}${SUIT_GLYPH[s]}`, 'data-card': r + s, onpointerdown: noFocus, onclick: tap(r + s) }, ...face.childNodes));
       }
     }
     pad = h('div', { class: 'lf-pad shoe' },

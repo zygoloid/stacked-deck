@@ -8,7 +8,7 @@ import { readdirSync } from 'node:fs';
 import { ALL_LEVELS } from '../src/ui/catalog.js';
 import { MAX_DECK, MAX_DEAL_SIDES } from '../src/score.js';
 import {
-  readList, formatList, lexList, tokenAt, insertAt, removeRange, setCount, moveToken, ungroup, wrapGroup, tapEntry, NEW_DECK,
+  readList, formatList, lexList, padSpecials, tokenAt, insertAt, removeRange, setCount, moveToken, ungroup, wrapGroup, tapEntry, NEW_DECK,
 } from '../src/ui/listtext.js';
 
 const ALL_SPECIALS = ['?', '??', '$', '$$'];
@@ -39,9 +39,11 @@ for (const list of [['AS'], NEW_DECK, ['TH', 'TH'], ['$', '?', '??', '$$'], ['KS
 // The shortest form.
 assert.strictEqual(formatList('deal', [1, ...R(5, 25), 2, ...R(5, 11), 1, ...R(5, 13)]), 'SE NEx25 SW NEx11 SE NEx13');
 assert.strictEqual(formatList('deal', [1, 3, 1, 1, 3, 1, 1, 3, 1, 1, 3, 1, 1, 3, 1, 1]), '(SE W SE)x5 SE');
-assert.strictEqual(formatList('shoe', [...R('KH', 12), 'TC']), 'KHx12 10C');
+assert.strictEqual(formatList('shoe', [...R('KH', 12), 'TC']), 'KHx12 TC');
+// Every card two characters wide: a lone ? or $ gets a space of its own.
+assert.strictEqual(formatList('shoe', ['$', 'AS', '?', '?', '??', '$$']), ' $ AS  ?x2 ?? $$');
 assert.strictEqual(formatList('shoe', NEW_DECK), 'deck');
-assert.strictEqual(formatList('shoe', ['S', 'D', 'C', 'H'].flatMap((s) => 'A23456789TJQK'.split('').map((r) => r + s)).concat('?')), 'AS-KS\nAD-KD\nAC-KC\nAH-KH\n?');
+assert.strictEqual(formatList('shoe', ['S', 'D', 'C', 'H'].flatMap((s) => 'A23456789TJQK'.split('').map((r) => r + s)).concat('?')), 'AS-KS\nAD-KD\nAC-KC\nAH-KH\n ?');
 
 // Reading the shorthand.
 const deal = (t) => read('deal', t).list;
@@ -84,6 +86,9 @@ assert.deepStrictEqual(insertAt('NE SW', 2, 'E'), { text: 'NE E SW', caret: 4 })
 assert.deepStrictEqual(insertAt('(NE)', 1, 'E'), { text: '(E NE)', caret: 2 });
 assert.deepStrictEqual(removeRange('NE E SW', 3, 4), { text: 'NE SW', caret: 3 });
 assert.deepStrictEqual(removeRange('NE\nE SW', 3, 4), { text: 'NE\nSW', caret: 3 });
+assert.deepStrictEqual(removeRange('KH  $ QC', 4, 5), { text: 'KH QC', caret: 3 }); // and its padding
+assert.deepStrictEqual(padSpecials('$ KH $ (?) $$', 6), { text: ' $ KH  $ ( ?) $$', caret: 8 });
+assert.deepStrictEqual(padSpecials(' $ KH  $', 0), { text: ' $ KH  $', caret: 0 });
 assert.deepStrictEqual(setCount('NE SWx3', lex('NE SWx3')[1], 1), { text: 'NE SW', caret: 5 });
 assert.deepStrictEqual(setCount('NE SW', lex('NE SW')[0], 4), { text: 'NEx4 SW', caret: 4 });
 assert.strictEqual(moveToken('NE SW E', lex('NE SW E')[0], 7).text, 'SW E NE');

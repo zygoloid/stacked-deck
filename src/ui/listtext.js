@@ -24,7 +24,6 @@ export function suitRun(s, a, b) {
 }
 export const NEW_DECK = [...suitRun('S', 'A', 'K'), ...suitRun('D', 'A', 'K'), ...suitRun('C', 'K', 'A'), ...suitRun('H', 'K', 'A')];
 const isNormal = (c) => typeof c === 'string' && c.length === 2 && RANKS.includes(c[0]) && SUITS.includes(c[1]);
-export const cardTextOf = (c) => (isNormal(c) && c[0] === 'T' ? `10${c[1]}` : c);
 
 // ---------- reading ----------
 // A token: { s, e, text, kind: 'item' | 'open' | 'close' | 'bad', be (where
@@ -153,10 +152,28 @@ function notACard(text, specials) {
 // ---------- writing ----------
 // A list in its shortest text: runs as NEx25, and a repeated stretch as a
 // group, (SE W SE)x5; a shoe's suit runs as AH-KH and a new deck as `deck`.
-// A deck sorted A–K by suit gets a line per suit.
+// A deck sorted A–K by suit gets a line per suit. Every card is two
+// characters wide, as the field draws them: TS for a ten, and " ?" and " $"
+// (see padSpecials).
 export function formatList(kind, list) {
-  return kind === 'deal' ? segments(list, dealSeg, 8).join(' ')
-    : segments(list, shoeSeg, 26).join(' ').replace(/AS-KS AD-KD AC-KC AH-KH( |$)/g, 'AS-KS\nAD-KD\nAC-KC\nAH-KH\n').trim();
+  if (kind === 'deal') return segments(list, dealSeg, 8).join(' ');
+  const text = segments(list, shoeSeg, 26).join(' ').replace(/AS-KS AD-KD AC-KC AH-KH( |$)/g, 'AS-KS\nAD-KD\nAC-KC\nAH-KH\n').trim();
+  return padSpecials(text, 0).text;
+}
+// A one-character card (? or $) has a space of its own in front of it, on
+// top of the one that separates it from the entry before, so it is drawn two
+// characters wide like the rest. isPadded: whether the token starting at `s`
+// has it.
+export const isLoneSpecial = (t) => t.kind === 'item' && t.val?.t === 'card' && (t.val.c === '?' || t.val.c === '$') && t.be - t.s === 1;
+export const isPadded = (text, s) => text[s - 1] === ' ' && (s === 1 || /[\s(]/.test(text[s - 2]));
+// The text with every one-character card padded (the caret kept with its text).
+export function padSpecials(text, caret) {
+  for (const t of lexList('shoe', text).reverse()) {
+    if (!isLoneSpecial(t) || isPadded(text, t.s)) continue;
+    text = `${text.slice(0, t.s)} ${text.slice(t.s)}`;
+    if (caret >= t.s) caret++;
+  }
+  return { text, caret };
 }
 // The entry at list[i] (and how many items it covers), without repeats.
 function dealSeg(list, i) {
@@ -172,12 +189,12 @@ function shoeSeg(d, i) {
     if (Math.abs(step) === 1) {
       let L = 2;
       while (isNormal(d[i + L]) && d[i + L][1] === d[i][1] && RANKS.indexOf(d[i + L][0]) - RANKS.indexOf(d[i + L - 1][0]) === step) L++;
-      if (L >= 3) best = { text: `${cardTextOf(d[i])}-${cardTextOf(d[i + L - 1])}`, len: L };
+      if (L >= 3) best = { text: `${d[i]}-${d[i + L - 1]}`, len: L };
     }
   }
   let r = 1;
   while (d[i + r] === d[i]) r++;
-  if (!best || r > best.len) best = { text: cardTextOf(d[i]) + (r > 1 ? `x${r}` : ''), len: r };
+  if (!best || r > best.len) best = { text: d[i] + (r > 1 ? `x${r}` : ''), len: r };
   return best;
 }
 function segments(list, seg, maxGroup) {
@@ -211,7 +228,7 @@ export function insertAt(text, off, str) {
 }
 // text[a..b) taken out, closing up the spaces either side.
 export function removeRange(text, a, b) {
-  let left = text.slice(0, a), right = text.slice(b);
+  let left = text.slice(0, a).replace(/(\S)[ \t]{2,}$/, '$1 '), right = text.slice(b);
   if (/[ \t]$/.test(left) && /^[ \t]/.test(right)) right = right.replace(/^[ \t]+/, '');
   if (!left.length || left.endsWith('\n')) right = right.replace(/^[ \t]+/, '');
   if (!right.length || right.startsWith('\n')) left = left.replace(/[ \t]+$/, '');

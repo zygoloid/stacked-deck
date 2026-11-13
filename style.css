@@ -672,12 +672,23 @@ svg.board.placing { cursor: copy; }
 .lf-back .g { display: inline-block; width: 1ch; text-align: center; }
 .lf-tok { white-space: pre; position: relative; }
 .lf-side { background: var(--c); color: #10241a; box-shadow: 0 0 0 2px var(--c); border-radius: 2px; text-transform: uppercase; }
-.lf-card { background: var(--card); color: #16181d; box-shadow: 0 0 0 2px var(--card); border-radius: 2px; text-transform: uppercase; }
+.lf-card {
+  /* a halo above and below, and only 1px at the sides, so a count or a run's dash next to it stays clear */
+  --cb: var(--card); background: var(--cb); color: #16181d; border-radius: 2px; text-transform: uppercase;
+  box-shadow: 0 0 0 1px var(--cb), 0 2px 0 var(--cb), 0 -2px 0 var(--cb);
+}
 .lf-card.red { color: var(--red); }
-.lf-card.ad { background: #dcf1d3; color: #1d6b3a; box-shadow: 0 0 0 2px #dcf1d3; }
-.lf-card.joker { background: #fff; color: #c2185b; box-shadow: 0 0 0 2px #fff; }
-.lf-n, .lf-par { color: var(--gold-2); }
-.lf-dash { color: var(--muted); }
+.lf-card.ad { --cb: #dcf1d3; color: #1d6b3a; }
+.lf-card.joker { --cb: #fff; color: #c2185b; }
+/* A ten in one character: a small 1 up and to the left of a small 0. */
+.lf-back .g.ten { position: relative; line-height: 1; }
+.lf-back .g.ten::before { content: '0'; visibility: hidden; }
+.lf-back .g.ten i { position: absolute; font-style: normal; font-size: 0.74em; line-height: 1; }
+.lf-back .g.ten i:first-child { left: -0.08em; top: -0.12em; }
+.lf-back .g.ten i:last-child { right: -0.1em; top: 0.32em; }
+/* Gold on cream or felt: outlined so it reads against either. */
+.lf-n, .lf-par, .lf-dash { color: var(--gold-2); text-shadow: -1px 0 #10241a, 1px 0 #10241a, 0 -1px #10241a, 0 1px #10241a; }
+.lf-dash { font-weight: 800; }
 .lf-deck { color: var(--gold-2); text-decoration: underline dotted var(--gold-soft); text-underline-offset: 3px; }
 .lf-bad, .lf-tok.err > * { color: #ffb3b3; background: none; box-shadow: none; text-decoration: underline wavy var(--bad); text-decoration-skip-ink: none; }
 .list-field.erasing .lf-back, .list-field.moving .lf-back { pointer-events: auto; z-index: 1; touch-action: none; user-select: none; -webkit-user-select: none; }
