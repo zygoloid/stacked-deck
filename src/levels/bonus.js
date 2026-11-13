@@ -1749,6 +1749,9 @@ export const LEVELS = [
         // queen, a king and an ace (runs through the king and the ace long
         // before every rank is in)
         one('KS AS 9D 2C 5H JD 3S 8C QH 6D TC 4H 7S QD KD AD 2S 3H 4C 5D 6C 7D 8S 9C TH JS'),
+        // every rank but the ace, which comes last (2 to K is already a
+        // straight); then a round that opens with an ace and a 2
+        one('7C 2D KS 5H 9S 3C JD 4S QH 8D TC 6S 7H AH AD 2S 9H 3D 8C 4C KD 5S TS 6H JC 7S QC'),
       ],
       nRandom: 4, seed: 202,
     }),
@@ -2345,7 +2348,7 @@ const PAR = {
   'no-kings': { croupiers: 13, rounds: 107 },
   'one-up': { croupiers: 16, rounds: 4076 },
   'twenty-one-card-trick': { croupiers: 14, rounds: 290 },
-  'round-the-clock': { croupiers: 20, rounds: 3139 },
+  'round-the-clock': { croupiers: 20, rounds: 3488 },
   'running-count': { croupiers: 22, rounds: 674 },
   'counterfeit': { croupiers: 25, rounds: 496 },
   'rank-and-file': { croupiers: 13, rounds: 5511 },
