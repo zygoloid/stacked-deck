@@ -520,6 +520,19 @@ export const MUTANTS = {
       }
       return out;
     },
+    // A machine that waits for its ranks to make a straight holding an ace
+    // and a king (Straight takes the ace high or low): a run up to the ace,
+    // [K A], [Q K A], ..., pays early.
+    'a run through the king and the ace': (t) => {
+      const out = [];
+      let firsts = new Map();
+      for (const [c] of t) {
+        if (!firsts.has(rankOf(c))) firsts.set(rankOf(c), c);
+        const hand = [...firsts.values()];
+        if (firsts.has('A') && firsts.has('K') && isStraight(hand)) { out.push(hand); firsts = new Map(); }
+      }
+      return out;
+    },
   },
   'pot-luck': {
     'no pot: ties pay nothing': potLuckBy({ pot: false }),

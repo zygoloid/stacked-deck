@@ -1745,6 +1745,10 @@ export const LEVELS = [
           '5D 5S 5H 6S 7S 8S 9S TS JS QS KS AS 2S 3S'),
         // never round: no 7s
         one('AS 2D 3C 4H 5S 6D 8C 9H TS JD QC KH AH AS KD 8S 2C'),
+        // the night opens with a king and an ace, and the next round with a
+        // queen, a king and an ace (runs through the king and the ace long
+        // before every rank is in)
+        one('KS AS 9D 2C 5H JD 3S 8C QH 6D TC 4H 7S QD KD AD 2S 3H 4C 5D 6C 7D 8S 9C TH JS'),
       ],
       nRandom: 4, seed: 202,
     }),
@@ -2341,7 +2345,7 @@ const PAR = {
   'no-kings': { croupiers: 13, rounds: 107 },
   'one-up': { croupiers: 16, rounds: 4076 },
   'twenty-one-card-trick': { croupiers: 14, rounds: 290 },
-  'round-the-clock': { croupiers: 20, rounds: 2793 },
+  'round-the-clock': { croupiers: 20, rounds: 3139 },
   'running-count': { croupiers: 22, rounds: 674 },
   'counterfeit': { croupiers: 25, rounds: 496 },
   'rank-and-file': { croupiers: 13, rounds: 5511 },
