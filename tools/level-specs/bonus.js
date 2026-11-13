@@ -461,19 +461,20 @@ function lookupRing(deck) {
   ];
   return { nodes, links };
 }
-// Every Twenty-One. Each card c of rank r becomes [c, r - 1 jokers]: r
-// cards, the card on top, so Hand(21) holds the night's running total (less
-// the 21s it has dealt) and deals a group of 21 each time the total reaches
-// another multiple of 21. The card that got it there is the one whose cards
-// include the group's last place, the last natural card in the group (every
-// group has one: no card is more than 13). Suits drops the jokers, Deal
-// turns the rest over, and Burn pays its top card.
-//  * The lookup: twelve cards of each rank, r - 1 of them hearts, and
-//    twelve jokers under the table: [?, r - 1 hearts, 12 jokers] with the
-//    card underneath is 13 + r cards, and Deal from place 13 on leaves r - 1
+// Every Twenty-One. Each card c worth v (its rank, picture cards 10) becomes
+// [c, v - 1 jokers]: v cards, the card on top, so Hand(21) holds the night's
+// running total (less the 21s it has dealt) and deals a group of 21 each
+// time the total reaches another multiple of 21. The card that got it there
+// is the one whose cards include the group's last place, the last natural
+// card in the group (every group has one: no card is worth more than 10).
+// Suits drops the jokers, Deal turns the rest over, and Burn pays its top
+// card.
+//  * The lookup: twelve cards of each rank, v - 1 of them hearts, and
+//    twelve jokers under the table: [?, v - 1 hearts, 12 jokers] with the
+//    card underneath is 13 + v cards, and Deal from place 13 on leaves v - 1
 //    jokers and the card, dealt last, so on top.
 export function everyTwentyOne() {
-  const { nodes, links } = lookupRing(lookupDeck({ count: (r) => r - 1, size: 12, jokers: 12 }));
+  const { nodes, links } = lookupRing(lookupDeck({ count: (r) => Math.min(r, 10) - 1, size: 12, jokers: 12 }));
   Object.assign(nodes, {
     SET: c([-1, 1], 'set'), B2: c([-1, 2], 'burn'), SU: c([-2, 2], 'suits', { out: { C: NW } }), GC: c([-2, 3], 'gather'),
     // places 0-12 go to a free side, onto the floor

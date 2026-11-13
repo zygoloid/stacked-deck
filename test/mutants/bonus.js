@@ -130,7 +130,8 @@ const runningTotal = (val, test) => (h, before) => {
 };
 const crossed = (n) => (s0, s1) => Math.floor(s1 / n) > Math.floor(s0 / n);
 // Hit Me: the total with aces 1 and picture cards 10.
-const blackjackOf = (h) => h.reduce((a, c) => a + Math.min(10, rv(c)), 0);
+const bj = (c) => Math.min(10, rv(c)); // a card in blackjack, the ace as 1
+const blackjackOf = (h) => h.reduce((a, c) => a + bj(c), 0);
 
 // Pot Luck and Follow Suit.
 // Pot Luck variants: `val` ranks the cards; a tie goes to player `tie` if
@@ -446,16 +447,16 @@ export const MUTANTS = {
     'the top card last': (t) => t.map(([x, ...rest]) => [...rest, x]),
   },
   'every-twenty-one': {
-    'exactly a multiple': runningTotal(rv, (s0, s1) => s1 % 21 === 0),
-    'strictly past': runningTotal(rv, (s0, s1) => Math.floor(s1 / 21) > Math.floor(s0 / 21) && s1 % 21 !== 0),
-    'picture cards 10': runningTotal((c) => Math.min(10, rv(c)), crossed(21)),
-    'aces high': runningTotal(hv, crossed(21)),
-    'every 20': runningTotal(rv, crossed(20)), 'every 22': runningTotal(rv, crossed(22)),
-    'the card after': (h, before) => before.length > 0 && runningTotal(rv, crossed(21))(last(before), before.slice(0, -1)),
+    'exactly a multiple': runningTotal(bj, (s0, s1) => s1 % 21 === 0),
+    'strictly past': runningTotal(bj, (s0, s1) => Math.floor(s1 / 21) > Math.floor(s0 / 21) && s1 % 21 !== 0),
+    'casino numbers (J 11, Q 12, K 13)': runningTotal(rv, crossed(21)),
+    'aces 11': runningTotal((c) => (rankOf(c) === 'A' ? 11 : bj(c)), crossed(21)),
+    'every 20': runningTotal(bj, crossed(20)), 'every 22': runningTotal(bj, crossed(22)),
+    'the card after': (h, before) => before.length > 0 && runningTotal(bj, crossed(21))(last(before), before.slice(0, -1)),
     'reset after paying': (h, before) => {
       let s = 0;
-      for (const [c] of before) { s += rv(c); if (s >= 21) s = 0; }
-      return s + rv(h[0]) >= 21;
+      for (const [c] of before) { s += bj(c); if (s >= 21) s = 0; }
+      return s + bj(h[0]) >= 21;
     },
   },
   'hit-me': {
