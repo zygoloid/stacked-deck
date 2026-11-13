@@ -212,6 +212,30 @@ function segments(list, seg, maxGroup) {
   return out;
 }
 
+// Each entry written as the pad writes it, keeping the player's spacing,
+// line breaks, groups and runs: upper case, TS for a ten, letters for suits,
+// side names for arrows, x3 for a count, and a lone ? or $ padded. An entry
+// with a mistake is left as it is. Returns { text, caret } (the caret kept
+// with the text around it).
+export function tidyText(kind, text, caret) {
+  for (const t of lexList(kind, text).reverse()) {
+    if (t.kind === 'bad' || t.kind === 'open' || (t.kind === 'item' && t.val == null)) continue;
+    const count = t.counted ? `x${t.n}` : '';
+    let entry;
+    if (t.kind === 'close') entry = ')';
+    else if (kind === 'deal') entry = SIDE_TEXT[t.val];
+    else if (t.val.t === 'card') entry = t.val.c;
+    else if (t.val.t === 'deck') entry = 'deck';
+    else entry = t.text.slice(0, t.be - t.s).includes('-') ? `${t.val.a}${t.val.s}-${t.val.b}${t.val.s}` : t.val.s;
+    const tidy = entry + count;
+    if (tidy === t.text) continue;
+    text = text.slice(0, t.s) + tidy + text.slice(t.e);
+    if (caret >= t.e) caret += tidy.length - t.text.length;
+    else if (caret > t.s) caret = t.s + tidy.length;
+  }
+  return kind === 'shoe' ? padSpecials(text, caret) : { text, caret };
+}
+
 // ---------- editing (each returns { text, caret }, or null for no change) ----------
 // The token the caret is in or touching (preferring the one it ends), or -1.
 export function tokenAt(toks, caret) {

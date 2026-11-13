@@ -1567,6 +1567,7 @@ try {
     // runs (AH-KH), whole suits and decks, repeated groups.
     await setDeck('AS\nKH\r\n10C x2');
     check(JSON.stringify(await savedDeck()) === JSON.stringify(['AS', 'KH', 'TC', 'TC']) && !(await page.$('.lf-status.bad')), `${lv.id}: a deck over several lines, with 10C x2`);
+    check(await page.inputValue('.lf-in') === 'AS\nKH\nTCx2', `leaving the field tidies it, keeping its lines ("${await page.inputValue('.lf-in')}")`);
     await setDeck('(2h-4h)x2 S deck');
     check((await savedDeck())?.length === 6 + 13 + 52, `${lv.id}: a deck with a repeated group, a suit and a new deck (${(await savedDeck())?.length} cards)`);
     // The pad: a suit button adds its run, a card twice is x2.
