@@ -908,7 +908,7 @@ try {
     check(JSON.stringify(await passCell()) === JSON.stringify(before), 'phone: one undo puts the group back as it was');
     // A long press on a croupier picks it up; held and dragged, a box grows
     // from it (so croupiers packed together can be picked up).
-    const btnX = async () => { const r = await phone.locator('.lift-bar [data-act="cancel"]').boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
+    const btnX = async () => { const r = await phone.locator('.lift-bar [data-act="place"]').boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
     await tap([box.x + 3, box.y + 3]);
     await touch('touchStart', [await hexAt(free[0])]);
     await phone.waitForTimeout(450);
@@ -1103,8 +1103,9 @@ try {
   // hex near an edge and pressing a number places that croupier pointing
   // there. Then groups: a Shift-drag box picks them up; ] turns them and M
   // mirrors them (positions and ports; facing is left alone, see
-  // test/transform.js); direction keys move them; they can't go down where
-  // they clash; copy, delete, a mouse drag; each put-down is one undo step.
+  // test/transform.js); direction keys move them; put down, they take the
+  // place of croupiers under them, and any off the floor are deleted; copy,
+  // delete, a mouse drag; each put-down is one undo step.
   // [ ] and M turn and mirror a single selected croupier.
   {
     // The first floor with these croupiers and room for the checks below.
@@ -1195,24 +1196,51 @@ try {
       findFn(cs, 'pass').out.out === 3 && findFn(cs, 'war').out.win === 1 && findFn(cs, 'war').dealer === (9 - findFn(orig, 'war').dealer) % 6,
     `M then Enter mirrors the group, positions and ports (${JSON.stringify(cs.map((c) => [c.fn, c.at, c.out]))})`);
     await page.keyboard.press('Control+z');
-    // Moved onto the player (west, a hex at a time): it shows red and won't go down there.
+    // Moved onto the player (west, a hex at a time): the ones off the floor
+    // show red; put down, they are deleted, and undo brings them back.
+    const south = ([q, r]) => [q, r + 1];
+    const ats = (list) => list.map((c) => c.at.join()).sort().join(' ');
+    const liftN = async () => (await page.textContent('.lift-bar').catch(() => '')).match(/^\d+/)?.[0];
+    const westToRed = async () => { for (let i = 0; !(await page.locator('.lift-bar.bad').count()) && i < 12; i++) await page.keyboard.press('a'); };
     await shiftBox();
-    let steps = 0;
-    while (!(await page.locator('.lift-bar.bad').count()) && steps++ < 12) await page.keyboard.press('a');
-    check(await page.locator('.lift-bar.bad').count() === 1 && await page.locator('.lift-bar [data-act="place"]').isDisabled() &&
-      await page.locator('.lift-bar [data-act="copy"]').isDisabled() &&
-      await page.locator('.board .cell.lifted.bad').count() > 0, 'moved where it clashes, the group shows red and ✓ is off');
+    await westToRed();
+    const reds = await page.locator('.board .cell.lifted.bad').count();
+    check(reds > 0 && await page.locator('.lift-bar.bad').count() === 1 && !(await page.locator('.lift-bar [data-act="place"]').isDisabled()),
+      `moved off the floor, those ones show red, and ✓ is still on (${reds} red)`);
     await page.keyboard.press('Enter');
-    check(await page.isVisible('.lift-bar'), 'Enter does nothing there');
+    cs = await cellsNow();
+    check(!(await page.isVisible('.lift-bar')) && cs.length === 3 - reds, `Enter puts the group down, deleting the red ones (${cs.length} croupiers left)`);
+    await page.keyboard.press('Control+z');
+    check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'and one undo brings it all back');
+    // Put down on another croupier, one takes its place.
+    await clickHex(row[0]);
     await page.keyboard.press('Escape');
-    check(!(await page.isVisible('.lift-bar')) && JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'Esc puts the group back');
-    // Copy: the copy floats off to the nearest place it fits.
+    await page.keyboard.down('Shift');
+    await clickHex(row[0]);
+    await page.keyboard.up('Shift');
+    await page.keyboard.press('d');
+    check(await liftN() === '1' && await page.locator('.lift-bar.bad').count() === 0, 'one croupier moved onto another is not red');
+    await page.keyboard.press('Escape');
+    cs = await cellsNow();
+    check(cs.length === 2 && cs.find(at(row[1]))?.fn === 'straight' && !cs.find(at(row[0])),
+      `Esc puts it down, in place of the croupier under it (${JSON.stringify(cs.map((c) => [c.fn, c.at]))})`);
+    await page.keyboard.press('Control+z');
+    check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'and undo brings that one back');
+    // Copy: the group goes down, and a copy of it is picked up, off to the
+    // nearest place it fits. It's an ordinary group: another croupier can be
+    // added to it and put down again.
     await shiftBox();
     await page.click('.lift-bar [data-act="copy"]');
-    const copyOk = !(await page.locator('.lift-bar [data-act="place"]').isDisabled());
+    check(await liftN() === '3' && await page.locator('.lift-bar.bad').count() === 0 && (await cellsNow()).length === 3, `⧉ picks up a copy (${await liftN()} croupiers up)`);
+    await clickHex(row[0]);
+    check(await liftN() === '4' && await page.locator('.lift-bar.bad').count() === 0 && await page.locator('.board .cell.lifted.bad').count() === 0,
+      `a croupier added to the copy goes up with it, not red (${await liftN()} croupiers up)`);
+    await clickHex(row[0]);
+    check(await liftN() === '3' && JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'and a tap on it puts it down again');
     await page.click('.lift-bar [data-act="place"]');
-    check(copyOk && (await cellsNow()).length === 6, `⧉ then ✓ copies the group (${(await cellsNow()).length} croupiers)`);
+    check((await cellsNow()).length === 6 && !(await page.isVisible('.lift-bar')), `⧉ then ✓ copies the group (${(await cellsNow()).length} croupiers)`);
     await page.keyboard.press('Control+z');
+    check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'one undo takes the copy away');
     // ⧉, then a croupier picked from the palette: the copy goes down where it floats.
     await shiftBox();
     await page.click('.lift-bar [data-act="copy"]');
@@ -1221,48 +1249,47 @@ try {
       `⧉, then a croupier picked from the palette: the copy goes down (${(await cellsNow()).length} croupiers)`);
     await page.keyboard.press('Escape');
     await page.keyboard.press('Control+z');
-    // Moved, then copied: put down where it was moved to (not back where it
-    // came from), with a copy floating; ⧉ again stamps another.
+    // Moved, then copied: put down where it was moved to, with a copy up;
+    // ⧉ again stamps another; Delete deletes just the copy up.
     {
       await shiftBox();
       await page.keyboard.press('c'); // a hex south-east
       await page.click('.lift-bar [data-act="copy"]');
       const placed = await cellsNow();
-      const movedTo = row.map(([q, r]) => `${q},${r + 1}`).sort().join(' ');
-      check(placed.length === 3 && placed.map((c) => c.at.join()).sort().join(' ') === movedTo && /Copy of 3/.test(await page.textContent('.lift-bar')),
-        `moved then ⧉: the group goes down where it was moved, and a copy floats (${placed.map((c) => c.at.join()).join(' ')})`);
+      check(ats(placed) === ats(row.map((x) => ({ at: south(x) }))) && await liftN() === '3',
+        `moved then ⧉: the group goes down where it was moved, and a copy is up (${ats(placed)})`);
       await page.click('.lift-bar [data-act="copy"]');
-      check((await cellsNow()).length === 6 && /Copy of 3/.test(await page.textContent('.lift-bar')), `⧉ again stamps another copy (${(await cellsNow()).length} croupiers)`);
-      await page.keyboard.press('Escape');
-      check((await cellsNow()).length === 6 && !(await page.isVisible('.lift-bar')), 'Esc drops the floating copy, keeping the ones put down');
+      check((await cellsNow()).length === 6 && await liftN() === '3', `⧉ again stamps another copy (${(await cellsNow()).length} croupiers)`);
+      await page.keyboard.press('Delete');
+      check((await cellsNow()).length === 6 && !(await page.isVisible('.lift-bar')), 'Delete deletes the copy that is up, keeping the ones put down');
       await page.keyboard.press('Control+z');
       await page.keyboard.press('Control+z');
       check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'two undos put it all back');
     }
-    // Leaving one out (a click on it): it stays where the group was moved
-    // to; the rest go down there too, still picked up. Not where it clashes.
+    // A tap on one of the group puts just that one down, where it is; the
+    // rest stay up. A red one tapped is deleted.
     {
-      const south = ([q, r]) => [q, r + 1];
       await shiftBox();
       await page.keyboard.press('c');
       await clickHex(south(row[0]));
-      const now = await cellsNow();
-      check(now.map((c) => c.at.join()).sort().join(' ') === row.map((x) => south(x).join()).sort().join(' ') &&
-        /^2 croupiers/.test(await page.textContent('.lift-bar')),
-        `moved, then one left out: it stays where it was moved to, the rest still up (${now.map((c) => c.at.join()).join(' ')})`);
+      let now = await cellsNow();
+      check(now.length === 3 && now.find(at(south(row[0])))?.fn === 'straight' && now.find(at(row[1])) && now.find(at(row[2])) && await liftN() === '2',
+        `moved, then one tapped: it goes down where it was moved to, the rest still up (${ats(now)})`);
       await page.keyboard.press('Escape');
-      check(JSON.stringify(await cellsNow()) === JSON.stringify(now), 'Esc then leaves the rest there too');
+      now = await cellsNow();
+      check(ats(now) === ats(row.map((x) => ({ at: south(x) }))), `Esc then puts the rest down there too (${ats(now)})`);
       await page.keyboard.press('Control+z');
-      check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'one undo puts them back');
+      await page.keyboard.press('Control+z');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'two undos put them back');
       // Moved, then a croupier picked from the palette: the group goes down
-      // where it was moved to, not back. Where it clashes, it goes back.
+      // where it was moved to.
       await shiftBox();
       await page.keyboard.press('c');
       await page.click('.pal-item[data-tool="pass"]');
       const left = await cellsNow();
       check(!(await page.isVisible('.lift-bar')) && await page.locator('.pal-item.on[data-tool="pass"]').count() === 1 &&
-        left.map((c) => c.at.join()).sort().join(' ') === row.map((x) => south(x).join()).sort().join(' '),
-        `moved, then a croupier picked from the palette: the group stays where it was moved to (${left.map((c) => c.at.join()).join(' ')})`);
+        ats(left) === ats(row.map((x) => ({ at: south(x) }))),
+        `moved, then a croupier picked from the palette: the group stays where it was moved to (${ats(left)})`);
       await page.keyboard.press('Escape');
       await page.keyboard.press('Control+z');
       check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'one undo puts them back');
@@ -1274,30 +1301,27 @@ try {
       await page.keyboard.press('Control+y');
       check(undone && JSON.stringify(await cellsNow()) === JSON.stringify(left), 'moved, then undo takes back just the move, and redo brings it back');
       await page.keyboard.press('Control+z');
+      // A red one tapped is deleted; the rest stay up.
       await shiftBox();
-      for (let i = 0; !(await page.locator('.lift-bar.bad').count()) && i < 12; i++) await page.keyboard.press('a');
-      await page.click('.pal-item[data-tool="pass"]');
-      check(!(await page.isVisible('.lift-bar')) && JSON.stringify(await cellsNow()) === JSON.stringify(orig),
-        'moved where it clashes, then a croupier picked from the palette: the group goes back');
-      await page.keyboard.press('Escape');
-      await shiftBox();
-      let n = 0;
-      while (!(await page.locator('.lift-bar.bad').count()) && n++ < 12) await page.keyboard.press('a');
+      await westToRed();
       const red = await page.locator('.board .cell.lifted.bad').first().getAttribute('data-at');
       await clickHex(red.split(',').map(Number));
-      check(/^3 croupiers/.test(await page.textContent('.lift-bar')) && JSON.stringify(await cellsNow()) === JSON.stringify(orig),
-        'one can\'t be left out where it clashes');
-      await page.keyboard.press('Escape');
-      // Of a floating copy, one left out goes down; the rest still float.
+      check(await liftN() === '2' && (await cellsNow()).length === 2, `a red one tapped is deleted (${await liftN()} still up, ${(await cellsNow()).length} on the floor)`);
+      await page.keyboard.press('Delete');
+      await page.keyboard.press('Control+z');
+      await page.keyboard.press('Control+z');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'and undo brings it back');
+      // Of a copy, one tapped goes down; the rest stay up.
       await shiftBox();
       await page.click('.lift-bar [data-act="copy"]');
       const k = await page.locator('.board .cell.lifted').first().getAttribute('data-at');
       await clickHex(k.split(',').map(Number));
-      check((await cellsNow()).length === 4 && /Copy of 2/.test(await page.textContent('.lift-bar')), `one left out of a copy goes down (${(await cellsNow()).length} croupiers)`);
+      check((await cellsNow()).length === 4 && await liftN() === '2', `one of a copy tapped goes down (${(await cellsNow()).length} croupiers)`);
       await page.keyboard.press('Escape');
-      check((await cellsNow()).length === 4, 'Esc drops the rest of the copy');
+      check((await cellsNow()).length === 6, 'Esc puts the rest of the copy down');
       await page.keyboard.press('Control+z');
-      check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'and undo takes the one out');
+      await page.keyboard.press('Control+z');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(orig), 'and two undos take them away');
     }
     // A mouse drag on one of them moves them all.
     await shiftBox();
@@ -1308,10 +1332,9 @@ try {
     await page.mouse.down();
     await page.mouse.move(tx, ty, { steps: 6 });
     await page.mouse.up();
-    const movedOk = !(await page.locator('.lift-bar [data-act="place"]').isDisabled());
-    if (movedOk) await page.click('.lift-bar [data-act="place"]'); else await page.keyboard.press('Escape');
+    await page.click('.lift-bar [data-act="place"]');
     cs = await cellsNow();
-    check(movedOk && findFn(cs, 'pass').at.join() === dest.join() && findFn(cs, 'straight').at.join() === [row[0][0], row[0][1] + 1].join(),
+    check(findFn(cs, 'pass').at.join() === dest.join() && findFn(cs, 'straight').at.join() === [row[0][0], row[0][1] + 1].join(),
       `dragging one of the group moves them all (${JSON.stringify(cs.map((c) => c.at))})`);
     await page.keyboard.press('Control+z');
     // Delete.
