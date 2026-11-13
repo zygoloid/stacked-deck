@@ -238,6 +238,11 @@ export class Board {
       const t = `translate(${x.toFixed(2)},${y.toFixed(2)})`;
       const selected = state.selected === k;
       const body = this.bodySvg(cell, t, selected, state.alert === k, live);
+      // The alert (the desk after a wrong payout): a red ring over the hex
+      // whose opacity pulses. (Animating the hex's own stroke width made the
+      // page lay itself out again every frame, which on a phone made a long
+      // page, the payout lists of 21-card hands, lag for seconds.)
+      if (state.alert === k) body.append(s('polygon', { class: 'alert-ring', points: HEX }));
       // A picked-up group floats over the floor, red where it can't go.
       if (state.lifted?.cells.has(cell)) body.classList.add('lifted', ...(state.lifted.bad.has(k) ? ['bad'] : []));
       gBody.append(body);
