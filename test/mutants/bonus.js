@@ -122,6 +122,18 @@ const crazy = ({ first = true, eights = true, rank = true, suit = true, played =
 };
 const isBlackjack = (h) => h.some((c) => c[0] === 'A') && h.some((c) => 'TJQK'.includes(c[0]));
 
+// Round the Clock: pay the first cards of each rank as soon as their ranks
+// make a straight holding every rank in `need`.
+const clockRun = (need) => (t) => {
+  const out = [];
+  let firsts = new Map();
+  for (const [c] of t) {
+    if (!firsts.has(rankOf(c))) firsts.set(rankOf(c), c);
+    const hand = [...firsts.values()];
+    if (need.every((r) => firsts.has(r)) && isStraight(hand)) { out.push(hand); firsts = new Map(); }
+  }
+  return out;
+};
 // Every Twenty-One variants: `test(before, after)` on the running total,
 // with cards worth `val`.
 const runningTotal = (val, test) => (h, before) => {
@@ -520,19 +532,16 @@ export const MUTANTS = {
       }
       return out;
     },
-    // A machine that waits for its ranks to make a straight holding an ace
-    // and a king (Straight takes the ace high or low): a run up to the ace,
-    // [K A], [Q K A], ..., pays early.
-    'a run through the king and the ace': (t) => {
-      const out = [];
-      let firsts = new Map();
-      for (const [c] of t) {
-        if (!firsts.has(rankOf(c))) firsts.set(rankOf(c), c);
-        const hand = [...firsts.values()];
-        if (firsts.has('A') && firsts.has('K') && isStraight(hand)) { out.push(hand); firsts = new Map(); }
-      }
-      return out;
-    },
+    // Machines that wait for their ranks to make a straight holding some
+    // ranks (Straight takes the ace high or low): with the king and the ace,
+    // [K A], [Q K A], ... pay early; with the ace and the 2, [A 2], [A 2 3],
+    // ...; with any ace, [A] and both of those; with the king and the 2, the
+    // twelve ranks 2 to K. (Only the ace, the 2 and the king together make
+    // it every rank.)
+    'a run through the king and the ace': clockRun(['K', 'A']),
+    'a run through the ace and the 2': clockRun(['A', '2']),
+    'a run with an ace': clockRun(['A']),
+    'a run through the king and the 2': clockRun(['K', '2']),
   },
   'pot-luck': {
     'no pot: ties pay nothing': potLuckBy({ pot: false }),
