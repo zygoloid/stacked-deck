@@ -2,7 +2,9 @@
 import {
   runTest, expectedPayouts, payoutHand, payoutDesk, MAX_FLOOR_CARDS, DIRS,
 } from '../engine.js';
-import { h, s, handEl, cardEl, parseCards, fmtCards } from './dom.js';
+import { h, s, handEl, cardEl, fmtCards } from './dom.js';
+import { listField } from './listfield.js';
+import { formatList, SIDE_TEXT } from './listtext.js';
 import { Board, R, center, axialRound } from './board.js';
 import {
   CROUPIERS, PORT_STYLE, SIDE_NAMES, infoFor, newCell, portsOf, getPort, setPort, isRequired, chipLabel, sampleCell,
@@ -52,7 +54,16 @@ export function openEditor(root, ctx, level) {
   let runResults = null;          // results of checking every test
   let checks = null;              // this machine's check deals, once a run reaches them
   let running = false;            // every test is being checked
-  let deckDraft = null;           // { key, text, error }
+  // A shoe's deck and a Deal's list are edited as text (src/ui/listfield.js).
+  // The text a player wrote is kept here, by hex (or `tool:shoe` for the
+  // palette's shoe), while it still reads as the croupier's list (`list`, as
+  // JSON); otherwise the list is shown in its shortest text. `bad`: the text
+  // has a mistake, so the croupier keeps its last good list (dropped when
+  // the selection changes).
+  const listTexts = new Map();    // key -> { kind, text, caret, list, bad }
+  let listUi = null;              // the inspector's list field: { key, field }
+  let listMode = 'type';          // its tool: type, erase or move
+  let coalesceKey = null, coalesceAt = 0; // typing in one list field: one undo step per pause
 
   const cellAt = (key) => cells.find((c) => hexKey(c.at) === key);
   const selCell = () => (selected ? cellAt(selected) : null);
@@ -116,13 +127,26 @@ export function openEditor(root, ctx, level) {
   // ---------- editing ----------
   // Undo and redo restore the selection and its active port too, so undoing
   // a port's side goes back to that port.
-  const editState = () => ({ cells: JSON.stringify(cells), selected, activePort });
-  function commit(fn) {
-    undo.push(editState());
-    if (undo.length > 200) undo.shift();
+  const editState = () => ({ cells: JSON.stringify(cells), selected, activePort, texts: JSON.stringify([...listTexts]) });
+  // coalesce: a key for typing, so a run of keystrokes in the same place
+  // (with no pause over a second) is one undo step. keepInspector: the change
+  // came from the inspector's list field, which shows it already (and
+  // redrawing the panel would take the field out from under the typing).
+  function commit(fn, { coalesce = null, keepInspector = false } = {}) {
+    const now = Date.now();
+    if (!(coalesce && coalesce === coalesceKey && now - coalesceAt < 1000 && undo.length)) {
+      undo.push(editState());
+      if (undo.length > 200) undo.shift();
+    }
+    coalesceKey = coalesce;
+    coalesceAt = now;
     redo.length = 0;
     fn();
-    changed();
+    changed({ keepInspector });
+  }
+  // List texts with a mistake go when the selection changes.
+  function dropDrafts() {
+    for (const [k, t] of listTexts) if (t.bad) listTexts.delete(k);
   }
   // With a group up, undo first puts it down where it is (so undo takes back
   // the move, and redo brings it back); one that can't go there just goes back.
@@ -136,7 +160,7 @@ export function openEditor(root, ctx, level) {
     settleLift();
     if (redo.length) { undo.push(editState()); restoreCells(redo.pop()); }
   }
-  function changed() {
+  function changed({ keepInspector = false } = {}) {
     closeRadial();
     devMeasured = null;
     ls.cells = cells;
@@ -147,7 +171,7 @@ export function openEditor(root, ctx, level) {
     runResults = null;
     checks = null;
     if (testIndex >= level.tests.length) testIndex = 0;
-    renderAll();
+    renderAll({ keepInspector });
   }
   function restoreCells(st) {
     lift = null;
@@ -155,7 +179,9 @@ export function openEditor(root, ctx, level) {
     cells = JSON.parse(st.cells);
     selected = st.selected && cellAt(st.selected) ? st.selected : null;
     activePort = selected ? st.activePort : null;
-    deckDraft = null;
+    listTexts.clear();
+    for (const [k, t] of JSON.parse(st.texts ?? '[]')) listTexts.set(k, t);
+    coalesceKey = null;
     changed();
   }
 
@@ -209,7 +235,7 @@ export function openEditor(root, ctx, level) {
   function setTool(name) {
     if (name) { leavePlay(); settleLift(); closePicker(); }
     tool = name;
-    if (name) { selected = null; activePort = null; deckDraft = null; }
+    if (name) { selected = null; activePort = null; dropDrafts(); }
     renderPalette(); renderBoard(); renderInspector();
   }
   // Drop the palette tool and the selection (tapping the bare floor).
@@ -237,7 +263,7 @@ export function openEditor(root, ctx, level) {
     if (selected !== key) {
       closeRadial();
       selected = key;
-      deckDraft = null;
+      dropDrafts();
       const c = selCell();
       activePort = c ? portsOf(c)[0] ?? null : null;
     }
@@ -250,7 +276,12 @@ export function openEditor(root, ctx, level) {
   function assign(side, port = activePort, { advance = true } = {}) {
     const c = selCell();
     if (!c || !port) return;
-    if (port === 'to') { commit(() => setPort(c, 'to', side)); return; }
+    if (port === 'to') {
+      // Through the list field, as a tap on its pad (NE twice makes NEx2).
+      if (listUi?.key === hexKey(c.at)) listUi.field.tap(SIDE_TEXT[side]);
+      else commit(() => setPort(c, 'to', side));
+      return;
+    }
     if (side === undefined && isRequired(c, port)) return;
     const ports = portsOf(c);
     const next = advance ? ports[(ports.indexOf(port) + 1) % ports.length] : activePort;
@@ -315,7 +346,7 @@ export function openEditor(root, ctx, level) {
     if (watching) return;
     settleLift();
     watching = true;
-    tool = null; selected = null; activePort = null; deckDraft = null;
+    tool = null; selected = null; activePort = null; dropDrafts();
     closePicker();
     side.classList.add('watching');
     editorEl.classList.add('watching');
@@ -543,7 +574,7 @@ export function openEditor(root, ctx, level) {
       cells = sanitizeCells(level, par);
       selected = null;
       activePort = null;
-      deckDraft = null;
+      dropDrafts();
     });
     showToast('Loaded the par machine. Ctrl+Z to undo.', 'good');
   }
@@ -570,7 +601,7 @@ export function openEditor(root, ctx, level) {
       cells = sanitizeCells(level, sol.cells);
       selected = null;
       activePort = null;
-      deckDraft = null;
+      dropDrafts();
     });
     showToast(`Loaded your ${scoreText(sol)} solution. Ctrl+Z to undo.`, 'good');
   }
@@ -670,14 +701,14 @@ export function openEditor(root, ctx, level) {
   function hideToast() { toast.className = 'toast hidden'; }
 
   // ---------- rendering ----------
-  function renderAll() {
+  function renderAll({ keepInspector = false } = {}) {
     elCount.textContent = String(countCroupiers(cells));
     const nSol = ls.solutions?.length ?? 0;
     solBtn.textContent = `Solutions (${nSol})`;
     solBtn.classList.toggle('hidden', !nSol);
     undoBtn.disabled = !undo.length;
     redoBtn.disabled = !redo.length;
-    renderPalette(); renderBoard(); renderInspector(); renderTests(); renderTransport();
+    renderPalette(); renderBoard(); if (!keepInspector) renderInspector(); renderTests(); renderTransport();
   }
 
   function renderBoard() {
@@ -794,7 +825,47 @@ export function openEditor(root, ctx, level) {
   }
   // The selected croupier; with none, the palette tool's settings (the cell
   // it will place); with neither, the floor's brief and how to play.
+  // The text field for a shoe's deck or a Deal's sides (src/ui/listfield.js).
+  // Each change that reads as a list is an undoable edit of the croupier
+  // (typing coalesced into one step per pause); text with a mistake is kept
+  // while the croupier stays selected, and the croupier keeps its last list.
+  function listFor(c, key, kind, template) {
+    const listOf = () => (kind === 'shoe' ? c.deck : c.out.to ?? []);
+    const json = JSON.stringify(listOf());
+    let memo = listTexts.get(key);
+    if (!memo || memo.kind !== kind || memo.list !== json) {
+      const text = formatList(kind, listOf());
+      memo = { kind, text, caret: text.length, list: json, bad: false };
+    }
+    // The last text that read as a list: undo in the field goes back to it
+    // first, while there is a mistake (which was never an edit of the floor).
+    let good = memo.bad ? formatList(kind, listOf()) : memo.text;
+    const field = listField({
+      kind, text: memo.text, caret: memo.caret, specials: kind === 'shoe' ? specials : [], mode: listMode,
+      onMode: (m) => { listMode = m; },
+      onUndo: () => { if (listTexts.get(key)?.bad) field.setText(good); else undoStep(); },
+      onRedo: redoStep,
+      onEdit: ({ text, caret, list, typed }) => {
+        const now = listOf();
+        const entry = { kind, text, caret, list: JSON.stringify(list ?? now), bad: !list };
+        if (list) good = text;
+        if (!list || JSON.stringify(list) === JSON.stringify(now)) { listTexts.set(key, entry); return; }
+        const set = () => {
+          if (kind === 'shoe') c.deck = list; else c.out.to = list;
+          listTexts.set(key, entry);
+        };
+        if (template) { set(); renderPalette(); return; }
+        commit(set, { coalesce: typed ? `list:${key}` : null, keepInspector: true });
+      },
+    });
+    listUi = { key, field };
+    return field.el;
+  }
+
   function renderInspector() {
+    // Redrawing replaces the list field: one with the focus gets it back.
+    const refocus = listUi?.field.hasFocus() ? listUi.key : null;
+    listUi = null;
     // On a phone, a selected croupier's panel goes right under the floor:
     // the palette and the play controls step aside (style.css).
     editorEl.classList.toggle('cell-selected', !!selCell());
@@ -899,35 +970,7 @@ export function openEditor(root, ctx, level) {
           : h('span', { class: 'fixed-rule', title: 'The only War rule on this floor' }, `${names[rules[0]] ?? rules[0]} (house rule)`)));
     }
     if (c.kind === 'shoe') {
-      const draft = deckDraft?.key === key ? deckDraft : { key, text: fmtCards(c.deck), error: null };
-      const input = h('input', {
-        class: `deck-in${draft.error ? ' bad' : ''}`, value: draft.text, spellcheck: false, placeholder: specials.length ? `AS KH 10C ${specials[0]}` : 'AS KH 10C',
-        onkeydown: (e) => { if (e.key === 'Enter') input.blur(); e.stopPropagation(); },
-        // A one-line field drops pasted line breaks, joining the cards either
-        // side ("KH\n10C" would become "KH10C"); paste them as spaces instead.
-        // insertText counts as typing, so it can be undone and the field still
-        // fires change when it loses focus (setRangeText alone does neither).
-        onpaste: (e) => {
-          const text = e.clipboardData?.getData('text/plain');
-          if (!text || !/[\r\n]/.test(text)) return;
-          e.preventDefault();
-          const spaced = text.replace(/\r\n?|\n/g, ' ');
-          if (!document.execCommand('insertText', false, spaced)) {
-            input.setRangeText(spaced, input.selectionStart, input.selectionEnd, 'end');
-          }
-        },
-        onchange: () => {
-          const res = parseCards(input.value, specials);
-          if (res.error) { deckDraft = { key, text: input.value, error: res.error }; renderInspector(); return; }
-          deckDraft = null;
-          if (res.cards.join() !== c.deck.join()) edit(() => { c.deck = res.cards; });
-          else renderInspector();
-        },
-      });
-      parts.push(h('div', { class: 'param col' }, h('span', { class: 'param-k' }, 'Deck (top first)'), input,
-        draft.error ? h('div', { class: 'err' }, draft.error) : h('div', { class: 'deck-prev' }, handEl(c.deck)),
-        specials.length ? h('div', { class: 'deck-special muted small' }, 'Special cards on this floor: ', handEl(specials), ' type ',
-          specials.map((x, k) => [k ? ' ' : '', h('kbd', {}, x)])) : null,
+      parts.push(h('div', { class: 'param col' }, h('span', { class: 'param-k' }, 'Deck (top first)'), listFor(c, key, 'shoe', !!template),
         h('label', { class: 'check' }, h('input', {
           type: 'checkbox', checked: !!c.once, onchange: (e) => edit(() => { if (e.target.checked) c.once = true; else delete c.once; }),
         }), ' Deal the deck only once')));
@@ -945,15 +988,10 @@ export function openEditor(root, ctx, level) {
       for (const p of ports) {
         const st = PORT_STYLE[p];
         if (p === 'to') {
-          const to = c.out.to ?? [];
-          parts.push(h('div', { class: `port-row deal${activePort === p ? ' active' : ''}`, onclick: () => { activePort = p; renderBoard(); renderInspector(); } },
+          // (Not redrawn on a click: that would take the list field out from under the typing.)
+          parts.push(h('div', { class: `port-row deal${activePort === p ? ' active' : ''}`, onclick: (e) => { if (activePort !== p) { activePort = p; e.currentTarget.classList.add('active'); renderBoard(); } } },
             h('span', { class: 'port-tag', style: { background: st.color } }, 'deal to'),
-            h('div', { class: 'deal-list' },
-              to.length ? to.map((d, i) => h('button', {
-                class: 'deal-chip', title: 'Remove',
-                onclick: (e) => { e.stopPropagation(); commit(() => { c.out.to.splice(i, 1); }); },
-              }, `${i + 1}·${ARROW[d]} ${SIDE_NAMES[d]}`)) : h('span', { class: 'muted' }, 'no sides: drops everything')),
-            sideButtons(null, (d) => { activePort = 'to'; if (d === undefined) commit(() => { c.out.to = []; }); else assign(d, 'to'); })));
+            listFor(c, key, 'deal', false)));
           continue;
         }
         const cur = getPort(c, p);
@@ -964,10 +1002,13 @@ export function openEditor(root, ctx, level) {
         h('span', { class: `port-tag${st.input ? ' input' : ''}`, style: st.input ? { color: st.color, borderColor: st.color } : { background: st.color } }, st.label),
         sideButtons(cur, (d) => { activePort = p; assign(d, p); }, { floor: !isRequired(c, p) })));
       }
-      parts.push(h('p', { class: 'keys kbd-only' }, 'Keys: ', h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'),
-        ' point the port NW NE W E SW SE, ', h('kbd', {}, 'X'), ' floor, ', h('kbd', {}, 'Tab'), ' next port.'));
+      const qeadzc = ['Q', 'E', 'A', 'D', 'Z', 'C'].map((k) => h('kbd', {}, k));
+      parts.push(c.fn === 'deal'
+        ? h('p', { class: 'keys kbd-only' }, 'Keys (outside the list): ', qeadzc, ' add NW NE W E SW SE, ', h('kbd', {}, 'X'), ' empties the list.')
+        : h('p', { class: 'keys kbd-only' }, 'Keys: ', qeadzc, ' point the port NW NE W E SW SE, ', h('kbd', {}, 'X'), ' floor, ', h('kbd', {}, 'Tab'), ' next port.'));
     }
     inspector.replaceChildren(...parts.filter(Boolean));
+    if (refocus && listUi?.key === refocus) listUi.field.focus();
   }
 
   // A payout's desk, on a floor with labelled desks.
@@ -1504,7 +1545,7 @@ export function openEditor(root, ctx, level) {
   function openPicker(at, side) {
     closeRadial();
     pick = { at, side };
-    selected = null; activePort = null; deckDraft = null;
+    selected = null; activePort = null; dropDrafts();
     pickerArmed = false;
     picker.replaceChildren(
       h('div', { class: 'picker-head' }, side === undefined ? 'Place a croupier' : `Place a croupier, first port ${ARROW[side]} ${SIDE_NAMES[side]}`),
@@ -1612,7 +1653,7 @@ export function openEditor(root, ctx, level) {
     if (!items.length) { endLift(); return; }
     leavePlay(); resetSim(); closePicker(); closeRadial();
     lift = { items, copy: lift?.copy ?? false };
-    tool = null; selected = null; activePort = null; deckDraft = null;
+    tool = null; selected = null; activePort = null; dropDrafts();
     renderAll();
   }
   function endLift() { lift = null; renderAll(); }
@@ -1833,7 +1874,7 @@ export function openEditor(root, ctx, level) {
     }
     if (lower in SIDE_KEYS) { assign(SIDE_KEYS[lower]); return; }
     if (lower === 'x' && activePort) {
-      if (activePort === 'to') commit(() => { c.out.to = []; });
+      if (activePort === 'to') { if (listUi?.key === hexKey(c.at)) listUi.field.setText(''); else commit(() => { c.out.to = []; }); }
       else assign(undefined);
     }
   }

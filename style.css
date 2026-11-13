@@ -92,7 +92,7 @@ kbd {
 }
 .card b { font-weight: 700; }
 .card b.ten { letter-spacing: -0.06em; }
-.peek .hand, .deck-prev .hand, .queue .hand, .paid .hand { flex-wrap: wrap; max-width: calc(13 * var(--mini-w) + 12 * var(--mini-gap)); }
+.peek .hand, .queue .hand, .paid .hand { flex-wrap: wrap; max-width: calc(13 * var(--mini-w) + 12 * var(--mini-gap)); }
 .card i { font-style: normal; font-size: 12px; }
 .card.red { color: var(--red); }
 .card.black { color: #16181d; }
@@ -622,15 +622,8 @@ svg.board.placing { cursor: copy; }
   color: var(--ink); font: 700 12.5px/1.3 inherit; text-align: center;
 }
 .n-in.on { border-color: var(--gold); background: var(--gold); color: #2a1d02; }
-.deck-special { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 2px; }
 .help-special .help-table.special td:first-child { width: 1%; white-space: nowrap; }
 .help-special .help-table.special td:nth-child(2) { min-width: 160px; }
-.deck-in {
-  width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--gold-soft); background: rgba(0, 0, 0, 0.35);
-  color: var(--ink); font: 600 13px/1.3 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
-}
-.deck-in.bad { border-color: var(--bad); }
-.deck-prev { display: flex; flex-wrap: wrap; }
 .err { color: var(--bad); font-size: 12px; }
 .check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
 .ports-title { margin-top: 14px; display: flex; align-items: baseline; gap: 4px; }
@@ -655,10 +648,89 @@ svg.board.placing { cursor: copy; }
 .side-btn.on { background: var(--gold); color: #2a1d02; border-color: var(--gold); font-weight: 800; }
 .side-btn.floor { color: var(--muted); }
 .side-btn.floor.on { background: #3a4a40; color: #fff; border-color: #6c7f73; }
-.port-row.deal { flex-wrap: wrap; }
-.deal-list { display: flex; flex-wrap: wrap; gap: 3px; flex: 1 1 100%; order: 3; padding: 2px 0 0 2px; }
-.deal-chip { border: 1px solid var(--gold-soft); background: rgba(242, 193, 78, 0.12); border-radius: 6px; padding: 1px 6px; font-size: 12px; cursor: pointer; }
-.deal-chip:hover { border-color: var(--bad); text-decoration: line-through; }
+.port-row.deal { flex-wrap: wrap; cursor: default; }
+.port-row.deal .list-field { flex: 1 1 100%; }
+
+/* A shoe's deck or a Deal's list as text (src/ui/listfield.js): a textarea
+   whose own text is invisible over a painted copy of it. The two must lay
+   out alike, so they share every metric, and the copy changes nothing that
+   would move a character: colours, backgrounds, upper case (monospace),
+   and glyphs swapped in a 1ch box, inside entries that never break. */
+.list-field { display: grid; gap: 7px; min-width: 0; }
+.lf-text { position: relative; border: 1px solid var(--gold-soft); border-radius: 8px; background: rgba(0, 0, 0, 0.35); }
+.lf-text:focus-within { border-color: var(--gold); }
+.lf-back, .lf-in {
+  margin: 0; border: 0; padding: 5px 9px; font: 600 13.5px/2 ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+  letter-spacing: 0; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; tab-size: 4;
+}
+.lf-back { position: absolute; inset: 0; overflow: hidden; color: var(--ink); pointer-events: none; }
+.lf-in {
+  position: relative; display: block; width: 100%; min-height: 48px; resize: none; overflow: hidden; background: transparent; outline: none;
+  color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--gold-2);
+}
+.lf-in::selection { background: rgba(242, 193, 78, 0.35); }
+.lf-back .g { display: inline-block; width: 1ch; text-align: center; }
+.lf-tok { white-space: pre; position: relative; }
+.lf-side { background: var(--c); color: #10241a; box-shadow: 0 0 0 2px var(--c); border-radius: 2px; text-transform: uppercase; }
+.lf-card { background: var(--card); color: #16181d; box-shadow: 0 0 0 2px var(--card); border-radius: 2px; text-transform: uppercase; }
+.lf-card.red { color: var(--red); }
+.lf-card.ad { background: #dcf1d3; color: #1d6b3a; box-shadow: 0 0 0 2px #dcf1d3; }
+.lf-card.joker { background: #fff; color: #c2185b; box-shadow: 0 0 0 2px #fff; }
+.lf-n, .lf-par { color: var(--gold-2); }
+.lf-dash { color: var(--muted); }
+.lf-deck { color: var(--gold-2); text-decoration: underline dotted var(--gold-soft); text-underline-offset: 3px; }
+.lf-bad, .lf-tok.err > * { color: #ffb3b3; background: none; box-shadow: none; text-decoration: underline wavy var(--bad); text-decoration-skip-ink: none; }
+.list-field.erasing .lf-back, .list-field.moving .lf-back { pointer-events: auto; z-index: 1; touch-action: none; user-select: none; -webkit-user-select: none; }
+.list-field.erasing .lf-tok { cursor: pointer; }
+.list-field.moving .lf-tok { cursor: grab; }
+.list-field.erasing .lf-text, .list-field.moving .lf-text { border-style: dashed; }
+.lf-erasing { opacity: 0.45; outline: 2px solid var(--bad); outline-offset: 2px; border-radius: 3px; }
+.lf-moving { opacity: 0.35; }
+.lf-drop-before::before, .lf-drop-after::after {
+  content: ''; position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 2px; background: var(--gold-2);
+}
+.lf-drop-before::before { left: -6px; }
+.lf-drop-after::after { right: -6px; }
+.lf-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lf-tools button { padding: 3px 10px; font-size: 12px; }
+.lf-status { flex: 1; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lf-status.bad { color: var(--bad); text-align: left; flex-basis: 100%; order: 2; }
+.lf-ctx { min-height: 32px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.lf-hint { color: var(--muted); }
+.lf-ctx code { font: 600 12px ui-monospace, Menlo, Consolas, monospace; color: var(--ink-2); background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.lf-chip-side { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 7px; border-radius: 6px; background: var(--c); color: #10241a; font: 800 12px/1 var(--sans); }
+.lf-chip-run { display: inline-flex; align-items: center; gap: 2px; color: var(--muted); }
+.lf-chip-deck { padding: 2px 7px; border: 1px solid var(--gold-soft); border-radius: 5px; font-weight: 700; color: var(--ink); }
+.lf-chip-par { font: 700 18px/1 var(--serif); color: var(--gold-2); }
+.lf-step { display: inline-flex; align-items: center; margin-left: auto; border: 1px solid var(--line); border-radius: 7px; background: rgba(0, 0, 0, 0.3); }
+.lf-step button { border: 0; background: none; color: var(--ink-2); width: 26px; height: 26px; cursor: pointer; font-size: 15px; line-height: 1; }
+.lf-step button:hover:not(:disabled) { color: var(--gold-2); }
+.lf-step button:disabled { opacity: 0.35; cursor: default; }
+.lf-step span { min-width: 2em; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lf-del { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 3px 6px; border-radius: 6px; }
+.lf-ctx code + .lf-del { margin-left: auto; }
+.lf-del:hover { color: var(--bad); background: rgba(255, 255, 255, 0.05); }
+.lf-pad.deal { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.lf-hex { display: grid; grid-template-columns: repeat(6, 32px); grid-auto-rows: 30px; gap: 3px 4px; }
+.lf-pad-side {
+  grid-column: span 2; border: 0; border-radius: 8px; background: var(--c); color: #10241a; font: 800 12.5px/1 var(--sans);
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;
+}
+.lf-pad-side:hover { filter: brightness(1.12); }
+.lf-pad-side:active { transform: translateY(1px); }
+.lf-hub { grid-column: span 2; display: grid; place-items: center; color: var(--muted); font-size: 22px; }
+.lf-pad.shoe { display: grid; gap: 6px; }
+.lf-grid { display: grid; grid-template-columns: 26px repeat(13, minmax(0, 1fr)); gap: 2px; }
+.lf-grid .card { width: 100%; height: 24px; line-height: 24px; font-size: 11px; cursor: pointer; border: 0; padding: 0; }
+.lf-grid .card i { display: none; } /* the row's suit says it */
+.lf-key:hover { box-shadow: 0 0 0 2px var(--gold-2); }
+.lf-suit { border: 1px solid var(--gold-soft); background: rgba(0, 0, 0, 0.3); border-radius: 5px; cursor: pointer; font: 700 13px/1 var(--serif); color: var(--ink); padding: 0; }
+.lf-suit.red { color: #ff8095; }
+.lf-suit:hover { border-color: var(--gold); }
+.lf-pad-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.lf-pad-row .card { cursor: pointer; border: 0; }
+.lf-order { margin-left: auto; }
+.lf-order button { padding: 3px 8px; font-size: 11.5px; }
 
 /* tests panel */
 .tests { flex: 1; }

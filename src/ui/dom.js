@@ -59,28 +59,4 @@ export function handEl(hand, cls = '') {
   return h('span', { class: `hand ${cls}` }, hand.map((c) => cardEl(c)));
 }
 
-// Parse "AS KH 10C 2c" into card strings. Special cards ('?', '??', '$',
-// '$$') are accepted only when listed in `special` (the level's
-// specialCards); while none are allowed they read as unknown cards, so the
-// error never gives them away. Returns { cards } or { error }.
-export function parseCards(text, special = []) {
-  const toks = text.toUpperCase().replace(/[♠♥♦♣]/g, (g) => ({ '♠': 'S', '♥': 'H', '♦': 'D', '♣': 'C' })[g])
-    .split(/[\s,]+/).filter(Boolean);
-  const cards = [];
-  for (const t of toks) {
-    if (isSpecialCard(t) && special.length) {
-      if (!special.includes(t)) {
-        return { error: `${SPECIAL_FACE[t].name} (${t}) isn't allowed on this floor (allowed here: ${special.join(' ')})` };
-      }
-      cards.push(t);
-      continue;
-    }
-    const m = /^(10|[A2-9TJQK])([SHDC])$/.exec(t);
-    if (!m) return { error: `"${t}" is not a card (try AS, 10H, KD${special.length ? `, ${special[0]}` : ''})` };
-    cards.push((m[1] === '10' ? 'T' : m[1]) + m[2]);
-  }
-  if (!cards.length) return { error: 'A shoe needs at least one card' };
-  return { cards };
-}
-
 export const fmtCards = (cards) => cards.map((c) => (c[0] === 'T' && c.length === 2 ? '10' + c[1] : c)).join(' ');
