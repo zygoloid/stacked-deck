@@ -13,9 +13,10 @@
 //
 // Every pad tap writes the text a player would type (a second tap on the same
 // entry makes it NEx2), so the shorthand is learned by watching the field.
+// Leaving the field tidies each entry into the same form (listtext.js tidyText).
 import { h, cardEl, SPECIAL_FACE } from './dom.js';
 import {
-  readList, tokenAt, setCount, removeRange, moveToken, ungroup, wrapGroup, tapEntry, padSpecials, isLoneSpecial, isPadded, SIDE_TEXT, SIDE_ARROWS,
+  readList, tokenAt, setCount, removeRange, moveToken, ungroup, wrapGroup, tapEntry, tidyText, padSpecials, isLoneSpecial, isPadded, SIDE_TEXT, SIDE_ARROWS,
 } from './listtext.js';
 
 // One colour per side, E round to NE (the painted Deal list and its pad).
@@ -191,6 +192,13 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
       e.preventDefault();
       if (k === 'y' || e.shiftKey) onRedo?.(); else onUndo?.();
     } else if (e.key === 'Escape') ta.blur();
+  });
+  // Leaving the field tidies what was typed (it reads as the same list, so
+  // this isn't an edit of the croupier). Not when the field is being taken
+  // away (the panel redrawn).
+  ta.addEventListener('blur', () => {
+    if (!ta.isConnected) return;
+    apply(() => tidyText(kind, ta.value, at));
   });
   // The textarea may change width (a phone turned, the panel resized).
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(box);

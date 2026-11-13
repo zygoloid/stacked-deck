@@ -8,7 +8,7 @@ import { readdirSync } from 'node:fs';
 import { ALL_LEVELS } from '../src/ui/catalog.js';
 import { MAX_DECK, MAX_DEAL_SIDES } from '../src/score.js';
 import {
-  readList, formatList, lexList, padSpecials, tokenAt, insertAt, removeRange, setCount, moveToken, ungroup, wrapGroup, tapEntry, NEW_DECK,
+  readList, formatList, lexList, padSpecials, tidyText, tokenAt, insertAt, removeRange, setCount, moveToken, ungroup, wrapGroup, tapEntry, NEW_DECK,
 } from '../src/ui/listtext.js';
 
 const ALL_SPECIALS = ['?', '??', '$', '$$'];
@@ -76,6 +76,16 @@ assert.match(err('shoe', '$$ AS', ['?', '??']), /isn't allowed on this floor \(a
 assert.strictEqual(err('shoe', '? ?? AS', ['?', '??']), null);
 // Every token knows its own mistake (the field underlines each one).
 assert.deepStrictEqual(read('deal', 'NE QQ SW (').toks.map((t) => !!t.err), [false, true, false, true]);
+
+// Tidying: each entry as the pad writes it; spacing, lines, groups and mistakes kept.
+const tidy = (kind, text, caret = text.length) => tidyText(kind, text, caret);
+assert.deepStrictEqual(tidy('shoe', '10s x 2  k♦\n(2h-4H)x3 h $ ?? deck QX'), { text: 'TSx2  KD\n(2H-4H)x3 H  $ ?? deck QX', caret: 34 });
+assert.deepStrictEqual(tidy('shoe', 'as 10h', 2), { text: 'AS TH', caret: 2 });
+assert.deepStrictEqual(tidy('shoe', 'as 10h', 4), { text: 'AS TH', caret: 5 });
+assert.deepStrictEqual(tidy('deal', '→ ne*3 (sw w)X2', 0), { text: 'E NEx3 (SW W)x2', caret: 0 });
+for (const [kind, text] of [['deal', '→ ne*3 (sw w)X2'], ['shoe', '10s x 2 k♦ (2h-4H)x3 h $ ?? deck']]) {
+  assert.deepStrictEqual(read(kind, tidy(kind, text).text).list, read(kind, text).list, `tidying ${text} keeps its list`);
+}
 
 // Editing.
 const lex = (t) => lexList('deal', t);
