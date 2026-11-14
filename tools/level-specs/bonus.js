@@ -409,6 +409,222 @@ export function nightOff() {
   return { nodes, links };
 }
 
+// Rank and File. Five spades of one rank gathered on top of the hand make
+// that rank the hand's only biggest set (5 or more cards against at most
+// 4), so Set, with its set pile stacked back on top of the rest, moves
+// that rank's cards to the top and keeps the order of everything else;
+// the ten cards cut in half drop the five spades again. Doing that for
+// each rank in turn, king first and ace last, leaves the hand in rank
+// order, aces low, with each rank's cards still in the order they started
+// in: so the hand is sorted first, which puts each rank's cards spade,
+// diamond, club, heart.
+const RANK_SPADES = [...RANKS].reverse().flatMap((r) => Array(5).fill(`${r}S`));
+// A hand goes round the loop thirteen times: the gate's War loses to an
+// ace twelve times, then beats a 2.
+const RANK_GATE = [...Array(12).fill('AS'), '2S'];
+// Every Twenty-One and Hit Me: a card counted as that many cards.
+//  * A lookup table (for each rank r, `size` cards of rank r, `count(r)` of
+//    them hearts and the rest clubs, with a joker on top and `jokers` more
+//    underneath) is stacked once by a store, as in Casino Numbers: a once
+//    shoe deals it in chunks of 13, last chunk first, gathered on top of a
+//    `$` until the joker on top beats an ace in a top-card War.
+//  * The table goes round a ring (as in Times Tables): it waits at a Gather
+//    for a card, which goes on top; a Duplicate copies both, and Burn takes
+//    the card off the table again on its way back.
+//  * On the copy, Set keeps the card, its rank's group and the jokers; Burn
+//    splits off the card, and Suits keeps the group's hearts and the jokers:
+//    [?, count(r) hearts, the other jokers]. Gathered with the card (under
+//    it or on top) and dealt from a fixed place on, that leaves the card
+//    and as many jokers as the group had hearts beyond a fixed number.
+function lookupDeck({ count, size, jokers }) {
+  const table = [];
+  for (let r = 1; r <= 13; r++) for (let i = 0; i < size; i++) table.push(RANKS[r - 1] + (i < count(r) ? 'H' : 'C'));
+  const order = ['?', ...table, ...Array(jokers).fill('?')];
+  while (order.length % 13) order.push('$');
+  const chunks = [];
+  for (let i = 0; i < order.length; i += 13) chunks.push(order.slice(i, i + 13));
+  return chunks.reverse().flat();
+}
+// The store and the ring, the same on both floors: the card arrives at GL
+// from the west, and the copy leaves D south-west.
+function lookupRing(deck) {
+  const nodes = {
+    SH: shoe([5, -3], deck, { once: true }), H13: c([4, -3], 'hand', { n: 13 }), ST: c([3, -3], 'gather'),
+    TW: twar([2, -2]), AC: shoe([1, -2], 'AC'), BK: c([2, -3], 'pass'), SEED: shoe([1, -3], '$', { once: true }),
+    MP: c([1, -1], 'pass'), GL: c([0, 0], 'gather'), D: c([0, 1], 'duplicate'), B: c([1, 0], 'burn'),
+  };
+  for (const n of [nodes.BK, nodes.MP]) n.out = {};
+  const links = [
+    ['SH', null, 'H13'], ['H13', 'out', 'ST'], ['BK', 'out', 'ST', 'under'], ['SEED', null, 'BK'],
+    ['AC', null, 'TW', 'dealer'], ['ST', 'out', 'TW'], ['TW', 'lose', 'BK'], ['TW', 'win', 'MP'],
+    ['B', 'rest', 'MP'], ['MP', 'out', 'GL', 'under'], ['GL', 'out', 'D'], ['D', 'b', 'B'],
+  ];
+  return { nodes, links };
+}
+// Every Twenty-One. Each card c of rank r becomes [c, r - 1 jokers]: r
+// cards, the card on top, so Hand(21) holds the night's running total (less
+// the 21s it has dealt) and deals a group of 21 each time the total reaches
+// another multiple of 21. The card that got it there is the one whose cards
+// include the group's last place, the last natural card in the group (every
+// group has one: no card is more than 13). Suits drops the jokers, Deal
+// turns the rest over, and Burn pays its top card.
+//  * The lookup: twelve cards of each rank, r - 1 of them hearts, and
+//    twelve jokers under the table: [?, r - 1 hearts, 12 jokers] with the
+//    card underneath is 13 + r cards, and Deal from place 13 on leaves r - 1
+//    jokers and the card, dealt last, so on top.
+export function everyTwentyOne() {
+  const { nodes, links } = lookupRing(lookupDeck({ count: (r) => r - 1, size: 12, jokers: 12 }));
+  Object.assign(nodes, {
+    SET: c([-1, 1], 'set'), B2: c([-1, 2], 'burn'), SU: c([-2, 2], 'suits', { out: { C: NW } }), GC: c([-2, 3], 'gather'),
+    // places 0-12 go to a free side, onto the floor
+    DL: c([-3, 3], 'deal', { out: { to: Array(26).fill(SE) } }),
+    H21: c([-3, 2], 'hand', { n: 21 }), SU2: c([-3, 1], 'suits'), DL2: c([-3, 0], 'deal', { out: { to: [] } }),
+    B3: c([-2, -1], 'burn'),
+  });
+  links.push(
+    ['D', 'a', 'SET'], ['SET', 'set', 'B2'], ['B2', 'burn', 'GC', 'under'], ['B2', 'rest', 'SU'],
+    ['SU', ['H', 'misc'], 'GC'], ['GC', 'out', 'DL'], ['DL', Array.from({ length: 13 }, (_, i) => 13 + i), 'H21'],
+    ['H21', 'out', 'SU2'], ['SU2', ['S', 'H', 'D', 'C'], 'DL2'], ['DL2', [0], 'B3'], ['B3', 'burn', 'desk'],
+  );
+  return { nodes, links };
+}
+// Hit Me. Each hand goes round a loop with 20 back advertising cards
+// underneath. A top-card War against a `$` lets it in while its top card is
+// a natural one: Burn sends that card to the lookup, which gives it back
+// with as many jokers as it counts less one ([v - 1 jokers, the card]:
+// v cards), and they are gathered under the rest of the hand. When the `$$`
+// come up, the hand is [20 `$$`, a group of v cards for each of its cards]
+// (it carries its own cards, so hands may overtake one another in the loop):
+// 20 + t cards, t its total. Cut puts only `$$` in the top half when t is
+// 21 or less, and otherwise also the start of the first group, which is a
+// joker or an ace (an ace's group is just the ace). A copy's top half is
+// the dealer in a War against the hand's own cards (Suits keeps them):
+// they beat a top half of `$$`, but never a joker or an ace they hold
+// themselves.
+//  * The lookup: ten cards of each rank, min(r, 10) of them hearts, and nine
+//    jokers under the table: the card on top of [?, v hearts, 9 jokers],
+//    dealt from place 0 and places 12 on, leaves v - 1 jokers on the card.
+export function hitMe() {
+  const { nodes, links } = lookupRing(lookupDeck({ count: (r) => Math.min(r, 10), size: 10, jokers: 9 }));
+  Object.assign(nodes, {
+    SM: shoe([0, -3], '$$'), HM: c([-1, -2], 'hand', { n: 20 }), G0: c([-2, -1], 'gather'),
+    LT: twar([-2, 0]), SD: shoe([-1, -1], '$'), B1: c([-1, 0], 'burn'), GB: c([-2, 1], 'gather'),
+    SET: c([-1, 2], 'set'), B2: c([-1, 3], 'burn'), SU: c([-2, 4], 'suits', { out: { C: SE } }), GC: c([-2, 3], 'gather'),
+    // places 1-11 go to a free side, onto the floor
+    DL: c([-2, 2], 'deal', { out: { to: Array(21).fill(NE) } }),
+    DX: c([-3, 1], 'duplicate'), SU3: c([-4, 2], 'suits'), CUT: c([-3, 2], 'cut', { out: { bottom: SE } }), WX: war([-4, 3]),
+  });
+  links.push(
+    // 20 `$$` under each hand
+    ['SM', null, 'HM'], ['HM', 'out', 'G0', 'under'], ['G0', 'out', 'LT'],
+    // the loop: a natural card on top goes to the lookup and back underneath
+    ['SD', null, 'LT', 'dealer'], ['LT', 'win', 'B1'], ['B1', 'burn', 'GL'], ['B1', 'rest', 'GB'], ['GB', 'out', 'LT'],
+    ['D', 'a', 'SET'], ['SET', 'set', 'B2'], ['B2', 'burn', 'GC'], ['B2', 'rest', 'SU'], ['SU', ['H', 'misc'], 'GC', 'under'],
+    ['GC', 'out', 'DL'], ['DL', [0, 12, 13, 14, 15, 16, 17, 18, 19, 20], 'GB', 'under'],
+    // the `$$` on top: the hand's cards against a copy's top half
+    ['LT', 'lose', 'DX'], ['DX', 'a', 'SU3'], ['DX', 'b', 'CUT'], ['CUT', 'top', 'WX', 'dealer'],
+    ['SU3', ['S', 'H', 'D', 'C'], 'WX'], ['WX', 'win', 'desk'],
+  );
+  return { nodes, links };
+}
+
+
+// Counterfeit: a memory loop per suit (within one suit, a pair of ranks is
+// a pair of identical cards). Gather (the memory underneath, from Kind), Kind
+// and Burn in a line from `g`: a new card on top of its suit's memory; a
+// pair burns it to the desk (`burnSide`), and the rest goes back to Kind,
+// which finds no pair in it and returns it to the gather; no pair, and the
+// bigger stack goes back as the memory. The memory is seeded through Kind
+// with an advertising card (`seedAt`, dealing `seedOut`).
+const memoryLoop = (g, burnSide, seedAt, seedOut) => [
+  c(g, 'gather', { under: E, out: { out: E } }),
+  c(at(g, [1, 0]), 'kind', { n: 2, out: { yes: E, no: W } }),
+  c(at(g, [2, 0]), 'burn', { out: { burn: burnSide, rest: W } }),
+  shoe(seedAt, '$$', { out: seedOut, once: true }),
+];
+// Pot Luck and Follow Suit. A Deal's `to` list of n places: the places in
+// `picked` to side `to`, every other place to side `rest`.
+const dealList = (n, picked, to, rest) => Array.from({ length: n }, (_, i) => (picked.includes(i) ? to : rest));
+// A Deal's `to` list of n places from { side: [places] }, every other place
+// to side `rest`.
+const dealSides = (n, sides, rest) => Array.from({ length: n }, (_, i) => {
+  const side = Object.keys(sides).find((s) => sides[s].includes(i));
+  return side === undefined ? rest : Number(side);
+});
+
+// Follow Suit. The trick is gathered in seat order and copied: one copy
+// (the trick itself) goes to the router, and the other, four times over,
+// is dealt out as the players' entries: one copy of A's card (the
+// champion), one of C's, two of B's, four of D's. A champion only ever
+// holds cards of the suit led, so copies keep a Flush honest.
+//  * Each challenger plays the champion at a War (the champion as player,
+//    so a tie goes to the challenger, and the Flush settles it). A lower
+//    challenger is dropped. Otherwise the two are stacked, challenger on
+//    top: a Flush means it followed suit (and is higher), and the stack
+//    carries on as the champion; no Flush, and a Deal drops the
+//    challenger's copies. The champion is the copies of every card that
+//    led the trick so far, the latest on top: 1 card if A won, 2 if C, 3
+//    or 4 if B, 5 to 8 if D.
+//  * The champion goes on top of a ruler of ten jokers and advertising
+//    cards, and a Deal takes cards 8 and 10: two verdict cards that depend
+//    only on the champion's size (ruler card 8 - n and 10 - n).
+//  * A top-card War of the verdicts against the trick splits A and B
+//    (advertising card on top) from C and D (joker on top); a high-card War
+//    (A's and B's) or a Burn and a War (C's and D's) reads the second
+//    card, and sends the trick to its desk.
+//  * The ruler (a shoe and Hand(10)) is the door's dealer on its way to
+//    the lookup, so a trick goes in every ten rounds at most and none can
+//    overtake another between the stages.
+function followSuitSpec() {
+  const RULER = '? ? ? ? ? ? $ $ ? $'.split(' ');
+  return {
+    cells: [
+      // the trick, in seat order: [a, b, c, d]
+      c([-5, -1], 'gather', { under: SW, out: { out: SE } }),
+      c([-6, 1], 'gather', { under: SW, out: { out: NE } }),
+      c([-5, 0], 'gather', { under: SW, out: { out: E } }),
+      // the trick to the router, and its copy four times over
+      c([-4, 0], 'duplicate', { out: { a: SE, b: E } }),
+      c([-3, 0], 'duplicate', { out: { a: E, b: E } }),
+      c([-2, 0], 'duplicate', { out: { a: E, b: E } }),
+      // the door: one trick in per ruler
+      war([-1, 0], { dealer: NW, out: { lose: E, dwin: SW } }),
+      c([-1, -1], 'hand', { n: 10, out: { out: SE } }), shoe([0, -2], RULER, { out: SW }),
+      pass([-2, 1], SE), pass([-2, 2], E),
+      // the entries: card i of the 16 is seat i % 4's; the rest drop SW
+      c([0, 0], 'deal', { out: { to: dealSides(16, { [NW]: [0], [NE]: [2], [E]: [1, 5], [SE]: [3, 7, 11, 15] }, SW) } }),
+      pass([0, -1], NE), pass([1, -1], NW), pass([1, 0], NE), pass([0, 1], E),
+      // C's challenge
+      war([1, -2], { dealer: SE, out: { win: E, dwin: E, lose: E } }),
+      c([2, -2], 'flush', { out: { yes: SE, no: E } }),
+      c([3, -2], 'deal', { out: { to: dealList(8, [0], NE, SW) } }),
+      // B's
+      war([2, -1], { dealer: SW, out: { win: SE, dwin: SE, lose: SE } }),
+      c([2, 0], 'flush', { out: { yes: SW, no: SE } }),
+      c([2, 1], 'deal', { out: { to: dealList(8, [0, 1], SE, W) } }),
+      // D's
+      war([1, 1], { dealer: W, out: { win: SW, dwin: SW, lose: SW } }),
+      c([0, 2], 'flush', { out: { yes: W, no: SW } }),
+      c([-1, 3], 'deal', { out: { to: dealList(8, [0, 1, 2, 3], SE, NW) } }),
+      // the lookup
+      c([-1, 2], 'gather', { under: W, out: { out: SW } }),
+      c([-2, 3], 'deal', { out: { to: dealList(18, [8, 10], SW, SE) } }), pass([-3, 4], SW),
+      // the trick's way to the router
+      pass([-4, 1], SE), pass([-4, 2], SE), pass([-4, 3], SE), pass([-4, 4], SE),
+      // the router
+      twar([-4, 5], { dealer: NW, out: { win: E, dlose: SE, dwin: SW, lose: W } }),
+      c([-3, 5], 'burn', { out: { rest: SE } }), pass([-4, 6], E),
+      war([-3, 6], { dealer: W, out: { dwin: SW, dlose: SE } }),
+      pass([-5, 5], SE),
+      war([-5, 6], { dealer: NE, out: { dwin: SW, dlose: SE } }),
+    ],
+  };
+}
+
+// Punto Banco: the stack a card is counted under, and the ruler the counts
+// are read from (R[1] and R[2] are the naturals: see the recipe).
+const BAC_STACK = ['9C', '8C', '7C', '6C', '5C', '4C', '3C', '2C', 'AC'];
+const BAC_RULER = ['?', '$', '$', '?', '?', '?', '?', '?', '?', '?'];
 
 export const SPECS = {
   'small-change': {
@@ -802,5 +1018,541 @@ export const SPECS = {
   'night-off': nightOff(),
   'skeleton-crew': skeletonCrew(),
   'no-kings': noKings(),
+  'every-twenty-one': everyTwentyOne(),
+  'hit-me': hitMe(),
 
+  ceasefire: {
+    // Windows [previous, current]: each card is doubled (Duplicate, both
+    // copies one way) into Hand(2), seeded by a K♠ that deals once (nothing
+    // beats a king, aces low, so the first card can't pay). Within one suit
+    // Sort puts the cards in rank order, so a copy of the window is sorted
+    // and stacked under it: [p c min max]. Deal sends c and min to Kind(2):
+    // a pair means c is the lower (or, against the seed, the same king), and
+    // otherwise Burn drops min and pays c. (Four copies of each card, two
+    // Duplicates each with both ports one way, make windows [p c c c] in
+    // Hand(4); sorted, a Cut's top half is [c c] unless c beats p, when it
+    // is [p c]: 8.)
+    cells: [
+      c([-2, 0], 'duplicate', { out: { a: E, b: E } }),
+      shoe([-1, -1], 'KS', { out: SE, once: true }),
+      c([-1, 0], 'hand', { n: 2, out: { out: E } }),
+      c([0, 0], 'duplicate', { out: { a: E, b: SE } }),
+      c([0, 1], 'sort', { out: { out: NE } }),
+      c([1, 0], 'gather', { under: SW, out: { out: E } }),
+      c([2, 0], 'deal', { out: { to: [NE, SE, SE, NE] } }),
+      c([2, 1], 'kind', { n: 2, out: { no: SW } }),
+      c([1, 2], 'burn', { out: { rest: W } }),
+    ],
+  },
+  'three-in-a-row': {
+    // Windows of windows. Each card doubled into Hand(2) (seeded with an
+    // advertising card) makes windows [p c]; each window doubled into
+    // Hand(4) (seeded with two advertising cards) makes [a b b c], the card
+    // and the two before it. Deal drops the repeated b (reversing the rest,
+    // so c is on top), Straight tests the three, and Burn pays the top card.
+    // The advertising cards are never part of a run, so the first two cards
+    // can't pay. (A memory of the last two cards, as in Déjà Vu: a Gather
+    // puts [p2 p1] on the new card, a copy goes to Straight and Deal pays its
+    // third card, and Burn drops p2 from the other copy for the next card;
+    // the memory starts as [$ $], a Hand(2) on a `once` shoe: 7, slower.)
+    cells: [
+      c([-2, 0], 'duplicate', { out: { a: E, b: E } }),
+      shoe([-1, -1], '$', { out: SE, once: true }),
+      c([-1, 0], 'hand', { n: 2, out: { out: E } }),
+      c([0, 0], 'duplicate', { out: { a: E, b: E } }),
+      shoe([1, -1], ['$', '$'], { out: SE, once: true }),
+      c([1, 0], 'hand', { n: 4, out: { out: E } }),
+      c([2, 0], 'deal', { out: { to: [SW, SW, E, SW] } }),
+      c([1, 1], 'straight', { out: { yes: SW } }),
+      c([0, 2], 'burn', { out: { burn: W } }),
+    ],
+  },
+  'odds-and-evens': {
+    // Test a copy. A colour joker goes under it, and Suits keeps the hearts
+    // and diamonds in one pile (the joker joins the hearts, the first suit
+    // with a port, last), so the pile has r + 1 cards for r red cards. Deal
+    // to two sides leaves the last card dealt on top of its pile: the joker
+    // tops pile X exactly when r is even. Pile X plays an ace by its top
+    // card, and only a joker wins: a win plays a 2 (always beaten) to
+    // release it, a loss releases the ace by a pass, so both routes take
+    // the same time, and the original is gated by high card against the
+    // verdict. (Gathering the pile onto an advertising card puts
+    // the joker or the advertising card on top of pile X, so pile X itself
+    // is the gate's dealer by top card, paying on a loss: 8.)
+    cells: [
+      c([1, -1], 'duplicate', { out: { a: SE, b: NW } }),
+      c([1, -2], 'gather', { under: W, out: { out: NE } }), shoe([0, -2], '??', { out: E }),
+      c([2, -3], 'suits', { out: { H: E, D: E } }),
+      c([3, -3], 'deal', { out: { to: [SE, NE] } }),
+      twar([3, -2], { dealer: E, out: { win: SE, dwin: W } }), shoe([4, -2], 'AC', { out: W }),
+      pass([2, -2], SE),
+      war([3, -1], { dealer: E, out: { dwin: W, dlose: W } }), shoe([4, -1], '2C', { out: W }),
+      pass([2, -1], SW),
+      war([1, 0], { dealer: NE, out: { win: SE } }),
+    ],
+  },
+  'twenty-one-card-trick': {
+    // B's card is gathered onto A's 21, so the hand holds the chosen card
+    // twice, and Suits splits it by suit: one deck has no two cards of the
+    // same suit and rank, so the chosen card's pile is the only one with a
+    // pair (K2). Set takes the pair out of it, and Burn keeps one copy. The
+    // other piles, and the rest of the chosen pile, go to Hand(20); a cut
+    // splits the 20 into two tens and two gathers put the chosen card
+    // between them. Every pile of a deal has to reach Hand(20) before the
+    // next deal's, and K2 and Hand(20) pick up from several sides, so a
+    // War lets one deal in at a time: the burned copy is the next deal's
+    // ticket (a `once` shoe deals the first). A suit missing from A's hand
+    // makes no pile, which Hand(20) doesn't mind.
+    // (Beat par with a completed cut: Hand(20) gathers onto the chosen
+    // card, [20, card], and a cut with both halves to the desk puts the
+    // card 11th: 13.)
+    cells: [
+      c([-4, 0], 'gather', { out: { out: E } }),
+      war([-3, 0], { dealer: W, out: { dwin: NE, dlose: NE } }),
+      shoe([-4, 1], 'AS', { out: NE, once: true }),
+      c([-2, -1], 'suits', { out: { S: E, H: NE, D: NW, C: W } }),
+      pass([-3, -1], NE), pass([-2, -2], E), pass([-1, -2], SE),
+      c([-1, -1], 'kind', { n: 2, out: { yes: SW, no: SE } }),
+      c([-2, 0], 'set', { out: { set: SW, rest: E } }),
+      c([-3, 1], 'burn', { out: { burn: NW, rest: E } }),
+      c([-1, 0], 'hand', { n: 20, out: { out: SE } }),
+      c([-1, 1], 'cut', { out: { top: W, bottom: SW } }),
+      c([-2, 1], 'gather', { under: W, out: { out: SE } }),
+      c([-2, 2], 'gather', { under: NE, out: { out: SE } }),
+    ],
+  },
+  'rank-and-file': {
+    // One hand at a time goes through a ticket door (the hand plays a 2 as
+    // the dealer and always wins; a `once` shoe deals the first 2), is
+    // sorted, and goes round a loop thirteen times: Hand(5) on a shoe of
+    // five kings of spades, five queens, ... five aces gathers the next
+    // rank's five spades on top of the hand; Set's set pile is gathered
+    // back on top of the rest, and the cut drops the spades. The gate's War
+    // (shoe: twelve aces, then a 2) sends the hand round again until the
+    // thirteenth time, then pays it, and its 2 goes back to the door as the
+    // next ticket. (Stacking Set's piles on one side instead of gathering
+    // them, and a loop of four (the hand entering at the gate's War, whose
+    // shoe then deals thirteen aces and a 2), make 10.)
+    cells: [
+      war([-2, 1], { dealer: W, out: { dwin: E } }), shoe([-2, 0], '2C', { out: SE, once: true }),
+      c([-1, 1], 'sort', { out: { out: SE } }),
+      pass([-1, 2], E),
+      c([0, 2], 'gather', { under: W, out: { out: SE } }),
+      c([1, 1], 'hand', { n: 5, out: { out: SW } }), shoe([1, 0], RANK_SPADES, { out: SE }),
+      c([0, 3], 'set', { out: { set: W, rest: SW } }), pass([-1, 4], NW),
+      c([-1, 3], 'gather', { under: SE, out: { out: W } }),
+      c([-2, 3], 'cut', { out: { bottom: NW } }),
+      war([-2, 2], { dealer: W, out: { win: SW, lose: E, dlose: NW } }), shoe([-3, 2], RANK_GATE, { out: E }),
+    ],
+  },
+
+  'one-deck': {
+    // Seven Heaven's machine, with its four sevens taken from the one deck.
+    // Hand(13) splits the deck into its suits, and in new deck order the 7
+    // is the seventh card of every suit (A..K for spades and diamonds, K..A
+    // for clubs and hearts), so Deal keeps card 7 of each and drops the
+    // rest; Hand(4) stacks the four sevens. On top of a hand, seven of a kind
+    // means three sevens in the hand; either way a cut takes the four off
+    // again and they go back round to the gather for the next hand. (Hand(52)
+    // and one Deal picking out the four places make the stack in two
+    // croupiers instead of three.)
+    cells: [
+      c([0, -2], 'hand', { n: 13, out: { out: W } }),
+      c([-1, -2], 'deal', { out: { to: Array.from({ length: 13 }, (_, i) => (i === 6 ? W : NW)) } }),
+      c([-2, -2], 'hand', { n: 4, out: { out: SE } }), pass([-2, -1], SW),
+      c([-3, 0], 'gather', { under: W, out: { out: E } }),
+      c([-2, 0], 'kind', { n: 7, out: { yes: E, no: SE } }),
+      c([-1, 0], 'cut', { out: { bottom: E, top: NW } }), pass([-1, -1], W),
+      c([-2, 1], 'cut', { out: { top: W } }), pass([-3, 1], NW),
+    ],
+  },
+  'one-war': {
+    // Two comparisons through the one War: beat an 8 (the hand as player),
+    // then fail to hold a king (the hand as dealer against a king, which
+    // wins only if the hand's high card is a queen or lower). Its ports are
+    // distinct, so each carries hands from one pass and reference cards from
+    // the other: win has the first pass's winners (on to the second) and the
+    // kings that beat a hand; dealer-lose has the eights a hand beat and the
+    // hands to pay. The references are five of a kind (a shoe into Hand(5)),
+    // so Kind(5) tells them from a hand, which never holds five of a rank.
+    // Player and dealer travel as one stack, [hand, 8 8 8 8 8] or
+    // [K K K K K, hand], and one cut splits every stack, top half to the
+    // player's side and bottom half to the dealer's: the War's two queues
+    // then stay in step, whichever hands are in flight. Lose and dealer-win
+    // only ever carry what is dropped. (Either pass can be the one with the
+    // hand as dealer: five 9s that fail to beat the hand, then the hand as
+    // player against five queens, works the same way, but the hands that go
+    // on leave by the War's south-west side, and the route back to the cut
+    // makes it 20.)
+    cells: [
+      shoe([-1, -3], '8C', { out: SE }), c([-1, -2], 'hand', { n: 5, out: { out: SE } }),
+      c([-1, -1], 'gather', { under: NW, out: { out: E } }),
+      c([0, -1], 'cut', { out: { top: SE, bottom: SW } }), pass([-1, 0], E),
+      c([1, -1], 'kind', { n: 5, out: { no: NW } }),
+      shoe([3, -4], 'KC', { out: SW }), c([2, -3], 'hand', { n: 5, out: { out: SW } }),
+      c([1, -2], 'gather', { under: SE, out: { out: SW } }),
+      c([1, 0], 'kind', { n: 5, out: { no: E } }),
+    ],
+  },
+  dumbwaiter: {
+    // The dumbwaiter loses where one hand ends and the next begins, so the
+    // players' room pads every hand to exactly five cards: four `$` (a shoe
+    // into Hand(4)) under the hand, and Deal keeps the first five cards (in
+    // reverse) and drops the rest. The desk's room collects them again with
+    // Hand(5), turns them the right way up with a second Deal, and Suits
+    // drops the `$`s, keeping the order.
+    nodes: {
+      S: shoe([-3, -2], '$'), H4: c([-3, -1], 'hand', { n: 4 }),
+      G: c([-3, 0], 'gather'),
+      DL: c([-2, 0], 'deal', { out: { to: [, , , , , NE, NE, NE, NE] } }),
+      H5: c([1, 0], 'hand', { n: 5 }), D2: c([2, 0], 'deal'), SU: c([3, 0], 'suits'),
+    },
+    links: [
+      ['S', null, 'H4'], ['H4', 'out', 'G', 'under'], ['G', 'out', 'DL'], ['DL', [0, 1, 2, 3, 4], 'fix'],
+      ['H5', 'out', 'D2'], ['D2', [0], 'SU'], ['SU', ['S', 'H', 'D', 'C'], 'desk'],
+    ],
+  },
+  'checkerboard': {
+    // Suits sends the red cards one way and the black cards another, each
+    // pile in the order dealt; a gather stacks the reds on top of the
+    // blacks, and an out-shuffle (which keeps the top card on top)
+    // interleaves the two halves: red, black, red, black, red, black.
+    // (Blacks on top and an in-shuffle does the same.)
+    cells: [
+      c([-2, 0], 'suits', { out: { H: E, D: E, S: SE, C: SE } }),
+      pass([-2, 1], NE),
+      c([-1, 0], 'gather', { under: SW, out: { out: E } }),
+      c([0, 0], 'outshuffle', { out: { out: E } }),
+    ],
+  },
+  'natural': {
+    // Pairs are dropped (two aces), and the hand must beat a king (it holds
+    // an ace). Then a jack, a queen and a king are gathered underneath:
+    // [ace, x, J, Q, K] is a straight only when x is a 10, and holds a pair
+    // only when x is a J, Q or K. A cut takes the three cards off the bottom.
+    // (The War's king, stacked under the winning hand with both ports one
+    // way, can be one of the three: 10.)
+    cells: [
+      c([-3, 0], 'kind', { n: 2, out: { no: E } }),
+      war([-2, 0], { dealer: NW, out: { win: E } }), shoe([-2, -1], 'KC', { out: SE }),
+      c([-1, 0], 'gather', { under: NW, out: { out: E } }), shoe([-1, -1], 'JC', { out: SE }),
+      c([0, 0], 'gather', { under: NW, out: { out: E } }), shoe([0, -1], 'QC', { out: SE }),
+      c([1, 0], 'gather', { under: NW, out: { out: SE } }), shoe([1, -1], 'KD', { out: SE }),
+      c([1, 1], 'straight', { out: { yes: W, no: SW } }),
+      c([0, 2], 'kind', { n: 2, out: { yes: NW } }),
+      c([0, 1], 'cut', { out: { top: W } }),
+    ],
+  },
+  'snap': {
+    // Next in Line's windows: each card is duplicated, one copy straight to
+    // a gather and the other round a pass to its under side, where it waits
+    // as the card before (a shoe that deals once seeds a 7). Kind 2 on
+    // [current, previous], and the cut's top half, the current card, is
+    // paid. (Duplicate with both copies one way into Hand(2) makes the same
+    // windows in 5.)
+    cells: [
+      c([-2, 0], 'duplicate', { out: { a: E, b: SE } }),
+      pass([-2, 1], NE), shoe([-3, 2], '7C', { out: NE, once: true }),
+      c([-1, 0], 'gather', { under: SW, out: { out: E } }),
+      c([0, 0], 'kind', { n: 2, out: { yes: E } }),
+      c([1, 0], 'cut', { out: { top: NE } }),
+    ],
+  },
+  'crazy-eights': {
+    // High Roller's champion loop, with the champion (the last card paid)
+    // replaced only on a payout. A gather stacks the card on the champion
+    // ([card, champion]); the card is an 8 if it beats a 7 by its top card
+    // but not an 8; otherwise Flush or Kind 2 on the pair decides. On a
+    // payout a cut sends the card to a duplicate (one copy to the desk, the
+    // other back as the champion); on a miss another cut sends the champion
+    // back and drops the card. That cut also takes the paid card's copy
+    // back to the gather (a one-card hand is all bottom half). The first
+    // champion is a pair from a shoe that deals once, so the first card
+    // always pays; it reaches the gather from a third side after the first
+    // card, so the card still goes on top.
+    cells: [
+      c([-1, 0], 'gather', { under: SE, out: { out: NE } }),
+      twar([0, -1], { dealer: NW, out: { win: E, lose: SE } }), shoe([0, -2], '7C', { out: SE }),
+      twar([1, -1], { dealer: NW, out: { win: SW, lose: SE } }), shoe([1, -2], '8C', { out: SE }),
+      c([0, 0], 'flush', { out: { yes: E, no: SE } }),
+      c([0, 1], 'kind', { n: 2, out: { yes: NE, no: W } }),
+      c([1, 0], 'cut', { out: { top: SE } }),
+      c([1, 1], 'duplicate', { out: { a: E, b: SW } }),
+      pass([0, 2], W), pass([-1, 2], NW),
+      c([-1, 1], 'cut', { out: { bottom: NW } }),
+      shoe([-3, 2], '2S', { out: NE, once: true }),
+      c([-2, 1], 'duplicate', { out: { a: NE, b: NE } }),
+    ],
+  },
+
+  'perfect-pair': {
+    // Within one suit, two cards of a rank are two identical cards. A copy
+    // is split by suit, and one Kind(2) tests every pile (the clubs pile
+    // shares the hearts pile's pass). A pile with a pair loses its top card
+    // and gains a joker, so the piles, gathered again by Hand(5), make a
+    // hand that holds a joker exactly when the hand had a perfect pair. At
+    // the gate the original is the dealer: the joker beats it, and it is
+    // paid on dlose; without one the rebuilt copy only ties it (the house
+    // wins). A hand gives one to four piles, so the piles of the next hand
+    // would overtake one another at the shared Kind(2) and Hand(5): the
+    // rebuilt hand goes back to the door as its ticket, so only one hand
+    // is in the machine at a time.
+    cells: [
+      war([-2, 1], { dealer: W, out: { dwin: NE, dlose: NE } }), shoe([-2, 2], '$', { out: NW, once: true }),
+      c([-1, 0], 'duplicate', { out: { a: SE, b: NE } }),
+      war([-1, 1], { dealer: NW, out: { win: W, lose: W, dlose: SE } }),
+      c([0, -1], 'suits', { out: { S: E, H: NE, D: SE, C: NW } }),
+      pass([1, -2], SE), pass([0, 0], NE), pass([0, -2], E),
+      c([1, -1], 'kind', { n: 2, out: { yes: E, no: SE } }),
+      c([2, -1], 'burn', { out: { rest: SE } }), c([2, 0], 'gather', { out: { out: W } }), shoe([3, -1], '?', { out: SW }),
+      c([1, 0], 'hand', { n: 5, out: { out: SW } }), pass([0, 1], W),
+    ],
+  },
+  counterfeit: {
+    // Suits sends each card to its suit's memory loop (memoryLoop above):
+    // four loops in rows two apart, the middle two fed by Suits and paying
+    // the desk directly, the outer two by two passes each way.
+    cells: [
+      c([-1, 1], 'suits', { out: { S: NE, H: SE, D: NW, C: SW } }),
+      pass([-1, 0], NE), pass([0, -1], NE), pass([-2, 2], SE), pass([-2, 3], SE),
+      ...memoryLoop([1, -2], SE, [2, -1], NW), pass([3, -1], SE), pass([3, 0], SW),
+      ...memoryLoop([0, 0], SE, [1, 1], NW),
+      ...memoryLoop([-1, 2], NE, [0, 1], SE),
+      ...memoryLoop([-2, 4], NE, [0, 3], SW), pass([1, 3], NE), pass([2, 2], NW),
+    ],
+  },
+
+  'missing-card': {
+    // A whole house deck (a shoe into Hand(52)) is gathered with the hand,
+    // so every card is there twice but the missing one, once. Suits splits
+    // that into four piles: a complete suit holds every rank twice, so Set
+    // keeps all of it and its rest is empty (dropped); the short suit's
+    // rest is the missing card. (Set on the whole stack first keeps the
+    // missing rank, seven cards against eight; Suits splits those into
+    // piles of one and two cards and a single Kind 2 finds the one: 9
+    // croupiers.)
+    cells: [
+      shoe([-1, -2], [...SUITED.flatMap((s) => RANKS.map((r) => r + s))], { out: SW }),
+      c([-2, -1], 'hand', { n: 52, out: { out: SE } }),
+      c([-2, 0], 'gather', { out: { out: E } }),
+      c([-1, 0], 'suits', { out: { S: E, H: NE, D: SE, C: SW } }),
+      c([0, 0], 'set', { out: { rest: SE } }), pass([0, 1], SW),
+      c([0, -1], 'set', { out: { rest: E } }), pass([1, -1], SE), pass([1, 0], SW),
+      c([-1, 1], 'set', { out: { rest: SE } }),
+      c([-2, 1], 'set', { out: { rest: SE } }), pass([-2, 2], E),
+    ],
+  },
+  'running-count': {
+    // The count is a memory M of 6s and 9s, one card at a time: M is the
+    // first War's dealer, so the next card waits until M is back. M's top
+    // card is always a 6 and it always holds a 9 (new cards go underneath),
+    // so a top-card War against M is a War against a 6 and a high-card War
+    // against M is one against a 9. A low card (it loses to the 6) puts a 9
+    // under M, a high card (it beats the 9) a 6, anything else nothing: M
+    // holds more 9s than 6s exactly when the count is above zero. Set on a
+    // copy of M keeps the 9s alone then; on a tie or more 6s it keeps the
+    // 6s too, and the top 6 with them. So the set's top card is 9 exactly
+    // when the card pays, and the card, under an 8, plays it in a top-card
+    // War. The 9 shoe gives the first 6 its 9, so the first M is copied
+    // too: its set (a 6 on top) meets a king that a once shoe sends down
+    // the card line first, and drops it.
+    cells: [
+      // the count
+      twar([0, 0], { dealer: NE, out: { win: E, dlose: SE, dwin: NW, lose: SW } }),
+      pass([0, 1], NE),
+      war([1, 0], { dealer: SW, out: { dwin: NW, dlose: NE, win: SE, lose: SE } }),
+      c([0, -1], 'gather', { under: W, out: { out: E } }), shoe([-1, -1], '9S', { out: E }),
+      shoe([0, -2], '6S', { out: SE, once: true }),
+      c([2, -1], 'gather', { under: SE, out: { out: W } }), shoe([2, 0], '6S', { out: NW }),
+      c([1, -1], 'duplicate', { out: { a: NE, b: SW } }),
+      c([2, -2], 'set', { out: { set: E } }), pass([3, -2], SE), pass([3, -1], SE), pass([3, 0], SW),
+      // the cards
+      pass([-1, 1], SE), pass([-1, 2], E), shoe([-2, 2], 'KS', { out: E, once: true }),
+      pass([1, 1], SW), pass([0, 2], E),
+      c([1, 2], 'gather', { under: W, out: { out: NE } }), shoe([1, 3], '8S', { out: NW }),
+      twar([2, 1], { dealer: NE, out: { lose: E } }),
+      c([3, 1], 'cut', { out: { bottom: SE } }),
+    ],
+  },
+  'round-the-clock': {
+    // As in Deja Vu, the memory is one card of each rank seen (since the
+    // last payout here), on an advertising card that pairs with nothing. A
+    // card gathered on top that pairs (K2) is burned off; a new one stays,
+    // and a copy of the memory goes under a house A..K (Hand(13) on a
+    // shoe). Every rank of the memory is a pair then, so Set's rest is the
+    // house cards of the ranks still missing and the advertising card:
+    // only the advertising card when the clock is complete. A top-card War
+    // against a `$` tells that apart (only an advertising card fails to beat
+    // it); complete releases the `$`, otherwise it is turned into an ace (a
+    // War it loses). The memory beats the `$` at a high-card gate and goes
+    // to the desk (Set strips its advertising card), and the `$` starts the
+    // next memory; it doesn't beat the ace and goes round again.
+    cells: [
+      // the memory
+      c([0, 0], 'gather', { under: NW, out: { out: E } }),
+      pass([0, -1], SE), shoe([-1, -1], '$$', { out: E, once: true }),
+      c([1, 0], 'kind', { n: 2, out: { yes: NW, no: E } }),
+      c([1, -1], 'burn', { out: { rest: W } }),
+      c([2, 0], 'duplicate', { out: { a: NW, b: E } }),
+      // the test
+      c([3, 0], 'gather', { under: W, out: { out: E } }),
+      c([3, 1], 'hand', { n: 13, out: { out: NW } }), shoe([3, 2], RANKS.map((r) => r + 'C'), { out: NW }),
+      c([4, 0], 'set', { out: { rest: NE } }),
+      twar([5, -1], { dealer: E, out: { dwin: W, dlose: NW } }), shoe([6, -1], '$', { out: W }),
+      war([5, -2], { dealer: E, out: { dwin: SW } }), shoe([6, -2], 'AC', { out: W }),
+      pass([4, -1], W), pass([3, -1], W),
+      // the gate
+      war([2, -1], { dealer: E, out: { win: NE, lose: NW, dlose: NW } }),
+      pass([2, -2], W), pass([1, -2], SW),
+      c([3, -2], 'set', { out: { set: NE } }),
+    ],
+  },
+  'pot-luck': {
+    // The pot rides under player A's card: a Gather puts A's card on top of
+    // the pot, a marker card (a `once` shoe deals the first) on top of
+    // whatever cards are in it, so [a, marker, pot...]. Two top-card Wars
+    // see only a and b: A's beats B's; else B's beats A's; else a tie.
+    // Winners are stacked into one hand ([a, marker, pot..., b] or
+    // [b, a, marker, pot...]) and a Deal sends the marker back round the
+    // loop (the empty pot for the next deal) and everything else to the
+    // desk. A tie's stack is [a, marker, pot..., b]: a Deal splits the
+    // marker off and a Gather puts it back on top, the new pot. The loop
+    // has to pass the far side of one desk (A's): with both desks and
+    // both players on the same side of it, the three ways back to the pot
+    // would cross.
+    cells: [
+      c([-2, 0], 'gather', { under: NW, out: { out: E } }), pass([-2, 1], NE),
+      twar([-1, 0], { dealer: SW, out: { win: NW, dlose: NW, dwin: E, lose: SE } }), pass([-1, 1], NE),
+      twar([0, 0], { dealer: SW, out: { win: E, dlose: E, dwin: NE, lose: NE } }),
+      c([-1, -1], 'deal', { out: { to: dealList(60, [1], W, NE) } }),
+      c([1, 0], 'deal', { out: { to: dealList(60, [2], NE, E) } }),
+      c([1, -1], 'deal', { out: { to: dealList(60, [1], NW, W) } }), pass([0, -1], NE),
+      c([1, -2], 'gather', { under: SW, out: { out: E } }),
+      pass([2, -1], NW), pass([2, -2], NW), pass([2, -3], W), pass([1, -3], W), pass([0, -3], SW),
+      pass([-1, -2], SW), pass([-2, -1], SE), shoe([-2, -2], '2C', { out: SE, once: true }),
+    ],
+  },
+  'follow-suit': followSuitSpec(),
+  'cut-to-the-ace': {
+    // A loop: each time round, a Duplicate copies the hand, and the copy's
+    // top card X is burned off and turned into a dealer for a top-card gate:
+    // Suits sends a spade to a War against a K that hands on the K (the
+    // dealer's ports both one way, X dropped), and any other suit passes on
+    // as X itself (the pass keeps both routes the same length, so copies
+    // never overtake one another). The hand plays it by its top card, X:
+    // only the A♠ beats a K, and a card never beats itself. A winner goes
+    // to the desk; a loser is rotated by Burn with both ports one way (top
+    // card to the bottom) and goes round again. Every route is first in,
+    // first out, so several hands can be in the loop at once (11/810).
+    // Packed tighter (the gate next to the Duplicate, no pass round the
+    // loop), it is 10.
+    cells: [
+      c([-2, 0], 'duplicate', { out: { a: E, b: NW } }),
+      pass([-1, 0], E),
+      twar([0, 0], { dealer: NW, out: { win: E, lose: SW } }),
+      c([-1, 1], 'burn', { out: { burn: W, rest: W } }),
+      pass([-2, 1], NW),
+      c([-2, -1], 'burn', { out: { burn: NE } }),
+      c([-1, -2], 'suits', { out: { S: E, misc: SE } }),
+      war([0, -2], { dealer: NE, out: { dwin: SE, dlose: SE } }), shoe([1, -3], 'KC', { out: SW }),
+      pass([-1, -1], E),
+      pass([0, -1], SE),
+    ],
+  },
+  'punto-banco': {
+    // Each card becomes a count: under a stack of 9 down to A (house clubs,
+    // from a shoe and Hand(9)), Kind(2) and Burn in a loop burn the top card
+    // until the stack holds no pair, which leaves r cards for a card of rank
+    // r up to 9 ([r-1 .. A, the card]) and ten for a 10 or a picture card
+    // (no pair, so nothing is burned): its points, modulo 10. A copy of the
+    // hand is split by Burn and each card counted in a loop of its own; the
+    // two counts (t cards in all) are gathered onto a ten-card ruler, and
+    // Deal round ten places leaves on top of pile 0 the ruler card at
+    // 9 - (t - 1) % 10: `$` for a total ending in 8 or 9, `?` otherwise. The
+    // hand plays that pile at a top-card gate: it beats a `$` and loses to a
+    // joker. A count takes longer the lower the card, so a later hand's
+    // count could overtake: the gate's pile goes back to the door as the
+    // next hand's ticket (a `once` `$` for the first), and only one hand is
+    // in the machine at a time (24/2626, 4 passes).
+    cells: [
+      war([-2, -1], { dealer: W, out: { dwin: E, dlose: E } }), shoe([-1, -2], '$', { out: SW, once: true }),
+      c([-1, -1], 'duplicate', { out: { a: SW, b: E } }),
+      twar([-2, 0], { dealer: SE, out: { win: SW, dwin: NW, dlose: NW } }),
+      c([0, -1], 'burn', { out: { burn: E, rest: NE } }),
+      // the first card's count
+      c([1, -1], 'gather', { under: W, out: { out: SE } }),
+      c([0, 0], 'hand', { n: 9, out: { out: NE } }), shoe([-1, 1], BAC_STACK, { out: NE }),
+      c([1, 0], 'kind', { n: 2, out: { yes: SW, no: E } }), c([0, 1], 'burn', { out: { rest: NE } }),
+      // the second card's count
+      c([1, -2], 'gather', { under: SW, out: { out: E } }),
+      c([1, -3], 'hand', { n: 9, out: { out: SE } }), shoe([2, -3], BAC_STACK, { out: W }),
+      c([2, -2], 'kind', { n: 2, out: { yes: NE, no: SE } }), c([3, -3], 'burn', { out: { rest: SW } }),
+      pass([2, -1], SE),
+      // both counts on the ruler, read by Deal
+      c([2, 0], 'gather', { out: { out: SW } }), pass([1, 1], SW),
+      c([0, 2], 'gather', { under: E, out: { out: W } }),
+      c([1, 2], 'hand', { n: 10, out: { out: W } }), shoe([0, 3], BAC_RULER, { out: NE }),
+      c([-1, 2], 'deal', { out: { to: [W, ...Array(9).fill(SE)] } }),
+      pass([-2, 2], NW), pass([-2, 1], NW),
+    ],
+  },
+  'first-sighting': {
+    // A memory of every hand so far, two cards each, and a probe of the new
+    // hand's ranks that is tested against each stored hand in turn.
+    //  * The door (a War on the player's hex, dealer the hand) lets one hand
+    //    in per scan: the ticket is the decision War's player hand, so the
+    //    next hand comes in when this one has been decided (a `once` shoe
+    //    has the first ticket). Copies of the hand: one waits as the
+    //    decision War's dealer, one goes into the memory (it is tested only
+    //    from the next hand on), and four copies, by two Duplicates with
+    //    both copies one way, are the probe.
+    //  * Hand(2) deals the memory out a stored hand at a time; a Duplicate
+    //    sends one copy back into the memory (a Gather loop, items stacked
+    //    underneath) and one to the probe's Gather. The memory ends with an
+    //    end marker, [$$ ?]: the joker lets a War against an ace (only a
+    //    joker beats one) release the rebuilt memory to Hand(2), with the
+    //    new hand first and the marker last. (A `once` shoe deals the first
+    //    marker.)
+    //  * Each stored hand goes on top of the probe; a top-card War against
+    //    `$` (only an advertising card ties it) sends the marker to the end
+    //    of the scan. A copy of [stored, probe, `$`] goes to Set: it leaves
+    //    only advertising cards in its rest exactly when the stored hand
+    //    has the probe's two ranks (four copies of the probe outnumber any
+    //    other rank; checked on every pair of rank pairs). A high War of the
+    //    rest against `$$` (a tie only on advertising cards) releases its
+    //    `$$` one way or the other: a match picks up a joker. Deal strips
+    //    the stored hand off the probe, and the token is gathered on.
+    //  * At the marker, Deal drops the marker and the probe plays the
+    //    waiting copy of the hand: it wins only with a joker (a match);
+    //    otherwise the tie goes to the house and the dealer's copy is paid.
+    // Every hand is stored, repeats included, so a scan is as long as the
+    // night so far.
+    cells: [
+      // the door, the hand's copies
+      war([-4, 2], { dealer: W, out: { dwin: E, dlose: E } }), shoe([-4, 3], '$', { out: NW, once: true }),
+      c([-3, 2], 'duplicate', { out: { a: NW, b: SE } }),
+      c([-3, 3], 'duplicate', { out: { a: E, b: NE } }),
+      c([-2, 2], 'duplicate', { out: { a: NW, b: NW } }),
+      c([-2, 1], 'duplicate', { out: { a: E, b: E } }),
+      // the memory
+      c([-1, 3], 'hand', { n: 2, out: { out: NW } }), shoe([-1, 4], ['$$', '?'], { out: NW, once: true }),
+      c([-1, 2], 'duplicate', { out: { a: SW, b: NW } }),
+      c([-2, 3], 'gather', { under: NE, out: { out: SE } }),
+      war([-2, 4], { dealer: SW, out: { lose: NW, win: NE } }), shoe([-3, 5], 'AS', { out: NE }),
+      // the probe's loop
+      c([-1, 1], 'gather', { under: W, out: { out: NW } }), pass([-1, 0], NE),
+      twar([0, -1], { dealer: NE, out: { win: E, lose: W } }), shoe([1, -2], '$', { out: SW }),
+      c([1, -1], 'duplicate', { out: { a: E, b: SW } }),
+      c([0, 0], 'deal', { out: { to: [E, E, ...Array(58).fill(SE)] } }),
+      c([0, 1], 'gather', { out: { out: W } }),
+      // the test
+      c([2, -1], 'gather', { under: NE, out: { out: SE } }), shoe([3, -2], '$', { out: SW }),
+      c([2, 0], 'set', { out: { rest: SW } }),
+      war([1, 1], { dealer: E, out: { dlose: W, dwin: SW } }), shoe([2, 1], '$$', { out: W }),
+      c([0, 2], 'gather', { out: { out: NW } }), shoe([1, 2], '?', { out: W }),
+      // the end of a scan: the decision
+      c([-1, -1], 'deal', { out: { to: [W, W, ...Array(58).fill(SW)] } }), pass([-2, 0], SW),
+      war([-3, 1], { dealer: SE, out: { dwin: W, win: SW, lose: SW } }),
+    ],
+  },
 };
