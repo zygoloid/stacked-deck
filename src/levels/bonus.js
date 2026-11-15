@@ -302,22 +302,24 @@ const RF = [source([-3, 1], E), desk([-3, 3])];
 const SUIT_ORDER = ['S', 'D', 'C', 'H'];
 const inRankOrder = (h) => [...h].sort((a, b) => rankValue(a) - rankValue(b) ||
   SUIT_ORDER.indexOf(suitOf(a)) - SUIT_ORDER.indexOf(suitOf(b)));
-// Five-card hands rich in repeated ranks, each test dealt from one deck:
-// pairs, two pair, trips, full houses and quads as well as five ranks; some
-// already in order, some in reverse order (a shape the deck can no longer
-// make falls back to the next one, and in the end to any five cards).
+// Five-card hands rich in repeated ranks, each test dealt from one deck
+// without its aces: pairs, two pair, trips, full houses and quads as well as
+// five ranks; some already in order, some in reverse order (a shape the deck
+// can no longer make falls back to the next one, and in the end to any five
+// cards).
+const NO_ACES = RANKS.filter((r) => r !== 'A');
 function rankDeals(rand, nTests, per) {
   const SHAPES = [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [2, 1, 1, 1], [2, 1, 1, 1], [2, 2, 1], [2, 2, 1],
     [3, 1, 1], [3, 2], [4, 1]];
   return Array.from({ length: nTests }, () => {
-    const deck = shuffled(fullDeck(), rand);
+    const deck = shuffled(fullDeck().filter((c) => rankOf(c) !== 'A'), rand);
     return Array.from({ length: per }, () => {
       const first = Math.floor(rand() * SHAPES.length);
       let hand = null;
       for (const shape of SHAPES.slice(first)) {
         const pick = [];
         for (const n of shape) {
-          const ranks = RANKS.filter((r) => !pick.some((c) => rankOf(c) === r) &&
+          const ranks = NO_ACES.filter((r) => !pick.some((c) => rankOf(c) === r) &&
             deck.filter((c) => rankOf(c) === r && !pick.includes(c)).length >= n);
           if (!ranks.length) break;
           const r = ranks[Math.floor(rand() * ranks.length)];
@@ -1827,9 +1829,9 @@ export const LEVELS = [
     difficulty: 8,
     story: [
       'Dmitri has been asked to look over the house\'s paperwork, and he has views on it. Tonight every five-card hand is paid back, all five cards of it, but in order: the lowest rank on top, down to the highest at the bottom.',
-      'Aces are low: an ace goes above a 2, and kings go to the bottom. Where two cards share a rank, the spade goes first, then the diamond, the club and the heart. Dmitri says a hand in order is a hand he can file.',
+      'Nobody could agree whether an ace files above the 2 or below the king, and the argument got loud enough that the aces have been taken out of the decks for the night. Where two cards share a rank, the spade goes first, then the diamond, the club and the heart. Dmitri says a hand in order is a hand he can file.',
     ],
-    brief: 'Five-card hands. Pay out every hand with its cards in rank order, lowest on top: A 2 3 ... 10 J Q K (aces low). Cards of the same rank go spade, diamond, club, heart. (Order counts.)',
+    brief: 'Five-card hands, from decks with no aces. Pay out every hand with its cards in rank order, lowest on top: 2 3 ... 10 J Q K. Cards of the same rank go spade, diamond, club, heart. (Order counts.)',
     handSize: 5,
     floor: floorOf(hexRect(-1, 4, -6, 10), RF),
     fixed: RF,
@@ -1840,17 +1842,17 @@ export const LEVELS = [
     tests: dealtTests({
       deal: (rand, n) => rankDeals(rand, n, 8),
       fixed: [
-        // every shape of hand; already in order, in reverse order; aces low;
-        // a rank in every suit order
-        ['KS QD 2C 3H 4S', 'AS 2D 3C 4H 5S', 'KH QC JD TS 9H', 'KD AH QS AC 2D', '9H 4C 9S 7D 4D',
-          'JH JC JD JS 3D', '7S 7D 7C 7H 2S', '8C 8S 5H 8D 5S', 'QH TC QD TH QS', 'AH KS AD KH AS'],
+        // every shape of hand; already in order, in reverse order; 2s and
+        // kings at both ends; a rank in every suit order
+        ['KS QD 2C 3H 4S', '2S 3D 4C 5H 6S', 'KH QC JD TS 9H', 'KD 2H QS 2C 3D', '9H 4C 9S 7D 4D',
+          'JH JC JD JS 3D', '7S 7D 7C 7H 2S', '8C 8S 5H 8D 5S', 'QH TC QD TH QS', '2H KS 2D KH 2S'],
         // the same shape back to back: four of a kind, two pair, five in a row
         // already in order, four of a kind
-        ['6C 6H 6S 6D KC', 'TD TS TH TC AH', '3H 3C 2H 2C AD', '5D 5S 4D 4S 9C', 'AS 2S 3S 4S 5S',
-          'AD 2C 3H 4S 5D', '2S 2D 2C 2H 3S', 'KS KD KC KH QH'],
+        ['6C 6H 6S 6D KC', 'TD TS TH TC 2H', '3H 3C 2H 2C 4D', '5D 5S 4D 4S 9C', '2S 3S 4S 5S 6S',
+          '2D 3C 4H 5S 6D', '2S 2D 2C 2H 3S', 'KS KD KC KH QH'],
         // hands in reverse order, alternating with hands already in order
-        ['KH JC 9D 7S 5H', 'AC 3D 5S 7H 9C', 'QH QC QD QS JH', '4S 4D 4C 6S 6D', '9H 9C 8H 8C 7H',
-          '2D 3C 4H 5S 6D', 'KC QC JC TC 9C', 'AS AD AC AH 2H'],
+        ['KH JC 9D 7S 5H', '2C 3D 5S 7H 9C', 'QH QC QD QS JH', '4S 4D 4C 6S 6D', '9H 9C 8H 8C 7H',
+          '2D 3C 4H 5S 6D', 'KC QC JC TC 9C', '2S 2D 2C 2H 3H'],
         // one hand alone
         ['JC 3S JS 3H 7D'],
       ],
@@ -2351,7 +2353,7 @@ const PAR = {
   'round-the-clock': { croupiers: 20, rounds: 3488 },
   'running-count': { croupiers: 22, rounds: 674 },
   'counterfeit': { croupiers: 25, rounds: 496 },
-  'rank-and-file': { croupiers: 13, rounds: 5511 },
+  'rank-and-file': { croupiers: 13, rounds: 5098 },
   'head-count': { croupiers: 19, rounds: 676 },
   'mirror-image': { croupiers: 25, rounds: 383 },
   'casino-numbers': { croupiers: 27, rounds: 1574 },
