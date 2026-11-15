@@ -15,9 +15,9 @@
 // away: Off Suit, Night Off, Skeleton Crew and No Kings a croupier (or two),
 // Ceasefire the War; One Deck, One War and Dumbwaiter bolt a shoe or
 // croupier to the floor (fixed cells). Crossed Wires and Uneven Tables seat
-// three players with labelled desks, Follow Suit four; Mirror Image,
-// Showdown, Twice Shy, Pot Luck, Twenty-One Card Trick and the casino-number
-// floors seat two. Perfect Pair and Counterfeit deal from two decks
+// three players with labelled desks, One War three with one desk, Follow
+// Suit four; Mirror Image, Showdown, Twice Shy, Pot Luck, Twenty-One Card
+// Trick and the casino-number floors seat two. Perfect Pair and Counterfeit deal from two decks
 // (`decks: 2`).
 import {
   hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, SW, W, NW, NE,
@@ -359,12 +359,43 @@ function sevensDeals(rand, nTests, per = 10) {
     return shuffled([...pick(sevens, k), ...pick(fullDeck().filter((c) => rankOf(c) !== '7'), 5 - k)], rand);
   }));
 }
-// One War: Inside Bet with no War croupiers but one, bolted down, its
-// dealer's side and all four ports fixed.
+// One War: In-Between. Three seated players across the top, one card each
+// per deal: A's card (the middle seat) is the bet, B's (on the left) the
+// low post and C's (on the right) the high post; the deal makes B's lower
+// than C's. A's card is paid when it ranks strictly between them (aces
+// high). No War croupiers but one, bolted down: top card, its dealer's side
+// and all four ports fixed.
 const ONE_WAR = [
-  source([-2, -1], E), desk([2, 0]),
-  { at: [0, 0], kind: 'croupier', fn: 'war', rule: 'high', dealer: W, out: { win: NE, lose: SE, dwin: SW, dlose: E } },
+  seated([2, -4], SW, 0), seated([1, -4], SW, 1), seated([3, -4], SW, 2), desk([2, 0]),
+  { at: [0, 0], kind: 'croupier', fn: 'war', rule: 'top', dealer: W, out: { win: NE, lose: SE, dwin: SW, dlose: E } },
 ];
+// A test's deals, [A's card, B's, C's] for each.
+const threes = (inputs) => Array.from({ length: Math.floor(inputs.length / 3) }, (_, i) => inputs.slice(3 * i, 3 * i + 3));
+const inBetween = (inputs) => threes(inputs)
+  .filter(([[a], [b], [c]]) => hv(b) < hv(a) && hv(a) < hv(c)).map(([a]) => a);
+// Fixed tests: each deal written 'A B C'.
+const betDeals = (...ds) => ds.flatMap((d) => d.split(' '));
+// `per` deals a test from one deck: two cards of different ranks, the
+// lower to B and the higher to C, and A's card; one deal in five, A's card
+// (if the deck still has one) ties a post.
+function inBetweenDeals(rand, nTests, per = 12) {
+  return Array.from({ length: nTests }, () => {
+    const deck = shuffled(fullDeck(), rand);
+    const take = (ok) => {
+      const i = deck.findIndex(ok);
+      return i < 0 ? null : deck.splice(i, 1)[0];
+    };
+    const test = [];
+    for (let k = 0; k < per; k++) {
+      const x = deck.shift(), y = take((d) => hv(d) !== hv(x));
+      const [b, c] = hv(x) < hv(y) ? [x, y] : [y, x];
+      const tie = rand() < 0.2 ? (rand() < 0.5 ? b : c) : null;
+      const a = (tie && take((d) => hv(d) === hv(tie))) ?? deck.shift();
+      test.push([a], [b], [c]);
+    }
+    return test;
+  });
+}
 // Dumbwaiter: two rooms with no hexes in common and none side by side (the
 // player's on the left, screen columns up to -1; the desk's on the right,
 // from 2), joined only by a bolted Hand(1) between them, which hands cards
@@ -1566,26 +1597,32 @@ export const LEVELS = [
     title: 'One War',
     difficulty: 7,
     story: [
-      'Sal Vellani\'s uncle is back to bet the middle of the deck: a five-card hand wins if its high card is a 9, 10, jack or queen. Nothing too small, nothing too grand.',
-      'Only one War croupier came in tonight, and the auditors have bolted her table to the floor: her dealer\'s side and all four of her ports stay as they are. There are no other War croupiers. The uncle says he has always liked a croupier who stays put.',
+      'Sal Vellani\'s uncle still bets the middle, and tonight he has brought In-Between, Acey-Deucey\'s cousin from the casinos down the coast. Three players, one card each per deal: player B\'s card is always lower than player C\'s (the deal sees to it), and player A\'s card wins if it ranks strictly between them. A card that ties either of them loses, and aces are high.',
+      'Only one War croupier came in tonight, and the auditors have bolted her table to the floor: her dealer\'s side, all four of her ports and her rule (top card) stay as they are. There are no other War croupiers. The uncle says he has always liked a croupier who stays put.',
     ],
-    brief: 'Five-card hands. Pay out every hand whose high card is 9, 10, J or Q (aces high). No War croupiers: the only one is bolted down, ports and all.',
-    handSize: 5,
-    floor: floorOf(hexRect(-4, 2, -8, 5), ONE_WAR),
+    brief: 'Three players, one card each per deal; B\'s card is always lower than C\'s. Pay out A\'s card when it ranks strictly between B\'s and C\'s (a tie with either loses; aces high). No War croupiers: the only one is bolted down, top card, ports and all.',
+    handSize: 1,
+    floor: floorOf(hexRect(-3, 3, -7, 7), ONE_WAR),
     fixed: ONE_WAR,
     croupiers: paletteThrough('hand').filter((c) => c !== 'war'),
-    pays: (h) => high(h) >= 9 && high(h) <= 12,
-    tests: makeTests({
-      handSize: 5, handsPerTest: 10,
+    expected: inBetween,
+    tests: dealtTests({
+      deal: (rand, n) => inBetweenDeals(rand, n),
       fixed: [
-        ['2S 3D 4C 5H 8S', '2S 3D 4C 5H 9S', '2S 3D 4C 5H TS', 'QS 3D 4C 5H 2S', '2S KD 4C 5H 8S',
-          '2S 3D AC 5H 8S', 'QS QD QC 2H 3S', 'JS TD 9C 8H 7S', 'KS QD JC TH 9S', '9S 9D 9C 9H 2S'],
-        // winners back to back, then losers of both kinds back to back
-        ['9S 2D 3C 4H 5S', 'QD JC TH 9S 2C', 'TS TD 3C 4H 5D', 'JH 8S 7D 6C 5H', 'QH QC 8D 2S 3H',
-          'KS 2D 3C 4H 5S', 'AD 9C TH JS QS', '8S 7D 6C 5H 4S', '2D 3D 4D 5D 6D', 'KH KD QS 2C 3C'],
-        // winners alternating with hands too small and too grand
-        ['9D 5S 4C 3H 2D', '8H 7S 6D 5C 4H', 'QC 2S 3D 4H 6C', 'AS KH 2D 3C 4S', 'TH 9H 8H 7H 6H',
-          '8C 8D 8S 2H 3D', 'JD 4S 5C 6H 7D', 'KC 9S 8D 7C 6S', 'QS JS TS 9S 8S'],
+        // ties with either post, posts next to each other (nothing fits
+        // between), aces, kings and 2s
+        betDeals('7S 3D JC', '3S 3H JD', 'JS 4D JH', '6S 5C 7D', '8S 8H 9C', '9D 8C 9S', '2C 8D 9H', 'KD 7H 8S',
+          'KS 2D AC', 'AH 5D KC', '2H 3C 9C', '3H 2S 4H', 'QH KH AS', 'AD KS AC', '2D 2H AH', '7H 2C AD'),
+        // winners back to back, then losers back to back: too low, ties, too high
+        betDeals('5S 2D 9C', '6D 3C TH', '7C 4H JS', '8H 5S QD', '9S 6D KC', 'TD 7C AH',
+          '2S 5D 9D', '3D 6C TC', '4C 7H JH', '5H 5C 9H', 'QC 8D QS', 'KS 4S 9S', 'AD 6H JD', 'QH 2C 3S'),
+        // winners alternating with hands that fail at the low post (A's card
+        // not above B's) and at the high post (not below C's)
+        betDeals('JC 9D QS', '2H 9H KD', '4S 3D 5C', 'KH 3S 7D', '8C 2S AS', '6H 6C 9C',
+          'TS 9S JD', 'QD 4D QC', '3C 2D 6S', 'AC KC AH', '9H 8S TH', '2C 7S 8D'),
+        // runs: too low, winners, too high, winners
+        betDeals('2S 6D 9C', '3H 7C TD', '4D 8S JC', '5C 9H QS', '7S 6C 8H', 'JD 2H AS', '6H 5S 7C', 'QC TH KD',
+          'AH 3C KC', 'KS 4H QH', 'QD 2D JS', 'TC 5D 9S', '9D 8C TS', '3S 2C 4H', 'JH TS QD', 'KH QC AD'),
       ],
       nRandom: 4, seed: 202,
     }),
@@ -2345,7 +2382,7 @@ const PAR = {
   'pot-luck': { croupiers: 18, rounds: 747 },
   'night-off': { croupiers: 25, rounds: 398 },
   'skeleton-crew': { croupiers: 10, rounds: 69 },
-  'one-war': { croupiers: 10, rounds: 368 },
+  'one-war': { croupiers: 9, rounds: 398 },
   'dumbwaiter': { croupiers: 8, rounds: 327 },
   'no-kings': { croupiers: 13, rounds: 107 },
   'one-up': { croupiers: 16, rounds: 4076 },

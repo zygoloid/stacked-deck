@@ -1169,31 +1169,33 @@ export const SPECS = {
     ],
   },
   'one-war': {
-    // Two comparisons through the one War: beat an 8 (the hand as player),
-    // then fail to hold a king (the hand as dealer against a king, which
-    // wins only if the hand's high card is a queen or lower). Its ports are
-    // distinct, so each carries hands from one pass and reference cards from
-    // the other: win has the first pass's winners (on to the second) and the
-    // kings that beat a hand; dealer-lose has the eights a hand beat and the
-    // hands to pay. The references are five of a kind (a shoe into Hand(5)),
-    // so Kind(5) tells them from a hand, which never holds five of a rank.
-    // Player and dealer travel as one stack, [hand, 8 8 8 8 8] or
-    // [K K K K K, hand], and one cut splits every stack, top half to the
-    // player's side and bottom half to the dealer's: the War's two queues
-    // then stay in step, whichever hands are in flight. Lose and dealer-win
-    // only ever carry what is dropped. (Either pass can be the one with the
-    // hand as dealer: five 9s that fail to beat the hand, then the hand as
-    // player against five queens, works the same way, but the hands that go
-    // on leave by the War's south-west side, and the route back to the cut
-    // makes it 20.)
+    // Two comparisons through the one War (top card, ties to the house):
+    // a against b (A's card as player: it must beat the low post), then c
+    // against a (C's card as player: the high post must beat it, so A's card,
+    // the dealer, is paid on dealer-lose). The greater card is the player
+    // both times, so a tie loses both times. Player and dealer travel as one
+    // stack, and one cut splits every stack, top two cards (or one) to the
+    // dealer's side and the rest to the player's: [b b a c 2] for the first
+    // pass, [a c 2] (the first pass's winner, as it leaves the War) for the
+    // second, so the War's two queues stay in step whichever deals are in
+    // flight. The cut stands on the War's win side, so a winner goes straight
+    // back in, and it looks there first (it faces the War after cutting), so
+    // a deal in the War always goes before a new one and the loop never
+    // backs up. The War's ports carry both passes: win the first pass's
+    // winners (on to the second) and the second's high posts [c 2], which
+    // go round once more and lose to their own c (a house 2 never beats a
+    // post); dealer-lose the first pass's low posts [b b] (a copy makes them
+    // a pair, so Kind(2) drops them) and the A's cards to pay. Lose and
+    // dealer-win only ever carry what is dropped. (A copy of C's card
+    // instead of the house 2, [b b a c c], is one croupier fewer: the second
+    // pass's [c c] ties itself next time round. 8 croupiers.)
     cells: [
-      shoe([-1, -3], '8C', { out: SE }), c([-1, -2], 'hand', { n: 5, out: { out: SE } }),
-      c([-1, -1], 'gather', { under: NW, out: { out: E } }),
-      c([0, -1], 'cut', { out: { top: SE, bottom: SW } }), pass([-1, 0], E),
-      c([1, -1], 'kind', { n: 5, out: { no: NW } }),
-      shoe([3, -4], 'KC', { out: SW }), c([2, -3], 'hand', { n: 5, out: { out: SW } }),
-      c([1, -2], 'gather', { under: SE, out: { out: SW } }),
-      c([1, 0], 'kind', { n: 5, out: { no: E } }),
+      c([0, -3], 'duplicate', { out: { a: E, b: E } }),
+      c([1, -3], 'gather', { under: NE, out: { out: SE } }),
+      c([2, -3], 'gather', { under: E, out: { out: SW } }), shoe([3, -3], '2S', { out: W }),
+      c([1, -2], 'gather', { under: NE, out: { out: SE } }),
+      c([1, -1], 'cut', { out: { top: W, bottom: SW } }), pass([0, -1], SW), pass([-1, 0], E),
+      c([1, 0], 'kind', { n: 2, out: { no: E } }),
     ],
   },
   dumbwaiter: {
