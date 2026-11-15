@@ -12,7 +12,7 @@ import {
 } from './croupiers.js';
 import { floorBadge } from './floors.js';
 import {
-  hexKey, sanitizeCells, toSpec, countCroupiers, levelSave, warRules, specialCardsOf,
+  hexKey, sanitizeCells, toSpec, countCroupiers, levelSave, warRules, specialCardsFor,
   solutionsOf, recordSolution, deleteSolution, findSolution,
 } from './model.js';
 import { checkDeals, CHECK_DEALS, totalRounds } from '../score.js';
@@ -81,7 +81,7 @@ export function openEditor(root, ctx, level) {
   const transport = h('div', { class: 'transport' });
   const toast = h('div', { class: 'toast hidden' });
   const modal = h('div', { class: 'modal-host' });
-  const specials = specialCardsOf(level);
+  const specials = specialCardsFor(ctx.save, level);
   const solBtn = h('button', { class: 'btn ghost sol-btn hidden', onclick: () => openSolutions(), title: 'Your saved solutions for this floor' });
   const peek = h('div', { class: 'peek hidden' });
   const radial = h('div', { class: 'radial hidden', role: 'menu' });

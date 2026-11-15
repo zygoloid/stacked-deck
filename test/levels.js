@@ -118,6 +118,9 @@ for (const level of LEVELS) {
 // campaign floors or other bonus floors; following the bonus floors back
 // gives the campaign floors it needs (null for a cycle or an unknown id).
 const bonusById = new Map(BONUS.map((l) => [l.id, l]));
+// The special cards a bonus floor's reference solution may use: those
+// available by its campaign floors.
+const bonusSpecials = new Map();
 const unlockIds = (level) => [].concat(level.unlockAfter ?? []);
 const rootsOf = (level, seen = new Set()) => {
   if (seen.has(level.id)) return null;
@@ -152,8 +155,13 @@ BONUS.forEach((level, i) => {
   check(!lost.length, `${where} palette is available by ${root} (not yet: ${lost})`);
   const rules = level.warRules ?? ['high'];
   check(rules.every((r) => after.rules.includes(r)), `${where} War rules ${rules} are available by ${root}`);
+  // Every bonus floor allows all four special cards (the game offers each
+  // one only once the player has reached it in the campaign: the bonus deck
+  // uses the player's current house deck); but a reference solution uses
+  // only those available by its campaign floors, as a player there could.
   const specials = level.specialCards ?? [];
-  check(specials.every((c) => after.specials.includes(c)), `${where} specialCards ${specials} are available by ${root}`);
+  check(SPECIALS.every((c) => specials.includes(c)), `${where} specialCards are all four special cards (${specials})`);
+  bonusSpecials.set(level.id, after.specials);
   if (!after.specialsSeen) {
     const text = [level.title, level.brief, ...(level.story ?? [])].join(' ');
     check(!SPECIAL_WORDS.test(text), `${where} doesn't mention special cards before they're introduced`);
@@ -301,8 +309,9 @@ for (const level of [...LEVELS, ...BONUS]) {
     if (c.fn === 'kind') check(Number.isInteger(c.n) && c.n >= 2 && c.n <= 8, `cell ${c.at}: kind n`);
     if (c.fn === 'hand') check(Number.isInteger(c.n) && c.n >= 1 && c.n <= MAX_HAND, `cell ${c.at}: hand n`);
     if (c.kind === 'shoe') {
-      check(c.deck.length && c.deck.every((x) => CARDS.has(x) || specials.includes(x)),
-        `cell ${c.at}: shoe deck ${c.deck} uses natural cards${specials.length ? ` and ${specials}` : ''}`);
+      const usable = isBonus ? bonusSpecials.get(level.id) ?? [] : specials;
+      check(c.deck.length && c.deck.every((x) => CARDS.has(x) || usable.includes(x)),
+        `cell ${c.at}: shoe deck ${c.deck} uses natural cards${usable.length ? ` and ${usable}` : ''}${isBonus ? ' (those a player has by its campaign floors)' : ''}`);
     }
   }
   const all = [...level.fixed, ...cells];
