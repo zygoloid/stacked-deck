@@ -1597,7 +1597,7 @@ export const LEVELS = [
     title: 'One War',
     difficulty: 7,
     story: [
-      'Sal Vellani\'s uncle still bets the middle, and tonight he has brought In-Between, Acey-Deucey\'s cousin from the casinos down the coast. Three players, one card each per deal: player B\'s card is always lower than player C\'s (the deal sees to it), and player A\'s card wins if it ranks strictly between them. A card that ties either of them loses, and aces are high.',
+      'Sal Vellani\'s uncle still bets the middle, and tonight he has brought In-Between from the casinos down the coast. Three players, one card each per deal: player B\'s card is always lower than player C\'s (the deal sees to it), and player A\'s card wins if it ranks strictly between them. A card that ties either of them loses, and aces are high.',
       'Only one War croupier came in tonight, and the auditors have bolted her table to the floor: her dealer\'s side, all four of her ports and her rule (top card) stay as they are. There are no other War croupiers. The uncle says he has always liked a croupier who stays put.',
     ],
     brief: 'Three players, one card each per deal; B\'s card is always lower than C\'s. Pay out A\'s card when it ranks strictly between B\'s and C\'s (a tie with either loses; aces high). No War croupiers: the only one is bolted down, top card, ports and all.',
