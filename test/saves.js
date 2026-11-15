@@ -2,8 +2,8 @@
 // another tab's save into this tab's, catching up with another tab when
 // writing, reporting a save that can't be written, and save files.
 import assert from 'node:assert';
-import { LEVELS } from '../src/levels.js';
-import { mergeSave, loadSave, writeSave, watchSave, saveProblem, recordSolution, rescoreStale, floorPrint } from '../src/ui/model.js';
+import { LEVELS, BONUS } from '../src/levels.js';
+import { mergeSave, loadSave, writeSave, watchSave, saveProblem, recordSolution, rescoreStale, floorPrint, specialCardsFor, specialCardsUnlocked } from '../src/ui/model.js';
 import { saveFileText, readSaveFile, loadSaveFile, saveFileName, FILE_FORMAT } from '../src/ui/savefile.js';
 import { RULES_VERSION } from '../src/engine.js';
 import { countCroupiers } from '../src/score.js';
@@ -252,3 +252,30 @@ console.log('save files ok');
   assert.ok(!ls.solutions[0].broken && ls.best.croupiers === countCroupiers(ref));
 }
 console.log('re-scoring changed floors ok');
+
+// Special cards in shoes: a campaign floor has its own (the house deck as it
+// was then); a bonus floor has those the player has reached in the campaign
+// (the house deck as it is now), whatever floors opened it.
+{
+  globalThis.location = { search: '' }; // (unlocking reads ?unlockall)
+  const early = BONUS.find((l) => l.id === 'split-pot'), late = LEVELS.find((l) => (l.specialCards ?? []).length);
+  const solvedUpTo = (n) => ({ levels: Object.fromEntries(LEVELS.slice(0, n).map((l) => [l.id, { solved: true }])) });
+  const fresh = solvedUpTo(LEVELS.indexOf(late) - 3);
+  assert.deepStrictEqual(specialCardsUnlocked(fresh), [], 'no special card reached before the finale opens');
+  assert.deepStrictEqual(specialCardsFor(fresh, early), [], 'so a bonus floor offers none');
+  assert.deepStrictEqual(specialCardsFor(fresh, LEVELS[0]), [], 'nor does a campaign floor');
+  // Solving every floor before the first special floor opens it, and the
+  // next two (up to three unsolved floors are open at once): their special
+  // cards are reached.
+  const reached = solvedUpTo(LEVELS.indexOf(late));
+  const open = [...new Set(LEVELS.slice(LEVELS.indexOf(late), LEVELS.indexOf(late) + 3).flatMap((l) => l.specialCards))];
+  assert.deepStrictEqual(specialCardsUnlocked(reached), ['?', '??', '$', '$$'].filter((c) => open.includes(c)), 'the special cards of the open finale floors are reached');
+  assert.ok(late.specialCards.every((c) => specialCardsUnlocked(reached).includes(c)));
+  assert.deepStrictEqual(specialCardsFor(reached, early), specialCardsUnlocked(reached), 'an early bonus floor now offers them');
+  assert.deepStrictEqual(specialCardsFor(reached, LEVELS[0]), [], 'an early campaign floor still doesn\'t');
+  const all = solvedUpTo(LEVELS.length);
+  assert.deepStrictEqual(specialCardsFor(all, early), ['?', '??', '$', '$$'], 'with the whole campaign done, all four');
+  assert.deepStrictEqual(specialCardsFor(all, late), late.specialCards, 'a campaign floor keeps its own');
+  delete globalThis.location;
+}
+console.log('special cards ok');

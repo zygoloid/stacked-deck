@@ -2370,4 +2370,9 @@ const PAR = {
   'carry-the-one': { croupiers: 75, rounds: 2046 },
 };
 // END PAR
+// The bonus deck is played at any time, with the house deck as it is now:
+// every bonus floor allows all four special cards, and the game offers each
+// one in a shoe once the player has reached it in the campaign (the finale;
+// specialCardsFor in src/ui/model.js).
+for (const level of LEVELS) level.specialCards ??= ['?', '??', '$', '$$'];
 finishChapter(LEVELS, PAR);

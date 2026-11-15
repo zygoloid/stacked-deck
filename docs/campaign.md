@@ -55,7 +55,9 @@ Palettes grow in one fixed order (`paletteThrough(newest)` in
 
 `warRules`: `['high']` until 3♣; `['top']` for 4♣–9♣; `['high', 'top']`
 from 10♣ on. `specialCards`: `[]` everywhere except the finale, where it grows
-`['?']`, `['?', '??']`, `['?', '??', '$']`, then all four.
+`['?']`, `['?', '??']`, `['?', '??', '$']`, then all four. (Bonus floors list
+all four: the bonus deck uses the player's house deck as it is now, so its
+shoes offer each special card once the player has reached it here.)
 
 ## The floors
 
@@ -249,11 +251,16 @@ earliest campaign floor with all of it. Floors that open after a moved floor
 still need Déjà Vu (or whatever their palette needs) in their own
 `unlockAfter`, as the seated floors after Crossed Wires do.
 
-**Palette.** A bonus floor's palette, War rules and special cards must all be
-available at the latest campaign floor it needs (directly or through its
-chain;
-test/levels.js checks this; the campaign's "palette only grows" rule doesn't
-apply to the bonus deck, and Off Suit and Night Off take croupiers away).
+**Palette.** A bonus floor's palette and War rules must be available at the
+latest campaign floor it needs (directly or through its chain; test/levels.js
+checks this; the campaign's "palette only grows" rule doesn't apply to the
+bonus deck, and Off Suit and Night Off take croupiers away). Special cards
+are different: the bonus deck is played at any time, with the player's house
+deck as it is now, so every bonus floor allows all four, and the game offers
+each in a shoe once the player has opened the finale floor that introduces
+it (docs/architecture.md, "Special cards"). Stories and briefs still don't
+mention them before then, and reference solutions use only those available
+by the floor's campaign floors, so every floor can be solved without them.
 
 | Card | id | Title | After | Hand | Puzzle | Reference (par) | Diff | Origin |
 |---|---|---|---|---|---|---|---|---|
@@ -401,9 +408,10 @@ the same idea).
 * The bonus deck: ids unique across `LEVELS` and `BONUS`; no `chapter`;
   `unlockAfter` names campaign floors, or bonus floors whose chains end at
   campaign floors (one id or a list); cards A♠, 2♠, ... in list order;
-  palette, War rules and special cards all available at the latest campaign
-  floor it needs (no special-card words before then).
-* `specialCards` only in the finale, only growing; no floor before the first
+  palette and War rules available at the latest campaign floor it needs (no
+  special-card words before then); `specialCards` all four, and its
+  reference solution uses only those available by then.
+* Campaign `specialCards` only in the finale, only growing; no floor before the first
   special floor mentions "joker", "advertis…" or "wild card" in its title,
   brief or story.
 * Reference solutions: on the floor, palette and War rules only; shoe decks

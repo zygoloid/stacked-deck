@@ -1891,6 +1891,37 @@ try {
       delete s.levels[id];
       localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
     }, lv.id);
+
+    // A bonus floor uses the player's house deck as it is now: before the
+    // finale opens its shoes take no special card (and the error doesn't
+    // give them away); once it is open they take the ones reached.
+    const kept = await page.evaluate(() => localStorage.getItem('stacked-deck-v1'));
+    const bonusLv = BONUS_LEVELS.find((l) => l.croupiers.includes('shoe') && pick(l) && LEVELS.findIndex((c) => c.id === [].concat(l.unlockAfter)[0]) >= 0);
+    const finale = LEVELS.findIndex((l) => (l.specialCards ?? []).length);
+    const solvedUpTo = (n) => Object.fromEntries(LEVELS.slice(0, n).map((l) => [l.id, { solved: true }]));
+    const bonusDeck = async (levels, text) => {
+      await page.goto(base);
+      await page.evaluate((l) => localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: l })), levels);
+      await page.goto(`${base}#/level/${bonusLv.id}`);
+      await page.reload();
+      await page.waitForSelector('svg.board');
+      const at = pick(bonusLv).a;
+      await page.click('.pal-item[data-tool="shoe"]');
+      await clickHex(at);
+      await page.keyboard.press('Escape');
+      await clickHex(at);
+      await setDeck(text);
+      return {
+        err: await page.textContent('.lf-status.bad').catch(() => ''),
+        deck: (await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, bonusLv.id)).find((c) => c.kind === 'shoe')?.deck,
+      };
+    };
+    let got = await bonusDeck(solvedUpTo(finale - 3), '? AS');
+    check(/"\?" is not a card/.test(got.err) && !/joker|special/i.test(got.err), `${bonusLv.id} (bonus) before the finale: its shoes take no special card ("${got.err}")`);
+    got = await bonusDeck(solvedUpTo(LEVELS.length), '? ?? $ $$ AS');
+    check(JSON.stringify(got.deck) === JSON.stringify(['?', '??', '$', '$$', 'AS']), `${bonusLv.id} (bonus) after the finale: its shoes take every special card (${JSON.stringify(got.deck)})`);
+    await page.goto(base);
+    await page.evaluate((k) => (k === null ? localStorage.removeItem('stacked-deck-v1') : localStorage.setItem('stacked-deck-v1', k)), kept);
   }
 
   // Test-only floors (?testlevels adds test/ui-levels.js to the bonus deck).
