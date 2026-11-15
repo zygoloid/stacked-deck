@@ -18,6 +18,12 @@ const counting = ({ start = 1, next = (k) => (k + 1) % 13, chain = false } = {})
   return has(h, want);
 };
 const climbs = (val) => (h) => h.every((c, i) => i === 0 || val(c) >= val(h[i - 1]));
+// One War: [A's card, B's, C's] for each deal; `bet(rule, val, who)` pays
+// player `who`'s card (A's by default) where rule(a, b, c) holds on the
+// three cards' values.
+const threes = (t) => Array.from({ length: Math.floor(t.length / 3) }, (_, i) => t.slice(3 * i, 3 * i + 3));
+const bet = (rule, val = hv, who = 0) => (t) => threes(t)
+  .filter((d) => rule(...d.map(([x]) => val(x)))).map((d) => d[who]);
 // Two-player floors: [player A's hand, player B's] for each deal.
 const deals = (t) => Array.from({ length: Math.floor(t.length / 2) }, (_, i) => [t[2 * i], t[2 * i + 1]]);
 const sameCards = (a, b) => [...a].sort().join() === [...b].sort().join();
@@ -445,10 +451,18 @@ export const MUTANTS = {
     ])),
   },
   'one-war': {
-    '9 to K': (h) => high(h) >= 9 && high(h) <= 13, '10 to Q': (h) => high(h) >= 10 && high(h) <= 12,
-    '8 to Q': (h) => high(h) >= 8 && high(h) <= 12, '9 to J': (h) => high(h) >= 9 && high(h) <= 11,
-    'top card': (h) => hv(h[0]) >= 9 && hv(h[0]) <= 12, 'aces low': (h) => Math.max(...h.map(rv)) >= 9 && Math.max(...h.map(rv)) <= 12,
-    'holds a 9 to Q': (h) => h.some((c) => hv(c) >= 9 && hv(c) <= 12),
+    'ties win': bet((a, b, c) => b <= a && a <= c),
+    'a tie with B wins': bet((a, b, c) => b <= a && a < c),
+    'a tie with C wins': bet((a, b, c) => b < a && a <= c),
+    'beats B only': bet((a, b) => a > b),
+    'below C only': bet((a, b, c) => a < c),
+    'aces low': bet((a, b, c) => b < a && a < c, rv),
+    'B and C swapped': bet((a, b, c) => c < a && a < b),
+    'outside the posts': bet((a, b, c) => a < b || a > c),
+    'posts two or more apart': bet((a, b, c) => c - b >= 2),
+    'pay B\'s card between A\'s and C\'s': bet((a, b, c) => Math.min(a, c) < b && b < Math.max(a, c), hv, 1),
+    'pay the middle card': (t) => threes(t).map((d) => [...d].sort((x, y) => hv(x[0]) - hv(y[0]))[1]),
+    'pay the whole deal': (t) => threes(t).filter(([[a], [b], [c]]) => hv(b) < hv(a) && hv(a) < hv(c)).map((d) => d.flat()),
   },
   dumbwaiter: {
     'every card on its own': (t) => t.flat().map((c) => [c]),
