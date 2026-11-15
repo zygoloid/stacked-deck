@@ -414,14 +414,14 @@ export function nightOff() {
 // 4), so Set, with its set pile stacked back on top of the rest, moves
 // that rank's cards to the top and keeps the order of everything else;
 // the ten cards cut in half drop the five spades again. Doing that for
-// each rank in turn, king first and ace last, leaves the hand in rank
-// order, aces low, with each rank's cards still in the order they started
-// in: so the hand is sorted first, which puts each rank's cards spade,
-// diamond, club, heart.
-const RANK_SPADES = [...RANKS].reverse().flatMap((r) => Array(5).fill(`${r}S`));
-// A hand goes round the loop thirteen times: the gate's War loses to an
-// ace twelve times, then beats a 2.
-const RANK_GATE = [...Array(12).fill('AS'), '2S'];
+// each rank in turn, king first and 2 last (the decks have no aces),
+// leaves the hand in rank order, with each rank's cards still in the order
+// they started in: so the hand is sorted first, which puts each rank's
+// cards spade, diamond, club, heart.
+const RANK_SPADES = [...RANKS].reverse().filter((r) => r !== 'A').flatMap((r) => Array(5).fill(`${r}S`));
+// A hand goes round the loop twelve times: the gate's War loses to an ace
+// eleven times, then beats a 2.
+const RANK_GATE = [...Array(11).fill('AS'), '2S'];
 // Every Twenty-One and Hit Me: a card counted as that many cards.
 //  * A lookup table (for each rank r, `size` cards of rank r, `count(r)` of
 //    them hearts and the rest clubs, with a joker on top and `jokers` more
@@ -1125,15 +1125,16 @@ export const SPECS = {
   'rank-and-file': {
     // One hand at a time goes through a ticket door (the hand plays a 2 as
     // the dealer and always wins; a `once` shoe deals the first 2), is
-    // sorted, and goes round a loop thirteen times: Hand(5) on a shoe of
-    // five kings of spades, five queens, ... five aces gathers the next
+    // sorted, and goes round a loop twelve times (there are no aces):
+    // Hand(5) on a shoe of five kings of spades, five queens, ... five 2s
+    // gathers the next
     // rank's five spades on top of the hand; Set's set pile is gathered
     // back on top of the rest, and the cut drops the spades. The gate's War
-    // (shoe: twelve aces, then a 2) sends the hand round again until the
-    // thirteenth time, then pays it, and its 2 goes back to the door as the
+    // (shoe: eleven aces, then a 2) sends the hand round again until the
+    // twelfth time, then pays it, and its 2 goes back to the door as the
     // next ticket. (Stacking Set's piles on one side instead of gathering
     // them, and a loop of four (the hand entering at the gate's War, whose
-    // shoe then deals thirteen aces and a 2), make 10.)
+    // shoe then deals twelve aces and a 2), make 10.)
     cells: [
       war([-2, 1], { dealer: W, out: { dwin: E } }), shoe([-2, 0], '2C', { out: SE, once: true }),
       c([-1, 1], 'sort', { out: { out: SE } }),
