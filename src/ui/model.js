@@ -120,12 +120,27 @@ export function isOpen(save, level) {
   return BONUS.includes(level) && isBonusOpen(save, level);
 }
 
-// Special cards allowed on some open floor: the help explains only these, so
-// they stay a surprise until the first such floor opens.
+// Special cards the player has reached in the campaign (allowed on some open
+// campaign floor): the help explains only these, so they stay a surprise
+// until the first such floor opens. (Bonus floors list them all, so they
+// don't count: see specialCardsFor.)
 export function specialCardsUnlocked(save) {
   const seen = new Set();
-  ALL_LEVELS.forEach((lv) => { if (isOpen(save, lv)) specialCardsOf(lv).forEach((c) => seen.add(c)); });
+  LEVELS.forEach((lv) => { if (isOpen(save, lv)) specialCardsOf(lv).forEach((c) => seen.add(c)); });
   return SPECIALS.filter((c) => seen.has(c));
+}
+
+// The special cards a shoe may deal on `level` for this player. The campaign
+// is the house's history: a campaign floor has the deck it had then (its own
+// specialCards). The bonus deck is played at any time, with the house deck as
+// it is now: the special cards the player has reached in the campaign. (Bonus
+// floors list all four, so the server accepts them; the game offers them
+// only once reached.)
+export function specialCardsFor(save, level) {
+  const own = specialCardsOf(level);
+  if (!BONUS.includes(level)) return own;
+  const reached = specialCardsUnlocked(save);
+  return own.filter((c) => reached.includes(c));
 }
 
 // ---------- saved solutions ----------

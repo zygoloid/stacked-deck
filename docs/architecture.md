@@ -152,6 +152,16 @@ A shoe counts as a croupier for scoring.
 
 ### Special cards (late game; dealt only by shoes)
 
+The campaign is chronological: a campaign floor's shoes deal the special
+cards it lists (`specialCards`: none before the finale, which introduces
+them one floor at a time). The bonus deck is played at any time with the
+player's current house deck: every bonus floor lists all four (so the
+server accepts them), and the game offers each in a shoe once the player
+has opened the campaign floor that introduces it (`specialCardsFor` in
+`src/ui/model.js`; before that it is "not a card", as on early floors). A
+bonus floor's reference solution uses only those available by its
+campaign floors.
+
 | card | name | value | suit | new deck order |
 |---|---|---|---|---|
 | `?` | monochrome joker | wild | none | after the hearts |
@@ -193,7 +203,8 @@ whenever a rule changes; the level select shows it.
   card: 'AS',                   // the floor's playing card: 'AS'…'KS' (suit floors), '?' '??' '$' '$$' (finale);
                                 //   default from chapter + position (ch 1–4 ♠ ♥ ♣ ♦ A…K, ch 5 ? ?? $ $$)
   specialCards: ['?', '??'],    // special cards a shoe may deal here (default none; the UI
-                                //   mentions special cards only once such a floor is open)
+                                //   mentions special cards only once such a floor is open;
+                                //   bonus floors: all four, offered once reached, see below)
   pays: (hand, earlierHands) => boolean,   // either this…
   expected: (inputs) => [hand, ...],       // …or this: the exact payouts (see below)
   ordered: false,                          // compare card order within payouts (true), or
