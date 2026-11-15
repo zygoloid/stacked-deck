@@ -224,7 +224,7 @@ regulation; Ace Count does).
 | 9♣ | Round the Clock | Counting Up | Old Thursday goes round the clock |
 | 10♣ | Running Count | Ace Count and Hot Streak | the Kesslers count every card |
 | J♣ | Counterfeit | Perfect Pair | the Kesslers call every second copy a forgery |
-| Q♣ | Rank and File | Change of Heart | Dmitri looks over the paperwork; every hand filed in order |
+| Q♣ | Rank and File | Change of Heart | Dmitri looks over the paperwork; every hand filed in order; the aces argued out of the decks |
 | K♣ | Head Count | The Rest of the Deck | Pryce's regulation on honest labelling |
 | A♦ | Mirror Image | Crossed Wires and Déjà Vu | the Marchetti twins, a deck each |
 | 2♦ | Casino Numbers | Crossed Wires and Déjà Vu | the Owner counts in thirteens, with no zero |

@@ -424,7 +424,6 @@ export const MUTANTS = {
   'rank-and-file': {
     'as dealt': (t) => t,
     'new deck order (suit first)': (t) => t.map((h) => [...h].sort((a, b) => newDeckIndex(a) - newDeckIndex(b))),
-    'aces high': byRank(hv, 'SDCH'),
     'highest on top': (t) => byRank(rv, 'SDCH')(t).map((h) => h.reverse()),
     'ties as dealt': byRank(rv, null),
     'ties clubs, diamonds, hearts, spades': byRank(rv, 'CDHS'),
