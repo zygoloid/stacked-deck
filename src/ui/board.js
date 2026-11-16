@@ -221,7 +221,9 @@ export class Board {
     svg.replaceChildren();
     const gFloor = s('g', { class: 'l-floor' }), gBody = s('g', { class: 'l-body' });
     const gArrow = s('g', { class: 'l-arrows' }), gCards = s('g', { class: 'l-cards' }), gOver = s('g', { class: 'l-over' });
-    svg.append(gFloor, gBody, gArrow, gCards, gOver);
+    // A picked-up group floats over everything on the floor, ports and all.
+    const gLift = s('g', { class: 'l-lift' });
+    svg.append(gFloor, gBody, gArrow, gCards, gLift, gOver);
 
     const fixedKeys = new Set(this.level.fixed.map((c) => hexKey(c.at)));
     for (const at of this.level.floor) {
@@ -243,10 +245,19 @@ export class Board {
       // page lay itself out again every frame, which on a phone made a long
       // page, the payout lists of 21-card hands, lag for seconds.)
       if (state.alert === k) body.append(s('polygon', { class: 'alert-ring', points: HEX }));
-      // A picked-up group floats over the floor, red where it can't go.
-      if (state.lifted?.cells.has(cell)) body.classList.add('lifted', ...(state.lifted.bad.has(k) ? ['bad'] : []));
-      gBody.append(body);
-      gArrow.append(this.arrowsSvg(cell, t, selected ? state.activePort : null));
+      // A picked-up group floats over the floor, red where it can't go and
+      // marked where it would replace a croupier; that croupier's ports are
+      // hidden (they would only show round the edges).
+      const arrows = this.arrowsSvg(cell, t, selected ? state.activePort : null);
+      if (state.lifted?.cells.has(cell)) {
+        const bad = state.lifted.bad.has(k), under = bad ? null : state.lifted.covers.get(k);
+        body.classList.add('lifted', ...(bad ? ['bad'] : []), ...(under ? ['covers'] : []));
+        gLift.append(body, arrows);
+        if (under) gLift.append(this.coverTag(under, t));
+      } else {
+        gBody.append(body);
+        if (state.lifted?.covers.get(k) !== cell) gArrow.append(arrows);
+      }
       if (liveCells) {
         const lc = liveCells.get(k);
         if (lc) gCards.append(this.liveSvg(lc, t, [x, y]));
@@ -462,6 +473,16 @@ export class Board {
     },
     s('rect', { x: -w / 2, y: -5.5, width: w, height: 11, rx: 5.5, fill: color }),
     s('text', { y: 2.5, 'text-anchor': 'middle' }, text));
+  }
+
+  // Over the top corner of a picked-up croupier: the one it would replace.
+  coverTag(under, t) {
+    const text = `replaces ${chipLabel(under)}`;
+    const w = pillWidth(text) + 4;
+    return s('g', { class: 'cover-tag', transform: t },
+      s('title', {}, `Put down here, it replaces the ${infoFor(under).name} under it`),
+      s('rect', { x: -w / 2, y: -R - 6, width: w, height: 12, rx: 6 }),
+      s('text', { y: -R + 2.6, 'text-anchor': 'middle' }, text));
   }
 
   // Register what a stack or cut-short label holds; returns its [data-peek] index.
