@@ -1454,6 +1454,25 @@ try {
     check(await page.locator('.inspector .insp-head [data-act], .inspector [aria-label^="Turn"]').count() === 0, 'turning and mirroring are on the floor, not in the panel');
     await page.keyboard.press('Escape');
     check(!(await page.isVisible('.sel-bar')), 'deselected, the bar goes');
+    // Dragged onto another croupier, one takes its place (marked while it
+    // is dragged), as a group put down does; one undo brings the other back.
+    {
+      const before = await cellsNow();
+      const [a, b] = [before.find(at(row[0])), before.find(at(row[1]))];
+      const [ax, ay] = await hexPoint(row[0]), [bx, by] = await hexPoint(row[1]);
+      await page.mouse.move(ax, ay);
+      await page.mouse.down();
+      await page.mouse.move(bx, by, { steps: 6 });
+      const tag = await page.textContent('.board .cover-tag text').catch(() => '');
+      const marked = await page.locator('.board .hex.drop.covers').count() === 1;
+      await page.mouse.up();
+      const after = await cellsNow();
+      check(marked && /^replaces \S/.test(tag) && after.length === before.length - 1 && after.find(at(row[1]))?.fn === a.fn && !after.find(at(row[0])),
+        `a croupier dragged onto another replaces it, marked "${tag}" on the way (${JSON.stringify(after.map((c) => [c.fn, c.at]))})`);
+      await page.keyboard.press('Control+z');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(before), 'one undo brings the other back');
+      await page.keyboard.press('Escape');
+    }
   }
 
   // Picking a croupier shows its settings: a Hand set to 3 before placing is placed with n = 3.

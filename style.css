@@ -845,6 +845,7 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .hex.drop { pointer-events: none; stroke-width: 2; stroke-dasharray: 6 4; }
 .hex.drop.ok { fill: rgba(95, 211, 141, 0.15); stroke: var(--good); }
 .hex.drop.bad { fill: rgba(255, 107, 107, 0.12); stroke: var(--bad); }
+.hex.drop.covers { fill: rgba(240, 166, 58, 0.16); stroke: #f0a63a; }
 
 .l-cards { pointer-events: none; }
 .l-cards .peekable { pointer-events: auto; } /* a hand: hover or tap to see it all, in bigger cards */
