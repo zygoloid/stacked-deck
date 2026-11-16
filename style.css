@@ -1001,7 +1001,6 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   .editor { grid-template-columns: minmax(0, 1fr) 310px; }
   .brief { font-size: 12.5px; }
 }
-.insp-head .done-btn { display: none; } /* a phone's way back from a selected croupier */
 .phone-only { display: none; } /* shown by the phone layout below */
 /* Keyboard shortcuts only where there is a mouse (so likely a keyboard),
    touch gestures only where there is a touch screen. */
@@ -1022,9 +1021,8 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   .btn.phone-only { display: inline-flex; }
   .side { border-left: 0; }
   .story-card { padding: 28px 22px; }
-  /* A selected croupier: its panel right under the floor (in play mode, under the play controls), Done to go back. */
+  /* A selected croupier: its panel right under the floor (in play mode, under the play controls); ✓ on the floor to go back. */
   .editor.cell-selected:not(.watching) .transport, .editor.cell-selected .palette { display: none; }
-  .insp-head .done-btn { display: inline-flex; }
 }
 .fixed-rule { font-size: 12.5px; font-weight: 700; color: var(--gold-2); }
 
@@ -1109,22 +1107,26 @@ svg.board { -webkit-touch-callout: none; }
 .board .cell.lifted { filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.55)); }
 .board .cell.lifted .hex.table { stroke: #6fb7ff; stroke-width: 2.4; stroke-dasharray: 6 3; }
 .board .cell.lifted.bad .hex.table { fill: rgba(140, 38, 50, 0.85); stroke: var(--bad); }
+.board .cell.lifted.covers .hex.table { stroke: #f0a63a; }
+.cover-tag rect { fill: #f0a63a; stroke: rgba(0, 0, 0, 0.5); stroke-width: 0.6; }
+.cover-tag text { font-size: 7px; font-weight: 800; fill: #2a1a02; }
 .lift-bar, .sel-bar {
   position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 4px;
   padding: 4px 6px 4px 12px; border-radius: 12px; background: rgba(4, 30, 17, 0.94); border: 1px solid #6fb7ff;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5); white-space: nowrap; max-width: calc(100% - 12px);
 }
 .lift-bar.bad { border-color: var(--bad); }
-.lift-n { font-size: 12.5px; font-weight: 700; margin-right: 4px; overflow: hidden; text-overflow: ellipsis; }
+.lift-n { font-size: 12.5px; font-weight: 700; margin-right: 4px; overflow: hidden; text-overflow: ellipsis; display: flex; flex-direction: column; line-height: 1.15; }
+.lift-covers { font-size: 10.5px; font-weight: 700; color: #f0a63a; }
 .lift-bar button, .sel-bar button {
   width: 34px; height: 32px; flex: none; border-radius: 8px; border: 1px solid var(--gold-soft); background: rgba(0, 0, 0, 0.3);
   cursor: pointer; font-size: 16px; line-height: 1; display: grid; place-items: center; padding: 0;
 }
 .lift-bar button:hover:not(:disabled), .sel-bar button:hover:not(:disabled) { border-color: var(--gold); }
 .lift-bar button:disabled, .sel-bar button:disabled { opacity: 0.35; cursor: default; }
-.lift-bar button.ok { background: linear-gradient(180deg, #f6d77a, #d4af37); color: #2a1d02; border-color: #f6e19c; font-weight: 800; }
+.lift-bar button.ok, .sel-bar button.ok { background: linear-gradient(180deg, #f6d77a, #d4af37); color: #2a1d02; border-color: #f6e19c; font-weight: 800; }
 /* The same bar for one selected croupier: turn and mirror it. */
-.sel-bar { padding: 4px 6px; border-color: var(--gold-soft); }
+.sel-bar { border-color: var(--gold-soft); }
 .flip-icon { display: inline-block; transform: rotate(90deg); }
 
 /* Inspector: a croupier kind picked in the palette, before placing it. */

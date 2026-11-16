@@ -720,7 +720,7 @@ export function openEditor(root, ctx, level) {
     const t = anim ? Math.min(1, (performance.now() - anim.start) / anim.dur) : 1;
     const lifted = lift ? lift.items.map((i) => i.cell) : [];
     board.render({
-      cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftOff() } : null, pick,
+      cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftOff(), covers: liftCovers() } : null, pick,
       selected, activePort, hover, live, tool, drag: drag?.active && drag.kind !== 'box' && drag.kind !== 'group' ? drag : null,
       paidNow: live ? sim.paidNow : null, paidNowDesk: sim?.paidNowDesk, paidWrong: sim?.paidWrong,
       alert: sim?.status.kind === 'wrong' && desk ? hexKey(desk.at) : null,
@@ -950,8 +950,7 @@ export function openEditor(root, ctx, level) {
         h('div', {}, h('h3', {}, info.name), h('div', { class: 'insp-at' }, template ? `${Tap()} an empty hex to place` : `hex ${c.at[0]}, ${c.at[1]}`)),
         template
           ? h('button', { class: 'btn small', title: 'Stop placing (Esc)', onclick: () => setTool(null) }, 'Done')
-          : [h('button', { class: 'btn small danger', title: 'Remove (Delete)', onclick: () => remove(key) }, 'Remove'),
-            h('button', { class: 'btn small done-btn', title: 'Deselect (Esc)', onclick: dropSelection }, 'Done')]),
+          : null),
       h('p', { class: 'insp-desc' }, info.desc),
     ];
     // params
@@ -1220,6 +1219,23 @@ export function openEditor(root, ctx, level) {
     if (dist <= 0.45 || dist >= 1.2) return null;
     return ((Math.round(Math.atan2(dy, dx) / (Math.PI / 3)) % 6) + 6) % 6;
   }
+  // A point on the screen in the board's own coordinates.
+  function boardPoint(x, y) {
+    const m = svg.getScreenCTM();
+    if (!m) return null;
+    const p = new DOMPoint(x, y).matrixTransform(m.inverse());
+    return [p.x, p.y];
+  }
+  // The hex a drag from the board is over: the press's point on the floor
+  // moved as far as the pointer has. Not simply the hex under the pointer:
+  // the floor can move under a finger that is down (selecting a croupier on
+  // a phone lays the page out again, which can scroll it).
+  function dragLocate(d, e) {
+    const m = svg.getScreenCTM();
+    if (!d.anchor || !m) return board.locate(e.clientX, e.clientY);
+    const p = new DOMPoint(...d.anchor).matrixTransform(m);
+    return board.locate(p.x + e.clientX - d.x0, p.y + e.clientY - d.y0);
+  }
   svg.addEventListener('contextmenu', (e) => e.preventDefault());
   svg.addEventListener('pointerdown', (e) => {
     // With the port menu open, a press on the board just closes it.
@@ -1230,7 +1246,9 @@ export function openEditor(root, ctx, level) {
     pointers.set(e.pointerId, [e.clientX, e.clientY]);
     if (pointers.size === 2) { startPinch(); return; }
     if (pointers.size > 2 || running) return;
-    const base = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId, slop: tapSlop(e), touch: e.pointerType !== 'mouse' };
+    const base = {
+      x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId, slop: tapSlop(e), touch: e.pointerType !== 'mouse', anchor: boardPoint(e.clientX, e.clientY),
+    };
     // A press with a tapped stack or label shown closes it; on that same
     // stack, that is all it does (a drag still pans).
     if (peekAt?.tap) {
@@ -1377,7 +1395,7 @@ export function openEditor(root, ctx, level) {
     }
     if (drag.kind === 'group') {
       // Snap to the hex under the pointer.
-      const loc = board.locate(e.clientX, e.clientY);
+      const loc = dragLocate(drag, e);
       if (!loc) return;
       const dq = loc.at[0] - drag.from[0], dr = loc.at[1] - drag.from[1];
       lift.items.forEach((i, n) => { i.cell.at = [drag.start[n][0] + dq, drag.start[n][1] + dr]; });
@@ -1391,7 +1409,7 @@ export function openEditor(root, ctx, level) {
       updatePeek();
       return;
     }
-    const loc = board.locate(e.clientX, e.clientY);
+    const loc = dragLocate(drag, e);
     const overBoard = document.elementFromPoint(e.clientX, e.clientY)?.closest('svg.board');
     const overPalette = !!document.elementFromPoint(e.clientX, e.clientY)?.closest('.palette');
     drag.over = overBoard && loc ? loc.at : null;
@@ -1673,6 +1691,11 @@ export function openEditor(root, ctx, level) {
   const liftHexes = () => new Set(lift.items.map((i) => hexKey(i.cell.at)));
   // Picked-up croupiers' hexes that are off the floor: they are deleted when put down.
   const liftOff = () => new Set(lift.items.map((i) => i.cell.at).filter((at) => !board.isBuildable(at)).map(hexKey));
+  // The croupiers the group would replace if put down: hex key -> croupier.
+  function liftCovers() {
+    const stay = new Map(staying().map((c) => [hexKey(c.at), c]));
+    return new Map(lift.items.map((i) => hexKey(i.cell.at)).filter((k) => stay.has(k)).map((k) => [k, stay.get(k)]));
+  }
   // Pick up these croupiers (hex keys; any missing are skipped), adding them
   // to the group already up.
   function liftMore(keys) {
@@ -1744,11 +1767,23 @@ export function openEditor(root, ctx, level) {
   // Copy: put the group down where it is (as ✓ does), and pick up a copy of
   // it, nudged to the nearest place where it is all on the floor and covers
   // no croupier (if there is one near); again and again, to stamp out more.
+  // A selected croupier: pick up a copy of it, the same way.
   function copyLift() {
     if (!lift) return;
-    const copies = lift.items.map((i) => ({ src: null, cell: structuredClone(i.cell) }));
+    const copies = lift.items.map((i) => structuredClone(i.cell));
     placeLift();
-    lift = { items: copies };
+    liftCopies(copies);
+  }
+  function copySel() {
+    const c = selCell();
+    if (!c) return;
+    select(null);
+    liftCopies([structuredClone(c)]);
+  }
+  function liftCopies(copies) {
+    leavePlay(); resetSim(); closePicker(); closeRadial();
+    tool = null; activePort = null;
+    lift = { items: copies.map((cell) => ({ src: null, cell })) };
     const fits = () => {
       const taken = new Set(cells.map((c) => hexKey(c.at)));
       return lift.items.every((i) => board.isBuildable(i.cell.at) && !taken.has(hexKey(i.cell.at)));
@@ -1788,15 +1823,23 @@ export function openEditor(root, ctx, level) {
     barButton({ title: 'Delete them (Delete)', 'data-act': 'delete' }, '🗑', () => deleteLift()),
     barButton({ class: 'ok', title: 'Put them down here (Enter)', 'data-act': 'place' }, '✓', () => placeLift()));
   selBar.append(
+    h('span', { class: 'lift-n' }),
     barButton({ title: 'Turn anticlockwise, ports and all ([)', 'aria-label': 'Turn anticlockwise', 'data-act': 'ccw' }, '⟲', () => changeSel((c) => rotateCell(c, -1))),
     barButton({ title: 'Turn clockwise, ports and all (])', 'aria-label': 'Turn clockwise', 'data-act': 'cw' }, '⟳', () => changeSel((c) => rotateCell(c, 1))),
     barButton({ title: 'Mirror left to right, ports and all (M)', 'aria-label': 'Mirror left to right', 'data-act': 'mirror' }, '⇋', () => changeSel(mirrorCell)),
-    barButton({ title: 'Mirror top to bottom, ports and all (Shift+M)', 'aria-label': 'Mirror top to bottom', 'data-act': 'flip' }, flipIcon(), () => changeSel(flipCell)));
+    barButton({ title: 'Mirror top to bottom, ports and all (Shift+M)', 'aria-label': 'Mirror top to bottom', 'data-act': 'flip' }, flipIcon(), () => changeSel(flipCell)),
+    barButton({ title: 'Pick up a copy of it', 'aria-label': 'Copy', 'data-act': 'copy' }, '⧉', () => copySel()),
+    barButton({ title: 'Remove it (Delete)', 'aria-label': 'Remove', 'data-act': 'delete' }, '🗑', () => { if (selected) remove(selected); }),
+    barButton({ class: 'ok', title: 'Done: deselect it (Esc)', 'aria-label': 'Done', 'data-act': 'done' }, '✓', () => dropSelection()));
   function renderLiftBar() {
-    selBar.classList.toggle('hidden', !!lift || !selCell());
+    const c = lift ? null : selCell();
+    selBar.classList.toggle('hidden', !c);
+    if (c) selBar.querySelector('.lift-n').textContent = infoFor(c).name;
     liftBar.classList.toggle('hidden', !lift);
     if (!lift) return;
-    liftBar.querySelector('.lift-n').textContent = `${lift.items.length} croupier${lift.items.length === 1 ? '' : 's'}`;
+    const n = lift.items.length, covers = liftCovers().size;
+    liftBar.querySelector('.lift-n').replaceChildren(`${n} croupier${n === 1 ? '' : 's'}`,
+      covers ? h('span', { class: 'lift-covers', title: 'Put down here, they replace the croupiers marked' }, `replaces ${covers}`) : '');
     liftBar.classList.toggle('bad', liftOff().size > 0);
   }
   // The box being drawn, in client coordinates.

@@ -799,9 +799,26 @@ try {
     await tap([playAt.x + playAt.width / 2, playAt.y + playAt.height / 2]);
     check((await phone.textContent('.tp.main')).trim() === '▶' && await phone.locator('.cell.selected').count() === 1,
       'phone: a tap where the play button was neither plays nor deselects');
-    await phone.tap('.inspector .done-btn');
+    check(/^Pass/.test(await phone.textContent('.sel-bar')) && await phone.locator('.inspector .insp-head button').count() === 0,
+      'the bar on the floor names the croupier, and has its buttons (none left in the panel)');
+    await phone.tap('.sel-bar [data-act="done"]');
     check(await phone.locator('.cell.selected').count() === 0 && await phone.isVisible('.transport'),
-      'Done deselects it and brings them back');
+      '✓ (done) deselects it and brings them back');
+    // The floor moving under a finger that is down (selecting lays the page
+    // out again, which can scroll it) doesn't move the croupier pressed: a
+    // drag goes as far as the finger does from where it pressed the floor.
+    {
+      const p = await hexAt(free[0]);
+      const ats = () => phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells.map((c) => c.at.join()));
+      const before = await ats();
+      await touch('touchStart', [p]);
+      await phone.evaluate(() => { document.querySelector('.board-wrap').style.marginTop = '150px'; });
+      for (let i = 1; i <= 4; i++) await touch('touchMove', [[p[0], p[1] - 4 * i]]);
+      await touch('touchEnd', []);
+      await phone.evaluate(() => { document.querySelector('.board-wrap').style.marginTop = ''; });
+      check(JSON.stringify(await ats()) === JSON.stringify(before), `the floor moving under a pressed croupier doesn't move it (${JSON.stringify(await ats())})`);
+      await phone.tap('.sel-bar [data-act="done"]');
+    }
     // A long press on an edge opens the port menu, which stays open after the
     // finger lifts (lifting it clicks whatever is under it: the menu's centre);
     // then a tap on a port points it there.
@@ -1263,8 +1280,17 @@ try {
     await page.keyboard.down('Shift');
     await clickHex(row[0]);
     await page.keyboard.up('Shift');
+    const arrowsN = await page.locator('.board .l-arrows .arrows').count(); // (not the one picked up)
     await page.keyboard.press('d');
     check(await liftN() === '1' && await page.locator('.lift-bar.bad').count() === 0, 'one croupier moved onto another is not red');
+    // It is drawn over everything there, the other's ports hidden, and
+    // marked with what it would replace.
+    check(await page.locator('.board .l-lift .cell.lifted.covers').count() === 1 && await page.locator('.board .l-lift .arrows').count() === 1 &&
+      await page.locator('.board .l-arrows .arrows').count() === arrowsN - 1 &&
+      /replaces PASS/.test(await page.textContent('.board .cover-tag text').catch(() => '')) && /replaces 1/.test(await page.textContent('.lift-bar')),
+    `it floats over the croupier under it, marked "${await page.textContent('.board .cover-tag text').catch(() => '')}", the bar "${await page.textContent('.lift-bar .lift-n')}" (${[
+      await page.locator('.board .l-lift .cell.lifted.covers').count(), await page.locator('.board .l-lift .arrows').count(), arrowsN, await page.locator('.board .l-arrows .arrows').count()].join(' ')})`);
+    if (shots) await page.screenshot({ path: join(shots, '15-group-covers.png') });
     await page.keyboard.press('Escape');
     cs = await cellsNow();
     check(cs.length === 2 && cs.find(at(row[1]))?.fn === 'straight' && !cs.find(at(row[0])),
