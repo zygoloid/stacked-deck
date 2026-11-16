@@ -216,8 +216,8 @@ regulation; Ace Count does).
 | A♣ | Pot Luck | Crossed Wires and Hot Streak | the Marchetti twins play War for a pot |
 | 2♣ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
 | 3♣ | Skeleton Crew | Calling Card and Night Off | the suits and flush croupiers both off; the uncle asks only for hearts |
-| 4♣ | One War | Inside Bet and One Deck | the uncle bets the middle at In-Between; the one War croupier is bolted down |
-| 5♣ | Dumbwaiter | One War and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
+| 4♣ | In-Between | Inside Bet and One Deck | the uncle bets the middle at In-Between; the one War croupier is bolted down |
+| 5♣ | Dumbwaiter | In-Between and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
 | 6♣ | No Kings | Skeleton Crew | both croupiers off at a No Kings rally; the players leave their kings at home |
 | 7♣ | One Up | Counting Up | Old Thursday's last (and best) trick |
 | 8♣ | Twenty-One Card Trick | One Up | Old Thursday's last trick wasn't: the chosen card always comes back 11th |
