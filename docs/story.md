@@ -236,7 +236,7 @@ regulation; Ace Count does).
 | 8♦ | First Sighting | Four of a Kind | the mayor takes up birdwatching at the tables |
 | 9♦ | Times Tables | Casino Numbers | Dmitri finds the multiplication sheet |
 | 10♦ | Showdown | Mirror Image | Sal and Dmitri settle things at the table |
-| J♦ | Follow Suit | Showdown | Sal's uncle brings the family's trick-taking game |
+| J♦ | Follow Suit | Showdown | Sal's uncle brings the family's trick-taking game, played without aces since a wedding |
 | Q♦ | Twice Shy | Mirror Image | the twins again; the Owner won't pay twice |
 | K♦ | Carry the One | Times Tables | two-digit casino numbers; totals of three cards |
 

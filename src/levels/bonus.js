@@ -648,11 +648,12 @@ function followSuit(inputs) {
 }
 // Follow Suit tests: 13 tricks from one deck, each player after A following
 // suit about half the time (while the suit lasts).
+// (Decks without aces: twelve tricks a night.)
 function followSuitDeals(rand, nTests) {
   return Array.from({ length: nTests }, () => {
-    const deck = shuffled(fullDeck(), rand);
+    const deck = shuffled(fullDeck().filter((c) => rankOf(c) !== 'A'), rand);
     const test = [];
-    for (let i = 0; i < 13; i++) {
+    for (let i = 0; i < 12; i++) {
       const lead = deck.shift();
       test.push([lead]);
       for (let s = 1; s < 4; s++) {
@@ -2260,10 +2261,10 @@ export const LEVELS = [
     title: 'Follow Suit',
     difficulty: 9,
     story: [
-      'Sal Vellani\'s uncle has brought the family\'s card game across the river. Four players, one card each per trick, and player A leads every trick. The trick goes to the highest card of the suit A led, aces high. A card of any other suit never wins it, however high it is: the uncle\'s ace of spades on a heart lead has cost him forty years of tricks, and he is still not ready to talk about it.',
-      'Each player has a desk of their own: A at X, B at Y, C at Z and D at W. The house pays the trick\'s four cards, as one hand, at its winner\'s desk. A night is one deck, thirteen tricks at most.',
+      'Sal Vellani\'s uncle has brought the family\'s card game across the river. Four players, one card each per trick, and player A leads every trick. The trick goes to the highest card of the suit A led. A card of any other suit never wins it, however high it is: the uncle\'s king of spades on a heart lead has cost him forty years of tricks, and he is still not ready to talk about it.',
+      'The family has played without aces since a wedding where nobody could agree whether they were high or low, so the decks have none: the 2 is low and the king high. Each player has a desk of their own: A at X, B at Y, C at Z and D at W. The house pays the trick\'s four cards, as one hand, at its winner\'s desk. A night is one deck, twelve tricks at most.',
     ],
-    brief: 'Four players, one card each per trick; A leads every trick. Pay the trick\'s four cards as one hand at the desk of its winner (A\'s at X, B\'s at Y, C\'s at Z, D\'s at W): the highest card of the suit A led, aces high. Cards of other suits never win.',
+    brief: 'Four players, one card each per trick, from decks with no aces; A leads every trick. Pay the trick\'s four cards as one hand at the desk of its winner (A\'s at X, B\'s at Y, C\'s at Z, D\'s at W): the highest card of the suit A led (2 low, king high). Cards of other suits never win.',
     handSize: 1,
     floor: floorOf(hexRect(-4, 7, -13, 8), FOLLOW_SUIT),
     fixed: FOLLOW_SUIT,
@@ -2274,12 +2275,12 @@ export const LEVELS = [
     tests: dealtTests({
       deal: followSuitDeals,
       fixed: [
-        // every seat wins; aces high; high cards of other suits lose
-        one('2S KH AH AD 5H 9H 3H 7C 4D 6S 8D QD TC JC 2C 3D QS JS AS KS KC 4C 5C 6C 9D TD JD 2D 3S 2H 4S 5S 7H 8S 9S TS'),
+        // every seat wins; kings beat queens; high cards of other suits lose
+        one('2S KH JH 6D 5H 9H 3H 7C 4D 6S 8D QD TC JC 2C 3D QS JS KS 7S KC 4C 5C 6C 9D TD JD 2D 3S 2H 4S 5S 7H 8S 9S TS'),
         // the trick changes hands at every seat, then never; winners back to back and alternating
-        one('2H 3H 4H 5H 6H 7H 8H 9H 5D 4D 3D 2D KS AS QS JS AC KC QC JC TH JH 8S 9C 6S 7D 8D 9D 2C 3S 4C 5S TS JD QD KD 6C 7C 3C KH'),
-        // nobody follows suit
-        one('AH KS KD KC 2H AS AD AC 3H QS QD QC'),
+        one('2H 3H 4H 5H 6H 7H 8H 9H 5D 4D 3D 2D QS KS JS 9S KC QC JC TC TH JH 8S 9C 6S 7D 8D 9D 2C 3S 4C 5S TS JD QD KD 6C 7C 3C KH'),
+        // nobody follows suit, however high
+        one('KH JS JD JC 2H KS KD KC 3H QS QD QC'),
       ],
       nRandom: 4, seed: 194,
     }),
@@ -2402,7 +2403,7 @@ const PAR = {
   'first-sighting': { croupiers: 29, rounds: 5951 },
   'times-tables': { croupiers: 34, rounds: 3720 },
   'showdown': { croupiers: 43, rounds: 296 },
-  'follow-suit': { croupiers: 38, rounds: 867 },
+  'follow-suit': { croupiers: 38, rounds: 824 },
   'twice-shy': { croupiers: 36, rounds: 1145 },
   'carry-the-one': { croupiers: 75, rounds: 2046 },
 };
