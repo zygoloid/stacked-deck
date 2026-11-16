@@ -451,7 +451,10 @@ tests become broken.
 
 In the editor the check deals run after the published tests, as chips C1–C8;
 a failing one is loaded into the step-by-step view like any test, with a note
-that check deals change with the machine. The help says the same.
+that check deals are extra random deals, so the machine has to follow the
+floor's rule. Neither the note nor the help says the check deals depend on the
+machine: that would invite players to make no-op changes until they happen to
+get deals their machine passes.
 
 ## Shared scoring module (built)
 

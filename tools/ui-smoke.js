@@ -1816,7 +1816,7 @@ try {
     await page.click('.speeds .sp:last-child');
     await page.waitForSelector('.toast.bad', { timeout: 20000 });
     const ct = (await page.textContent('.toast')) || '';
-    check(/Test 1 passed, but check deal \d failed/.test(ct) && ct.includes('change when it does'), `fitting the tests fails a check deal: "${ct.slice(0, 80)}..."`);
+    check(/Test 1 passed, but check deal \d failed/.test(ct) && ct.includes('follow the floor'), `fitting the tests fails a check deal: "${ct.slice(0, 80)}..."`);
     check(await page.locator('.test-chip.check').count() === 8 && await page.locator('.test-chip.check.fail').count() >= 1 &&
       await page.locator('.test-chip.check.on').count() === 1, 'the check deals are shown, and the failing one is loaded');
     check((await page.textContent('.tp-round')).includes('Check deal'), 'the transport names the check deal');

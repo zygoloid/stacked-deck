@@ -297,7 +297,7 @@ export function openEditor(root, ctx, level) {
   const allTests = () => (checks ? [...level.tests, ...checks] : level.tests);
   const isCheck = (i) => i >= level.tests.length;
   const testName = (i) => (isCheck(i) ? `Check deal ${i - level.tests.length + 1}` : `Test ${i + 1}`);
-  const CHECK_NOTE = 'Check deals are random deals made from your machine itself, so they change when it does.';
+  const CHECK_NOTE = 'Check deals are extra random deals: a machine has to follow the floor\'s rule, not just pass the tests.';
   function makeSim() {
     try {
       sim = new Sim(toSpec(level, cells), allTests()[testIndex], level);
