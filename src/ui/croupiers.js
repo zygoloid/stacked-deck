@@ -212,6 +212,8 @@ function mapSides(cell, map) {
 export const rotateCell = (cell, k) => mapSides(cell, (s) => (((s + k) % 6) + 6) % 6);
 // Mirror a cell left to right: E and W swap, SE and SW, NE and NW.
 export const mirrorCell = (cell) => mapSides(cell, (s) => (9 - s) % 6);
+// Flip a cell top to bottom: SE and NE swap, SW and NW; E and W stay.
+export const flipCell = (cell) => mapSides(cell, (s) => (6 - s) % 6);
 
 // The hex `at` turned by k sixths clockwise about `pivot` (axial coordinates).
 export function rotateAt([q, r], [pq, pr], k) {
@@ -223,4 +225,9 @@ export function rotateAt([q, r], [pq, pr], k) {
 export function mirrorAt([q, r], [pq, pr]) {
   const x = q - pq, z = r - pr;
   return [pq - x - z, pr + z];
+}
+// The hex `at` flipped top to bottom about `pivot`.
+export function flipAt([q, r], [pq, pr]) {
+  const x = q - pq, z = r - pr;
+  return [pq + x + z, pr - z];
 }

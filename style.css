@@ -1051,6 +1051,7 @@ svg.board.panning { cursor: grabbing; }
   padding: 6px 8px; border-radius: 8px; background: rgba(6, 28, 18, 0.96); border: 1px solid var(--gold-soft);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); font-size: 12.5px;
 }
+.peek.tapped { pointer-events: auto; } /* a tap on it closes it, and does nothing to the floor under it */
 .peek-t { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
 .peek.type-info { z-index: 6; max-width: min(300px, calc(100% - 8px)); }
 .card.house { box-shadow: inset 0 0 0 1px #8a6420; outline: 1px dashed #8a6420; outline-offset: -1px; background: #efe2bd; }
@@ -1108,21 +1109,23 @@ svg.board { -webkit-touch-callout: none; }
 .board .cell.lifted { filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.55)); }
 .board .cell.lifted .hex.table { stroke: #6fb7ff; stroke-width: 2.4; stroke-dasharray: 6 3; }
 .board .cell.lifted.bad .hex.table { fill: rgba(140, 38, 50, 0.85); stroke: var(--bad); }
-.lift-bar {
+.lift-bar, .sel-bar {
   position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 4px;
   padding: 4px 6px 4px 12px; border-radius: 12px; background: rgba(4, 30, 17, 0.94); border: 1px solid #6fb7ff;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5); white-space: nowrap; max-width: calc(100% - 12px);
 }
 .lift-bar.bad { border-color: var(--bad); }
 .lift-n { font-size: 12.5px; font-weight: 700; margin-right: 4px; overflow: hidden; text-overflow: ellipsis; }
-.lift-bar button {
+.lift-bar button, .sel-bar button {
   width: 34px; height: 32px; flex: none; border-radius: 8px; border: 1px solid var(--gold-soft); background: rgba(0, 0, 0, 0.3);
   cursor: pointer; font-size: 16px; line-height: 1; display: grid; place-items: center; padding: 0;
 }
-.lift-bar button:hover:not(:disabled) { border-color: var(--gold); }
-.lift-bar button:disabled { opacity: 0.35; cursor: default; }
+.lift-bar button:hover:not(:disabled), .sel-bar button:hover:not(:disabled) { border-color: var(--gold); }
+.lift-bar button:disabled, .sel-bar button:disabled { opacity: 0.35; cursor: default; }
 .lift-bar button.ok { background: linear-gradient(180deg, #f6d77a, #d4af37); color: #2a1d02; border-color: #f6e19c; font-weight: 800; }
-.insp-head .turn-btn { padding: 3px 7px; font-size: 15px; line-height: 1; }
+/* The same bar for one selected croupier: turn and mirror it. */
+.sel-bar { padding: 4px 6px; border-color: var(--gold-soft); }
+.flip-icon { display: inline-block; transform: rotate(90deg); }
 
 /* Inspector: a croupier kind picked in the palette, before placing it. */
 .port-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }

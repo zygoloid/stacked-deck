@@ -105,6 +105,13 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
 
   // ---------- the status line and the entry at the caret ----------
   let at = Math.min(caret, text.length); // the caret, remembered while the field isn't focused
+  // While the field has the focus, the caret is read from it: a tap on a
+  // phone can place it after every event that says so has gone by.
+  function sync() {
+    if (document.activeElement !== ta || ta.selectionEnd === at) return false;
+    at = ta.selectionEnd;
+    return true;
+  }
   const currentIndex = () => tokenAt(toks, at);
   function chip(t) {
     if (deal) {
@@ -161,6 +168,7 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
   // An edit by the pad or a tool (typing is left as typed): one-character
   // cards get their space, so they draw as wide as the rest.
   function apply(fn) {
+    sync();
     let next = fn();
     if (next && !deal) next = padSpecials(next.text, next.caret);
     if (next && (next.text !== ta.value || next.caret !== at)) setText(next);
@@ -181,11 +189,9 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
   });
 
   ta.addEventListener('input', () => { at = ta.selectionEnd; paint(); renderStatus(); onEdit?.({ text: ta.value, caret: at, list, typed: true }); });
-  const track = () => { if (document.activeElement === ta && ta.selectionEnd !== at) { at = ta.selectionEnd; renderStatus(); } };
-  ta.addEventListener('keyup', track);
-  ta.addEventListener('pointerup', track);
-  ta.addEventListener('select', track);
-  ta.addEventListener('focus', track);
+  // The caret moved: the status line shows the entry it is at.
+  const track = () => { if (sync()) renderStatus(); };
+  for (const ev of ['selectionchange', 'keyup', 'pointerup', 'click', 'select', 'focus']) ta.addEventListener(ev, track);
   ta.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) {
@@ -198,6 +204,7 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
   // away (the panel redrawn).
   ta.addEventListener('blur', () => {
     if (!ta.isConnected) return;
+    at = ta.selectionEnd; // where it was left (the focus has gone already)
     apply(() => tidyText(kind, ta.value, at));
   });
   // The textarea may change width (a phone turned, the panel resized).
@@ -310,14 +317,16 @@ export function listField({ kind, text = '', caret = text.length, specials = [],
     box,
     h('div', { class: 'lf-bar' }, tools, status),
     ctx, pad);
+  ta.setSelectionRange(at, at); // so a focus by keyboard finds the caret where it was
   paint();
   setMode(mode);
   return {
     el,
     hasFocus: () => document.activeElement === ta,
     // Focus the field with the caret at `c` (default: where it was).
-    focus(c = at) { at = Math.min(c, ta.value.length); ta.focus({ preventScroll: true }); ta.setSelectionRange(at, at); renderStatus(); },
-    state: () => ({ text: ta.value, caret: at }),
+    // (The caret is set first: focusing reads it.)
+    focus(c = at) { at = Math.min(c, ta.value.length); ta.setSelectionRange(at, at); ta.focus({ preventScroll: true }); ta.setSelectionRange(at, at); renderStatus(); },
+    state: () => { sync(); return { text: ta.value, caret: at }; },
     // A tap from outside the pad (the Deal's side keys, the board's port menu).
     tap: (entry) => tap(entry)(),
     // Replace the whole text (X: clear the Deal's list).
