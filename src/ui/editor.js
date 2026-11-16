@@ -246,10 +246,17 @@ export function openEditor(root, ctx, level) {
     select(null);
     renderPalette();
   }
+  // Moved onto another croupier, it takes that one's place (as a group
+  // put down does).
   function move(key, at) {
     const c = cellAt(key);
-    if (!c || !board.isBuildable(at) || cellAt(hexKey(at))) return;
-    commit(() => { c.at = [...at]; selected = hexKey(at); });
+    if (!c || !board.isBuildable(at) || hexKey(at) === key) return;
+    const under = cellAt(hexKey(at));
+    commit(() => {
+      if (under) cells = cells.filter((x) => x !== under);
+      c.at = [...at];
+      selected = hexKey(at);
+    });
   }
   function remove(key) {
     if (!cellAt(key)) return;
