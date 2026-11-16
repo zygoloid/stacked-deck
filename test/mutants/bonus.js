@@ -18,7 +18,7 @@ const counting = ({ start = 1, next = (k) => (k + 1) % 13, chain = false } = {})
   return has(h, want);
 };
 const climbs = (val) => (h) => h.every((c, i) => i === 0 || val(c) >= val(h[i - 1]));
-// One War: [A's card, B's, C's] for each deal; `bet(rule, val, who)` pays
+// In-Between: [A's card, B's, C's] for each deal; `bet(rule, val, who)` pays
 // player `who`'s card (A's by default) where rule(a, b, c) holds on the
 // three cards' values.
 const threes = (t) => Array.from({ length: Math.floor(t.length / 3) }, (_, i) => t.slice(3 * i, 3 * i + 3));
@@ -450,7 +450,7 @@ export const MUTANTS = {
       [`two 7s and two ${r}s`, (h) => count(h, '7') >= 3 || count(h, r) >= 3],
     ])),
   },
-  'one-war': {
+  'in-between': {
     'ties win': bet((a, b, c) => b <= a && a <= c),
     'a tie with B wins': bet((a, b, c) => b <= a && a < c),
     'a tie with C wins': bet((a, b, c) => b < a && a <= c),

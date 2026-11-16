@@ -1168,7 +1168,7 @@ export const SPECS = {
       c([-2, 1], 'cut', { out: { top: W } }), pass([-3, 1], NW),
     ],
   },
-  'one-war': {
+  'in-between': {
     // Two comparisons through the one War (top card, ties to the house):
     // a against b (A's card as player: it must beat the low post), then c
     // against a (C's card as player: the high post must beat it, so A's card,

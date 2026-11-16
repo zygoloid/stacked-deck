@@ -13,9 +13,9 @@
 // croupier and special card open in lines from Déjà Vu. docs/campaign.md
 // ("The bonus deck: Opening") lists the lines. Some floors take something
 // away: Off Suit, Night Off, Skeleton Crew and No Kings a croupier (or two),
-// Ceasefire the War; One Deck, One War and Dumbwaiter bolt a shoe or
+// Ceasefire the War; One Deck, In-Between and Dumbwaiter bolt a shoe or
 // croupier to the floor (fixed cells). Crossed Wires and Uneven Tables seat
-// three players with labelled desks, One War three with one desk, Follow
+// three players with labelled desks, In-Between three with one desk, Follow
 // Suit four; Mirror Image, Showdown, Twice Shy, Pot Luck, Twenty-One Card
 // Trick and the casino-number floors seat two. Perfect Pair and Counterfeit deal from two decks
 // (`decks: 2`).
@@ -335,7 +335,7 @@ function rankDeals(rand, nTests, per) {
   });
 }
 
-// One Deck, One War, Dumbwaiter: floors with shoes and croupiers bolted to
+// One Deck, In-Between, Dumbwaiter: floors with shoes and croupiers bolted to
 // the floor (fixed cells the player can't move or change).
 //
 // One Deck: Seven Heaven with no shoes but one, bolted down, dealing one
@@ -359,13 +359,13 @@ function sevensDeals(rand, nTests, per = 10) {
     return shuffled([...pick(sevens, k), ...pick(fullDeck().filter((c) => rankOf(c) !== '7'), 5 - k)], rand);
   }));
 }
-// One War: In-Between. Three seated players across the top, one card each
+// In-Between (one bolted War): three seated players across the top, one card each
 // per deal: A's card (the middle seat) is the bet, B's (on the left) the
 // low post and C's (on the right) the high post; the deal makes B's lower
 // than C's. A's card is paid when it ranks strictly between them (aces
 // high). No War croupiers but one, bolted down: top card, its dealer's side
 // and all four ports fixed.
-const ONE_WAR = [
+const IN_BETWEEN = [
   seated([2, -4], SW, 0), seated([1, -4], SW, 1), seated([3, -4], SW, 2), desk([2, 0]),
   { at: [0, 0], kind: 'croupier', fn: 'war', rule: 'top', dealer: W, out: { win: NE, lose: SE, dwin: SW, dlose: E } },
 ];
@@ -1591,10 +1591,10 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'one-war',
+    id: 'in-between',
     card: '4C',
     unlockAfter: ['inside-bet', 'one-deck'],
-    title: 'One War',
+    title: 'In-Between',
     difficulty: 7,
     story: [
       'Sal Vellani\'s uncle still bets the middle, and tonight he has brought In-Between from the casinos down the coast. Three players, one card each per deal: player B\'s card is always lower than player C\'s (the deal sees to it), and player A\'s card wins if it ranks strictly between them. A card that ties either of them loses, and aces are high.',
@@ -1602,8 +1602,8 @@ export const LEVELS = [
     ],
     brief: 'Three players, one card each per deal; B\'s card is always lower than C\'s. Pay out A\'s card when it ranks strictly between B\'s and C\'s (a tie with either loses; aces high). No War croupiers: the only one is bolted down, top card, ports and all.',
     handSize: 1,
-    floor: floorOf(hexRect(-3, 3, -7, 7), ONE_WAR),
-    fixed: ONE_WAR,
+    floor: floorOf(hexRect(-3, 3, -7, 7), IN_BETWEEN),
+    fixed: IN_BETWEEN,
     croupiers: paletteThrough('hand').filter((c) => c !== 'war'),
     expected: inBetween,
     tests: dealtTests({
@@ -1630,7 +1630,7 @@ export const LEVELS = [
   {
     id: 'dumbwaiter',
     card: '5C',
-    unlockAfter: ['one-war', 'deja-vu'],
+    unlockAfter: ['in-between', 'deja-vu'],
     title: 'Dumbwaiter',
     difficulty: 6,
     story: [
@@ -2382,7 +2382,7 @@ const PAR = {
   'pot-luck': { croupiers: 18, rounds: 747 },
   'night-off': { croupiers: 25, rounds: 398 },
   'skeleton-crew': { croupiers: 10, rounds: 69 },
-  'one-war': { croupiers: 9, rounds: 398 },
+  'in-between': { croupiers: 9, rounds: 398 },
   'dumbwaiter': { croupiers: 8, rounds: 327 },
   'no-kings': { croupiers: 13, rounds: 107 },
   'one-up': { croupiers: 16, rounds: 4076 },
