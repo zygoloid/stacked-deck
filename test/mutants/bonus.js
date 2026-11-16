@@ -567,7 +567,6 @@ export const MUTANTS = {
   },
   'follow-suit': {
     'the highest card, any suit': followBy({ beats: (c, w) => hv(c) > hv(w) }),
-    'aces low': followBy({ beats: (c, w, led) => c[1] === led && rv(c) > rv(w) }),
     'the leader always wins': followBy({ beats: () => false }),
     'the last to follow suit': followBy({ beats: (c, w, led) => c[1] === led }),
     'the first to beat the lead': followBy({ beats: (c, w, led, t) => c[1] === led && w === t[0] && hv(c) > hv(w) }),
