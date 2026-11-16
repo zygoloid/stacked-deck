@@ -967,13 +967,27 @@ try {
         await phone.waitForTimeout(100);
         check(/9 cards/.test(await phone.textContent('.peek:not(.hidden)').catch(() => '')) && await phone.locator('.cell.selected').count() === 0 && await watching(),
           'play mode: a tap on a cut-short stack shows it all, and selects nothing');
+        // Tapped again, or tapped on what it shows, it closes, and that is all.
+        await tap(more);
+        await phone.waitForTimeout(100);
+        check(!(await phone.isVisible('.peek')) && await phone.locator('.cell.selected').count() === 0 && await watching(),
+          'a second tap on the stack closes it, and does nothing else');
+        await tap(more);
+        await phone.waitForTimeout(100);
+        const pk = await phone.locator('.peek:not(.hidden)').boundingBox();
+        if (pk) await tap([pk.x + pk.width / 2, pk.y + pk.height / 2]);
+        await phone.waitForTimeout(100);
+        check(!!pk && !(await phone.isVisible('.peek')) && await phone.locator('.cell.selected').count() === 0 && !(await phone.isVisible('.picker')) && await watching(),
+          'a tap on the shown stack closes it, and does nothing to the floor under it');
       }
       const shoeAt = await hexAt(sa);
       await tap([shoeAt[0], shoeAt[1] - 12]); // the shoe's chip, above its deck label
       check(await phone.locator('.cell.selected').count() === 1 && await watching() && await phone.isVisible('.inspector h3') && await phone.isVisible('.transport'),
         'play mode: a tap selects a croupier and shows its panel, staying in play mode with the play controls');
-      await phone.tap('.inspector [aria-label="Turn clockwise"]');
-      check(!(await watching()), 'editing it leaves play mode');
+      const cw = await phone.locator('.sel-bar [data-act="cw"]').boundingBox();
+      await tap([cw.x + cw.width / 2, cw.y + cw.height / 2]);
+      check(!(await watching()) && (await phone.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, lvH.id))[0].out === 1,
+        'the selected croupier\'s ⟳ on the floor turns it; editing it leaves play mode');
     }
     // A Deal croupier with more positions on a side than fit: cut short, shown in full on a tap.
     const dealer = LEVELS.find((lv) => lv.croupiers.includes('deal'));
@@ -993,6 +1007,8 @@ try {
       await tap([pb.x + pb.width / 2, pb.y + pb.height / 2]);
       check(/Deals cards 1, 3, 5, 7, 9, 11 to E/.test(await phone.textContent('.peek:not(.hidden)')), 'tapping a cut-short label shows it in full');
       if (shots) await phone.screenshot({ path: join(shots, '7d-phone-peek.png') });
+      await tap([pb.x + pb.width / 2, pb.y + pb.height / 2]);
+      check(!(await phone.isVisible('.peek')) && await phone.locator('.cell.selected').count() === 0, 'tapping it again closes it, selecting nothing');
       // Its list as text, shortest first; the pad adds to it (twice NW is
       // NWx2) without bringing up the keyboard; the erase tool takes one out.
       const dealAt = await hexAt(at);
@@ -1009,6 +1025,22 @@ try {
       check(await phone.inputValue('.lf-in') === '(E SE)x6' && (await dealTo()).length === 12, `the erase tool takes out the tapped entry ("${await phone.inputValue('.lf-in')}")`);
       if (shots) await phone.locator('.inspector').screenshot({ path: join(shots, '7e-phone-deal-list.png') });
       await phone.tap('.lf-tools [data-mode="type"]');
+      // A tap in the text puts the caret there, and the pad adds there.
+      const charAt = (i) => phone.evaluate((i) => {
+        const walker = document.createTreeWalker(document.querySelector('.lf-back'), NodeFilter.SHOW_TEXT);
+        for (let n = 0, node; (node = walker.nextNode()); n += node.length) {
+          if (n + node.length < i) continue;
+          const r = document.createRange();
+          r.setStart(node, i - n);
+          const b = r.getBoundingClientRect();
+          return [b.left + 1, b.top + b.height / 2];
+        }
+        return null;
+      }, i);
+      await tap(await charAt(1));
+      await phone.waitForTimeout(100);
+      await phone.tap('.lf-pad-side[data-side="3"]');
+      check(await phone.inputValue('.lf-in') === '(W E SE)x6', `a tap in the text, then the pad: added at the caret ("${await phone.inputValue('.lf-in')}")`);
     }
     await phone.close();
   }
@@ -1106,7 +1138,8 @@ try {
   // test/transform.js); direction keys move them; put down, they take the
   // place of croupiers under them, and any off the floor are deleted; copy,
   // delete, a mouse drag; each put-down is one undo step.
-  // [ ] and M turn and mirror a single selected croupier.
+  // [ ] and M turn and mirror a single selected croupier, as does its bar on the
+  // floor (with ⇵ and Shift+M top to bottom); Shift-clicks pick up several.
   {
     // The first floor with these croupiers and room for the checks below.
     const key = ([q, r]) => `${q},${r}`;
@@ -1196,6 +1229,18 @@ try {
       findFn(cs, 'pass').out.out === 3 && findFn(cs, 'war').out.win === 1 && findFn(cs, 'war').dealer === (9 - findFn(orig, 'war').dealer) % 6,
     `M then Enter mirrors the group, positions and ports (${JSON.stringify(cs.map((c) => [c.fn, c.at, c.out]))})`);
     await page.keyboard.press('Control+z');
+    // Shift+M, or ⇵, mirrors it top to bottom: SE and NE swap, SW and NW.
+    const flipped = (v) => [v[0] + v[1], -v[1]];
+    for (const how of ['Shift+M', '⇵']) {
+      await shiftBox();
+      if (how === 'Shift+M') await page.keyboard.press('Shift+M'); else await page.click('.lift-bar [data-act="flip"]');
+      await page.keyboard.press('Enter');
+      cs = await cellsNow();
+      check(off(cs, 'straight', 'war').join() === flipped(off(orig, 'straight', 'war')).join() &&
+        findFn(cs, 'pass').out.out === 0 && findFn(cs, 'war').out.win === 4 && findFn(cs, 'war').dealer === (6 - findFn(orig, 'war').dealer) % 6,
+      `${how} then Enter mirrors the group top to bottom, positions and ports (${JSON.stringify(cs.map((c) => [c.fn, c.at, c.out]))})`);
+      await page.keyboard.press('Control+z');
+    }
     // Moved onto the player (west, a hex at a time): the ones off the floor
     // show red; put down, they are deleted, and undo brings them back.
     const south = ([q, r]) => [q, r + 1];
@@ -1356,15 +1401,33 @@ try {
       check(/^2 croupiers/.test(await page.textContent('.lift-bar')), `a Shift-drag from a croupier picks it up with the ones in the box ("${await page.textContent('.lift-bar')}")`);
       await page.keyboard.press('Escape');
     }
+    // Shift held down: each click adds one more to the group, with the selected one.
+    await clickHex(row[0]);
+    check(await page.isVisible('.sel-bar') && !(await page.isVisible('.lift-bar')), 'a selected croupier has its own bar on the floor');
+    await page.keyboard.down('Shift');
+    await clickHex(row[1]);
+    await clickHex(row[2]);
+    await page.keyboard.up('Shift');
+    check(/^3 croupiers/.test(await page.textContent('.lift-bar').catch(() => '')) && !(await page.isVisible('.sel-bar')),
+      `Shift-clicks pick up the selected croupier and each one clicked ("${await page.textContent('.lift-bar').catch(() => '')}")`);
+    await page.keyboard.press('Escape');
     // [ ] on one selected croupier.
     await clickHex(row[2]);
     await page.keyboard.press(']');
     const war1 = (await cellsNow()).find(at(row[2]));
     check(war1.out.win === (war0.out.win + 1) % 6 && war1.dealer === (war0.dealer + 1) % 6 && war1.facing === undefined, `] turns a selected croupier (${JSON.stringify(war1)})`);
-    await page.click('.inspector [aria-label="Mirror"]');
+    await page.click('.sel-bar [data-act="mirror"]');
     const war2 = (await cellsNow()).find(at(row[2]));
     check(war2.out.win === (9 - war1.out.win) % 6 && war2.dealer === (9 - war1.dealer) % 6, `⇋ mirrors a selected croupier (${JSON.stringify(war2)})`);
+    await page.click('.sel-bar [data-act="flip"]');
+    const war3 = (await cellsNow()).find(at(row[2]));
+    await page.keyboard.press('Shift+M');
+    const war4 = (await cellsNow()).find(at(row[2]));
+    check(war3.out.win === (6 - war2.out.win) % 6 && war3.dealer === (6 - war2.dealer) % 6 && JSON.stringify(war4) === JSON.stringify(war2),
+      `⇵ and Shift+M mirror a selected croupier top to bottom (${JSON.stringify([war3, war4])})`);
+    check(await page.locator('.inspector .insp-head [data-act], .inspector [aria-label^="Turn"]').count() === 0, 'turning and mirroring are on the floor, not in the panel');
     await page.keyboard.press('Escape');
+    check(!(await page.isVisible('.sel-bar')), 'deselected, the bar goes');
   }
 
   // Picking a croupier shows its settings: a Hand set to 3 before placing is placed with n = 3.

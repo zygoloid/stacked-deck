@@ -8,7 +8,7 @@ import { formatList, SIDE_TEXT } from './listtext.js';
 import { Board, R, center, axialRound } from './board.js';
 import {
   CROUPIERS, PORT_STYLE, SIDE_NAMES, infoFor, newCell, portsOf, getPort, setPort, isRequired, chipLabel, sampleCell,
-  rotateCell, rotateAt, mirrorCell, mirrorAt,
+  rotateCell, rotateAt, mirrorCell, mirrorAt, flipCell, flipAt,
 } from './croupiers.js';
 import { floorBadge } from './floors.js';
 import {
@@ -62,6 +62,7 @@ export function openEditor(root, ctx, level) {
   // the selection changes).
   const listTexts = new Map();    // key -> { kind, text, caret, list, bad }
   let listUi = null;              // the inspector's list field: { key, field }
+  let listCaret = null;           // its caret when the inspector was last redrawn: { key, text, caret }
   let listMode = 'type';          // its tool: type, erase or move
   let coalesceKey = null, coalesceAt = 0; // typing in one list field: one undo step per pause
 
@@ -87,6 +88,8 @@ export function openEditor(root, ctx, level) {
   const picker = h('div', { class: 'picker hidden', role: 'menu' });
   const boxSel = h('div', { class: 'box-select hidden' });
   const liftBar = h('div', { class: 'lift-bar hidden' });
+  // The same, for one selected croupier: turn and mirror it.
+  const selBar = h('div', { class: 'sel-bar hidden' });
   // Undo and redo sit on the floor, so they stay in reach whatever is
   // selected (undo restores the selection, which on a phone hides the palette).
   const undoBtn = h('button', { title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => undoStep() }, '↶');
@@ -111,7 +114,7 @@ export function openEditor(root, ctx, level) {
       solBtn,
       h('button', { class: 'btn ghost', onclick: () => ctx.go(`#/level/${level.id}/story`), title: 'Read the story again' }, 'Story'),
       h('button', { class: 'btn ghost', onclick: () => ctx.help(), title: 'Help (?)' }, '? Help')),
-    h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast, peek, radial, picker, boxSel, liftBar,
+    h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast, peek, radial, picker, boxSel, liftBar, selBar,
       h('div', { class: 'history' }, undoBtn, redoBtn),
       h('div', { class: 'zoom' },
         h('button', { title: 'Zoom in (+)', onclick: () => zoomCenter(1 / 1.25) }, '+'),
@@ -732,11 +735,26 @@ export function openEditor(root, ctx, level) {
   // ---------- peeking at stacks and labels ----------
   // A long hand shows its first cards and "+n", and a short one is small (or
   // partly under another); a shoe's deck and a Deal's positions are cut
-  // short. Hovering one (or tapping it) shows it in full.
+  // short. Hovering one (or tapping it) shows it in full. One shown by a tap
+  // stays until the next press: one on it, or on what it shows, just closes it.
   let peekKey = null;
+  // (What is under the point, not counting the popover itself.)
+  const under = (x, y) => document.elementsFromPoint(x, y).find((n) => !peek.contains(n));
+  // The board's stack or label at (x, y) that the popover shows, if open.
+  const peekedAt = (x, y) => {
+    const el = peekKey !== null && under(x, y)?.closest?.('svg.board [data-peek]');
+    return !!el && JSON.stringify(board.peeks[Number(el.dataset.peek)]) === peekKey;
+  };
+  function closePeek() { peekAt = null; updatePeek(); }
+  peek.addEventListener('pointerdown', (e) => {
+    if (!peekAt?.tap) return;
+    e.preventDefault();
+    e.stopPropagation();
+    closePeek();
+  });
   function updatePeek() {
     if (typeInfo) return; // the picker's croupier details have the popover
-    const el = peekAt && document.elementFromPoint(peekAt.x, peekAt.y)?.closest?.('svg.board [data-peek]');
+    const el = peekAt && under(peekAt.x, peekAt.y)?.closest?.('svg.board [data-peek]');
     const item = el ? board.peeks[Number(el.dataset.peek)] : null;
     if (!item) {
       if (peekAt?.tap) peekAt = null;
@@ -752,7 +770,7 @@ export function openEditor(root, ctx, level) {
         item.cards ? h('span', { class: 'hand' }, item.cards.map((c, i) => cardEl(c, item.house?.[i] ? 'house' : ''))) : null,
         item.text ? h('div', {}, item.text) : null].filter(Boolean));
     }
-    peek.className = 'peek';
+    peek.className = `peek${peekAt.tap ? ' tapped' : ''}`;
     // Next to the pointer, inside the board.
     const wrap = peek.parentElement.getBoundingClientRect();
     const r = el.getBoundingClientRect();
@@ -838,8 +856,9 @@ export function openEditor(root, ctx, level) {
     // The last text that read as a list: undo in the field goes back to it
     // first, while there is a mistake (which was never an edit of the floor).
     let good = memo.bad ? formatList(kind, listOf()) : memo.text;
+    const caret = listCaret?.key === key && listCaret.text === memo.text ? listCaret.caret : memo.caret;
     const field = listField({
-      kind, text: memo.text, caret: memo.caret, specials: kind === 'shoe' ? specials : [], mode: listMode,
+      kind, text: memo.text, caret, specials: kind === 'shoe' ? specials : [], mode: listMode,
       onMode: (m) => { listMode = m; },
       onUndo: () => { if (listTexts.get(key)?.bad) field.setText(good); else undoStep(); },
       onRedo: redoStep,
@@ -863,6 +882,8 @@ export function openEditor(root, ctx, level) {
   function renderInspector() {
     // Redrawing replaces the list field: one with the focus gets it back.
     const refocus = listUi?.field.hasFocus() ? listUi.key : null;
+    // The new field's caret goes where the old one's was (for the same text).
+    if (listUi) listCaret = { key: listUi.key, ...listUi.field.state() };
     listUi = null;
     // On a phone, a selected croupier's panel goes right under the floor:
     // the palette and the play controls step aside (style.css).
@@ -873,10 +894,10 @@ export function openEditor(root, ctx, level) {
         h('h3', {}, `${n} croupier${n === 1 ? '' : 's'}`),
         h('ul', { class: 'howto' },
           h('li', {}, `Drag one of them to move them all. ${Tap()} a croupier to add it, or one of these to put it down.`),
-          h('li', {}, h('b', {}, '⟲ ⟳'), ' turn, ', h('b', {}, '⇋'), ' mirrors, ', h('b', {}, '⧉'), ' puts them down and picks up a copy, ', h('b', {}, '🗑'), ' deletes.'),
+          h('li', {}, h('b', {}, '⟲ ⟳'), ' turn, ', h('b', {}, '⇋ ⇵'), ' mirror (left to right, top to bottom), ', h('b', {}, '⧉'), ' puts them down and picks up a copy, ', h('b', {}, '🗑'), ' deletes.'),
           h('li', {}, h('b', {}, '✓'), ' or a tap elsewhere puts them down, in place of any croupier under them; red ones, off the floor, are deleted. Undo puts it all back.')),
         h('p', { class: 'keys kbd-only' }, h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'), ' move  ',
-          h('kbd', {}, '['), h('kbd', {}, ']'), ' turn  ', h('kbd', {}, 'M'), ' mirror  ', h('kbd', {}, 'Enter'), ' ', h('kbd', {}, 'Esc'), ' put down  ', h('kbd', {}, 'Del'), ' delete'));
+          h('kbd', {}, '['), h('kbd', {}, ']'), ' turn  ', h('kbd', {}, 'M'), ' ', h('kbd', {}, 'Shift+M'), ' mirror  ', h('kbd', {}, 'Enter'), ' ', h('kbd', {}, 'Esc'), ' put down  ', h('kbd', {}, 'Del'), ' delete'));
       return;
     }
     let c = selCell();
@@ -910,7 +931,7 @@ export function openEditor(root, ctx, level) {
           h('li', {}, `${Tap()} an empty hex to place a croupier there.`),
           h('li', {}, `Select a croupier, then ${tap()} the edges of its hex to point its ports.`),
           h('li', { class: 'touch-only' }, 'Long-press to pick up croupiers.'),
-          h('li', { class: 'kbd-only' }, 'Shift-drag to pick up croupiers.'),
+          h('li', { class: 'kbd-only' }, 'Shift-click or Shift-drag to pick up croupiers.'),
           h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
         ...(devMode() ? [devPanel(level, { measured: devMeasured, loadPar, measure })] : []), // (replaceChildren writes out a null)
         roster,
@@ -929,10 +950,7 @@ export function openEditor(root, ctx, level) {
         h('div', {}, h('h3', {}, info.name), h('div', { class: 'insp-at' }, template ? `${Tap()} an empty hex to place` : `hex ${c.at[0]}, ${c.at[1]}`)),
         template
           ? h('button', { class: 'btn small', title: 'Stop placing (Esc)', onclick: () => setTool(null) }, 'Done')
-          : [h('button', { class: 'btn small turn-btn', title: 'Turn anticlockwise, ports and all ([)', 'aria-label': 'Turn anticlockwise', onclick: () => commit(() => rotateCell(c, -1)) }, '⟲'),
-            h('button', { class: 'btn small turn-btn', title: 'Turn clockwise, ports and all (])', 'aria-label': 'Turn clockwise', onclick: () => commit(() => rotateCell(c, 1)) }, '⟳'),
-            h('button', { class: 'btn small turn-btn', title: 'Mirror left to right, ports and all (M)', 'aria-label': 'Mirror', onclick: () => commit(() => mirrorCell(c)) }, '⇋'),
-            h('button', { class: 'btn small danger', title: 'Remove (Delete)', onclick: () => remove(key) }, 'Remove'),
+          : [h('button', { class: 'btn small danger', title: 'Remove (Delete)', onclick: () => remove(key) }, 'Remove'),
             h('button', { class: 'btn small done-btn', title: 'Deselect (Esc)', onclick: dropSelection }, 'Done')]),
       h('p', { class: 'insp-desc' }, info.desc),
     ];
@@ -1212,12 +1230,18 @@ export function openEditor(root, ctx, level) {
     pointers.set(e.pointerId, [e.clientX, e.clientY]);
     if (pointers.size === 2) { startPinch(); return; }
     if (pointers.size > 2 || running) return;
-    if (e.pointerType !== 'mouse' && peekAt?.tap) { peekAt = null; updatePeek(); }
+    const base = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId, slop: tapSlop(e), touch: e.pointerType !== 'mouse' };
+    // A press with a tapped stack or label shown closes it; on that same
+    // stack, that is all it does (a drag still pans).
+    if (peekAt?.tap) {
+      const same = e.button === 0 && peekedAt(e.clientX, e.clientY);
+      closePeek();
+      if (same) { drag = { kind: 'pan', ...base, active: false, quiet: true }; return; }
+    }
     const loc = board.locate(e.clientX, e.clientY);
     if (!loc) return;
     const key = hexKey(loc.at);
     const c = cellAt(key);
-    const base = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId, slop: tapSlop(e), touch: e.pointerType !== 'mouse' };
     if (e.button === 2) {
       if (lift) { placeLift(); return; }
       if (tool) { setTool(null); return; }
@@ -1233,8 +1257,9 @@ export function openEditor(root, ctx, level) {
       const item = lift.items.find((i) => hexKey(i.cell.at) === key);
       // On one of the group: a drag moves them all, a tap puts it down.
       if (item) { drag = { kind: 'group', ...base, active: false, item, from: loc.at, start: lift.items.map((i) => [...i.cell.at]) }; return; }
-      if (e.shiftKey) { drag = { kind: 'box', ...base, active: false }; return; }
       const other = staying().find((x) => hexKey(x.at) === key);
+      // Shift: a click on another croupier adds it too, a drag draws a box.
+      if (e.shiftKey) { drag = { kind: 'box', ...base, active: false, ...(other ? { seed: key, add: key } : {}) }; return; }
       drag = { kind: 'pan', ...base, active: false, ...(other ? { add: key } : { putDown: true }) };
       holdBox(other ? key : undefined);
       return;
@@ -1406,7 +1431,7 @@ export function openEditor(root, ctx, level) {
     if (d.kind === 'box') {
       boxSel.className = 'box-select hidden';
       if (e.type !== 'pointerup') return;
-      if (!d.active && d.add) liftMore([selected, d.add]); // a Shift-click
+      if (!d.active && d.add) liftMore(lift ? [d.add] : [selected, d.add]); // a Shift-click
       else boxSelect(d);
       return;
     }
@@ -1417,7 +1442,7 @@ export function openEditor(root, ctx, level) {
     }
     if (d.kind === 'pan') {
       svg.classList.remove('panning');
-      if (d.active) return;
+      if (d.active || d.quiet) return;
       if (d.peek) { peekAt = { x: e.clientX, y: e.clientY, tap: true }; updatePeek(); return; }
       if (d.add) { liftMore(lift ? [d.add] : [selected, d.add]); return; }
       if (d.putDown) { placeLift(); return; }
@@ -1702,6 +1727,7 @@ export function openEditor(root, ctx, level) {
   // Turn or mirror the group about the hex nearest its middle: positions and
   // every side (not facing: see croupiers.js).
   function transformLift(moveAt, change) {
+    if (!lift) return;
     const n = lift.items.length;
     const pivot = axialRound(lift.items.reduce((a, i) => a + i.cell.at[0], 0) / n, lift.items.reduce((a, i) => a + i.cell.at[1], 0) / n);
     for (const { cell } of lift.items) { cell.at = moveAt(cell.at, pivot); change(cell); }
@@ -1709,6 +1735,12 @@ export function openEditor(root, ctx, level) {
   }
   const turnLift = (k) => transformLift((at, p) => rotateAt(at, p, k), (c) => rotateCell(c, k));
   const mirrorLift = () => transformLift(mirrorAt, mirrorCell);
+  const flipLift = () => transformLift(flipAt, flipCell);
+  // One selected croupier: turned or mirrored where it is.
+  function changeSel(change) {
+    const c = selCell();
+    if (c) commit(() => change(c));
+  }
   // Copy: put the group down where it is (as ✓ does), and pick up a copy of
   // it, nudged to the nearest place where it is all on the floor and covers
   // no croupier (if there is one near); again and again, to stamp out more.
@@ -1734,6 +1766,9 @@ export function openEditor(root, ctx, level) {
   // can drop the click of the first tap after a long-press drag (the box).
   const barButton = (attrs, label, fn) => {
     const b = h('button', attrs, label);
+    // A click leaves the focus where it was, so Enter or Space after it is
+    // a key for the floor, not another press of the button.
+    b.addEventListener('mousedown', (e) => e.preventDefault());
     let touched = -Infinity; // (performance.now() starts at 0 when the page loads)
     b.addEventListener('pointerup', (e) => {
       if (e.pointerType === 'mouse' || b.disabled) return;
@@ -1748,10 +1783,17 @@ export function openEditor(root, ctx, level) {
     barButton({ title: 'Turn anticlockwise ([)', 'data-act': 'ccw' }, '⟲', () => turnLift(-1)),
     barButton({ title: 'Turn clockwise (])', 'data-act': 'cw' }, '⟳', () => turnLift(1)),
     barButton({ title: 'Mirror left to right (M)', 'data-act': 'mirror' }, '⇋', () => mirrorLift()),
+    barButton({ title: 'Mirror top to bottom (Shift+M)', 'data-act': 'flip' }, flipIcon(), () => flipLift()),
     barButton({ title: 'Put them down here, and pick up a copy', 'data-act': 'copy' }, '⧉', () => copyLift()),
     barButton({ title: 'Delete them (Delete)', 'data-act': 'delete' }, '🗑', () => deleteLift()),
     barButton({ class: 'ok', title: 'Put them down here (Enter)', 'data-act': 'place' }, '✓', () => placeLift()));
+  selBar.append(
+    barButton({ title: 'Turn anticlockwise, ports and all ([)', 'aria-label': 'Turn anticlockwise', 'data-act': 'ccw' }, '⟲', () => changeSel((c) => rotateCell(c, -1))),
+    barButton({ title: 'Turn clockwise, ports and all (])', 'aria-label': 'Turn clockwise', 'data-act': 'cw' }, '⟳', () => changeSel((c) => rotateCell(c, 1))),
+    barButton({ title: 'Mirror left to right, ports and all (M)', 'aria-label': 'Mirror left to right', 'data-act': 'mirror' }, '⇋', () => changeSel(mirrorCell)),
+    barButton({ title: 'Mirror top to bottom, ports and all (Shift+M)', 'aria-label': 'Mirror top to bottom', 'data-act': 'flip' }, flipIcon(), () => changeSel(flipCell)));
   function renderLiftBar() {
+    selBar.classList.toggle('hidden', !!lift || !selCell());
     liftBar.classList.toggle('hidden', !lift);
     if (!lift) return;
     liftBar.querySelector('.lift-n').textContent = `${lift.items.length} croupier${lift.items.length === 1 ? '' : 's'}`;
@@ -1823,13 +1865,13 @@ export function openEditor(root, ctx, level) {
     if (k === '0') { board.fit(); return; }
     if (lower === 'f') { speed = (speed + 1) % SPEEDS.length; renderTransport(); return; }
     if (lower === 'h') { ctx.help(); return; }
-    // A picked-up group: direction keys move it a hex, [ ] turn it, Enter
-    // or Esc puts it down, Delete deletes it.
+    // A picked-up group: direction keys move it a hex, [ ] turn it, M and
+    // Shift+M mirror it, Enter or Esc puts it down, Delete deletes it.
     if (lift) {
       if (k === 'Escape' || k === 'Enter') placeLift();
       else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); deleteLift(); }
       else if (k === '[' || k === ']') turnLift(k === ']' ? 1 : -1);
-      else if (lower === 'm') mirrorLift();
+      else if (lower === 'm') { if (e.shiftKey) flipLift(); else mirrorLift(); }
       else if (lower in SIDE_KEYS) moveLift(...DIRS[SIDE_KEYS[lower]]);
       return;
     }
@@ -1851,9 +1893,10 @@ export function openEditor(root, ctx, level) {
     }
     const c = selCell();
     if (!c) return;
-    // [ ] turn the selected croupier (all its sides) a sixth of a turn; M mirrors it.
+    // [ ] turn the selected croupier (all its sides) a sixth of a turn; M
+    // mirrors it left to right, Shift+M top to bottom.
     if (k === '[' || k === ']') { commit(() => rotateCell(c, k === ']' ? 1 : -1)); return; }
-    if (lower === 'm') { commit(() => mirrorCell(c)); return; }
+    if (lower === 'm') { commit(() => (e.shiftKey ? flipCell : mirrorCell)(c)); return; }
     if (k === 'Tab') {
       e.preventDefault();
       const ports = portsOf(c);
@@ -1888,6 +1931,9 @@ export function openEditor(root, ctx, level) {
     document.removeEventListener('keydown', onKey);
   };
 }
+
+// Mirror top to bottom: the left-to-right mirror's arrows, stood on end.
+const flipIcon = () => h('span', { class: 'flip-icon', 'aria-hidden': 'true' }, '⇋');
 
 // Single-step icons: one triangle and a bar (not the double-triangle skip icons).
 function icon(kind) {
