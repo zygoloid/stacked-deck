@@ -311,14 +311,13 @@ export class Board {
       const [x, y] = center(state.hover.at);
       gOver.append(s('polygon', { class: 'hex ghost', points: HEX_IN, transform: `translate(${x},${y})` }));
     }
-    // Where a dragged croupier would go: one moved onto another replaces
-    // it (marked as a group's does); a new one needs an empty hex.
+    // Where a dragged croupier (or a new one from the palette) would go:
+    // onto another, it replaces it (marked as a group's does).
     if (state.drag && state.drag.over) {
       const [x, y] = center(state.drag.over);
       const k = hexKey(state.drag.over);
       const under = k === state.drag.key ? null : cells.find((c) => hexKey(c.at) === k);
-      const ok = this.isBuildable(state.drag.over) && (!under || state.drag.kind === 'move');
-      const cls = !ok ? 'bad' : under ? 'covers' : 'ok';
+      const cls = !this.isBuildable(state.drag.over) ? 'bad' : under ? 'covers' : 'ok';
       const t = `translate(${x},${y})`;
       gOver.append(s('polygon', { class: `hex drop ${cls}`, points: HEX_IN, transform: t }));
       if (cls === 'covers') gOver.append(this.coverTag(under, t));
