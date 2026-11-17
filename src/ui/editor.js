@@ -209,10 +209,14 @@ export function openEditor(root, ctx, level) {
   }
   // Place a croupier. Placed by an edge (`side`: tapped or dropped near one,
   // or the hovered edge), its first port points there.
+  // Placed on another croupier (dragged from the palette), it takes that
+  // one's place, as a croupier moved there does.
   function place(toolName, at, side) {
     placeLift();
-    if (!board.isBuildable(at) || cellAt(hexKey(at))) return;
+    if (!board.isBuildable(at)) return;
+    const under = cellAt(hexKey(at));
     commit(() => {
+      if (under) cells = cells.filter((x) => x !== under);
       const c = newCell(toolName, at, lastSide);
       const t = toolCell(toolName);
       for (const k of ['n', 'rule', 'once']) if (t[k] !== undefined) c[k] = t[k];

@@ -1472,6 +1472,19 @@ try {
       await page.keyboard.press('Control+z');
       check(JSON.stringify(await cellsNow()) === JSON.stringify(before), 'one undo brings the other back');
       await page.keyboard.press('Escape');
+      // So does a new one dragged from the palette.
+      const pal = await page.locator('.pal-item[data-tool="pass"]').boundingBox();
+      await page.mouse.move(pal.x + pal.width / 2, pal.y + pal.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(ax, ay, { steps: 8 });
+      const palTag = await page.textContent('.board .cover-tag text').catch(() => '');
+      await page.mouse.up();
+      const placed = await cellsNow();
+      check(/^replaces \S/.test(palTag) && placed.length === before.length && placed.find(at(row[0]))?.fn === 'pass',
+        `a croupier dragged from the palette onto another replaces it, marked "${palTag}" (${JSON.stringify(placed.map((c) => [c.fn, c.at]))})`);
+      await page.keyboard.press('Control+z');
+      check(JSON.stringify(await cellsNow()) === JSON.stringify(before), 'and one undo brings it back');
+      await page.keyboard.press('Escape');
     }
   }
 
