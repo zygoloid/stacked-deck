@@ -628,16 +628,6 @@ const BAC_STACK = ['9C', '8C', '7C', '6C', '5C', '4C', '3C', '2C', 'AC'];
 const BAC_RULER = ['?', '$', '$', '?', '?', '?', '?', '?', '?', '?'];
 
 export const SPECS = {
-  'small-change': {
-    // A king beats a queen but not a king; the ace of spades then beats it,
-    // and goes to the desk while the king drops (by the desk, so the ace is
-    // paid in the same round as the last king leaves the floor).
-    cells: [
-      war([-2, 0], { dealer: NW, out: { win: E } }), shoe([-2, -1], 'QC', { out: SE }),
-      war([-1, 0], { dealer: NW, out: { lose: E } }), shoe([-1, -1], 'KC', { out: SE }),
-      war([0, 0], { dealer: NW, out: { dwin: E } }), shoe([0, -1], 'AS', { out: SE }),
-    ],
-  },
   'split-pot': {
     // Set's two piles go to the desk by different sides, so they arrive as
     // two hands rather than stacked into one.
@@ -906,22 +896,6 @@ export const SPECS = {
     ],
   },
 
-  'crossed-wires': {
-    // A crossover network: each pair of streams crosses at a War with the
-    // player's hand sent one way and the dealer's the other, win or lose.
-    // A crosses B, then C, then B and C cross; every War pairs one hand of
-    // each, which works because the players have the same number of hands.
-    cells: [
-      pass([-1, -2], SE), pass([-2, 0], NE),
-      war([-1, -1], { dealer: SW, out: { win: SE, lose: SE, dwin: E, dlose: E } }),
-      pass([-3, 2], NE), pass([-2, 1], NE),
-      war([-1, 0], { dealer: SW, out: { win: SE, lose: SE, dwin: E, dlose: E } }),
-      pass([-1, 1], SE), pass([-1, 2], E), pass([0, 2], E),
-      pass([0, -1], SE),
-      war([0, 0], { dealer: W, out: { win: E, lose: E, dwin: NE, dlose: NE } }),
-      pass([1, 0], E), pass([1, -1], NE), pass([2, -2], E),
-    ],
-  },
   'uneven-tables': {
     // Tag A's hands with a joker on top and C's with an advertising card,
     // merge the three streams, and sort them out with two top-card Wars:
@@ -1227,24 +1201,6 @@ export const SPECS = {
       pass([-2, 1], NE),
       c([-1, 0], 'gather', { under: SW, out: { out: E } }),
       c([0, 0], 'outshuffle', { out: { out: E } }),
-    ],
-  },
-  'natural': {
-    // Pairs are dropped (two aces), and the hand must beat a king (it holds
-    // an ace). Then a jack, a queen and a king are gathered underneath:
-    // [ace, x, J, Q, K] is a straight only when x is a 10, and holds a pair
-    // only when x is a J, Q or K. A cut takes the three cards off the bottom.
-    // (The War's king, stacked under the winning hand with both ports one
-    // way, can be one of the three: 10.)
-    cells: [
-      c([-3, 0], 'kind', { n: 2, out: { no: E } }),
-      war([-2, 0], { dealer: NW, out: { win: E } }), shoe([-2, -1], 'KC', { out: SE }),
-      c([-1, 0], 'gather', { under: NW, out: { out: E } }), shoe([-1, -1], 'JC', { out: SE }),
-      c([0, 0], 'gather', { under: NW, out: { out: E } }), shoe([0, -1], 'QC', { out: SE }),
-      c([1, 0], 'gather', { under: NW, out: { out: SE } }), shoe([1, -1], 'KD', { out: SE }),
-      c([1, 1], 'straight', { out: { yes: W, no: SW } }),
-      c([0, 2], 'kind', { n: 2, out: { yes: NW } }),
-      c([0, 1], 'cut', { out: { top: W } }),
     ],
   },
   'snap': {

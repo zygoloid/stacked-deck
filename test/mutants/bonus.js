@@ -193,16 +193,6 @@ export const MUTANTS = {
     'the hand upside down, black on top': colours((r, b) => alternate([...b].reverse(), [...r].reverse())),
     'the hand out-shuffled as dealt': (t) => t.map(outRiffle),
   },
-  natural: {
-    'holds an ace': (h) => h.some((c) => c[0] === 'A'),
-    'ace and king only': (h) => h.some((c) => c[0] === 'A') && h.some((c) => c[0] === 'K'),
-    'ace and a face card (not a 10)': (h) => h.some((c) => c[0] === 'A') && h.some((c) => 'JQK'.includes(c[0])),
-    'ace and a 9 or better': (h) => h.some((c) => c[0] === 'A') && h.some((c) => '9TJQK'.includes(c[0])),
-    'two aces count': (h) => isBlackjack(h) || h.every((c) => c[0] === 'A'),
-    'both cards 10 or better': (h) => h.every((c) => hv(c) >= 10),
-    'a ten-card': (h) => h.some((c) => 'TJQK'.includes(c[0])),
-    'ace on top': (h) => h[0][0] === 'A' && 'TJQK'.includes(h[1][0]),
-  },
   snap: {
     'the first card never pays': (h, b) => b.length > 0 && h[0][0] === last(b)[0][0],
     'the first card always pays': (h, b) => b.length === 0 || h[0][0] === last(b)[0][0],
@@ -228,12 +218,6 @@ export const MUTANTS = {
   },
 
   // Expected-payout floors: mutants are (inputs) => payouts.
-  'small-change': {
-    'pay the kings': (t) => kings(t),
-    'kings and aces': (t) => t.filter(([c]) => 'AK'.includes(rankOf(c))).map(() => ['AS']),
-    'ace of the same suit': (t) => kings(t).map(([c]) => ['A' + c[1]]),
-    'king and ace together': (t) => kings(t).map(([c]) => [c, 'AS']),
-  },
   'split-pot': {
     'whole hand': (t) => t.filter((h) => largestSet(h) >= 2),
     'set only': (t) => t.filter((h) => largestSet(h) >= 2).map((h) => setOf(h)),
@@ -389,7 +373,6 @@ export const MUTANTS = {
     'unplayed ranks only': (t) => NEW_DECK.filter((c) => !t.flat().some((x) => rankOf(x) === rankOf(c))).map((c) => [c]),
     'all but the last hand': (t) => NEW_DECK.filter((c) => !t.slice(0, -1).flat().includes(c)).map((c) => [c]),
   },
-  'crossed-wires': crossings,
   'uneven-tables': crossings,
   ceasefire: {
     'aces high': (h, b) => b.length > 0 && hv(h[0]) > hv(last(b)[0]),

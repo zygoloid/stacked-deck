@@ -21,13 +21,12 @@
 // (`decks: 2`).
 import {
   hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, SW, W, NW, NE,
-  hv, high, one, paletteThrough, finishChapter,
+  hv, high, one, paletteThrough, paletteOf, finishChapter,
 } from './shared.js';
 import {
   RANKS, rankOf, suitOf, rankValue, highValue, largestSet, rankCounts, fullDeck, shuffled, isFlush, rng,
 } from '../cards.js';
 
-const B1 = [source([-3, 0], E), desk([1, 0])];
 const B2 = [source([-3, 0], E), desk([0, 0])];
 const B3 = [source([-2, 0], E), desk([2, 0])];
 const B4 = [source([-3, 0], E), desk([-1, 0])];
@@ -408,7 +407,6 @@ const DUMBWAITER_FLOOR = [...hexRect(-2, 2, -9, -1), ...hexRect(-2, 2, 2, 9)];
 
 // Checkerboard, Natural, Snap and Crazy Eights.
 const CB = [source([-3, 0], E), desk([1, 0])];
-const NT = [source([-4, 0], E), desk([-1, 1])];
 const SN = [source([-3, 0], E), desk([2, -1])];
 const CE = [source([-2, 0], E), desk([2, 1])];
 // A card drawn from a full deck, its rank one of `ranks` (a string).
@@ -429,21 +427,8 @@ function colourDeals(rand, nTests, per) {
     return Array.from({ length: per }, (_, i) => shuffled([...reds.slice(3 * i, 3 * i + 3), ...blacks.slice(3 * i, 3 * i + 3)], rand));
   });
 }
-// Natural: an ace with a 10, jack, queen or king.
+// The ten-cards (10, J, Q, K).
 const TENS = 'TJQK';
-const natural = (h) => h.some((c) => rankOf(c) === 'A') && h.some((c) => TENS.includes(rankOf(c)));
-// Two-card hands, each drawn from a full deck: about a third of them
-// blackjacks, the rest mostly near misses.
-const NATURAL_SHAPES = [['A', TENS], ['A', TENS], ['A', TENS], ['A', '23456789'], ['A', '9'], ['A', 'A'],
-  [TENS, TENS], [TENS, '6789'], [RANKS.join(''), RANKS.join('')]];
-function blackjackDeals(rand, nTests, per) {
-  return Array.from({ length: nTests }, () => Array.from({ length: per }, () => {
-    const shape = NATURAL_SHAPES[Math.floor(rand() * NATURAL_SHAPES.length)];
-    let h;
-    do h = shuffled(shape.map((ranks) => drawCard(rand, ranks)), rand); while (h[0] === h[1]);
-    return h;
-  }));
-}
 // Snap: single cards, each drawn from a full deck, often of the rank of the
 // card before (and the first card often a 7).
 function snapDeals(rand, nTests, per) {
@@ -754,30 +739,8 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'small-change',
-    card: '2S',
-    unlockAfter: 'beat-the-dealer',
-    title: 'Small Change',
-    difficulty: 2,
-    story: [
-      'Sal Vellani has a rule about kings: a king is too much money to leave on the table. Tonight, for every king played, the house hands over the ace of spades from its own cards, and keeps the king.',
-      'Queens, aces and everything else are just cards, and pay nothing.',
-    ],
-    brief: 'Single cards. For every king played, pay out the ace of spades (a house card). Nothing else is paid.',
-    handSize: 1,
-    floor: floorOf(hexRect(-2, 2, -7, 4), B1),
-    fixed: B1,
-    croupiers: paletteThrough('war'),
-    expected: (inputs) => inputs.filter(([c]) => rankOf(c) === 'K').map(() => ['AS']),
-    tests: makeTests({
-      handSize: 1, handsPerTest: 26,
-      fixed: [one('KS QS AS KD 2C KH JD AH KC'), one('KH KD KC KS'), one('QS AD JC 2H')],
-      nRandom: 4, seed: 161,
-    }),
-  },
-  {
     id: 'checkerboard',
-    card: '3S',
+    card: '2S',
     unlockAfter: 'bottom-dealer',
     title: 'Checkerboard',
     difficulty: 3,
@@ -807,7 +770,7 @@ export const LEVELS = [
   },
   {
     id: 'two-apart',
-    card: '4S',
+    card: '3S',
     unlockAfter: 'deja-vu',
     title: 'Two Apart',
     difficulty: 3,
@@ -836,7 +799,7 @@ export const LEVELS = [
   },
   {
     id: 'snap',
-    card: '5S',
+    card: '4S',
     unlockAfter: 'next-in-line',
     title: 'Snap',
     difficulty: 3,
@@ -864,7 +827,7 @@ export const LEVELS = [
   },
   {
     id: 'three-apart',
-    card: '6S',
+    card: '5S',
     unlockAfter: 'two-apart',
     title: 'Three Apart',
     difficulty: 3,
@@ -892,35 +855,8 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'natural',
-    card: '7S',
-    unlockAfter: 'ace-in-the-hole',
-    title: 'Natural',
-    difficulty: 4,
-    story: [
-      'Sal Vellani has been to a casino out of town and come back talking about nothing but blackjack. The Owner will not have a game at the tables that counts to twenty-one, but agrees to pay the one hand Sal cares about: a two-card hand that is an ace with a 10, a jack, a queen or a king.',
-      'Two aces are a pair of aces, not a natural, and pay nothing. Sal says the casino out of town also gave him free drinks, and he has not decided which he misses more.',
-    ],
-    brief: 'Two-card hands. Pay out every blackjack: an ace with a 10, J, Q or K (two aces don\'t count).',
-    handSize: 2,
-    floor: floorOf(hexRect(-2, 2, -9, 5), NT),
-    fixed: NT,
-    croupiers: paletteThrough('war'),
-    pays: natural,
-    tests: dealtTests({
-      deal: (rand, n) => blackjackDeals(rand, n, 20),
-      fixed: [
-        ['AS TD', 'JC AH', 'AD QS', 'KH AC', 'AS AD', 'AH 9C', '2D AS', 'KS QD', 'TC TH', 'KD 9S', 'AC 5H', '7S 8D',
-          'JH JS', 'QC AD'],
-        // winners back to back, then losers that fail in different ways
-        ['TS AS', 'AH TH', 'AC KC', 'QD AD', 'JS AH', 'AH AC', 'KD QH', 'AS 9D', '3C 4H', 'AD 2S', 'JD TC'],
-      ],
-      nRandom: 4, seed: 202,
-    }),
-  },
-  {
     id: 'off-suit',
-    card: '8S',
+    card: '6S',
     unlockAfter: 'red-flush',
     title: 'Off Suit',
     difficulty: 4,
@@ -932,7 +868,7 @@ export const LEVELS = [
     handSize: 3,
     floor: floorOf(hexRange(4), H9),
     fixed: H9,
-    croupiers: paletteThrough('flush').filter((c) => c !== 'suits'),
+    croupiers: paletteOf('pass', 'straight', 'shoe', 'gather', 'cut', 'flush'),
     pays: (h) => isFlush(h) && ['H', 'D'].includes(suitOf(h[0])),
     tests: makeTests({
       handSize: 3, handsPerTest: 10,
@@ -945,35 +881,8 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'crossed-wires',
-    card: '9S',
-    unlockAfter: 'beat-the-dealer',
-    title: 'Crossed Wires',
-    difficulty: 4,
-    story: [
-      'The Owner has had the floor rewired: three card tables down one wall, three cash desks down the other, and a note under the tray. Every player is to be paid at the desk diametrically opposite their seat, so that the money is seen to cross the room.',
-      'Player A, at the top, is paid at desk Z, at the bottom; player B, in the middle, at desk Y; player C, at the bottom, at desk X. The Marchetti twins have brought a cousin, and all three are already arguing about the view.',
-    ],
-    brief: 'Three players, hands of 1 to 3 cards. Pay out every hand at the desk diametrically opposite its player: A\'s at Z, B\'s at Y, C\'s at X.',
-    handSize: [1, 3],
-    floor: floorOf(hexRect(-4, 4, -6, 5), H3),
-    fixed: H3,
-    croupiers: paletteThrough('war'),
-    expected: crossed,
-    tests: makeMixedTests({
-      minSize: 1, maxSize: 3, handsPerTest: 15,
-      fixed: [
-        ['AS', '2S', '3S', 'AH 2H', 'KH QH', 'JH TH', '4D 5D 6D', '7C', '8C 9C'],
-        // the same hand from every player
-        ['KS QS', 'KS QS', 'KS QS', '2D', '2D', '2D'],
-        ['7H 8H 9H', 'JS', '5C 4C'],
-      ],
-      nRandom: 4, seed: 180,
-    }),
-  },
-  {
     id: 'every-other',
-    card: 'TS',
+    card: '7S',
     unlockAfter: 'ace-count',
     title: 'Every Other',
     difficulty: 5,
@@ -1002,7 +911,7 @@ export const LEVELS = [
   },
   {
     id: 'bookends',
-    card: 'JS',
+    card: '8S',
     unlockAfter: 'burn-card',
     title: 'Bookends',
     difficulty: 5,
@@ -1030,7 +939,7 @@ export const LEVELS = [
   },
   {
     id: 'one-deck',
-    card: 'QS',
+    card: '9S',
     unlockAfter: 'seven-heaven',
     title: 'One Deck',
     difficulty: 5,
@@ -1070,7 +979,7 @@ export const LEVELS = [
   },
   {
     id: 'cut-to-the-ace',
-    card: 'KS',
+    card: 'TS',
     unlockAfter: 'burn-card',
     title: 'Cut to the Ace',
     difficulty: 5,
@@ -1103,7 +1012,7 @@ export const LEVELS = [
   },
   {
     id: 'uneven-tables',
-    card: 'AH',
+    card: 'JS',
     unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Uneven Tables',
     difficulty: 5,
@@ -1132,7 +1041,7 @@ export const LEVELS = [
   },
   {
     id: 'four-of-a-kind',
-    card: '2H',
+    card: 'QS',
     unlockAfter: 'deja-vu',
     title: 'Four of a Kind',
     difficulty: 6,
@@ -1162,7 +1071,7 @@ export const LEVELS = [
   },
   {
     id: 'missing-card',
-    card: '3H',
+    card: 'KS',
     unlockAfter: 'four-of-a-kind',
     title: 'Missing Card',
     difficulty: 4,
@@ -1190,7 +1099,7 @@ export const LEVELS = [
   },
   {
     id: 'counting-up',
-    card: '4H',
+    card: 'AH',
     unlockAfter: 'deja-vu',
     title: 'Counting Up',
     difficulty: 6,
@@ -1223,7 +1132,7 @@ export const LEVELS = [
   },
   {
     id: 'ceasefire',
-    card: '5H',
+    card: '2H',
     unlockAfter: 'next-in-line',
     title: 'Ceasefire',
     difficulty: 6,
@@ -1252,7 +1161,7 @@ export const LEVELS = [
   },
   {
     id: 'three-in-a-row',
-    card: '6H',
+    card: '3H',
     unlockAfter: ['next-in-line', 'deja-vu'],
     title: 'Three in a Row',
     difficulty: 6,
@@ -1284,7 +1193,7 @@ export const LEVELS = [
   },
   {
     id: 'rising',
-    card: '7H',
+    card: '4H',
     unlockAfter: ['every-other', 'deja-vu'],
     title: 'Rising',
     difficulty: 6,
@@ -1314,7 +1223,7 @@ export const LEVELS = [
   },
   {
     id: 'odds-and-evens',
-    card: '8H',
+    card: '5H',
     unlockAfter: 'deja-vu',
     title: 'Odds and Evens',
     difficulty: 6,
@@ -1348,7 +1257,7 @@ export const LEVELS = [
   },
   {
     id: 'after-a-pair',
-    card: '9H',
+    card: '6H',
     unlockAfter: 'small-pairs',
     title: 'After a Pair',
     difficulty: 6,
@@ -1380,7 +1289,7 @@ export const LEVELS = [
   },
   {
     id: 'two-by-two',
-    card: 'TH',
+    card: '7H',
     unlockAfter: 'two-pair',
     title: 'Two by Two',
     difficulty: 6,
@@ -1413,7 +1322,7 @@ export const LEVELS = [
   },
   {
     id: 'rest-of-the-deck',
-    card: 'JH',
+    card: '8H',
     unlockAfter: 'missing-card',
     title: 'The Rest of the Deck',
     difficulty: 6,
@@ -1443,7 +1352,7 @@ export const LEVELS = [
   },
   {
     id: 'crazy-eights',
-    card: 'QH',
+    card: '9H',
     unlockAfter: 'high-roller',
     title: 'Crazy Eights',
     difficulty: 6,
@@ -1474,7 +1383,7 @@ export const LEVELS = [
   },
   {
     id: 'perfect-pair',
-    card: 'KH',
+    card: 'TH',
     unlockAfter: 'missing-card',
     title: 'Perfect Pair',
     difficulty: 6,
@@ -1510,7 +1419,7 @@ export const LEVELS = [
   },
   {
     id: 'pot-luck',
-    card: 'AC',
+    card: 'JH',
     unlockAfter: ['crossed-wires', 'hot-streak'],
     title: 'Pot Luck',
     difficulty: 6,
@@ -1540,7 +1449,7 @@ export const LEVELS = [
   },
   {
     id: 'night-off',
-    card: '2C',
+    card: 'QH',
     unlockAfter: 'off-suit',
     title: 'Night Off',
     difficulty: 6,
@@ -1552,7 +1461,7 @@ export const LEVELS = [
     handSize: 3,
     floor: floorOf(hexRange(4), H9),
     fixed: H9,
-    croupiers: paletteThrough('cut'),
+    croupiers: paletteOf('pass', 'suits', 'straight', 'gather', 'cut', 'shoe'),
     pays: (h) => isFlush(h) && ['H', 'D'].includes(suitOf(h[0])),
     tests: makeTests({
       handSize: 3, handsPerTest: 10,
@@ -1566,7 +1475,7 @@ export const LEVELS = [
   },
   {
     id: 'skeleton-crew',
-    card: '3C',
+    card: 'KH',
     unlockAfter: ['calling-card', 'night-off'],
     title: 'Skeleton Crew',
     difficulty: 6,
@@ -1593,12 +1502,12 @@ export const LEVELS = [
   },
   {
     id: 'in-between',
-    card: '4C',
-    unlockAfter: ['inside-bet', 'one-deck'],
+    card: 'AC',
+    unlockAfter: ['low-kicker', 'one-deck'],
     title: 'In-Between',
     difficulty: 7,
     story: [
-      'Sal Vellani\'s uncle still bets the middle, and tonight he has brought In-Between from the casinos down the coast. Three players, one card each per deal: player B\'s card is always lower than player C\'s (the deal sees to it), and player A\'s card wins if it ranks strictly between them. A card that ties either of them loses, and aces are high.',
+      'Sal Vellani\'s uncle likes to bet the middle, and tonight he has brought In-Between from the casinos down the coast. Three players, one card each per deal: player B\'s card is always lower than player C\'s (the deal sees to it), and player A\'s card wins if it ranks strictly between them. A card that ties either of them loses, and aces are high.',
       'Only one War croupier came in tonight, and the auditors have bolted her table to the floor: her dealer\'s side, all four of her ports and her rule (top card) stay as they are. There are no other War croupiers. The uncle says he has always liked a croupier who stays put.',
     ],
     brief: 'Three players, one card each per deal; B\'s card is always lower than C\'s. Pay out A\'s card when it ranks strictly between B\'s and C\'s (a tie with either loses; aces high). No War croupiers: the only one is bolted down, top card, ports and all.',
@@ -1630,7 +1539,7 @@ export const LEVELS = [
   },
   {
     id: 'dumbwaiter',
-    card: '5C',
+    card: '2C',
     unlockAfter: ['in-between', 'deja-vu'],
     title: 'Dumbwaiter',
     difficulty: 6,
@@ -1660,7 +1569,7 @@ export const LEVELS = [
   },
   {
     id: 'no-kings',
-    card: '6C',
+    card: '3C',
     unlockAfter: 'skeleton-crew',
     title: 'No Kings',
     difficulty: 7,
@@ -1687,7 +1596,7 @@ export const LEVELS = [
   },
   {
     id: 'one-up',
-    card: '7C',
+    card: '4C',
     unlockAfter: 'counting-up',
     title: 'One Up',
     difficulty: 7,
@@ -1711,7 +1620,7 @@ export const LEVELS = [
   },
   {
     id: 'twenty-one-card-trick',
-    card: '8C',
+    card: '5C',
     unlockAfter: 'one-up',
     title: 'Twenty-One Card Trick',
     difficulty: 7,
@@ -1757,7 +1666,7 @@ export const LEVELS = [
   },
   {
     id: 'round-the-clock',
-    card: '9C',
+    card: '6C',
     unlockAfter: 'counting-up',
     title: 'Round the Clock',
     difficulty: 7,
@@ -1798,7 +1707,7 @@ export const LEVELS = [
   },
   {
     id: 'running-count',
-    card: 'TC',
+    card: '7C',
     unlockAfter: ['ace-count', 'hot-streak'],
     title: 'Running Count',
     difficulty: 7,
@@ -1829,7 +1738,7 @@ export const LEVELS = [
   },
   {
     id: 'counterfeit',
-    card: 'JC',
+    card: '8C',
     unlockAfter: 'perfect-pair',
     title: 'Counterfeit',
     difficulty: 7,
@@ -1861,7 +1770,7 @@ export const LEVELS = [
   },
   {
     id: 'rank-and-file',
-    card: 'QC',
+    card: '9C',
     unlockAfter: 'change-of-heart',
     title: 'Rank and File',
     difficulty: 8,
@@ -1899,7 +1808,7 @@ export const LEVELS = [
   },
   {
     id: 'head-count',
-    card: 'KC',
+    card: 'TC',
     unlockAfter: 'rest-of-the-deck',
     title: 'Head Count',
     difficulty: 8,
@@ -1929,7 +1838,7 @@ export const LEVELS = [
   },
   {
     id: 'mirror-image',
-    card: 'AD',
+    card: 'JC',
     unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Mirror Image',
     difficulty: 8,
@@ -1959,7 +1868,7 @@ export const LEVELS = [
   },
   {
     id: 'casino-numbers',
-    card: '2D',
+    card: 'QC',
     unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Casino Numbers',
     difficulty: 8,
@@ -1989,7 +1898,7 @@ export const LEVELS = [
   },
   {
     id: 'every-twenty-one',
-    card: '3D',
+    card: 'KC',
     unlockAfter: 'casino-numbers',
     title: 'Every Twenty-One',
     difficulty: 7,
@@ -2025,7 +1934,7 @@ export const LEVELS = [
   },
   {
     id: 'hit-me',
-    card: '4D',
+    card: 'AD',
     unlockAfter: 'every-twenty-one',
     title: 'Hit Me',
     difficulty: 8,
@@ -2058,7 +1967,7 @@ export const LEVELS = [
   },
   {
     id: 'punto-banco',
-    card: '5D',
+    card: '2D',
     unlockAfter: 'hit-me',
     title: 'Punto Banco',
     difficulty: 8,
@@ -2091,7 +2000,7 @@ export const LEVELS = [
   },
   {
     id: 'split-the-difference',
-    card: '6D',
+    card: '3D',
     unlockAfter: 'casino-numbers',
     title: 'Split the Difference',
     difficulty: 8,
@@ -2123,7 +2032,7 @@ export const LEVELS = [
   },
   {
     id: 'last-in-first-out',
-    card: '7D',
+    card: '4D',
     unlockAfter: ['three-apart', 'rest-of-the-deck'],
     title: 'Last In, First Out',
     difficulty: 9,
@@ -2153,7 +2062,7 @@ export const LEVELS = [
   },
   {
     id: 'first-sighting',
-    card: '8D',
+    card: '5D',
     unlockAfter: 'four-of-a-kind',
     title: 'First Sighting',
     difficulty: 9,
@@ -2194,7 +2103,7 @@ export const LEVELS = [
   },
   {
     id: 'times-tables',
-    card: '9D',
+    card: '6D',
     unlockAfter: 'casino-numbers',
     title: 'Times Tables',
     difficulty: 9,
@@ -2223,7 +2132,7 @@ export const LEVELS = [
   },
   {
     id: 'showdown',
-    card: 'TD',
+    card: '7D',
     unlockAfter: 'mirror-image',
     title: 'Showdown',
     difficulty: 9,
@@ -2256,7 +2165,7 @@ export const LEVELS = [
   },
   {
     id: 'follow-suit',
-    card: 'JD',
+    card: '8D',
     unlockAfter: 'showdown',
     title: 'Follow Suit',
     difficulty: 9,
@@ -2287,7 +2196,7 @@ export const LEVELS = [
   },
   {
     id: 'twice-shy',
-    card: 'QD',
+    card: '9D',
     unlockAfter: 'mirror-image',
     title: 'Twice Shy',
     difficulty: 10,
@@ -2318,7 +2227,7 @@ export const LEVELS = [
   },
   {
     id: 'carry-the-one',
-    card: 'KD',
+    card: 'TD',
     unlockAfter: 'times-tables',
     title: 'Carry the One',
     difficulty: 10,
@@ -2355,14 +2264,11 @@ export const LEVELS = [
 // BEGIN PAR
 const PAR = {
   'split-pot': { croupiers: 3, rounds: 56 },
-  'small-change': { croupiers: 6, rounds: 130 },
   'checkerboard': { croupiers: 4, rounds: 79 },
   'two-apart': { croupiers: 5, rounds: 120 },
   'snap': { croupiers: 6, rounds: 150 },
   'three-apart': { croupiers: 7, rounds: 125 },
-  'natural': { croupiers: 12, rounds: 134 },
   'off-suit': { croupiers: 13, rounds: 71 },
-  'crossed-wires': { croupiers: 14, rounds: 68 },
   'every-other': { croupiers: 4, rounds: 90 },
   'bookends': { croupiers: 5, rounds: 134 },
   'one-deck': { croupiers: 10, rounds: 837 },

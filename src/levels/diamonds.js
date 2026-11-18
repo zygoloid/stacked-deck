@@ -1,45 +1,153 @@
-// Chapter 2 (diamonds): Stacking the Deck. Flushes, n of a kind, reference
-// stacks (and a loop that builds them), then War: against a shoe, against
-// the hand's own pieces, and rigged. See docs/campaign.md for the plan.
+// Chapter 2 (diamonds): Stacking the Deck. War, from a single card against
+// a shoe to a rigged game on the pieces of a hand, and Flush, brought in
+// after War. See docs/campaign.md for the plan.
 import {
-  hexRange, hexRect, makeTests, floorOf, source, desk, E, SE, NE,
-  hv, high, isRed, one, suitRun, countOf, paletteThrough, finishChapter,
+  hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, NE,
+  hv, isRed, one, suitRun, countOf, paletteThrough, finishChapter,
 } from './shared.js';
-import { rankOf, largestSet, isFlush, isStraight } from '../cards.js';
+import { RANKS, rankOf, isFlush, shuffled } from '../cards.js';
 
-const F1 = [source([-2, 0], E), desk([2, 0])];
-const F2 = [source([-3, 0], E), desk([1, 0])];
-const F3 = [source([-2, 0], E), desk([2, 0])];
-const F4 = [source([-3, 1], NE), desk([2, -1])];
-const F5 = [source([-3, 0], E), desk([0, 1])];
-const F6 = [source([-4, 0], E), desk([0, 1])];
-const F7 = [source([-2, 0], E), desk([2, -1])];
-const F8 = [source([-2, 0], E), desk([2, 0])];
-const F9 = [source([-3, 0], E), desk([1, 0])];
+const seat = (at, out, n) => ({ ...source(at, out), seat: n });
+const labelled = (at, n) => ({ ...desk(at), desk: n });
+const between = (h) => Math.min(hv(h[0]), hv(h[2])) < hv(h[1]) && hv(h[1]) < Math.max(hv(h[0]), hv(h[2]));
+
+// Natural (blackjack): an ace with a ten-card; deals with about a third
+// blackjacks and many near misses.
+const TENS = 'TJQK';
+const natural = (h) => h.some((c) => rankOf(c) === 'A') && h.some((c) => TENS.includes(rankOf(c)));
+const drawCard = (rand, ranks = RANKS.join('')) => ranks[Math.floor(rand() * ranks.length)] + 'SDCH'[Math.floor(rand() * 4)];
+const NATURAL_SHAPES = [['A', TENS], ['A', TENS], ['A', TENS], ['A', '23456789'], ['A', '9'], ['A', 'A'],
+  [TENS, TENS], [TENS, '6789'], [RANKS.join(''), RANKS.join('')]];
+function blackjackDeals(rand, nTests, per) {
+  return Array.from({ length: nTests }, () => Array.from({ length: per }, () => {
+    const shape = NATURAL_SHAPES[Math.floor(rand() * NATURAL_SHAPES.length)];
+    let h;
+    do h = shuffled(shape.map((ranks) => drawCard(rand, ranks)), rand); while (h[0] === h[1]);
+    return h;
+  }));
+}
+
+// Crossed Wires: every hand at the desk opposite its player.
+const crossed = (inputs) => inputs.flatMap((h, i) => (h ? [{ desk: 2 - (i % 3), hand: h }] : []));
+
+// Pecking Order: three-card hands, each from a single suit (three hands of
+// each suit a test, from one deck).
+function suitedDeals(rand, n) {
+  return Array.from({ length: n }, () => {
+    const hands = [];
+    for (const s of 'SHDC') {
+      const cards = shuffled(RANKS.map((r) => r + s), rand);
+      for (let i = 0; i < 3; i++) hands.push(cards.slice(3 * i, 3 * i + 3));
+    }
+    return shuffled(hands, rand);
+  });
+}
+
+const F1 = [source([-2, 0], E), desk([0, 0])];
+const F2 = [source([-2, 0], E), desk([0, -1])];
+const F3 = [seat([-2, 0], E, 0), seat([-1, -1], SE, 1), desk([3, 0])];
+const F4 = [source([-2, 0], E), desk([2, 0])];
+const F5 = [source([-3, 0], E), desk([1, 0])];
+const F6 = [source([-2, 0], E), desk([2, 0])];
+const F7 = [source([-4, 0], E), desk([-1, 1])];
+const F8 = [source([-2, 0], E), desk([0, 1])];
+const F9 = [
+  seat([-2, -2], E, 0), seat([-3, 0], E, 1), seat([-4, 2], E, 2),
+  labelled([3, -2], 0), labelled([2, 0], 1), labelled([1, 2], 2),
+];
 const F10 = [source([-2, 0], E), desk([2, 0])];
-const F11 = [source([-3, 0], E), desk([1, 0])];
+const F11 = [source([-2, 0], E), desk([2, -1])];
 const F12 = [source([-4, 0], E), desk([4, 0])];
 const F13 = [source([-4, 0], E), desk([1, 0])];
 
-const suited = (h) => isFlush(h);
-const connected = (h) => isStraight(h);
-const between = (h) => Math.min(hv(h[0]), hv(h[2])) < hv(h[1]) && hv(h[1]) < Math.max(hv(h[0]), hv(h[2]));
-
 export const LEVELS = [
+  {
+    id: 'high-card',
+    chapter: 2,
+    card: 'AD',
+    title: 'High Card',
+    difficulty: 2,
+    story: [
+      'A new croupier joins: she plays War. Your card against the dealer\'s card, high card wins, aces high, and ties go to the house. Both cards come out of her ports, so you choose where the winner and loser go.',
+      'Single cards for her first night. The dealer always plays a 9.',
+    ],
+    brief: 'Pay out every card that beats a 9 (aces high; a tie doesn\'t beat it).',
+    handSize: 1,
+    floor: floorOf(hexRange(2, [-1, 0]), F1),
+    fixed: F1,
+    croupiers: paletteThrough('war'),
+    pays: (h) => hv(h[0]) > 9,
+    tests: makeTests({
+      handSize: 1, handsPerTest: 13,
+      fixed: [suitRun('H'), one('9S 9D TS AS 2S')],
+      nRandom: 3, seed: 151,
+    }),
+  },
+  {
+    id: 'small-stakes',
+    chapter: 2,
+    card: '2D',
+    title: 'Small Stakes',
+    difficulty: 3,
+    story: [
+      'Old Thursday\'s pension has run out before the end of the month again, so tonight he plays for small stakes: any card from the ace to the 4 wins.',
+      'At his table the ace counts low. The War croupier, as ever, counts it high.',
+    ],
+    brief: 'Pay out every ace, 2, 3 and 4.',
+    handSize: 1,
+    floor: floorOf(hexRange(2, [-1, 0]), F2),
+    fixed: F2,
+    croupiers: paletteThrough('war'),
+    pays: (h) => 'A234'.includes(rankOf(h[0])),
+    tests: makeTests({
+      handSize: 1, handsPerTest: 20,
+      fixed: [suitRun('C'), one('AH KH QH 2D 5D 4S 3S 6S 5H AS')],
+      nRandom: 3, seed: 152,
+    }),
+  },
+  {
+    id: 'face-off',
+    chapter: 2,
+    card: '3D',
+    title: 'Face Off',
+    difficulty: 4,
+    story: [
+      'The Marchetti twins have stopped asking to be paid at the same desk. Now they want to beat each other. Each lays down one card a deal, and the house pays the higher card, on its own. Aces high.',
+      'If the two cards are the same rank, nobody wins and nothing is paid. The twins take that badly.',
+    ],
+    brief: 'Two players, one card each a deal. Pay out the higher of the two cards (aces high), on its own; a tie pays nothing.',
+    handSize: 1,
+    floor: floorOf(hexRange(3), F3),
+    fixed: F3,
+    croupiers: paletteThrough('war'),
+    expected: (inputs) => {
+      const out = [];
+      for (let i = 0; i + 1 < inputs.length; i += 2) {
+        const [a] = inputs[i], [b] = inputs[i + 1];
+        if (hv(a) !== hv(b)) out.push([hv(a) > hv(b) ? a : b]);
+      }
+      return out;
+    },
+    tests: makeTests({
+      handSize: 1, handsPerTest: 26,
+      fixed: [one('KS 2D 2S KD 7H 7C AS KH KC AD 9S 9H TD 3C'), one('5S 5H 5D 5C QS JS JD QD')],
+      nRandom: 3, seed: 153,
+    }),
+  },
   {
     id: 'red-flush',
     chapter: 2,
-    card: 'AD',
+    card: '4D',
     title: 'Red Flush',
     difficulty: 3,
     story: [
-      'Sal Vellani is back with an uncle. The uncle would like three-card hands, and he would like the house to pay any hand that is all hearts or all diamonds.',
+      'Sal\'s uncle is back from across the river with a game of his own. He would like three-card hands, and he would like the house to pay any hand that is all hearts or all diamonds.',
       'Your new croupier checks for a flush: every card in the hand the same suit. "A heart and two diamonds is not a flush," you remind the uncle. He smiles in a way that suggests he knew.',
     ],
     brief: 'Three-card hands. Pay out every flush in hearts or diamonds.',
     handSize: 3,
-    floor: floorOf(hexRange(2), F1),
-    fixed: F1,
+    floor: floorOf(hexRange(4), F4),
+    fixed: F4,
     croupiers: paletteThrough('flush'),
     pays: (h) => isFlush(h) && isRed(h[0]),
     tests: makeTests({
@@ -49,182 +157,123 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'either-or',
-    chapter: 2,
-    card: '2D',
-    title: 'Either Or',
-    difficulty: 3,
-    story: [
-      'The uncle has a second game, and opinions about it. A two-card hand wins if it is suited or if it is a run. Both at once is greedy, and greed pays nothing.',
-      'Sal says his uncle is very strict about greed. Sal is wearing three gold watches.',
-    ],
-    brief: 'Two-card hands. Pay out every hand that is suited or consecutive, but not both.',
-    handSize: 2,
-    floor: floorOf(hexRect(-2, 2, -5, 4), F2, [[0, 1]]),
-    fixed: F2,
-    croupiers: paletteThrough('flush'),
-    pays: (h) => suited(h) !== connected(h),
-    tests: makeTests({
-      handSize: 2, handsPerTest: 14,
-      fixed: [['7S 8S', '7S 9S', '7S 8D', '7S 9D', 'AS 2S', 'KH AH', 'KH AD', 'AH 3H', '5C 5D', 'QC KC', 'TD 2D', '9H TS', 'KS 2S', 'KD 2C']],
-      nRandom: 4, seed: 131,
-    }),
-  },
-  {
-    id: 'pair-night',
-    chapter: 2,
-    card: '3D',
-    title: 'Pair Night',
-    difficulty: 3,
-    story: [
-      'Five-card hands tonight: the regulars like to hold something. Thursday is Pair Night, which pays a pair or two pair. Your new croupier spots n of a kind: you choose the n.',
-      'Three of a kind is too much of a good thing and pays nothing on Pair Night. Nor does a full house, nor four of a kind. The regulars think this is very funny.',
-    ],
-    brief: 'Five-card hands. Pay out every hand whose largest set is a pair (one pair or two pair).',
-    handSize: 5,
-    floor: floorOf(hexRange(2), F3),
-    fixed: F3,
-    croupiers: paletteThrough('kind'),
-    pays: (h) => largestSet(h) === 2,
-    tests: makeTests({
-      handSize: 5, handsPerTest: 10,
-      fixed: [['2S 2D 5C 9H KS', '3S 3D 7C 7H JS', '4S 4D 4C 8H QS', '5S 5D 5C TH TS', '6S 6D 6C 6H AS',
-        'AS KD QC JH 9S', 'AH AD KH KD QC', '8S 9D TC JH QS', 'KS KD KC KH QD', '2H 3H 4H 5H 7H']],
-      nRandom: 4, seed: 111,
-    }),
-  },
-  {
-    id: 'inside-seven',
-    chapter: 2,
-    card: '4D',
-    title: 'Inside Seven',
-    difficulty: 4,
-    story: [
-      'The Owner\'s note this week: "Pay any two cards that would make a run with a seven." So 5-6, 6-8 and 8-9 win.',
-      'Sal asks whether a seven in his own hand counts double. It does not: a pair is never a run.',
-    ],
-    brief: 'Two-card hands. Pay out every hand that makes a three-card run with a 7 (5-6, 6-8, 8-9).',
-    handSize: 2,
-    floor: floorOf(hexRect(-2, 1, -6, 4), F4, [[0, -1]]),
-    fixed: F4,
-    croupiers: paletteThrough('kind'),
-    pays: (h) => isStraight([...h, '7C']) && !h.some((c) => rankOf(c) === '7'),
-    tests: makeTests({
-      handSize: 2, handsPerTest: 16,
-      fixed: [['5S 6D', '6S 8D', '8S 9D', '6S 7D', '7S 8D', '4S 5D', '9S TD', '5S 8D', '6S 6D', '8H 6C', '9C 8C', '6H 5H', '7H 7D', 'AS 2D']],
-      nRandom: 4, seed: 132,
-    }),
-  },
-  {
-    id: 'seven-up',
+    id: 'small-change',
     chapter: 2,
     card: '5D',
-    title: 'Seven Up',
-    difficulty: 5,
+    title: 'Small Change',
+    difficulty: 2,
     story: [
-      'Sal has discovered Seven Up. Two cards each, and any hand holding a seven wins. A pair of sevens wins too, but not twice.',
-      'The uncle points out that the house deals from a very large shoe, and the house pretends not to hear.',
+      'Sal Vellani has a rule about kings: a king is too much money to leave on the table. Tonight, for every king played, the house hands over the ace of spades from its own cards, and keeps the king.',
+      'Queens, aces and everything else are just cards, and pay nothing.',
     ],
-    brief: 'Two-card hands. Pay out every hand that holds at least one 7.',
-    handSize: 2,
-    floor: floorOf(hexRect(-2, 2, -6, 4), F5, [[-1, 0], [1, -1]]),
+    brief: 'Single cards. For every king played, pay out the ace of spades (a house card). Nothing else is paid.',
+    handSize: 1,
+    floor: floorOf(hexRect(-2, 2, -7, 4), F5),
     fixed: F5,
-    croupiers: paletteThrough('kind'),
-    pays: (h) => countOf(h, '7') > 0,
+    croupiers: paletteThrough('flush'),
+    expected: (inputs) => inputs.filter(([c]) => rankOf(c) === 'K').map(() => ['AS']),
     tests: makeTests({
-      handSize: 2, handsPerTest: 16,
-      fixed: [['7S 2D', '2D 7S', '7S 7D', '6S 8D', 'KS QS', '7H 8H', 'AS 7C', '2S 2D', '6C 6D', '8C 8D', '7C 6H', '5D 9D']],
-      nRandom: 4, seed: 133,
+      handSize: 1, handsPerTest: 26,
+      fixed: [one('KS QS AS KD 2C KH JD AH KC'), one('KH KD KC KS'), one('QS AD JC 2H')],
+      nRandom: 4, seed: 161,
     }),
   },
   {
-    id: 'lucky-number',
+    id: 'high-suit',
     chapter: 2,
     card: '6D',
-    title: 'Lucky Number',
-    difficulty: 6,
+    title: 'High Suit',
+    difficulty: 4,
     story: [
-      'Dmitri has worked it out. A five-card hand with exactly one seven is lucky; two sevens are unlucky, and no sevens at all is merely Tuesday.',
-      'He would like the house to pay the lucky ones. He has brought a spreadsheet.',
+      'Sal\'s uncle has a second game. Two-card hands: when both cards are the same suit, the house pays the higher of the two, on its own, and keeps the other. Aces high.',
+      'A hand of two suits pays nothing at all. The uncle considers this only fair.',
     ],
-    brief: 'Five-card hands. Pay out every hand with exactly one 7.',
-    handSize: 5,
-    floor: floorOf(hexRect(-3, 2, -7, 3), F6, [[0, 0], [-2, 1]]),
+    brief: 'Two-card hands. For every hand whose two cards are the same suit, pay out its higher card (aces high), on its own.',
+    handSize: 2,
+    floor: floorOf(hexRange(2), F6),
     fixed: F6,
-    croupiers: paletteThrough('kind'),
-    pays: (h) => countOf(h, '7') === 1,
+    croupiers: paletteThrough('flush'),
+    expected: (inputs) => inputs.filter((h) => isFlush(h)).map((h) => [hv(h[0]) > hv(h[1]) ? h[0] : h[1]]),
     tests: makeTests({
-      handSize: 5, handsPerTest: 10,
-      fixed: [['7S 2D 3C 4H 5S', '7S 7D 3C 4H 5S', 'KS KD KC KH 7S', 'KS KD KC KH QS', '7S 7D 7C 7H 2S',
-        '2S 3S 4S 5S 6S', '7H 2D 2C 2H 9S', '8S 8D 7C 9H 9S', '7C 7H 7D 8S 8D', '6S 8D 9C TH 7D']],
-      nRandom: 4, seed: 134,
+      handSize: 2, handsPerTest: 20,
+      fixed: [['KS 2S', '2S KS', 'AH KH', 'KH AH', '7D 8D', '8D 7D', '7C 7D', 'AS KD', 'JC TC', 'QH QD']],
+      nRandom: 3, seed: 154,
     }),
   },
   {
-    id: 'beat-the-dealer',
+    id: 'natural',
     chapter: 2,
     card: '7D',
-    title: 'Beat the Dealer',
+    title: 'Natural',
     difficulty: 4,
     story: [
-      'A new croupier joins: she plays War. Your card against the dealer\'s card, high card wins, aces high, and ties go to the house. Both cards come out of her ports, so you choose where the winner and loser go.',
-      'Back to single cards for her first night. The dealer always plays a 9.',
+      'Sal Vellani has been to a casino out of town and come back talking about nothing but blackjack. The Owner will not have a game at the tables that counts to twenty-one, but agrees to pay the one hand Sal cares about: a two-card hand that is an ace with a 10, a jack, a queen or a king.',
+      'Two aces are a pair of aces, not a natural, and pay nothing. Sal says the casino out of town also gave him free drinks, and he has not decided which he misses more.',
     ],
-    brief: 'Pay out every card that beats a 9 (10, J, Q, K, A).',
-    handSize: 1,
-    floor: floorOf(hexRange(2), F7),
+    brief: 'Two-card hands. Pay out every blackjack: an ace with a 10, J, Q or K (two aces don\'t count).',
+    handSize: 2,
+    floor: floorOf(hexRect(-2, 2, -9, 5), F7),
     fixed: F7,
-    croupiers: paletteThrough('war'),
-    pays: (h) => hv(h[0]) > 9,
-    tests: makeTests({
-      handSize: 1, handsPerTest: 13,
-      fixed: [suitRun('H'), one('9S 9D TS AS 2S')],
-      nRandom: 3, seed: 112,
+    croupiers: paletteThrough('flush'),
+    pays: natural,
+    tests: dealtTests({
+      deal: (rand, n) => blackjackDeals(rand, n, 20),
+      fixed: [
+        ['AS TD', 'JC AH', 'AD QS', 'KH AC', 'AS AD', 'AH 9C', '2D AS', 'KS QD', 'TC TH', 'KD 9S', 'AC 5H', '7S 8D',
+          'JH JS', 'QC AD'],
+        // winners back to back, then losers that fail in different ways
+        ['TS AS', 'AH TH', 'AC KC', 'QD AD', 'JS AH', 'AH AC', 'KD QH', 'AS 9D', '3C 4H', 'AD 2S', 'JD TC'],
+      ],
+      nRandom: 4, seed: 202,
     }),
   },
   {
-    id: 'ace-in-the-hole',
+    id: 'low-kicker',
     chapter: 2,
     card: '8D',
-    title: 'Ace in the Hole',
-    difficulty: 3,
+    title: 'Low Kicker',
+    difficulty: 4,
     story: [
-      'The Kessler crew claims the house never deals aces. To settle it, the Owner\'s note says: pay any five-card hand with an ace in it.',
-      'War compares a whole hand by its highest card.',
+      'The Kesslers have a two-card game of their own. When the top card beats a 7 and the bottom card does not, the house pays the bottom card, on its own; the top card stays on the table for luck.',
+      'Aces high, and a 7 does not beat a 7.',
     ],
-    brief: 'Five-card hands. Pay out every hand containing an ace.',
-    handSize: 5,
-    floor: floorOf(hexRange(2), F8),
+    brief: 'Two-card hands. When the top card beats a 7 and the bottom card doesn\'t (aces high), pay out the bottom card on its own.',
+    handSize: 2,
+    floor: floorOf(hexRange(2, [-1, 0]), F8),
     fixed: F8,
-    croupiers: paletteThrough('war'),
-    pays: (h) => h.some((c) => rankOf(c) === 'A'),
+    croupiers: paletteThrough('flush'),
+    expected: (inputs) => inputs.filter(([t, b]) => hv(t) > 7 && hv(b) <= 7).map(([, b]) => [b]),
     tests: makeTests({
-      handSize: 5, handsPerTest: 10,
-      fixed: [['2S 3S AS 4S 5S', 'KS KD KC KH QS', 'KH QH JH TH AH', '2C AH AD AC AS', '2D 3D 4D 5D 7C', 'QD JD TD 9D 8D']],
-      nRandom: 4, seed: 113,
+      handSize: 2, handsPerTest: 20,
+      fixed: [['8S 7D', '7D 8S', '7S 7D', 'AS 2D', '2D AS', 'KH QH', '3C 4C', '8H 8C', 'TD 7C', '9C AD', 'AC 7H']],
+      nRandom: 3, seed: 155,
     }),
   },
   {
-    id: 'inside-bet',
+    id: 'crossed-wires',
     chapter: 2,
     card: '9D',
-    title: 'Inside Bet',
+    title: 'Crossed Wires',
     difficulty: 4,
     story: [
-      'Sal\'s uncle bets the middle of the deck. A five-card hand wins if its high card is a 9, 10, jack or queen: nothing too small, nothing too grand.',
-      'A king, he says, attracts attention. An ace attracts the police.',
+      'The Owner has had the floor rewired: three card tables down one wall, three cash desks down the other, and a note under the tray. Every player is to be paid at the desk diametrically opposite their seat, so that the money is seen to cross the room.',
+      'Player A, at the top, is paid at desk Z, at the bottom; player B, in the middle, at desk Y; player C, at the bottom, at desk X. The Marchetti twins have brought a cousin, and all three are already arguing about the view.',
     ],
-    brief: 'Five-card hands. Pay out every hand whose high card is 9, 10, J or Q.',
-    handSize: 5,
-    floor: floorOf(hexRect(-2, 2, -5, 4), F9, [[0, 1]]),
+    brief: 'Three players, hands of 1 to 3 cards. Pay out every hand at the desk diametrically opposite its player: A\'s at Z, B\'s at Y, C\'s at X.',
+    handSize: [1, 3],
+    floor: floorOf(hexRect(-4, 4, -6, 5), F9),
     fixed: F9,
-    croupiers: paletteThrough('war'),
-    pays: (h) => high(h) >= 9 && high(h) <= 12,
-    tests: makeTests({
-      handSize: 5, handsPerTest: 10,
-      fixed: [['2S 3D 4C 5H 8S', '2S 3D 4C 5H 9S', '2S 3D 4C 5H TS', 'QS 3D 4C 5H 2S', '2S KD 4C 5H 8S',
-        '2S 3D AC 5H 8S', 'QS QD QC 2H 3S', 'JS TD 9C 8H 7S', 'KS QD JC TH 9S', '9S 9D 9C 9H 2S']],
-      nRandom: 4, seed: 135,
+    croupiers: paletteThrough('flush'),
+    expected: crossed,
+    tests: makeMixedTests({
+      minSize: 1, maxSize: 3, handsPerTest: 15,
+      fixed: [
+        ['AS', '2S', '3S', 'AH 2H', 'KH QH', 'JH TH', '4D 5D 6D', '7C', '8C 9C'],
+        // the same hand from every player
+        ['KS QS', 'KS QS', 'KS QS', '2D', '2D', '2D'],
+        ['7H 8H 9H', 'JS', '5C 4C'],
+      ],
+      nRandom: 4, seed: 180,
     }),
   },
   {
@@ -241,7 +290,7 @@ export const LEVELS = [
     handSize: 2,
     floor: floorOf(hexRange(2, [1, 0]), F10),
     fixed: F10,
-    croupiers: paletteThrough('war'),
+    croupiers: paletteThrough('flush'),
     pays: (h) => hv(h[0]) > hv(h[1]),
     tests: makeTests({
       handSize: 2, handsPerTest: 10,
@@ -250,26 +299,26 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'top-of-the-heap',
+    id: 'pecking-order',
     chapter: 2,
     card: 'JD',
-    title: 'Top of the Heap',
-    difficulty: 5,
+    title: 'Pecking Order',
+    difficulty: 6,
     story: [
-      'The doormen\'s game has gone to their heads. Now it is five cards, and the top card has to beat every other card in the hand. A tie with any of them is a loss.',
-      'The head doorman has started calling himself the top dog. Nobody has the heart to stop him.',
+      'The doormen have taken up a game the Owner can\'t follow, and want each three-card hand paid back in order: the highest card on top, then the middle one, then the lowest. Aces high.',
+      'Every hand is dealt from a single suit, so no two cards are ever the same rank. The doormen check the order card by card.',
     ],
-    brief: 'Five-card hands. Pay out every hand whose top card beats each of the other four.',
-    handSize: 5,
-    floor: floorOf(hexRect(-2, 1, -5, 4), F11, [[-1, 1]]),
+    brief: 'Three-card hands, each all one suit. Pay out every hand with its cards in order, highest on top (aces high; card order checked).',
+    handSize: 3,
+    floor: floorOf(hexRange(3), F11),
     fixed: F11,
-    croupiers: paletteThrough('war'),
-    pays: (h) => h.slice(1).every((c) => hv(h[0]) > hv(c)),
-    tests: makeTests({
-      handSize: 5, handsPerTest: 10,
-      fixed: [['AS KD 2C 3H 4S', 'KS AD 2C 3H 4S', 'KS KD 2C 3H 4S', '2S 3D 4C 5H 6S', '6S 2D 3C 4H 5S',
-        '9S 2D 3C 4H 9H', 'TS 9D 8C 7H 6S', 'TS 9D 8C 7H JS', 'AH AD 2C 3C 4C', '3D 2S 2D 2C 2H']],
-      nRandom: 4, seed: 136,
+    croupiers: paletteThrough('flush'),
+    ordered: true,
+    expected: (inputs) => inputs.map((h) => [...h].sort((a, b) => hv(b) - hv(a))),
+    tests: dealtTests({
+      deal: suitedDeals,
+      fixed: [['AS KS QS', 'QS KS AS', 'KH AH QH', '2D 3D 4D', '4D 2D 3D', '3C 4C 2C', 'TH 2H 7H', '7H TH 2H', '2S 7S TS', 'JC AC 5C']],
+      nRandom: 4, seed: 156,
     }),
   },
   {
@@ -286,7 +335,7 @@ export const LEVELS = [
     handSize: 5,
     floor: floorOf(hexRect(-2, 2, -7, 7), F12, [[0, -1], [-1, 1], [2, 1]]),
     fixed: F12,
-    croupiers: paletteThrough('war'),
+    croupiers: paletteThrough('flush'),
     pays: (h) => isFlush(h) && 'TJQKA'.split('').every((r) => countOf(h, r) === 1),
     tests: makeTests({
       handSize: 5, handsPerTest: 10,
@@ -313,7 +362,7 @@ export const LEVELS = [
     handSize: 3,
     floor: floorOf(hexRect(-4, 4, -9, 9), F13),
     fixed: F13,
-    croupiers: paletteThrough('war'),
+    croupiers: paletteThrough('flush'),
     pays: between,
     tests: makeTests({
       handSize: 3, handsPerTest: 16,
@@ -338,21 +387,21 @@ export const LEVELS = [
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
 // shoes; rounds totalled over the level's tests). test/levels.js
-// checks these exactly; `node tools/write-solutions.js diamonds --par`
-// rewrites this table from the recipes in tools/level-specs/diamonds.js.
+// checks these exactly; `node tools/write-solutions.js diamonds --par` rewrites
+// this table from the recipes in tools/level-specs/diamonds.js.
 // BEGIN PAR
 const PAR = {
+  'high-card': { croupiers: 2, rounds: 58 },
+  'small-stakes': { croupiers: 4, rounds: 87 },
+  'face-off': { croupiers: 5, rounds: 83 },
   'red-flush': { croupiers: 3, rounds: 53 },
-  'either-or': { croupiers: 5, rounds: 84 },
-  'pair-night': { croupiers: 3, rounds: 60 },
-  'inside-seven': { croupiers: 5, rounds: 82 },
-  'seven-up': { croupiers: 6, rounds: 89 },
-  'lucky-number': { croupiers: 11, rounds: 80 },
-  'beat-the-dealer': { croupiers: 4, rounds: 69 },
-  'ace-in-the-hole': { croupiers: 4, rounds: 52 },
-  'inside-bet': { croupiers: 5, rounds: 60 },
+  'small-change': { croupiers: 6, rounds: 130 },
+  'high-suit': { croupiers: 4, rounds: 80 },
+  'natural': { croupiers: 12, rounds: 134 },
+  'low-kicker': { croupiers: 5, rounds: 76 },
+  'crossed-wires': { croupiers: 14, rounds: 68 },
   'top-dog': { croupiers: 5, rounds: 78 },
-  'top-of-the-heap': { croupiers: 6, rounds: 74 },
+  'pecking-order': { croupiers: 7, rounds: 142 },
   'royal-flush': { croupiers: 11, rounds: 66 },
   'acey-deucey': { croupiers: 21, rounds: 244 },
 };
