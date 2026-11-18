@@ -15,12 +15,17 @@
 // and its own `card` in the bonus deck (A..K of spades, then of hearts, of a
 // second deck, in BONUS order, which is by difficulty; see docs/campaign.md).
 // Bonus floors have no `chapter`.
+//
+// FLOOR (src/levels/floor.js) is the floor: floors that left the campaign,
+// kept with their ids, saves and scores. Each keeps its old `card` and opens
+// like a bonus floor (`unlockAfter`); they have no `chapter`.
 import { LEVELS as HEARTS } from './levels/hearts.js';
 import { LEVELS as DIAMONDS } from './levels/diamonds.js';
 import { LEVELS as CLUBS } from './levels/clubs.js';
 import { LEVELS as SPADES } from './levels/spades.js';
 import { LEVELS as FINALE } from './levels/finale.js';
 import { LEVELS as BONUS_LEVELS } from './levels/bonus.js';
+import { LEVELS as FLOOR_LEVELS } from './levels/floor.js';
 
 export {
   hexRange, hexRing, hexRect, makeTests, without, floorOf, paletteThrough,
@@ -47,3 +52,8 @@ export const BONUS_SUITS = ['S', 'H', 'C', 'D'];
 
 export const LEVELS = [...HEARTS, ...DIAMONDS, ...CLUBS, ...SPADES, ...FINALE];
 export const BONUS = BONUS_LEVELS;
+// The floor's module name (src/levels/, tools/level-specs/, test/mutants/).
+export const FLOOR_FILE = 'floor';
+export const FLOOR = FLOOR_LEVELS;
+// Every floor there is: the campaign, the bonus deck and the floor.
+export const ALL_LEVELS = [...LEVELS, ...BONUS, ...FLOOR];

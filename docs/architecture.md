@@ -293,6 +293,16 @@ count towards the campaign's unlock window, and their palette is whatever the
 level lists. Ids are unique across `LEVELS` and `BONUS`, since saves are keyed
 by id.
 
+**The floor.** `src/levels.js` also exports `FLOOR` (`src/levels/floor.js`,
+recipes in `tools/level-specs/floor.js`, mutants in `test/mutants/floor.js`):
+floors that have left the campaign, kept so their ids, saves, solutions and
+scores carry on. Each keeps the playing card it had (so the floor can hold
+two A♥s), has no `chapter`, and opens like a bonus floor once its
+`unlockAfter` floors are solved. The level select shows them on their own
+tab ("The floor"), scattered in no particular order (each card's place and
+tilt come from its id). `ALL_LEVELS` is the campaign, the bonus deck and the
+floor together.
+
 A level is solved when `runTest` passes on every test and then on the
 machine's **check deals**: `CHECK_DEALS` (8) more random tests, dealt like the
 level's own random tests (`tests.deal(rand, n)`) from a seed taken from the SHA-256 of
