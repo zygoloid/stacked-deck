@@ -3,7 +3,7 @@
 // writing, reporting a save that can't be written, and save files.
 import assert from 'node:assert';
 import { LEVELS, BONUS } from '../src/levels.js';
-import { mergeSave, loadSave, writeSave, watchSave, saveProblem, recordSolution, rescoreStale, floorPrint, specialCardsFor, specialCardsUnlocked } from '../src/ui/model.js';
+import { mergeSave, loadSave, writeSave, watchSave, saveProblem, recordSolution, rescoreStale, floorPrint, specialCardsFor, specialCardsUnlocked, isUnlocked, OPEN_AHEAD } from '../src/ui/model.js';
 import { saveFileText, readSaveFile, loadSaveFile, saveFileName, FILE_FORMAT } from '../src/ui/savefile.js';
 import { RULES_VERSION } from '../src/engine.js';
 import { countCroupiers } from '../src/score.js';
@@ -279,3 +279,18 @@ console.log('re-scoring changed floors ok');
   delete globalThis.location;
 }
 console.log('special cards ok');
+
+// Unlocking: a campaign floor is open if solved or at most OPEN_AHEAD past the
+// furthest one cleared; skipped floors don't shrink the window.
+{
+  globalThis.location = { search: '' };
+  const openSet = (save) => LEVELS.map((_, i) => i).filter((i) => isUnlocked(save, i));
+  const none = { levels: {} };
+  assert.deepStrictEqual(openSet(none), [...Array(OPEN_AHEAD).keys()], 'the first floors are open from the start');
+  const skipped = { levels: { [LEVELS[0].id]: { solved: true }, [LEVELS[2].id]: { solved: true } } };
+  assert.deepStrictEqual(openSet(skipped), [0, 1, 2, 3, 4, 5], 'a skipped floor stays open and the window runs from the furthest clear');
+  const far = { levels: { [LEVELS[20].id]: { solved: true } } };
+  assert.ok(openSet(far).includes(1) && openSet(far).includes(23) && !openSet(far).includes(24), 'everything up to three past the furthest clear');
+  delete globalThis.location;
+}
+console.log('unlocking ok');
