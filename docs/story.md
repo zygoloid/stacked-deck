@@ -6,7 +6,9 @@ casino where every croupier knows exactly one move. You never meet the
 an ace of spades. Over four suit chapters the casino goes from a quiet opening
 night to running the city; then an envelope with your name on it opens the
 finale. Every floor is a playing card (see docs/campaign.md): hearts, then
-diamonds, clubs and spades, and four special cards at the end.
+diamonds, clubs and spades, and four special cards at the end. Floors
+that have left the campaign lie on the floor (docs/campaign.md, "The
+floor"); their stories stand as they were.
 
 Tone: light and dry. Each floor's story is one to three short paragraphs that
 set the scene, add a beat to the plot, and introduce any new croupier. It
@@ -37,56 +39,61 @@ never explains how to solve the floor.
   dealing for you.
 * **The mayor**: likes records. Keeps a tally on a napkin.
 
-## Chapter 1 ♥ Opening Night (pass, suits, straight, shoe/gather/cut)
+## Chapter 1 ♥ Opening Night (pass, suits, straight, gather, cut, shoe, kind)
 
-The casino opens. Cards only need to reach the cashier: around a bar the Owner
-had put in overnight, then from two tables at once. Old Thursday wants his
-hearts paid, and you learn that a port with no direction drops cards on the
-carpet. Sal Vellani wants red, the Kesslers black: the families are circling.
-Then the Owner's notes turn to the number seven, and you learn to stack a
-reference card from a shoe on a player's card, test the pair and cut the
-reference off again. Old Thursday plays penny ante, a minor royal wants court
-cards, and Dmitri's even-money bet closes the chapter while the Vellanis start
-asking who he is.
-
-| Floor | Level | Beat |
-|---|---|---|
-| A♥ | Opening Night | the job; pass |
-| 2♥ | Around the Bar | the Owner's bar and first note |
-| 3♥ | Two Tables | the Marchetti twins |
-| 4♥ | Hearts Only | Old Thursday; the suit splitter |
-| 5♥ | Seeing Red | Sal Vellani; the roulette wheel |
-| 6♥ | Standing Room | three tables, potted palms |
-| 7♥ | Black Tie | the Kesslers book the room; string quartet |
-| 8♥ | Back to Back | two cards at a time; straights |
-| 9♥ | Next Door | "the house lucky number is 7"; shoe, gather, cut |
-| 10♥ | Lucky Seven | the sevens themselves |
-| J♥ | Penny Ante | Old Thursday's pension |
-| Q♥ | Royalty | the minor royal and her bodyguards |
-| K♥ | Even Money | Dmitri; the Vellanis take an interest |
-
-## Chapter 2 ♦ Stacking the Deck (flush, n of a kind, War)
-
-The Vellanis arrive in force. Sal's uncle has games, opinions and forty years
-of patience; Dmitri has a spreadsheet about sevens; the doormen have a game of
-their own. A new croupier plays War, and the house learns to compare a hand
-with a constant, with its own pieces, and finally to rig a War so it must be
-lost. The chapter ends with the Vellani family game on the whole floor, and
-two blocks away a rival casino switches on its neon.
+The casino opens. Cards only need to reach the cashier, around a bar the
+Owner had put in overnight (the first floor walks you through the controls,
+and so does the second). Sal Vellani wants red paid at one desk and the
+Kesslers black at the other: the families are circling. The Marchetti twins
+take a table each, Old Thursday brings his own game, and the three of them
+share a table at last; the Kesslers deal one of their own. Then the Owner's
+notes turn to the number seven, and you learn to stack a reference card from a
+shoe on a player's card, test the pair and cut the reference off again. Sal
+and the Kesslers each want their own number, Sal's uncle comes over for Seven
+Up, and Dmitri's even money and lucky numbers close the chapter while the
+Vellanis start asking who he is.
 
 | Floor | Level | Beat |
 |---|---|---|
-| A♦ | Red Flush | Sal's uncle; flush |
-| 2♦ | Either Or | greed pays nothing |
-| 3♦ | Pair Night | the regulars; n of a kind |
-| 4♦ | Inside Seven | the Owner's sevens again |
-| 5♦ | Seven Up | Sal's game; a very large shoe |
-| 6♦ | Lucky Number | Dmitri's spreadsheet: exactly one seven |
-| 7♦ | Beat the Dealer | War |
-| 8♦ | Ace in the Hole | the Kesslers say the house hides aces |
-| 9♦ | Inside Bet | the uncle bets the middle |
+| A♥ | Opening Night | the job; the Owner's bar and first note; pass (tutorial) |
+| 2♥ | Red and Black | Sal Vellani and the Kesslers; the suit splitter (tutorial) |
+| 3♥ | Two at a Time | the Marchetti twins; straights |
+| 4♥ | Thursday's Game | Old Thursday; runs or suited |
+| 5♥ | Three's Company | Thursday and the twins at one table; gather |
+| 6♥ | In the Black | the Kesslers' game |
+| 7♥ | Top and Bottom | five-card hands; cut |
+| 8♥ | The Neighbours | "the house lucky number is 7"; shoe |
+| 9♥ | Lucky Seven | the sevens themselves |
+| 10♥ | Sevens and Eights | Sal's sevens, the Kesslers' eights; n of a kind |
+| J♥ | Seven Up | Sal's game; his uncle and the very large shoe |
+| Q♥ | Even Money | Dmitri; the Vellanis take an interest |
+| K♥ | Lucky Number | Dmitri's spreadsheet: exactly one seven |
+
+## Chapter 2 ♦ Stacking the Deck (War, flush)
+
+The Vellanis arrive in force. A new croupier plays War, and the house learns
+to compare a card with a constant (Old Thursday's small stakes, where the ace
+counts low and the War croupier still counts it high), one player with
+another (the twins face off), and a hand with its own pieces. Sal's uncle
+comes back for his red flushes and a second game; Sal swaps kings for the ace
+of spades and comes home talking about blackjack; the Owner rewires the floor.
+The doormen have games of their own, and the house finally learns to rig a
+War so it must be lost. The chapter ends with the Vellani family game on the
+whole floor, and two blocks away a rival casino switches on its neon.
+
+| Floor | Level | Beat |
+|---|---|---|
+| A♦ | High Card | War |
+| 2♦ | Small Stakes | Old Thursday's pension; aces high, ties to the house |
+| 3♦ | Face Off | the twins against each other |
+| 4♦ | Red Flush | Sal's uncle; flush |
+| 5♦ | Small Change | Sal changes kings for the ace of spades |
+| 6♦ | High Suit | the uncle's second game |
+| 7♦ | Natural | Sal back from out of town; blackjack |
+| 8♦ | Low Kicker | the Kesslers' two-card game |
+| 9♦ | Crossed Wires | the Owner rewires the floor; the twins bring a cousin |
 | 10♦ | Top Dog | the doormen's game |
-| J♦ | Top of the Heap | it goes to their heads |
+| J♦ | Pecking Order | the doormen want their hands in order |
 | Q♦ | Royal Flush | forty years of waiting |
 | K♦ | Acey-Deucey | the Vellani family game; the rival's neon |
 
@@ -178,8 +185,7 @@ opening night.
 
 Extra floors outside the campaign, each opened by campaign floors or by
 other bonus floors (docs/campaign.md), in order of difficulty. Their stories stand on their own: they may lean on the
-cast and the moment they unlock (Sal's kings after Beat the Dealer, the
-rival's split pots after Top Pair, the city asking for one more game after
+cast and the moment they unlock (the rival's split pots after Top Pair, the city asking for one more game after
 Déjà Vu), but they never move the plot, so the campaign reads the same
 without them. Floors cut from the campaign keep their stories, reworded
 where a beat moved elsewhere (Every Other no longer withdraws the
@@ -188,57 +194,54 @@ regulation; Ace Count does).
 | Card | Level | After | Beat |
 |---|---|---|---|
 | A♠ | Split Pot | Top Pair | the rival splits its pots; so does the house |
-| 2♠ | Small Change | Beat the Dealer | Sal changes kings for the ace of spades |
-| 3♠ | Checkerboard | Bottom Dealer | the Vellanis and the Kesslers at one table: red and black in turn |
-| 4♠ | Two Apart | Déjà Vu | the doormen's new game for their break |
-| 5♠ | Snap | Next in Line | the Marchetti twins play snap; the first card meets the mayor's 7 |
-| 6♠ | Three Apart | Two Apart | the cloakroom plays it one better |
-| 7♠ | Natural | Ace in the Hole | Sal comes back from out of town talking about blackjack |
-| 8♠ | Off Suit | Red Flush | the suits croupier is at a wedding; the uncle's red flushes |
-| 9♠ | Crossed Wires | Beat the Dealer | the Owner rewires the floor; the twins bring a cousin |
-| 10♠ | Every Other | Ace Count | the string quartet's game for the bar |
-| J♠ | Bookends | Burn Card | the doormen's game, hand against hand |
-| Q♠ | One Deck | Seven Heaven | the auditors have the card room; one deck in a bolted shoe |
-| K♠ | Cut to the Ace | Burn Card | Old Thursday's force: every long hand comes back with the ace of spades on top |
-| A♥ | Uneven Tables | Crossed Wires and Déjà Vu | the cousins stop playing in step |
-| 2♥ | Four of a Kind | Déjà Vu | the city asks for one more game |
-| 3♥ | Missing Card | Four of a Kind | the bottom dealer palms a card from a fresh deck |
-| 4♥ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
-| 5♥ | Ceasefire | Next in Line | Pryce bans War for a week; spades only |
-| 6♥ | Three in a Row | Next in Line and Déjà Vu | the mayor's napkin: three in a row |
-| 7♥ | Rising | Every Other and Déjà Vu | the string quartet takes up scales |
-| 8♥ | Odds and Evens | Déjà Vu | Dmitri counts red cards; nought is even |
-| 9♥ | After a Pair | Small Pairs | Dmitri's theory of streaks |
-| 10♥ | Two by Two | Two Pair | the rival's brass section stays for breakfast |
-| J♥ | The Rest of the Deck | Four of a Kind | Commissioner Pryce audits the house deck |
-| Q♥ | Crazy Eights | High Roller | the rival's old owner's favourite game; nobody calls a new suit |
-| K♥ | Perfect Pair | Four of a Kind | the two-deck shoe; Sal Vellani's perfect pairs |
-| A♣ | Pot Luck | Crossed Wires and Hot Streak | the Marchetti twins play War for a pot |
-| 2♣ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
-| 3♣ | Skeleton Crew | Calling Card and Night Off | the suits and flush croupiers both off; the uncle asks only for hearts |
-| 4♣ | In-Between | Inside Bet and One Deck | the uncle bets the middle at In-Between; the one War croupier is bolted down |
-| 5♣ | Dumbwaiter | In-Between and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
-| 6♣ | No Kings | Skeleton Crew | both croupiers off at a No Kings rally; the players leave their kings at home |
-| 7♣ | One Up | Counting Up | Old Thursday's last (and best) trick |
-| 8♣ | Twenty-One Card Trick | One Up | Old Thursday's last trick wasn't: the chosen card always comes back 11th |
-| 9♣ | Round the Clock | Counting Up | Old Thursday goes round the clock |
-| 10♣ | Running Count | Ace Count and Hot Streak | the Kesslers count every card |
-| J♣ | Counterfeit | Perfect Pair | the Kesslers call every second copy a forgery |
-| Q♣ | Rank and File | Change of Heart | Dmitri looks over the paperwork; every hand filed in order; the aces argued out of the decks |
-| K♣ | Head Count | The Rest of the Deck | Pryce's regulation on honest labelling |
-| A♦ | Mirror Image | Crossed Wires and Déjà Vu | the Marchetti twins, a deck each |
-| 2♦ | Casino Numbers | Crossed Wires and Déjà Vu | the Owner counts in thirteens, with no zero |
-| 3♦ | Every Twenty-One | Casino Numbers | blackjack is coming, and Dmitri practises: a running total, a card paid every 21 |
-| 4♦ | Hit Me | Every Twenty-One | blackjack arrives in the house style, with no dealer to beat; Sal asks for five aces |
-| 5♦ | Punto Banco | Hit Me | Sal brings baccarat from out of town; naturals pay, and Dmitri won't keep the score |
-| 6♦ | Split the Difference | Casino Numbers | the bottom dealer and his cousin settle up |
-| 7♦ | Last In, First Out | Three Apart and The Rest of the Deck | the cloakroom's new attendant |
-| 8♦ | First Sighting | Four of a Kind | the mayor takes up birdwatching at the tables |
-| 9♦ | Times Tables | Casino Numbers | Dmitri finds the multiplication sheet |
-| 10♦ | Showdown | Mirror Image | Sal and Dmitri settle things at the table |
-| J♦ | Follow Suit | Showdown | Sal's uncle brings the family's trick-taking game, played without aces since a wedding |
-| Q♦ | Twice Shy | Mirror Image | the twins again; the Owner won't pay twice |
-| K♦ | Carry the One | Times Tables | two-digit casino numbers; totals of three cards |
+| 2♠ | Checkerboard | Bottom Dealer | the Vellanis and the Kesslers at one table: red and black in turn |
+| 3♠ | Two Apart | Déjà Vu | the doormen's new game for their break |
+| 4♠ | Snap | Next in Line | the Marchetti twins play snap; the first card meets the mayor's 7 |
+| 5♠ | Three Apart | Two Apart | the cloakroom plays it one better |
+| 6♠ | Off Suit | Red Flush | the suits croupier is at a wedding; the uncle's red flushes |
+| 7♠ | Every Other | Ace Count | the string quartet's game for the bar |
+| 8♠ | Bookends | Burn Card | the doormen's game, hand against hand |
+| 9♠ | One Deck | Seven Heaven | the auditors have the card room; one deck in a bolted shoe |
+| 10♠ | Cut to the Ace | Burn Card | Old Thursday's force: every long hand comes back with the ace of spades on top |
+| J♠ | Uneven Tables | Crossed Wires and Déjà Vu | the cousins stop playing in step |
+| Q♠ | Four of a Kind | Déjà Vu | the city asks for one more game |
+| K♠ | Missing Card | Four of a Kind | the bottom dealer palms a card from a fresh deck |
+| A♥ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
+| 2♥ | Ceasefire | Next in Line | Pryce bans War for a week; spades only |
+| 3♥ | Three in a Row | Next in Line and Déjà Vu | the mayor's napkin: three in a row |
+| 4♥ | Rising | Every Other and Déjà Vu | the string quartet takes up scales |
+| 5♥ | Odds and Evens | Déjà Vu | Dmitri counts red cards; nought is even |
+| 6♥ | After a Pair | Small Pairs | Dmitri's theory of streaks |
+| 7♥ | Two by Two | Two Pair | the rival's brass section stays for breakfast |
+| 8♥ | The Rest of the Deck | Four of a Kind | Commissioner Pryce audits the house deck |
+| 9♥ | Crazy Eights | High Roller | the rival's old owner's favourite game; nobody calls a new suit |
+| 10♥ | Perfect Pair | Four of a Kind | the two-deck shoe; Sal Vellani's perfect pairs |
+| J♥ | Pot Luck | Crossed Wires and Hot Streak | the Marchetti twins play War for a pot |
+| Q♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
+| K♥ | Skeleton Crew | Calling Card and Night Off | the suits and flush croupiers both off; the uncle asks only for hearts |
+| A♣ | In-Between | Low Kicker and One Deck | the uncle bets the middle at In-Between; the one War croupier is bolted down |
+| 2♣ | Dumbwaiter | In-Between and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
+| 3♣ | No Kings | Skeleton Crew | both croupiers off at a No Kings rally; the players leave their kings at home |
+| 4♣ | One Up | Counting Up | Old Thursday's last (and best) trick |
+| 5♣ | Twenty-One Card Trick | One Up | Old Thursday's last trick wasn't: the chosen card always comes back 11th |
+| 6♣ | Round the Clock | Counting Up | Old Thursday goes round the clock |
+| 7♣ | Running Count | Ace Count and Hot Streak | the Kesslers count every card |
+| 8♣ | Counterfeit | Perfect Pair | the Kesslers call every second copy a forgery |
+| 9♣ | Rank and File | Change of Heart | Dmitri looks over the paperwork; every hand filed in order; the aces argued out of the decks |
+| 10♣ | Head Count | The Rest of the Deck | Pryce's regulation on honest labelling |
+| J♣ | Mirror Image | Crossed Wires and Déjà Vu | the Marchetti twins, a deck each |
+| Q♣ | Casino Numbers | Crossed Wires and Déjà Vu | the Owner counts in thirteens, with no zero |
+| K♣ | Every Twenty-One | Casino Numbers | blackjack is coming, and Dmitri practises: a running total, a card paid every 21 |
+| A♦ | Hit Me | Every Twenty-One | blackjack arrives in the house style, with no dealer to beat; Sal asks for five aces |
+| 2♦ | Punto Banco | Hit Me | Sal brings baccarat from out of town; naturals pay, and Dmitri won't keep the score |
+| 3♦ | Split the Difference | Casino Numbers | the bottom dealer and his cousin settle up |
+| 4♦ | Last In, First Out | Three Apart and The Rest of the Deck | the cloakroom's new attendant |
+| 5♦ | First Sighting | Four of a Kind | the mayor takes up birdwatching at the tables |
+| 6♦ | Times Tables | Casino Numbers | Dmitri finds the multiplication sheet |
+| 7♦ | Showdown | Mirror Image | Sal and Dmitri settle things at the table |
+| 8♦ | Follow Suit | Showdown | Sal's uncle brings the family's trick-taking game, played without aces since a wedding |
+| 9♦ | Twice Shy | Mirror Image | the twins again; the Owner won't pay twice |
+| 10♦ | Carry the One | Times Tables | two-digit casino numbers; totals of three cards |
 
 ## Notes for writers
 
