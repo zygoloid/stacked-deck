@@ -339,6 +339,27 @@ for (const level of [...LEVELS, ...BONUS, ...FLOOR]) {
         `cell ${c.at}: shoe deck ${c.deck} uses natural cards${usable.length ? ` and ${usable}` : ''}${isBonus ? ' (those a player has by its campaign floors)' : ''}`);
     }
   }
+  // The tutorial (src/ui/coach.js): rings on the floor, known `until`s, and
+  // every "build this" step a croupier of the reference solution, so the
+  // steps lead somewhere that works.
+  if (level.tutorial !== undefined) {
+    const COACH_UI = ['play', 'tests', 'ports', 'roster', 'undo', 'brief', 'stats']; // UI in src/ui/coach.js
+    check(Array.isArray(level.tutorial) && level.tutorial.length > 0, 'tutorial is a list of steps');
+    for (const [i, st] of (level.tutorial ?? []).entries()) {
+      const where = `tutorial step ${i + 1}:`;
+      check(typeof st.say === 'string' && st.say.length, `${where} says something`);
+      check(st.at === undefined || floor.has(key(st.at)), `${where} rings a hex on the floor`);
+      check(st.side === undefined || (st.at && Number.isInteger(st.side) && st.side >= 0 && st.side < 6), `${where} side is an edge of its hex`);
+      check(st.ui === undefined || COACH_UI.includes(st.ui), `${where} ui ${st.ui} is one coach.js knows`);
+      const u = st.until;
+      check(['next', 'ran', 'cleared'].includes(u) || (u && u.cell && Array.isArray(u.cell.at)), `${where} until is next, ran, cleared or { cell }`);
+      if (u?.cell) {
+        const ref = cells.find((c) => key(c.at) === key(u.cell.at));
+        check(ref && (!u.cell.fn || (ref.fn ?? ref.kind) === u.cell.fn) && Object.entries(u.cell.out ?? {}).every(([port, side]) => ref.out?.[port] === side),
+          `${where} the croupier it asks for (${u.cell.fn} at ${u.cell.at}) is in the reference solution`);
+      }
+    }
+  }
   const all = [...level.fixed, ...cells];
   const results = runAll(level, all);
   results.forEach((r, i) => check(r.ok, `test ${i}: stop ${r.stop}, wrong ${JSON.stringify(r.wrong)} missing ${JSON.stringify(r.missing)}`));
