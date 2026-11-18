@@ -37,6 +37,13 @@ easy to forget.
   afresh.
 - `node tools/write-rules.js`, then `npm test` and `node tools/ui-smoke.js`.
 
+## UI sizes
+
+- style.css sizes are in rem (1rem = 16px at the design size; the root font
+  size grows with large windows). Write new sizes in rem too; px only for
+  hairlines, media queries and SVG-internal styles (the floor, the plot).
+  JS that lays out in px multiplies by `uiScale()` (src/ui/dom.js).
+
 ## Git
 
 - When the branch's previous pull request has already been merged, restart

@@ -22,6 +22,12 @@ function apply(el, attrs, children, svg) {
 export const h = (tag, attrs, ...children) => apply(document.createElement(tag), attrs, children, false);
 export const s = (tag, attrs, ...children) => apply(document.createElementNS(SVGNS, tag), attrs, children, true);
 
+// How much bigger than at its design size the page is drawn: 1rem in px over
+// 16 (style.css scales the root font size with the window). Code that lays
+// things out in px multiplies its sizes by this.
+export const uiScale = () => (typeof document === 'undefined' ? 1
+  : parseFloat(getComputedStyle(document.documentElement).fontSize) / 16 || 1);
+
 export const SUIT_GLYPH = { S: '♠', H: '♥', D: '♦', C: '♣' };
 export const SUIT_NAME = { S: 'Spades', H: 'Hearts', D: 'Diamonds', C: 'Clubs' };
 
