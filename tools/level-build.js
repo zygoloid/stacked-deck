@@ -9,12 +9,12 @@
 // into a bolted croupier are fine. Hexes that
 // are not on the level's floor are walls the router won't route through.
 import { build } from '../src/layout.js';
-import { LEVELS, BONUS, hexRange } from '../src/levels.js';
+import { ALL_LEVELS, hexRange } from '../src/levels.js';
 
 const key = ([q, r]) => `${q},${r}`;
 
 export function buildLevel(id, nodes, links, { walls = true } = {}) {
-  const level = [...LEVELS, ...BONUS].find((l) => l.id === id);
+  const level = ALL_LEVELS.find((l) => l.id === id);
   if (!level) throw new Error(`no level ${id}`);
   const all = { ...nodes };
   let s = 0, d = 0, f = 0;

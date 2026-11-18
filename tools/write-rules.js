@@ -4,10 +4,10 @@
 //   node tools/write-rules.js           write the file
 //   node tools/write-rules.js --check   fail if the file is out of date (npm test)
 import { readFileSync, writeFileSync } from 'node:fs';
-import { LEVELS, BONUS } from '../src/levels.js';
+import { ALL_LEVELS } from '../src/levels.js';
 
 const root = new URL('..', import.meta.url);
-const ids = [...LEVELS, ...BONUS].map((l) => l.id);
+const ids = ALL_LEVELS.map((l) => l.id);
 for (const id of ids) {
   if (!/^[a-z0-9-]{1,40}$/.test(id)) throw new Error(`level id ${id} can't be used as a database key`);
 }

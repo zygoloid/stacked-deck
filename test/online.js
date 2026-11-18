@@ -2,14 +2,14 @@
 // writes, reading stats, cleaning nicknames, merging cloud saves and timing
 // out reads.
 import assert from 'node:assert';
-import { LEVELS, BONUS } from '../src/levels.js';
+import { LEVELS, BONUS, ALL_LEVELS } from '../src/levels.js';
 import { RULES_VERSION } from '../src/engine.js';
 import { solutionHash } from '../src/score.js';
 import {
   uploadCandidates, prepareUpload, submission, readStats, readFrontier, recordOf, readRecord, bestRepairs, standing, cleanName, planMerge, withTimeout, MAX_MACHINE_CHARS,
 } from '../src/online.js';
 
-const ALL = [...LEVELS, ...BONUS];
+const ALL = ALL_LEVELS;
 const level = ALL.find((l) => l.id === 'opening-night');
 const m = await import('../solutions/levels/opening-night.js');
 const cells = (m.default ?? Object.values(m)[0]).cells ?? (m.default ?? Object.values(m)[0]);

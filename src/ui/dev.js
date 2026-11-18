@@ -14,7 +14,7 @@ import { CHANNEL } from '../build.js';
 import { Run, STALL_ROUNDS } from '../engine.js';
 import { toSpec } from '../score.js';
 import { h } from './dom.js';
-import { ALL_LEVELS, BONUS, findLevel } from './catalog.js';
+import { ALL_LEVELS, BONUS, FLOOR, findLevel } from './catalog.js';
 import { floorBadge } from './floors.js';
 
 export const devAvailable = CHANNEL !== 'live';
@@ -86,8 +86,8 @@ export function measureTest(level, cells, inputs) {
   return { ok: run.passed, stop: run.stop, rounds: run.passed ? run.last : run.round, maxCards, maxGap: run.maxGap };
 }
 
-// Bonus floors that `level` helps open.
-const opens = (level) => BONUS.filter((l) => [].concat(l.unlockAfter ?? []).includes(level.id));
+// Bonus floors and the floor's levels that `level` helps open.
+const opens = (level) => [...BONUS, ...FLOOR].filter((l) => [].concat(l.unlockAfter ?? []).includes(level.id));
 
 // The editor's dev panel. `measured`: null, or the results so far (a list,
 // one per test measured; `done` once all are). `loadPar()` and `measure()`
@@ -106,7 +106,7 @@ export function devPanel(level, { measured, loadPar, measure }) {
   return h('details', { class: 'dev-panel', open: true },
     h('summary', { class: 'sub-title' }, 'Dev'),
     h('p', {}, `Difficulty ${level.difficulty ?? '?'}`, level.par ? ` · par ${level.par.croupiers} croupiers, ${level.par.rounds} rounds` : ''),
-    BONUS.includes(level) ? h('p', {}, 'Opens after: ', list(after)) : null,
+    BONUS.includes(level) || FLOOR.includes(level) ? h('p', {}, 'Opens after: ', list(after)) : null,
     ALL_LEVELS.includes(level) ? h('p', {}, 'Opens: ', list(opens(level))) : null,
     h('div', { class: 'dev-actions' },
       h('button', { class: 'btn small', onclick: loadPar, title: 'Load the reference solution (an undo away)' }, 'Load par machine'),

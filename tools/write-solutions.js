@@ -4,7 +4,7 @@
 //   node tools/write-solutions.js [chapter|id ...] [--dry] [--par]
 //
 // A chapter is its number (1-5) or module name (hearts, diamonds, clubs,
-// spades, finale, or bonus for the bonus deck); with no arguments every level
+// spades, finale, bonus for the bonus deck or floor for the floor); with no arguments every level
 // is written. Only the named
 // chapters' (or levels') solution files are touched.
 //   --dry   report only; write nothing
@@ -12,7 +12,7 @@
 //           `// END PAR`) in src/levels/<chapter>.js for the levels written
 //           (src/levels/bonus.js for the bonus deck)
 import { readFileSync, writeFileSync } from 'node:fs';
-import { LEVELS, BONUS, CHAPTER_FILES, BONUS_FILE } from '../src/levels.js';
+import { BONUS, FLOOR, ALL_LEVELS, CHAPTER_FILES, BONUS_FILE, FLOOR_FILE } from '../src/levels.js';
 import { SPECS } from './level-specs.js';
 import { buildLevel } from './level-build.js';
 import { runTest } from '../src/engine.js';
@@ -26,10 +26,12 @@ const writePar = args.includes('--par') && !dry;
 const names = args.filter((a) => !a.startsWith('--'));
 const byName = Object.fromEntries(Object.entries(CHAPTER_FILES).map(([n, f]) => [f, Number(n)]));
 byName[BONUS_FILE] = BONUS_FILE;
-const ALL = [...LEVELS, ...BONUS];
-// A level's group: its chapter number, or BONUS_FILE for the bonus deck.
-const groupOf = (level) => (BONUS.includes(level) ? BONUS_FILE : level.chapter);
-const fileOf = (group) => (group === BONUS_FILE ? BONUS_FILE : CHAPTER_FILES[group]);
+byName[FLOOR_FILE] = FLOOR_FILE;
+const ALL = ALL_LEVELS;
+// A level's group: its chapter number, BONUS_FILE for the bonus deck or
+// FLOOR_FILE for the floor.
+const groupOf = (level) => (BONUS.includes(level) ? BONUS_FILE : FLOOR.includes(level) ? FLOOR_FILE : level.chapter);
+const fileOf = (group) => (typeof group === 'string' ? group : CHAPTER_FILES[group]);
 const chapters = new Set(), ids = new Set();
 for (const a of names) {
   if (/^[1-5]$/.test(a)) chapters.add(Number(a));

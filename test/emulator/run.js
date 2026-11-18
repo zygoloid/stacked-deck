@@ -12,7 +12,7 @@ import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { LEVELS, BONUS } from '../../src/levels.js';
+import { LEVELS, BONUS, ALL_LEVELS } from '../../src/levels.js';
 import { RULES_VERSION } from '../../src/engine.js';
 import { solutionHash, scoreMachine } from '../../src/score.js';
 
@@ -37,7 +37,7 @@ for (const ns of ['rules-tests', 'zygoloid-stacked-deck']) {
   await owner(ns, 'config/rulesVersion', 'PUT', RULES_VERSION);
 }
 
-const ALL = [...LEVELS, ...BONUS];
+const ALL = ALL_LEVELS;
 const byId = new Map(ALL.map((l) => [l.id, l]));
 const reference = async (id) => {
   const m = await import(`../../solutions/levels/${id}.js`);
