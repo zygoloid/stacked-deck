@@ -10,14 +10,17 @@ src/engine.js              floor simulator (Floor, runTest, FUNCTIONS)
 src/score.js               machines: engine spec, scoring, validation, canonical
                            form and hash, frontier (no DOM; shared with
                            anything that checks solutions outside the browser)
-src/levels.js              the campaign: LEVELS, CHAPTERS, CHAPTER_FILES, helpers
+src/levels.js              the campaign (LEVELS), the bonus deck (BONUS) and the
+                           floor (FLOOR); CHAPTERS, CHAPTER_FILES, helpers
 src/levels/<chapter>.js    one module per chapter (hearts, diamonds, clubs,
-                           spades, finale): its levels and PAR table
+                           spades, finale), and bonus.js and floor.js: levels
+                           and PAR table
 src/levels/shared.js       level helpers (hexRange, makeTests, paletteThrough, ...)
 src/layout.js              router for writing reference solutions (dev only)
 src/online.js              online features' logic without the Firebase SDK (docs/online.md)
 src/firebase-config.js     the Firebase project's public config
-src/ui/*.js                the game UI (cloud.js and account.js: the online features)
+src/ui/*.js                the game UI (cloud.js and account.js: the online features;
+                           coach.js: the tutorial)
 src/ui/title.js            the title screen; title-machine.js, the machine it runs
 functions/                 Cloud Functions: scoring submitted solutions (docs/online.md)
 solutions/levels/<id>.js   a verified reference solution for every level
@@ -215,8 +218,23 @@ whenever a rule changes; the level select shows it.
                                 //   makeMixedTests use it), which also records the deal function
                                 //   tests.deal(rand, n) for the check deals
   par: { croupiers, rounds },   // from the reference solution (optional)
+  tutorial: [step, ...],        // the first floors only: the tutorial (below)
 }
 ```
+
+**Tutorial.** A level may have `tutorial`, a list of steps that
+`src/ui/coach.js` shows in a strip above the board: `{ say, at?, side?, ui?,
+until }`. `say` is the text ({Click}/{click} read "Tap"/"tap" on a touch-only
+screen); `at` and `side` ring a hex and one of its edges; `ui` lights up part
+of the editor (`play`, `tests`, `ports`, `roster`, `undo`, `brief`,
+`stats`); `until` is `'next'` (the player presses Next), `'ran'` (a test has
+run), `'cleared'`, or `{ cell: { at, fn, out? } }` (that croupier there,
+with those ports). Steps only go forward, and a player who is ahead skips the
+steps between. Finishing or skipping it is remembered in this browser
+(`stacked-deck-coach`); the floor panel offers it again. `test/levels.js`
+checks the steps, and that every croupier a step asks for is in the floor's
+reference solution. The first two floors carry it; it explains the controls,
+never the floor's solution.
 
 **Payouts.** A `pays` level pays out a subset of the input hands unchanged. An
 `expected` level lists the hands the chip desk should receive for a test's

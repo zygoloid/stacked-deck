@@ -20,6 +20,7 @@ import { signInDialog, dialogOpen } from './account.js';
 import { Sim, DESK_NAMES, placesText } from './sim.js';
 import { devMode, devPanel, parMachine, measureTest, channelBadge } from './dev.js';
 import { scatterPlot, solutionList, scoreText, parMark } from './scatter.js';
+import { createCoach } from './coach.js';
 
 const ARROW = ['→', '↘', '↙', '←', '↖', '↗'];
 // The instructions say "click" where there is a mouse, "tap" on a touch-only screen.
@@ -95,6 +96,10 @@ export function openEditor(root, ctx, level) {
   const undoBtn = h('button', { title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => undoStep() }, '↶');
   const redoBtn = h('button', { title: 'Redo (Ctrl+Shift+Z)', 'aria-label': 'Redo', onclick: () => redoStep() }, '↷');
 
+  // The tutorial (first floors only; src/ui/coach.js), in a strip above the board.
+  const coach = createCoach(level, { tapWord: tap, root: () => editorEl, changed: () => renderAll() });
+  const coachState = () => ({ cells, round: sim?.round ?? 0, cleared: !!ls.solved });
+
   const par = level.par;
   // `expected` levels list the exact payouts (which may repeat, regroup or
   // reorder cards); `pays` levels pay out some of the input hands.
@@ -114,7 +119,7 @@ export function openEditor(root, ctx, level) {
       solBtn,
       h('button', { class: 'btn ghost', onclick: () => ctx.go(`#/level/${level.id}/story`), title: 'Read the story again' }, 'Story'),
       h('button', { class: 'btn ghost', onclick: () => ctx.help(), title: 'Help (?)' }, '? Help')),
-    h('main', { class: 'stage' }, h('div', { class: 'board-wrap' }, svg, toast, peek, radial, picker, boxSel, liftBar, selBar,
+    h('main', { class: 'stage' }, coach.el, h('div', { class: 'board-wrap' }, svg, toast, peek, radial, picker, boxSel, liftBar, selBar,
       h('div', { class: 'history' }, undoBtn, redoBtn),
       h('div', { class: 'zoom' },
         h('button', { title: 'Zoom in (+)', onclick: () => zoomCenter(1 / 1.25) }, '+'),
@@ -395,6 +400,7 @@ export function openEditor(root, ctx, level) {
       reportStatus();
     }
     renderBoard(); renderTests(); renderTransport();
+    if (coach.update(coachState())) renderBoard();
     // Once the watched test passes, check every test; that's how a floor is cleared.
     if (sim.finished && sim.status.kind === 'passed') checkAll();
   }
@@ -729,6 +735,7 @@ export function openEditor(root, ctx, level) {
     undoBtn.disabled = !undo.length;
     redoBtn.disabled = !redo.length;
     renderPalette(); renderBoard(); if (!keepInspector) renderInspector(); renderTests(); renderTransport();
+    if (coach.update(coachState())) renderBoard();
   }
 
   // `runOnly`: only the run has moved on since the last draw (a step while
@@ -739,7 +746,7 @@ export function openEditor(root, ctx, level) {
     const lifted = lift ? lift.items.map((i) => i.cell) : [];
     board.render({
       cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftOff(), covers: liftCovers() } : null, pick,
-      selected, activePort, hover, live, tool, drag: drag?.active && drag.kind !== 'box' && drag.kind !== 'group' ? drag : null,
+      coach: coach.mark(), selected, activePort, hover, live, tool, drag: drag?.active && drag.kind !== 'box' && drag.kind !== 'group' ? drag : null,
       preview: clickPreview(), ghost: placePreview(),
       paidNow: live ? sim.paidNow : null, paidNowHex: sim?.paidNowHex, paidWrong: sim?.paidWrong,
       // The desk to flag on a wrong payout: the one it was paid at.
@@ -972,6 +979,7 @@ export function openEditor(root, ctx, level) {
             onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; lift = null; }); },
           }, 'Clear floor')),
         h('p', { class: 'brief-big' }, level.brief ?? ''),
+        ...(coach.available && !coach.active() ? [h('button', { class: 'btn small ghost coach-again', onclick: () => coach.restart() }, 'Show the tutorial')] : []),
         h('ul', { class: 'howto' },
           h('li', {}, `${Tap()} an empty hex to place a croupier there.`),
           h('li', {}, `Select a croupier, then ${tap()} the edges of its hex to point its ports.`),
