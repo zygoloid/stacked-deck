@@ -304,9 +304,10 @@ published tests or hard-code their payouts. `test/levels.js` checks every
 reference solution passes its check deals. Scores are croupiers (shoes
 included) and rounds (the total over the published tests only: `totalRounds` in
 `src/score.js`, an integer that changes whenever any test's count does). Levels
-unlock in order, with some slack: a level is open when fewer than three levels
-before it are unsolved (`OPEN_UNSOLVED` in `src/ui/model.js`), so up to three
-unsolved levels are open at once. The UI reads both lists through
+unlock in order, with some slack: a level is open when it is solved or at most
+three places past the furthest level cleared (`OPEN_AHEAD` in
+`src/ui/model.js`). Skipping a level doesn't shrink the window ahead, and
+floors added earlier in the campaign never close floors past them. The UI reads both lists through
 `src/ui/catalog.js`; with `?testlevels` in the URL it also appends the
 test-only fixture floors of `test/ui-levels.js` to the bonus deck (used by
 `tools/ui-smoke.js`).
