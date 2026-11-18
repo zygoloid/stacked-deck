@@ -840,7 +840,14 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .sel-ring { fill: none; stroke: var(--gold-2); stroke-width: 2.6; filter: drop-shadow(0 0 4px rgba(242, 193, 78, 0.7)); pointer-events: none; }
 .edge-hint { stroke: rgba(255, 255, 255, 0.16); stroke-width: 5; stroke-linecap: round; pointer-events: none; }
 .edge-hint.hot { stroke-width: 7; filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.6)); }
-.edge-tip { font-size: 8.5px; font-weight: 800; fill: #fff; paint-order: stroke; stroke: #06231a; stroke-width: 3px; }
+/* What a click would do: arrows (and pills, input marks) it adds are
+   see-through; ones it takes away are shaded red. */
+.board .new { opacity: 0.6; filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.85)); pointer-events: none; }
+.board .gone > :not(.gone-halo) { opacity: 0.5; }
+.board .gone { pointer-events: none; }
+.board .gone-halo { stroke: rgba(255, 45, 45, 0.75); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; fill: rgba(255, 45, 45, 0.75); }
+.board .pill.gone rect { stroke: rgb(255, 45, 45); stroke-width: 2.4; }
+.board .ghost-cell { opacity: 0.5; pointer-events: none; }
 .hex.ghost { fill: rgba(242, 193, 78, 0.1); stroke: var(--gold-2); stroke-width: 1.4; stroke-dasharray: 5 4; pointer-events: none; }
 .hex.drop { pointer-events: none; stroke-width: 2; stroke-dasharray: 6 4; }
 .hex.drop.ok { fill: rgba(95, 211, 141, 0.15); stroke: var(--good); }
@@ -1077,6 +1084,7 @@ svg.board.panning { cursor: grabbing; }
 .radial-item.on { border-color: #fff; }
 .radial-item:hover, .radial-item.hot { transform: translate(-50%, -50%) scale(1.12); border-color: #fff; }
 .radial-tick { font-size: 11px; }
+.radial-item:not(.on) .radial-tick { display: none; }
 svg.board { -webkit-touch-callout: none; }
 
 /* Croupier picker: a grid of the floor's croupiers beside an empty hex. */
@@ -1097,7 +1105,6 @@ svg.board { -webkit-touch-callout: none; }
 .picker-name { font-size: 10.5px; font-weight: 600; line-height: 1.1; text-align: center; }
 .picker-item kbd { position: absolute; top: 2px; right: 2px; min-width: 0; padding: 0 2px; border: 0; background: none; font-size: 8.5px; opacity: 0.5; }
 .board .pick-hex { fill: rgba(242, 193, 78, 0.16); stroke: var(--gold-2); stroke-width: 2; stroke-dasharray: 5 3; pointer-events: none; }
-.board .pick-edge { stroke: var(--gold-2); stroke-width: 4; stroke-linecap: round; pointer-events: none; }
 
 /* Groups: the box being drawn, the picked-up croupiers, their toolbar. */
 .box-select {

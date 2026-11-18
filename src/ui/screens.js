@@ -780,7 +780,7 @@ export function helpPanel(close, save) {
       h('div', { class: 'keys-grid' },
         [['Tap an empty hex', 'pick a croupier to place there', 'touch'], ['Long-press a croupier in the picker', 'read about it', 'touch'],
           ['Click an empty hex', 'pick a croupier to place there', 'kbd'], ['Point at a croupier in the picker', 'read about it', 'kbd'],
-          ['Long-press an edge', 'pick which port points there'], ['Long-press', 'pick up croupiers (drag for more)', 'touch'],
+          ['Long-press an edge', 'pick which port points there'], ['Long-press a port in that menu', 'point it and keep the menu open'], ['Shift-click a port in that menu', 'point it and keep the menu open', 'kbd'], ['Long-press', 'pick up croupiers (drag for more)', 'touch'],
           ['Pinch / drag', 'zoom / pan the floor', 'touch'],
           ['Space', 'play / pause', 'kbd'], ['.', 'step', 'kbd'], [',', 'step back', 'kbd'], ['R', 'reset the run', 'kbd'], ['F', 'next speed', 'kbd'],
           ['1–9', 'place a croupier at the pointer', 'kbd'], ['Del', 'remove selected', 'kbd'],

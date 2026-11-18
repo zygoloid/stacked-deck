@@ -248,7 +248,9 @@ export class Board {
       // A picked-up group floats over the floor, red where it can't go and
       // marked where it would replace a croupier; that croupier's ports are
       // hidden (they would only show round the edges).
-      const arrows = this.arrowsSvg(cell, t, selected ? state.activePort : null);
+      // (With the pointer on an edge of the selected croupier: what a click there would do.)
+      const preview = selected && state.preview;
+      const arrows = preview ? this.arrowsSvg(preview, t, state.activePort, { was: cell }) : this.arrowsSvg(cell, t, selected ? state.activePort : null);
       if (state.lifted?.cells.has(cell)) {
         const bad = state.lifted.bad.has(k), under = bad ? null : state.lifted.covers.get(k);
         body.classList.add('lifted', ...(bad ? ['bad'] : []), ...(under ? ['covers'] : []));
@@ -277,10 +279,7 @@ export class Board {
     if (state.pick) {
       const [x, y] = center(state.pick.at);
       const g = s('g', { class: 'pick', transform: `translate(${x},${y})` }, s('polygon', { class: 'hex pick-hex', points: HEX_IN }));
-      if (state.pick.side !== undefined) {
-        const [[x1, y1], [x2, y2]] = edge(state.pick.side, R - 5, 0.7);
-        g.append(s('line', { class: 'pick-edge', x1, y1, x2, y2 }));
-      }
+      if (state.pick.side !== undefined) g.append(this.arrowsSvg({ kind: 'shoe', out: state.pick.side }, undefined, null, { ghost: true }));
       gOver.append(g);
     }
     // Selection overlay and edge hints.
@@ -293,15 +292,12 @@ export class Board {
         const st = PORT_STYLE[state.activePort] ?? PORT_STYLE.out;
         for (let d = 0; d < 6; d++) {
           const [[x1, y1], [x2, y2]] = edge(d, R - 3, 0.7);
-          const hot = state.hover && hexKey(state.hover.at) === state.selected && state.hover.edge && state.hover.side === d;
+          // (Lit on the edge the pointer is on when a click there changes
+          // nothing: the arrows show what one that does change something will do.)
+          const hot = !state.preview && state.hover && hexKey(state.hover.at) === state.selected && state.hover.edge && state.hover.side === d;
           g.append(s('line', {
             class: `edge-hint${hot ? ' hot' : ''}`, x1, y1, x2, y2, stroke: hot ? st.color : undefined,
           }));
-          if (hot) {
-            const [ux, uy] = unit(d);
-            g.append(s('text', { class: 'edge-tip', x: ux * (AP + 12), y: uy * (AP + 12) + 3, 'text-anchor': 'middle' },
-              `${st.label} → ${SIDE_NAMES[d]}`));
-          }
         }
         gOver.append(g);
       }
@@ -310,6 +306,14 @@ export class Board {
       !cells.some((c) => hexKey(c.at) === hexKey(state.hover.at))) {
       const [x, y] = center(state.hover.at);
       gOver.append(s('polygon', { class: 'hex ghost', points: HEX_IN, transform: `translate(${x},${y})` }));
+    }
+    // The croupier a click (or a drop from the palette) would place, see-through.
+    if (state.ghost) {
+      const t = `translate(${center(state.ghost.at).join(',')})`;
+      const body = this.bodySvg(state.ghost, t, false, false, null);
+      body.classList.add('ghost-cell');
+      body.removeAttribute('data-at');
+      gOver.append(body, this.arrowsSvg(state.ghost, t, null, { ghost: true }));
     }
     // Where a dragged croupier (or a new one from the palette) would go:
     // onto another, it replaces it (marked as a group's does).
@@ -409,50 +413,79 @@ export class Board {
     return g;
   }
 
-  arrowsSvg(cell, t, activePort) {
+  // A cell's port arrows. With `was` (the same cell as it is now), `cell` is
+  // how a click would leave it, and the arrows show the difference: what the
+  // click adds is drawn see-through, what it takes away shaded red. With
+  // `ghost`, every arrow is drawn see-through (a croupier not yet placed).
+  arrowsSvg(cell, t, activePort, { was = null, ghost = false } = {}) {
     const g = s('g', { transform: t, class: 'arrows' });
+    const keyOf = ([side, port, idx]) => `${side}|${port}|${idx ?? ''}`;
+    const now = arrowsOf(cell);
+    const marked = ([side, port, idx], mark) => [side, port, idx, mark];
+    let entries = now.map((a) => marked(a, ghost ? 'new' : null));
+    if (was) {
+      const before = arrowsOf(was), had = new Set(before.map(keyOf)), has = new Set(now.map(keyOf));
+      entries = now.map((a) => marked(a, had.has(keyOf(a)) ? null : 'new'))
+        .concat(before.filter((a) => !has.has(keyOf(a))).map((a) => marked(a, 'gone')));
+    }
     // Input markers (war dealer side, gather under side): a bar on the edge
     // and a lettered badge.
     for (const p of ['dealer', 'under']) {
-      if (cell.kind !== 'croupier' || cell[p] === undefined) continue;
-      if (!(p === 'dealer' ? cell.fn === 'war' : cell.fn === 'gather')) continue;
-      const d = cell[p];
-      const st = PORT_STYLE[p];
-      const [[x1, y1], [x2, y2]] = edge(d, R - 4, 0.62);
-      const [ux, uy] = unit(d);
-      g.append(s('line', { class: 'in-mark', x1, y1, x2, y2, stroke: st.color }));
-      const bx = ux * (AP - 12), by = uy * (AP - 12);
-      g.append(s('g', { class: `badge${activePort === p ? ' active' : ''}`, transform: `translate(${bx.toFixed(1)},${by.toFixed(1)})` },
-        s('title', {}, `${st.label} side`),
-        s('circle', { r: 6, fill: st.color }),
-        s('text', { y: 2.6, 'text-anchor': 'middle' }, st.short)));
+      if (cell.kind !== 'croupier' || !(p === 'dealer' ? cell.fn === 'war' : cell.fn === 'gather')) continue;
+      const sides = [];
+      if (was && was[p] !== undefined && was[p] !== cell[p]) sides.push([was[p], 'gone']);
+      if (cell[p] !== undefined) sides.push([cell[p], ghost || (was && was[p] !== cell[p]) ? 'new' : null]);
+      for (const [d, mark] of sides) {
+        const st = PORT_STYLE[p];
+        const [[x1, y1], [x2, y2]] = edge(d, R - 4, 0.62);
+        const [ux, uy] = unit(d);
+        const m = s('g', { class: mark ?? '' });
+        if (mark === 'gone') m.append(s('line', { class: 'gone-halo', x1, y1, x2, y2 }));
+        m.append(s('line', { class: 'in-mark', x1, y1, x2, y2, stroke: st.color }));
+        const bx = ux * (AP - 12), by = uy * (AP - 12);
+        m.append(s('g', { class: `badge${activePort === p && mark !== 'gone' ? ' active' : ''}`, transform: `translate(${bx.toFixed(1)},${by.toFixed(1)})` },
+          s('title', {}, `${st.label} side`),
+          s('circle', { r: 6, fill: st.color }),
+          s('text', { y: 2.6, 'text-anchor': 'middle' }, st.short)));
+        g.append(m);
+      }
     }
     const groups = new Map();
-    for (const [side, port, idx] of arrowsOf(cell)) {
+    for (const [side, port, idx, mark] of entries) {
       if (!groups.has(side)) groups.set(side, []);
-      groups.get(side).push([port, idx]);
+      groups.get(side).push([port, idx, mark]);
     }
     const isFixed = cell.kind === 'source';
     for (const [side, ports] of groups) {
-      const st = PORT_STYLE[ports[0][0]];
+      // The arrow itself is new, or going, only if all its ports are.
+      const mark = ports.every((p) => p[2] === 'new') ? 'new' : ports.every((p) => p[2] === 'gone') ? 'gone' : null;
+      const staying = ports.filter((p) => p[2] !== 'gone');
+      const st = PORT_STYLE[(staying[0] ?? ports[0])[0]];
       const [ux, uy] = unit(side);
       const r0 = isFixed ? 16 : CHIP + 1, r1 = AP + 1;
-      g.append(s('line', { class: 'port-line', x1: ux * r0, y1: uy * r0, x2: ux * (r1 - 6), y2: uy * (r1 - 6), stroke: st.color }));
+      const a = s('g', { class: mark ?? '' });
+      g.append(a);
+      const line = { x1: ux * r0, y1: uy * r0, x2: ux * (r1 - 6), y2: uy * (r1 - 6) };
       // arrowhead straddling the edge
       const bx = ux * (r1 - 7), by = uy * (r1 - 7), tx = ux * (r1 + 6), ty = uy * (r1 + 6);
       const px = -uy * 6, py = ux * 6;
-      g.append(s('polygon', { class: 'port-head', fill: st.color, points: `${bx + px},${by + py} ${tx},${ty} ${bx - px},${by - py}` }));
+      const head = `${bx + px},${by + py} ${tx},${ty} ${bx - px},${by - py}`;
+      if (mark === 'gone') a.append(s('line', { class: 'gone-halo', ...line }), s('polygon', { class: 'gone-halo', points: head }));
+      a.append(s('line', { class: 'port-line', ...line, stroke: st.color }),
+        s('polygon', { class: 'port-head', fill: st.color, points: head }));
       if (isFixed || (ports.length === 1 && ports[0][0] === 'out')) continue;
       // One pill per port (deal: one pill listing the deal positions,
       // collapsed to fit the hex), laid side by side along the edge.
       const horizontal = Math.abs(uy) > 0.1; // tangent mostly horizontal for the slanted sides
       let pills;
       if (ports[0][0] === 'to') {
-        const { text, full } = dealLabel(ports.map(([, i]) => i), horizontal ? 40 : 26);
+        const shown = staying.length ? staying : ports;
+        const { text, full } = dealLabel(shown.map(([, i]) => i), horizontal ? 40 : 26);
         const peek = text === full ? null : this.peek({ text: `Deals cards ${full.replace(/·/g, ', ')} to ${SIDE_NAMES[side]}` });
-        pills = [[text, st.color, activePort === 'to', peek]];
+        // (A deal pill that gains a position is see-through.)
+        pills = [[text, st.color, activePort === 'to', peek, !mark && ports.some((p) => p[2] === 'new') ? 'new' : null]];
       } else {
-        pills = ports.map(([p]) => [PORT_STYLE[p].short, PORT_STYLE[p].color, p === activePort]);
+        pills = ports.map(([p, , m]) => [PORT_STYLE[p].short, PORT_STYLE[p].color, p === activePort && m !== 'gone', null, mark ? null : m]);
       }
       const widths = pills.map(([text]) => pillWidth(text));
       const gap = 2;
@@ -461,11 +494,13 @@ export class Board {
       const rr = AP - 15;
       const cx = ux * rr, cy = uy * rr;
       let off = -total / 2;
-      pills.forEach(([text, color, active, peek], i) => {
+      pills.forEach(([text, color, active, peek, pm], i) => {
         const mid = off + along[i] / 2;
         off += along[i] + gap;
         const x = horizontal ? cx + mid : cx, y = horizontal ? cy : cy + mid;
-        g.append(this.pill(text, color, x, y, active, peek));
+        const pill = this.pill(text, color, x, y, active, peek);
+        if (pm) pill.classList.add(pm);
+        a.append(pill);
       });
     }
     return g;
