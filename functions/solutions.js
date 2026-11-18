@@ -4,11 +4,11 @@
 import { Worker } from 'node:worker_threads';
 import { ServerValue } from 'firebase-admin/database';
 import { RULES_VERSION } from './game/engine.js';
-import { LEVELS, BONUS } from './game/levels.js';
+import { ALL_LEVELS } from './game/levels.js';
 import { validateCells, solutionHash } from './game/score.js';
 import { recordOf, readRecord } from './game/online.js';
 
-const LEVEL_BY_ID = new Map([...LEVELS, ...BONUS].map((l) => [l.id, l]));
+const LEVEL_BY_ID = new Map(ALL_LEVELS.map((l) => [l.id, l]));
 
 // Limits for scoring one machine. The engine's card limit keeps real runs
 // far below these; they only stop something unforeseen.

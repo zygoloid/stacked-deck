@@ -1,7 +1,7 @@
 // Saves (localStorage), unlocking and the saved-solutions list. Turning cells
 // into an engine spec and scoring them lives in ../score.js (re-exported here).
 import { RULES_VERSION } from '../engine.js';
-import { CAMPAIGN as LEVELS, BONUS, ALL_LEVELS, campaignIndex } from './catalog.js';
+import { CAMPAIGN as LEVELS, BONUS, FLOOR, ALL_LEVELS, campaignIndex } from './catalog.js';
 import { SPECIALS } from '../cards.js';
 import { specialCardsOf, canonicalCells, scoreMachine } from '../score.js';
 import { CHANNEL } from '../build.js';
@@ -120,11 +120,12 @@ export function isBonusOpen(save, level) {
   return unlockIds(level).every((id) => !!save.levels[id]?.solved);
 }
 
-// Whether any floor (campaign or bonus) is open.
+// Whether any floor (campaign, bonus or the floor) is open. The floor's
+// levels open like bonus floors, after their `unlockAfter` floors.
 export function isOpen(save, level) {
   const i = campaignIndex(level);
   if (i >= 0) return isUnlocked(save, i);
-  return BONUS.includes(level) && isBonusOpen(save, level);
+  return (BONUS.includes(level) || FLOOR.includes(level)) && isBonusOpen(save, level);
 }
 
 // Special cards the player has reached in the campaign (allowed on some open

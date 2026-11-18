@@ -15,6 +15,10 @@
 //    difficulty, not by unlocking, except that a floor comes after every
 //    bonus floor it needs); its palette, War rules and special cards are all
 //    available by the latest campaign floor it needs;
+//  * the floor's levels (src/levels/floor.js, floors that left the
+//    campaign): ids unique; no chapter; a playing card each (any, repeats
+//    allowed); each opens after campaign or bonus floors whose palette, War
+//    rules and special cards cover it;
 //  * a level has either `pays(hand, earlierHands)` or `expected(inputs)`;
 //  * its reference solution only uses the level's floor, palette, War rules
 //    and special cards, places only shoes and croupiers, and doesn't overlap
@@ -30,11 +34,11 @@
 //    hand; removing any one croupier from the reference solution breaks it;
 //    and the levels that teach the door fail without one.
 //
-//   node test/levels.js [id | chapter]      (chapter: 1-5 or hearts, diamonds, ..., bonus)
+//   node test/levels.js [id | chapter]      (chapter: 1-5 or hearts, diamonds, ..., bonus, floor)
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import {
-  LEVELS, BONUS, CHAPTERS, CHAPTER_FILES, CHAPTER_SUITS, FINALE_CARDS, BONUS_FILE, BONUS_SUITS,
+  LEVELS, BONUS, FLOOR, CHAPTERS, CHAPTER_FILES, CHAPTER_SUITS, FINALE_CARDS, BONUS_FILE, BONUS_SUITS, FLOOR_FILE,
 } from '../src/levels.js';
 import {
   runTest, expectedPayouts, payoutKey, payoutHand, FUNCTIONS, DIRS,
@@ -43,7 +47,7 @@ import { RANKS, SUITS, SPECIALS } from '../src/cards.js';
 import { checkDeals, totalRounds, MAX_HAND, cellError, countCroupiers } from '../src/score.js';
 
 const MUTANTS = {}, DOOR = [];
-for (const name of [...Object.values(CHAPTER_FILES), BONUS_FILE]) {
+for (const name of [...Object.values(CHAPTER_FILES), BONUS_FILE, FLOOR_FILE]) {
   const m = await import(`./mutants/${name}.js`);
   Object.assign(MUTANTS, m.MUTANTS);
   DOOR.push(...m.DOOR);
@@ -53,7 +57,8 @@ const arg = process.argv[2];
 const byName = Object.fromEntries(Object.entries(CHAPTER_FILES).map(([n, f]) => [f, Number(n)]));
 const onlyChapter = arg && (/^[1-5]$/.test(arg) ? Number(arg) : byName[arg]);
 const selected = (level) => !arg || level.id === arg ||
-  (arg === BONUS_FILE ? BONUS.includes(level) : !BONUS.includes(level) && level.chapter === onlyChapter);
+  (arg === BONUS_FILE ? BONUS.includes(level) : arg === FLOOR_FILE ? FLOOR.includes(level)
+    : level.chapter !== undefined && level.chapter === onlyChapter);
 const key = ([q, r]) => `${q},${r}`;
 const step = (at, d) => [at[0] + DIRS[d][0], at[1] + DIRS[d][1]];
 
@@ -167,6 +172,26 @@ BONUS.forEach((level, i) => {
     check(!SPECIAL_WORDS.test(text), `${where} doesn't mention special cards before they're introduced`);
   }
 });
+// The floor: floors that left the campaign. Each keeps a playing card (any,
+// repeats allowed: the floor can hold two A♥s) and opens like a bonus floor,
+// after campaign or bonus floors that cover its palette.
+FLOOR.forEach((level) => {
+  const where = `${level.id} (floor):`;
+  check(!ids.has(level.id), `${where} id is unique across the campaign, the bonus deck and the floor`); ids.add(level.id);
+  check(level.chapter === undefined, `${where} has no chapter`);
+  check(CARDS.has(level.card), `${where} card ${level.card} is a playing card`);
+  const roots = rootsOf(level);
+  check(unlockIds(level).length && roots?.length, `${where} unlockAfter ${unlockIds(level)} names campaign floors, or bonus floors whose chains end at campaign floors`);
+  if (!roots?.length) return;
+  const root = roots.reduce((a, b) => (availableBy.get(b).index > availableBy.get(a).index ? b : a));
+  const after = availableBy.get(root);
+  const lost = level.croupiers.filter((c) => !after.palette.includes(c));
+  check(!lost.length, `${where} palette is available by ${root} (not yet: ${lost})`);
+  const rules = level.warRules ?? ['high'];
+  check(rules.every((r) => after.rules.includes(r)), `${where} War rules ${rules} are available by ${root}`);
+  const specials = level.specialCards ?? [];
+  check(specials.every((c) => after.specials.includes(c)), `${where} special cards ${specials} are available by ${root}`);
+});
 // Difficulty: every floor rates 1 to 10, as the Diff column of its row in
 // docs/campaign.md says. The bonus deck is in difficulty order, then par
 // croupiers (ties in any order), except that a floor comes straight after
@@ -183,7 +208,7 @@ const docDiffs = new Map();
     }
   });
 }
-for (const level of [...LEVELS, ...BONUS]) {
+for (const level of [...LEVELS, ...BONUS, ...FLOOR]) {
   check(Number.isInteger(level.difficulty) && level.difficulty >= 1 && level.difficulty <= 10, `${level.id}: difficulty is 1 to 10`);
   check(docDiffs.get(level.id) === level.difficulty, `${level.id}: difficulty ${level.difficulty} is the Diff in its docs/campaign.md row (${docDiffs.get(level.id)})`);
 }
@@ -211,11 +236,11 @@ for (const [ch, name] of Object.entries(CHAPTER_FILES)) {
 
 // --- Per-level checks ---
 let checked = 0;
-for (const level of [...LEVELS, ...BONUS]) {
+for (const level of [...LEVELS, ...BONUS, ...FLOOR]) {
   if (!selected(level)) continue;
   checked++;
-  const isBonus = BONUS.includes(level);
-  console.log(`== ${level.card} ${level.id} (${isBonus ? `bonus, after ${level.unlockAfter}` : `chapter ${level.chapter}`}): ${level.title}`);
+  const isBonus = BONUS.includes(level), onFloor = FLOOR.includes(level);
+  console.log(`== ${level.card} ${level.id} (${isBonus ? `bonus, after ${level.unlockAfter}` : onFloor ? `floor, after ${level.unlockAfter}` : `chapter ${level.chapter}`}): ${level.title}`);
 
   // --- Level shape ---
   check(/^[a-z0-9-]+$/.test(level.id), 'id is lowercase-kebab');
@@ -378,4 +403,4 @@ if (failures) {
   console.log(`\n${failures} level check(s) failed`);
   process.exit(1);
 }
-console.log(`\nlevels ok (${checked} of ${LEVELS.length} campaign and ${BONUS.length} bonus levels checked)`);
+console.log(`\nlevels ok (${checked} of ${LEVELS.length} campaign, ${BONUS.length} bonus and ${FLOOR.length} floor levels checked)`);

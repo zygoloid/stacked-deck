@@ -36,6 +36,7 @@ import { dealLabel } from '../src/ui/board.js';
 
 const { LEVELS } = L;
 const BONUS_LEVELS = Array.isArray(L.BONUS) ? L.BONUS : [];
+const FLOOR_LEVELS = Array.isArray(L.FLOOR) ? L.FLOOR : [];
 const repo = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
 const all = args.includes('--all');          // also solve every level with its reference solution
@@ -1973,6 +1974,20 @@ try {
     await page.reload();
     await showDeck(page, 'bonus');
     check(await page.locator('a.tile[data-level="test-two-keys"]').count() === 1, 'and opens once both are cleared');
+    // The floor: dropped campaign cards, opened like bonus floors, keeping their card.
+    {
+      const { FLOOR: TF } = await import(join(repo, 'test/ui-levels.js'));
+      await setSave({ [LEVELS[0].id]: { solved: true } });
+      await page.reload();
+      await showDeck(page, 'floor');
+      check(await page.locator('.deck-tab.floor.on').count() === 1 &&
+        (await page.textContent('.deck-tab.floor .deck-count')).endsWith(`/ ${FLOOR_LEVELS.length + TF.length} cleared`), 'the floor has its own tab, counting its floors');
+      check(await page.locator('.deck.floor a.tile[data-level="test-dropped"]').count() === 1 &&
+        await page.locator('.deck.floor .tile.locked.dropped[data-bonus="test-dropped-later"]').count() === 1, 'a floor card opens after its unlockAfter floor; the other is locked');
+      check((await page.textContent('a.tile[data-level="test-dropped"] .tile-corner.tl')) === 'A♥', 'a floor card keeps its campaign card');
+      check(await page.locator('.deck.floor .tiles.scatter').count() === 1, 'the floor\'s cards lie scattered');
+      if (shots) await page.locator('.deck.floor').screenshot({ path: join(shots, '12c-the-floor.png') });
+    }
     await setSave({ 'opening-night': { solved: true } });
     await page.reload();
     await showDeck(page, 'bonus');
