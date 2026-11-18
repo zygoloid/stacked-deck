@@ -162,7 +162,7 @@ export function openEditor(root, ctx, level) {
     if (redo.length) { undo.push(editState()); restoreCells(redo.pop()); }
   }
   function changed({ keepInspector = false } = {}) {
-    closeRadial();
+    if (!radialKeep) closeRadial();
     devMeasured = null;
     ls.cells = cells;
     ctx.persist();
@@ -217,16 +217,9 @@ export function openEditor(root, ctx, level) {
     const under = cellAt(hexKey(at));
     commit(() => {
       if (under) cells = cells.filter((x) => x !== under);
-      const c = newCell(toolName, at, lastSide);
-      const t = toolCell(toolName);
-      for (const k of ['n', 'rule', 'once']) if (t[k] !== undefined) c[k] = t[k];
-      if (t.deck) c.deck = [...t.deck];
-      const ports = portsOf(c);
-      let active = ports[0] ?? null;
-      if (side !== undefined && ports.length) {
-        setPort(c, ports[0], side);
-        if (ports[0] !== 'to') { lastSide = side; active = ports[1 % ports.length]; }
-      }
+      const { c, active } = placing(toolName, at, side);
+      const first = portsOf(c)[0];
+      if (side !== undefined && first && first !== 'to') lastSide = side;
       cells.push(c);
       // Placing one is the usual end of it: the new croupier is selected,
       // ready to point its ports, and the palette tool is put down.
@@ -234,6 +227,20 @@ export function openEditor(root, ctx, level) {
       selected = hexKey(at);
       activePort = active;
     });
+  }
+  // The croupier `place` would put down, and the port it would make active.
+  function placing(toolName, at, side) {
+    const c = newCell(toolName, at, lastSide);
+    const t = toolCell(toolName);
+    for (const k of ['n', 'rule', 'once']) if (t[k] !== undefined) c[k] = t[k];
+    if (t.deck) c.deck = [...t.deck];
+    const ports = portsOf(c);
+    let active = ports[0] ?? null;
+    if (side !== undefined && ports.length) {
+      setPort(c, ports[0], side);
+      if (ports[0] !== 'to') active = ports[1 % ports.length];
+    }
+    return { c, active };
   }
   // Pick a palette tool (or none). Picking one shows its settings, so it
   // deselects the selected croupier.
@@ -733,6 +740,7 @@ export function openEditor(root, ctx, level) {
     board.render({
       cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftOff(), covers: liftCovers() } : null, pick,
       selected, activePort, hover, live, tool, drag: drag?.active && drag.kind !== 'box' && drag.kind !== 'group' ? drag : null,
+      preview: clickPreview(), ghost: placePreview(),
       paidNow: live ? sim.paidNow : null, paidNowDesk: sim?.paidNowDesk, paidWrong: sim?.paidWrong,
       alert: sim?.status.kind === 'wrong' && desk ? hexKey(desk.at) : null,
       anim: anim && t < 1 ? Object.assign(anim, { t }) : null,
@@ -741,6 +749,31 @@ export function openEditor(root, ctx, level) {
     svg.classList.toggle('placing', !!tool);
     renderLiftBar();
     updatePeek();
+  }
+
+  // With a mouse on an edge of the selected croupier: that croupier as a
+  // click there would leave it (null if it would change nothing). With the
+  // port menu open: as picking the port the pointer is on would.
+  function clickPreview() {
+    const c = selCell();
+    if (c && radialOpen()) return radialHot ? afterPick(c, radialHot, radialSide) : null;
+    if (!c || !hover?.mouse || !hover.edge || drag || running || lift || !activePort) return null;
+    if (hexKey(hover.at) !== selected) return null;
+    if (activePort !== 'to' && getPort(c, activePort) === hover.side) return null;
+    const after = structuredClone(c);
+    setPort(after, activePort, hover.side);
+    return after;
+  }
+  // The croupier a click, or a drop from the palette, would place on a free
+  // hex (pointing its first port at the edge the pointer is by).
+  function placePreview() {
+    if (running || lift) return null;
+    let name, at, side;
+    if (drag?.kind === 'new' && drag.active && drag.over) [name, at, side] = [drag.tool, drag.over, drag.overSide];
+    else if (tool && !drag && hover?.mouse) [name, at, side] = [tool, hover.at, hover.edge ? hover.side : undefined];
+    else return null;
+    if (!board.isBuildable(at) || cellAt(hexKey(at))) return null;
+    return placing(name, at, side).c;
   }
 
   // ---------- peeking at stacks and labels ----------
@@ -1348,8 +1381,9 @@ export function openEditor(root, ctx, level) {
     if (drag?.kind === 'pinch') return;
     const loc = board.locate(e.clientX, e.clientY);
     const edgeSide = selectedEdge(e.clientX, e.clientY);
-    const nh = edgeSide !== null ? { at: selCell().at, side: edgeSide, edge: true } : loc ? { at: loc.at, side: loc.side, edge: loc.dist > 0.45 } : null;
-    const same = hover && nh && hexKey(hover.at) === hexKey(nh.at) && hover.side === nh.side && hover.edge === nh.edge;
+    const mouse = e.pointerType !== 'touch';
+    const nh = edgeSide !== null ? { at: selCell().at, side: edgeSide, edge: true, mouse } : loc ? { at: loc.at, side: loc.side, edge: loc.dist > 0.45, mouse } : null;
+    const same = hover && nh && hexKey(hover.at) === hexKey(nh.at) && hover.side === nh.side && hover.edge === nh.edge && hover.mouse === nh.mouse;
     if (!same) { hover = nh; if (!drag) renderBoard(); }
   });
   svg.addEventListener('pointerleave', (e) => {
@@ -1395,7 +1429,7 @@ export function openEditor(root, ctx, level) {
     }
     if (drag.id !== undefined && e.pointerId !== drag.id) return;
     // Still holding after the port menu opened: slide onto a port to pick it on release.
-    if (drag.radial) { radialHover(e.clientX, e.clientY); return; }
+    if (drag.radial) { radialHover(e.clientX, e.clientY, true); return; }
     if (!drag.active && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > (drag.slop ?? 6)) { drag.active = true; clearTimeout(drag.hold); }
     if (!drag.active) return;
     if (drag.kind === 'box') {
@@ -1452,9 +1486,12 @@ export function openEditor(root, ctx, level) {
     // (The press that opened the port menu leaves it open even if the browser cancels it.)
     if (e.type === 'pointercancel' && !d.radial) { svg.classList.remove('panning'); boxSel.className = 'box-select hidden'; renderBoard(); return; }
     if (d.radial) {
-      // Released on a port: pick it; anywhere else the menu stays open for a tap.
+      // Released on a port: pick it (unless holding there just toggled it);
+      // anywhere else the menu stays open for a tap.
+      holdRadial(null);
       const item = e.type === 'pointerup' && radialHover(e.clientX, e.clientY);
-      if (item) pickRadial(item.dataset.port);
+      if (item && radialSkip === item.dataset.port) radialSkip = null;
+      else if (item) pickRadial(item.dataset.port);
       return;
     }
     if (d.kind === 'box') {
@@ -1503,13 +1540,23 @@ export function openEditor(root, ctx, level) {
   // the press: pick one (tap it, or slide onto it and let go) to point it at
   // that side. Ports already pointing there are marked; picking one of those
   // sends it to the floor (unless it must point somewhere). Deal's entry adds
-  // the side to its list.
+  // the side to its list. A Shift-click or a long press on a port (or
+  // sliding onto it and holding) does the same but leaves the menu open, to
+  // point more ports there. The port under the pointer shows on the board
+  // what picking it would do.
   const HOLD_MS = 300;
   let radialSide = null;
   // Taps on the menu count only once a press starts on it: lifting the finger
   // that opened it makes a touch screen click whatever is under it now (the
   // centre, which closes it).
   let radialArmed = false;
+  // The port the pointer is on (for the board's preview), and the pending
+  // long press on one: { port, timer }. A port toggled by a long press
+  // ignores the click (or the release) that ends that press.
+  let radialHot = null, radialHold = null, radialSkip = null;
+  // (Set while a port picked to keep the menu open is pointed: changes
+  // otherwise close the menu.)
+  let radialKeep = false;
   radial.addEventListener('pointerdown', () => { radialArmed = true; });
   radial.addEventListener('contextmenu', (e) => e.preventDefault());
   function radialOpen() { return radialSide !== null; }
@@ -1521,6 +1568,15 @@ export function openEditor(root, ctx, level) {
       openRadial(side, d.x0, d.y0);
     }, HOLD_MS);
   }
+  // Toggle a port after a long press on it, leaving the menu open.
+  function holdRadial(p) {
+    if (radialHold?.port === p) return;
+    clearTimeout(radialHold?.timer);
+    radialHold = p && {
+      port: p,
+      timer: setTimeout(() => { radialHold = null; radialSkip = p; pickRadial(p, { keep: true }); }, HOLD_MS),
+    };
+  }
   function openRadial(side, x, y) {
     const c = selCell();
     const ports = c ? portsOf(c) : [];
@@ -1530,21 +1586,28 @@ export function openEditor(root, ctx, level) {
     const ring = n > 4 ? 64 : 54;
     const items = ports.map((p, i) => {
       const st = PORT_STYLE[p];
-      const on = p === 'to' ? (c.out.to ?? []).includes(side) : getPort(c, p) === side;
       const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
-      const fixed = on && isRequired(c, p);
       return h('button', {
-        class: `radial-item${on ? ' on' : ''}${st.input ? ' input' : ''}`, 'data-port': p, role: 'menuitem',
-        title: p === 'to' ? `Add ${SIDE_NAMES[side]} to the deal list` : on ? (fixed ? `${st.label} already points ${SIDE_NAMES[side]}` : `${st.label}: back to the floor`) : `Point ${st.label} ${SIDE_NAMES[side]}`,
+        class: `radial-item${st.input ? ' input' : ''}`, 'data-port': p, role: 'menuitem',
         style: {
           left: `${(Math.cos(a) * ring).toFixed(1)}px`, top: `${(Math.sin(a) * ring).toFixed(1)}px`,
           ...(st.input ? { color: st.color, borderColor: st.color } : { background: st.color }),
         },
-        onclick: () => { if (radialArmed) pickRadial(p); },
-      }, p === 'to' ? 'deal +' : st.label, on ? h('span', { class: 'radial-tick' }, '✓') : null);
+        onclick: (e) => {
+          if (!radialArmed) return;
+          if (radialSkip === p) { radialSkip = null; return; }
+          pickRadial(p, { keep: e.shiftKey });
+        },
+        onpointerdown: () => { radialSkip = null; holdRadial(p); },
+        onpointerup: () => holdRadial(null),
+        onpointerleave: () => { holdRadial(null); setRadialHot(null); },
+        onpointerenter: () => setRadialHot(p),
+      }, p === 'to' ? 'deal +' : st.label, h('span', { class: 'radial-tick' }, '✓'));
     });
     radialArmed = false;
+    radialHot = null; radialSkip = null; holdRadial(null);
     radial.replaceChildren(h('button', { class: 'radial-hub', title: 'Close (Esc)', onclick: () => { if (radialArmed) closeRadial(); } }, h('b', {}, ARROW[side]), h('span', {}, SIDE_NAMES[side])), ...items);
+    markRadial();
     // Centred on the press, kept inside the board.
     const wrap = radial.parentElement.getBoundingClientRect();
     const m = ring + 34;
@@ -1553,29 +1616,65 @@ export function openEditor(root, ctx, level) {
     radial.style.transform = `translate(${cx.toFixed(0)}px, ${cy.toFixed(0)}px)`;
     radial.className = 'radial';
     peekAt = null;
-    hover = null; // no edge tip under the menu
+    hover = null; // no edge preview under the menu
     renderBoard();
+  }
+  // Tick the ports that point at the menu's side now.
+  function markRadial() {
+    const c = selCell(), side = radialSide;
+    if (!c) return;
+    for (const el of radial.querySelectorAll('.radial-item')) {
+      const p = el.dataset.port, st = PORT_STYLE[p];
+      const on = p === 'to' ? (c.out.to ?? []).includes(side) : getPort(c, p) === side;
+      el.classList.toggle('on', on);
+      el.title = p === 'to' ? `Add ${SIDE_NAMES[side]} to the deal list` : on ? (isRequired(c, p) ? `${st.label} already points ${SIDE_NAMES[side]}` : `${st.label}: back to the floor`) : `Point ${st.label} ${SIDE_NAMES[side]}`;
+    }
   }
   function closeRadial() {
     if (!radialOpen()) return;
     radialSide = null;
+    radialHot = null; holdRadial(null);
     radial.className = 'radial hidden';
     radial.replaceChildren();
+    renderBoard();
   }
-  // The port under (x, y), highlighted, or null.
-  function radialHover(x, y) {
+  function setRadialHot(p) {
+    if (radialHot === p) return;
+    radialHot = p;
+    renderBoard();
+  }
+  // The port under (x, y), highlighted, or null. (Sliding onto one from the
+  // press that opened the menu and holding there toggles it.)
+  function radialHover(x, y, slide = false) {
     const item = document.elementFromPoint(x, y)?.closest?.('.radial-item');
     radial.querySelectorAll('.radial-item').forEach((el) => el.classList.toggle('hot', el === item));
+    const p = item?.dataset.port ?? null;
+    setRadialHot(p);
+    if (slide) holdRadial(p);
     return item ?? null;
   }
-  function pickRadial(p) {
+  // What picking port p on the menu (side `side`) would make of cell c: a
+  // changed copy, or null if it would change nothing.
+  function afterPick(c, p, side) {
+    const after = structuredClone(c);
+    if (p === 'to') setPort(after, 'to', side);
+    else if (getPort(c, p) !== side) setPort(after, p, side);
+    else if (isRequired(c, p)) return null;
+    else setPort(after, p, undefined);
+    return after;
+  }
+  function pickRadial(p, { keep = false } = {}) {
     const c = selCell();
     const side = radialSide;
-    closeRadial();
+    if (!keep) closeRadial();
     if (!c || side === null) return;
-    if (p === 'to') assign(side, 'to');
-    else if (getPort(c, p) === side) assign(isRequired(c, p) ? side : undefined, p, { advance: false });
-    else assign(side, p, { advance: false });
+    radialKeep = keep;
+    try {
+      if (p === 'to') assign(side, 'to');
+      else if (getPort(c, p) === side) assign(isRequired(c, p) ? side : undefined, p, { advance: false });
+      else assign(side, p, { advance: false });
+    } finally { radialKeep = false; }
+    if (keep && radialOpen()) { markRadial(); renderBoard(); }
   }
   // A press anywhere else on the page closes it (the board handles its own).
   // So does the croupier picker, on a press anywhere but one of its
