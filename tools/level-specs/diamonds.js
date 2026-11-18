@@ -3,65 +3,91 @@
 import { E, SE, SW, W, NW, NE, c, pass, war, shoe } from './shared.js';
 
 export const SPECS = {
+  'high-card': { cells: [shoe([-1, -1], '9C', { out: SE }), war([-1, 0], { dealer: NW, out: { win: E } })] },
+  'small-stakes': {
+    // Only an ace beats a king; the rest play a 4, and lose to it if they are
+    // 4 or lower (a 4 ties, and ties go to the house).
+    cells: [
+      shoe([-1, -1], 'KC', { out: SE }), war([-1, 0], { dealer: NW, out: { win: NE, lose: E } }),
+      shoe([0, 1], '4C', { out: NW }), war([0, 0], { dealer: SE, out: { lose: NW } }),
+    ],
+  },
+  'face-off': {
+    // Gather the twins' cards; a pair is a tie and drops. Otherwise cut them
+    // apart again and play them against each other: the winner, whichever
+    // side it played, goes to the desk.
+    cells: [
+      c([-1, 0], 'gather', { out: { out: E } }), c([0, 0], 'kind', { n: 2, out: { no: E } }),
+      c([1, 0], 'cut', { out: { top: E, bottom: SE } }), pass([1, 1], NE),
+      war([2, 0], { dealer: SW, out: { win: E, dwin: E } }),
+    ],
+  },
   'red-flush': {
     nodes: { fl: c([-1, 0], 'flush'), su: c([0, 0], 'suits') },
     links: [['fl', 'yes', 'su'], ['su', ['H', 'D'], 'desk']],
   },
-  'either-or': {
-    // Suited hands pay unless they're a run; unsuited ones only if they are.
+  'small-change': {
+    // A king beats a queen but not a king; the ace of spades then beats it,
+    // and goes to the desk while the king drops (by the desk, so the ace is
+    // paid in the same round as the last king leaves the floor).
     cells: [
-      c([-2, 0], 'flush', { out: { yes: NE, no: SE } }),
-      c([-1, -1], 'straight', { out: { no: SE } }), c([-2, 1], 'straight', { out: { yes: NE } }),
-      pass([-1, 0], E), pass([0, 0], E),
+      war([-2, 0], { dealer: NW, out: { win: E } }), shoe([-2, -1], 'QC', { out: SE }),
+      war([-1, 0], { dealer: NW, out: { lose: E } }), shoe([-1, -1], 'KC', { out: SE }),
+      war([0, 0], { dealer: NW, out: { dwin: E } }), shoe([0, -1], 'AS', { out: SE }),
     ],
   },
-  'pair-night': {
-    nodes: { k2: c([-1, 0], 'kind', { n: 2 }), k3: c([0, 0], 'kind', { n: 3 }) },
-    links: [['k2', 'yes', 'k3'], ['k3', 'no', 'desk']],
-  },
-  'inside-seven': {
-    // The 7 goes on top ([7, a, b]), so the cut takes just the 7 off again.
-    nodes: {
-      g: c([-2, 0], 'gather', { under: SW }), s7: shoe([-2, -1], '7C'),
-      st: c([-1, 0], 'straight'), cut: c([0, 0], 'cut'),
-    },
-    links: [['s7', null, 'g'], ['g', 'out', 'st'], ['st', 'yes', 'cut'], ['cut', 'bottom', 'desk']],
-  },
-  'seven-up': {
-    // [a, b, 7, 7] has three of a kind exactly when a or b is a 7.
+  'high-suit': {
+    // A suited hand is cut in two and the halves play each other; the winner
+    // goes to the desk whichever side it played.
     cells: [
-      shoe([-1, -2], '7C', { out: SE }), shoe([0, -2], '7D', { out: SW }), c([-1, -1], 'gather', { out: { out: SW } }),
-      c([-2, 0], 'gather', { under: NE, out: { out: SE } }),
-      c([-2, 1], 'kind', { n: 3, out: { yes: E } }), c([-1, 1], 'cut', { out: { top: E } }),
+      c([-1, 0], 'flush', { out: { yes: E } }), c([0, 0], 'cut', { out: { top: E, bottom: SE } }), pass([0, 1], NE),
+      war([1, 0], { dealer: SW, out: { win: E, dwin: E } }),
     ],
   },
-  'lucky-number': {
-    // Four sevens on top of the hand: five of a kind means at least one 7 in
-    // the hand, six means two. The sevens are added one at a time, four shoes
-    // and four gathers. (A loop that builds the stack of sevens is cheaper.)
+  'natural': {
+    // Pairs are dropped (two aces), and the hand must beat a king (it holds
+    // an ace). Then a jack, a queen and a king are gathered underneath:
+    // [ace, x, J, Q, K] is a straight only when x is a 10, and holds a pair
+    // only when x is a J, Q or K. A cut takes the three cards off the bottom.
+    // (The War's king, stacked under the winning hand with both ports one
+    // way, can be one of the three: 10.)
     cells: [
-      shoe([-3, -1], '7C', { out: SE }), c([-3, 0], 'gather', { under: W, out: { out: NE } }),
-      shoe([-2, -2], '7D', { out: SE }), c([-2, -1], 'gather', { under: SW, out: { out: E } }),
-      shoe([-1, -2], '7H', { out: SE }), c([-1, -1], 'gather', { under: W, out: { out: E } }),
-      shoe([0, -2], '7S', { out: SE }), c([0, -1], 'gather', { under: W, out: { out: SW } }),
-      c([-1, 0], 'kind', { n: 5, out: { yes: SE } }), c([-1, 1], 'kind', { n: 6, out: { no: SE } }),
-      c([-1, 2], 'cut', { out: { bottom: NE } }),
+      c([-3, 0], 'kind', { n: 2, out: { no: E } }),
+      war([-2, 0], { dealer: NW, out: { win: E } }), shoe([-2, -1], 'KC', { out: SE }),
+      c([-1, 0], 'gather', { under: NW, out: { out: E } }), shoe([-1, -1], 'JC', { out: SE }),
+      c([0, 0], 'gather', { under: NW, out: { out: E } }), shoe([0, -1], 'QC', { out: SE }),
+      c([1, 0], 'gather', { under: NW, out: { out: SE } }), shoe([1, -1], 'KD', { out: SE }),
+      c([1, 1], 'straight', { out: { yes: W, no: SW } }),
+      c([0, 2], 'kind', { n: 2, out: { yes: NW } }),
+      c([0, 1], 'cut', { out: { top: W } }),
     ],
   },
-  'beat-the-dealer': {
-    nodes: { w: war([-1, 0]), s9: shoe([-1, -1], '9C') },
-    links: [['s9', null, 'w', 'dealer'], ['w', 'win', 'desk']],
-  },
-  'ace-in-the-hole': {
-    nodes: { w: war([-1, 0]), sk: shoe([-1, -1], 'KS') },
-    links: [['sk', null, 'w', 'dealer'], ['w', 'win', 'desk']],
-  },
-  'inside-bet': {
-    // Beat an 8, then fail to beat a queen (ties go to the house).
+  'low-kicker': {
+    // The hand beats a 7 (its high card is above 7, so with a bottom card of
+    // 7 or lower it is the top card that does); then its bottom card must not
+    // beat another 7. One 7 can do both jobs: the 7 the hand beat comes out
+    // of the first War (dlose) as the second War's dealer, with the cut in
+    // between instead of a second shoe; that is a croupier fewer, and slower.
     cells: [
-      shoe([-2, -1], '8C', { out: SE }), war([-2, 0], { dealer: NW, out: { win: E } }),
-      shoe([-1, -1], 'QC', { out: SE }), war([-1, 0], { dealer: NW, out: { lose: E } }),
-      pass([0, 0], E),
+      shoe([-1, -1], '7C', { out: SE }), war([-1, 0], { dealer: NW, out: { win: E } }),
+      c([0, 0], 'cut', { out: { bottom: SW } }),
+      shoe([-2, 1], '7D', { out: E }), war([-1, 1], { dealer: W, out: { lose: E } }),
+    ],
+  },
+  'crossed-wires': {
+    // A crossover network: each pair of streams crosses at a War with the
+    // player's hand sent one way and the dealer's the other, win or lose.
+    // A crosses B, then C, then B and C cross; every War pairs one hand of
+    // each, which works because the players have the same number of hands.
+    cells: [
+      pass([-1, -2], SE), pass([-2, 0], NE),
+      war([-1, -1], { dealer: SW, out: { win: SE, lose: SE, dwin: E, dlose: E } }),
+      pass([-3, 2], NE), pass([-2, 1], NE),
+      war([-1, 0], { dealer: SW, out: { win: SE, lose: SE, dwin: E, dlose: E } }),
+      pass([-1, 1], SE), pass([-1, 2], E), pass([0, 2], E),
+      pass([0, -1], SE),
+      war([0, 0], { dealer: W, out: { win: E, lose: E, dwin: NE, dlose: NE } }),
+      pass([1, 0], E), pass([1, -1], NE), pass([2, -2], E),
     ],
   },
   'top-dog': {
@@ -73,14 +99,19 @@ export const SPECS = {
       c([1, 0], 'gather', { out: { out: E } }),
     ],
   },
-  'top-of-the-heap': {
-    // Two cuts split off the top card; the other four are gathered as the
-    // dealer's hand, and a gather puts a winning hand back together.
+  'pecking-order': {
+    // Cut the hand into its three cards; compare the bottom two (winner one
+    // way, loser the other, whichever side each played), then the top card
+    // with the lower of those: the loser is the lowest card. The winner plays
+    // the higher of the first pair, with all four ports one way, so the stack
+    // comes out highest on top; a gather puts the lowest card underneath.
     cells: [
-      c([-2, 0], 'cut', { out: { top: NE, bottom: E } }), c([-1, -1], 'cut', { out: { top: E, bottom: SE } }),
-      c([-1, 0], 'gather', { out: { out: NE } }),
-      war([0, -1], { dealer: SW, out: { win: E, dlose: SE } }), pass([0, 0], NE),
-      c([1, -1], 'gather', { out: { out: SE } }),
+      c([-1, 0], 'cut', { out: { top: E, bottom: SE } }),
+      c([-1, 1], 'cut', { out: { top: E, bottom: SE } }), pass([-1, 2], NE),
+      war([0, 1], { dealer: SW, out: { win: NE, dwin: NE, lose: NW, dlose: NW } }),
+      war([0, 0], { dealer: SE, out: { win: E, dwin: E, lose: NE, dlose: NE } }),
+      war([1, 0], { dealer: SW, out: { win: NW, dwin: NW, lose: NW, dlose: NW } }),
+      c([1, -1], 'gather', { under: SW, out: { out: E } }),
     ],
   },
   'royal-flush': {

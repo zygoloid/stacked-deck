@@ -85,9 +85,19 @@ export const suitRun = (s) => RANKS.map((r) => r + s);
 // everything up to and including its newest croupier (see docs/campaign.md
 // for which floor introduces each one). Groups are introduced together.
 const INTRODUCED = [
-  ['pass'], ['suits'], ['straight'], ['shoe', 'gather', 'cut'], ['flush'], ['kind'], ['war'],
+  ['pass'], ['suits'], ['straight'], ['gather'], ['cut'], ['shoe'], ['kind'], ['war'], ['flush'],
   ['duplicate'], ['set'], ['inshuffle', 'outshuffle'], ['deal'], ['burn'], ['sort'], ['hand'],
 ];
+// Exactly these croupiers, in the order they are introduced: for floors that
+// left the campaign or moved within it, whose palette must never lose a
+// croupier (a player's saved machine may use any of them) whatever the
+// campaign introduces when.
+export function paletteOf(...names) {
+  const order = INTRODUCED.flat();
+  for (const n of names) if (!order.includes(n)) throw new Error(`unknown croupier ${n}`);
+  return order.filter((n) => names.includes(n));
+}
+
 export function paletteThrough(newest) {
   const i = INTRODUCED.findIndex((g) => g.includes(newest));
   if (i < 0) throw new Error(`unknown croupier ${newest}`);
