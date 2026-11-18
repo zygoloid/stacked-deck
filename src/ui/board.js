@@ -286,6 +286,16 @@ export class Board {
       }
     }
 
+    // The tutorial's ring (src/ui/coach.js): a hex to use, and the edge to point.
+    if (state.coach) {
+      const [x, y] = center(state.coach.at);
+      const g = s('g', { class: 'coach-mark', transform: `translate(${x},${y})` }, s('polygon', { class: 'hex coach-ring', points: HEX_IN }));
+      if (state.coach.side !== null && state.coach.side !== undefined) {
+        const [[x1, y1], [x2, y2]] = edge(state.coach.side, R - 5, 0.8);
+        g.append(s('line', { class: 'coach-edge', x1, y1, x2, y2 }));
+      }
+      gOver.append(g);
+    }
     // The empty hex the croupier picker is open for, and the edge its first port will point at.
     if (state.pick) {
       const [x, y] = center(state.pick.at);
