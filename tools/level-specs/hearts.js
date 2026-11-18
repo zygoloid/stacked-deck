@@ -3,41 +3,55 @@
 import { E, SE, SW, W, NW, NE, c, pass, shoe } from './shared.js';
 
 export const SPECS = {
-  'opening-night': { cells: [pass([-1, 0], E), pass([0, 0], E), pass([1, 0], E)] },
-  'around-the-bar': {
-    cells: [pass([-2, 0], NE), pass([-1, -1], NE), pass([0, -2], E), pass([1, -2], E),
-      pass([2, -2], SE), pass([2, -1], SE), pass([2, 0], E)],
+  // A pass line per table. Sending the bottom table up into the top line
+  // through the gap in the bar saves a croupier, and is slower.
+  'first-night': { cells: [pass([0, -1], E), pass([1, -1], E), pass([0, 0], SE), pass([0, 1], E)] },
+  'red-and-black': {
+    cells: [pass([-2, 0], E), c([-1, 0], 'suits', { out: { H: NE, D: NE, S: SE, C: SE } })],
   },
-  // Merging the twins early is cheapest; a line per table is faster.
-  'two-tables': { cells: [pass([-1, 0], E), pass([-1, 1], NE), pass([0, 0], E), pass([1, 0], E)] },
-  'hearts-only': {
-    nodes: { su: c([-1, 0], 'suits') },
-    links: [['su', 'H', 'desk']],
+  // One straight for both tables (the twins merge into it); a straight per
+  // table is a croupier more, and faster.
+  'two-at-a-time': { cells: [pass([-1, 1], NE), c([0, 0], 'straight', { out: { yes: E } })] },
+  'thursdays-game': {
+    // A run is paid at once. Otherwise Suits splits the hand, each suit to a
+    // side of its own: a suited hand stays one pile of two, which is not a
+    // run (it just failed), while any other hand becomes two single cards,
+    // each a run. The second straight pays its "no".
+    cells: [
+      c([-2, 0], 'straight', { out: { yes: NW, no: E } }),
+      c([-1, 0], 'suits', { out: { S: E, H: NE, D: SE, C: SW } }),
+      pass([0, -1], SE), pass([-1, 1], NE), pass([-2, 1], E),
+      c([0, 0], 'straight', { out: { no: E } }),
+    ],
   },
-  'seeing-red': {
-    nodes: { su: c([-2, 1], 'suits') },
-    links: [['su', ['H', 'D'], 'desk']],
+  'threes-company': {
+    cells: [c([-1, 0], 'gather', { out: { out: E } }), c([0, 0], 'gather', { out: { out: E } }), c([1, 0], 'straight', { out: { yes: E } })],
   },
-  'standing-room': {
-    nodes: { a: pass([-1, -2]), b: c([-2, 0], 'suits'), cc: pass([-3, 2]) },
-    links: [['a', 'out', 'b'], ['cc', 'out', 'b'], ['b', ['H', 'S'], 'desk']],
+  'in-the-black': {
+    // Spades and clubs reach the gather from different sides, so the first
+    // two black cards after a payout start a pile; the pile goes round the
+    // gather and the straight, picking up one black card a lap. Black cards
+    // come every other turn, as fast as the pile gets round.
+    cells: [
+      c([-1, 1], 'suits', { out: { S: NE, C: E } }), pass([0, 1], NW),
+      c([0, 0], 'gather', { out: { out: E } }), c([1, 0], 'straight', { out: { yes: E, no: W } }),
+    ],
   },
-  'black-tie': {
-    nodes: { a: pass([-3, 0]), b: c([-2, 1], 'suits') },
-    links: [['a', 'out', 'b'], ['b', ['S', 'C'], 'desk']],
+  'top-and-bottom': {
+    // Cut into pieces and gather the top and bottom cards. Two completed cuts
+    // (both halves to one side, which turns the hand) and a cut keeping the
+    // top half do it with three croupiers.
+    cells: [
+      c([-1, 0], 'cut', { out: { top: NE, bottom: SE } }), c([0, -1], 'cut', { out: { top: SE } }),
+      c([-1, 1], 'cut', { out: { bottom: E } }), c([0, 1], 'cut', { out: { bottom: NW } }),
+      c([0, 0], 'gather', { out: { out: E } }),
+    ],
   },
-  'back-to-back': {
-    // Merging the twins before the straight is cheapest; a straight per table
-    // costs one more croupier and is faster.
-    nodes: { a: pass([-4, 2]), b: pass([-3, 0]), st: c([-3, 1], 'straight') },
-    links: [['a', 'out', 'st'], ['b', 'out', 'st'], ['st', 'yes', 'desk']],
-  },
-  'next-door': {
-    nodes: {
-      g: c([-3, 0], 'gather'), s7: shoe([-3, -1], '7C'),
-      st: c([-2, 0], 'straight'), cut: c([-1, 0], 'cut'),
-    },
-    links: [['s7', null, 'g', 'under'], ['g', 'out', 'st'], ['st', 'yes', 'cut'], ['cut', 'top', 'desk']],
+  'neighbours': {
+    cells: [
+      shoe([-1, -1], '7C', { out: SE }), c([-1, 0], 'gather', { under: NW, out: { out: E } }),
+      c([0, 0], 'straight', { out: { yes: E } }), c([1, 0], 'cut', { out: { top: E } }),
+    ],
   },
   'lucky-seven': {
     // Two neighbour tests in a row, each with its own reference and cut:
@@ -50,35 +64,23 @@ export const SPECS = {
       c([1, -1], 'straight', { out: { yes: SW } }), c([0, 0], 'cut', { out: { top: E } }),
     ],
   },
-  'penny-ante': {
-    // [X, 2] catches A and 3; what's left loses its 2 and goes on to [X, 3]
-    // for 2 and 4. Each stage strips its reference with its own cut.
+  'sevens-and-eights': {
+    // A reference card, a Kind (2) and a cut per table. Gathering each
+    // table's reference first and then sharing one Kind and one cut saves two
+    // croupiers, and is slower.
     cells: [
-      shoe([-2, -1], '2C', { out: SE }), c([-2, 0], 'gather', { under: NW, out: { out: E } }),
-      c([-1, 0], 'straight', { out: { yes: SE, no: NE } }),
-      c([-1, 1], 'cut', { out: { top: E } }),
-      c([0, -1], 'cut', { out: { top: NE } }),
-      shoe([0, -2], '3C', { out: E }), c([1, -2], 'gather', { under: W, out: { out: SE } }),
-      c([1, -1], 'straight', { out: { yes: SW } }),
-      c([0, 0], 'cut', { out: { top: SE } }),
-      pass([0, 1], E),
+      shoe([-1, -1], '7C', { out: SE }), c([-1, 0], 'gather', { under: NW, out: { out: E } }),
+      c([0, 0], 'kind', { n: 2, out: { yes: E } }), c([1, 0], 'cut', { out: { top: E } }),
+      shoe([-1, 2], '8C', { out: NW }), c([-1, 1], 'gather', { under: SE, out: { out: E } }),
+      c([0, 1], 'kind', { n: 2, out: { yes: E } }), c([1, 1], 'cut', { out: { top: NE } }),
     ],
   },
-  'royalty': {
-    // Three neighbour tests: [X, Q] catches J and K; the rest lose the Q and
-    // meet [X, J] (10 and Q), and those meet [X, K], which keeps the queens.
-    // Every stage strips its reference with its own cut.
+  'seven-up': {
+    // [a, b, 7, 7] has three of a kind exactly when a or b is a 7.
     cells: [
-      shoe([-3, -1], 'QC', { out: SE }), c([-3, 0], 'gather', { under: NW, out: { out: E } }),
-      c([-2, 0], 'straight', { out: { yes: SE, no: NE } }),
-      c([-2, 1], 'cut', { out: { top: E } }),
-      c([-1, -1], 'cut', { out: { top: E } }),
-      shoe([0, -2], 'JC', { out: SE }), c([0, -1], 'gather', { under: NW, out: { out: E } }),
-      c([1, -1], 'straight', { out: { yes: SE } }),
-      c([1, 0], 'cut', { out: { top: SE } }),
-      shoe([0, 2], 'KC', { out: NE }), c([1, 1], 'gather', { under: SW, out: { out: W } }),
-      c([0, 1], 'straight', { out: { yes: SW } }),
-      c([-1, 2], 'cut', { out: { top: NW } }),
+      shoe([-1, -2], '7C', { out: SE }), shoe([0, -2], '7D', { out: SW }), c([-1, -1], 'gather', { out: { out: SW } }),
+      c([-2, 0], 'gather', { under: NE, out: { out: SE } }),
+      c([-2, 1], 'kind', { n: 3, out: { yes: E } }), c([-1, 1], 'cut', { out: { top: E } }),
     ],
   },
   'even-money': {
@@ -93,6 +95,19 @@ export const SPECS = {
       c([1, 1], 'cut', { out: { top: W } }),
       shoe([0, 2], 'JC', { out: NW }), c([0, 1], 'gather', { under: SE, out: { out: W } }),
       c([-1, 1], 'straight', { out: { yes: W } }), c([-2, 1], 'cut', { out: { top: NE } }),
+    ],
+  },
+  'lucky-number': {
+    // Four sevens on top of the hand: five of a kind means at least one 7 in
+    // the hand, six means two. The sevens are added one at a time, four shoes
+    // and four gathers. (A loop that builds the stack of sevens is cheaper.)
+    cells: [
+      shoe([-3, -1], '7C', { out: SE }), c([-3, 0], 'gather', { under: W, out: { out: NE } }),
+      shoe([-2, -2], '7D', { out: SE }), c([-2, -1], 'gather', { under: SW, out: { out: E } }),
+      shoe([-1, -2], '7H', { out: SE }), c([-1, -1], 'gather', { under: W, out: { out: E } }),
+      shoe([0, -2], '7S', { out: SE }), c([0, -1], 'gather', { under: W, out: { out: SW } }),
+      c([-1, 0], 'kind', { n: 5, out: { yes: SE } }), c([-1, 1], 'kind', { n: 6, out: { no: SE } }),
+      c([-1, 2], 'cut', { out: { bottom: NE } }),
     ],
   },
 };
