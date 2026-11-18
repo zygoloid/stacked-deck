@@ -9,7 +9,7 @@ import { loadSave, writeSave, watchSave, saveProblem, isOpen, rescoreStale } fro
 import { levelSelect, storyScreen, helpPanel } from './screens.js';
 import { openEditor } from './editor.js';
 import { createCloud } from './cloud.js';
-import { LEVELS as REAL_LEVELS, BONUS as REAL_BONUS } from '../levels.js';
+import { LEVELS as REAL_LEVELS, BONUS as REAL_BONUS, FLOOR as REAL_FLOOR } from '../levels.js';
 import { confirmOtherAccount, askName, inviteFlow } from './account.js';
 import { downloadSave } from './savefile.js';
 import { h } from './dom.js';
@@ -61,7 +61,7 @@ let pendingSolution = null;
 // editor reopens with it. The beta has none: its floors aren't the live
 // game's, so the server would refuse them (ctx.cloud is null).
 ctx.cloud = CHANNEL === 'beta' ? null : createCloud({
-  save, persist: ctx.persist, levels: [...REAL_LEVELS, ...(REAL_BONUS ?? [])],
+  save, persist: ctx.persist, levels: [...REAL_LEVELS, ...(REAL_BONUS ?? []), ...(REAL_FLOOR ?? [])],
   ui: {
     confirmOtherAccount, askName,
     cleared: () => ctx.go('#/'),
@@ -100,11 +100,13 @@ showProblem(saveProblem());
 
 // The floor to offer after clearing `level`: the next campaign floor; for a
 // bonus floor, the next open bonus floor (after it, else an earlier unsolved
-// one), or null (back to the floors list).
+// one), or null (back to the floors list); for one of the floor's levels,
+// null.
 function nextLevel(level) {
   const i = CAMPAIGN.indexOf(level);
   if (i >= 0) return CAMPAIGN[i + 1] ?? null;
   const b = BONUS.indexOf(level);
+  if (b < 0) return null;
   const open = (l) => l !== level && isOpen(save, l);
   return BONUS.slice(b + 1).find(open) ?? BONUS.slice(0, b).find((l) => open(l) && !save.levels[l.id]?.solved) ?? null;
 }

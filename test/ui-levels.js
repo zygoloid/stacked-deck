@@ -4,6 +4,10 @@
 // to the floor and bonus unlocking whatever the real content is. Not part of the game; ids start with `test-`.
 import { newDeckIndex } from '../src/cards.js';
 import { makeTests } from '../src/levels/shared.js';
+import { LEVELS } from '../src/levels.js';
+
+// The first two campaign floors (whatever they are).
+const FIRST = LEVELS[0].id, SECOND = LEVELS[1].id;
 
 const source = (at, out) => ({ at, kind: 'source', out });
 const desk = (at) => ({ at, kind: 'payout' });
@@ -19,7 +23,7 @@ export const BONUS = [
   {
     id: 'test-pay-twice',
     card: 'AS',
-    unlockAfter: 'opening-night',
+    unlockAfter: FIRST,
     title: 'Double or Nothing',
     story: ['Test floor: every hand is paid twice.'],
     brief: 'Pay every hand twice.',
@@ -32,7 +36,7 @@ export const BONUS = [
   {
     id: 'test-sorted',
     card: 'KH',
-    unlockAfter: 'opening-night',
+    unlockAfter: FIRST,
     title: 'Fresh Out of the Box',
     story: ['Test floor: every hand is paid in new deck order.'],
     brief: 'Pay every hand sorted into new deck order.',
@@ -45,7 +49,7 @@ export const BONUS = [
   },
   {
     id: 'test-locked',
-    unlockAfter: 'around-the-bar',
+    unlockAfter: SECOND,
     title: 'Back Room',
     story: ['Test floor: opens after the second campaign floor.'],
     brief: 'Pay out every card.',
@@ -57,7 +61,7 @@ export const BONUS = [
   },
   {
     id: 'test-two-keys',
-    unlockAfter: ['around-the-bar', 'test-pay-twice'],
+    unlockAfter: [SECOND, 'test-pay-twice'],
     title: 'Two Keys',
     story: ['Test floor: opens after a campaign floor and a bonus floor.'],
     brief: 'Pay out every card.',
@@ -69,7 +73,7 @@ export const BONUS = [
   },
   {
     id: 'test-hearts',
-    unlockAfter: 'around-the-bar',
+    unlockAfter: SECOND,
     title: 'Hearts Tonight',
     story: ['Test floor: the tests deal only hearts, so paying everything passes them, but not the check deals.'],
     brief: 'Pay out the hearts.',
@@ -81,7 +85,7 @@ export const BONUS = [
   },
   {
     id: 'test-bolted',
-    unlockAfter: 'around-the-bar',
+    unlockAfter: SECOND,
     title: 'Bolted Down',
     story: ['Test floor: a Sort croupier is bolted to the floor; only the top card\'s place matters.'],
     brief: 'Pay every hand with its first card in new deck order on top.',
@@ -92,6 +96,37 @@ export const BONUS = [
     ordered: [0],
     expected: (inputs) => inputs.map((hand) => { const [top, ...rest] = deckOrder(hand); return [top, ...rest.reverse()]; }),
     tests: tests(['KS AS 5D', '2H 3H 7C'], ['QD JC TS']),
+  },
+];
+
+// Test-only floors for the floor tab (catalog.js FLOOR, with ?testlevels):
+// one opens with the first campaign floor, one with the second.
+export const FLOOR = [
+  {
+    id: 'test-dropped',
+    card: 'AH',
+    unlockAfter: FIRST,
+    title: 'Swept Up',
+    story: ['Test floor: a card dropped from the campaign.'],
+    brief: 'Pay out every card.',
+    handSize: 1,
+    floor, fixed: FIXED,
+    croupiers: ['pass'],
+    pays: () => true,
+    tests: tests(['AS', '2D']),
+  },
+  {
+    id: 'test-dropped-later',
+    card: '7D',
+    unlockAfter: SECOND,
+    title: 'Under the Table',
+    story: ['Test floor: a card dropped from the campaign, opened by the second floor.'],
+    brief: 'Pay out every card.',
+    handSize: 1,
+    floor, fixed: FIXED,
+    croupiers: ['pass'],
+    pays: () => true,
+    tests: tests(['AS', '2D']),
   },
 ];
 

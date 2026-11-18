@@ -1,7 +1,7 @@
 // Checks for src/score.js: the strict validator, solution hashes, and the
 // port table (which must match the editor's croupier table).
 import assert from 'node:assert';
-import { LEVELS, BONUS } from '../src/levels.js';
+import { LEVELS, BONUS, ALL_LEVELS } from '../src/levels.js';
 import {
   PORTS, REQUIRED, validateCells, canonicalCells, solutionHash, scoreMachine, MAX_DECK, MAX_HAND, checkDeals, CHECK_DEALS, toSpec,
 } from '../src/score.js';
@@ -9,7 +9,7 @@ import { runTest } from '../src/engine.js';
 import { makeTests } from '../src/levels/shared.js';
 import { CROUPIERS } from '../src/ui/croupiers.js';
 
-const ALL = [...LEVELS, ...BONUS];
+const ALL = ALL_LEVELS;
 const scoreTests = (level, cells) => level.tests.every((t) => runTest(toSpec(level, cells), t, level).ok);
 const byId = new Map(ALL.map((l) => [l.id, l]));
 const reference = async (level) => {

@@ -1,7 +1,7 @@
 // Level select, story and help screens.
 import { h, s, handEl, SPECIAL_FACE, SUIT_GLYPH, SUIT_NAME, uiScale } from './dom.js';
 import { CROUPIERS, PORT_STYLE, chipLabel, sampleCell } from './croupiers.js';
-import { CAMPAIGN as LEVELS, BONUS, ALL_LEVELS, findLevel } from './catalog.js';
+import { CAMPAIGN as LEVELS, BONUS, FLOOR, ALL_LEVELS, findLevel } from './catalog.js';
 import { RULES_VERSION } from '../engine.js';
 import { CHANNEL } from '../build.js';
 import { devMode, devBar, channelBadge } from './dev.js';
@@ -16,12 +16,14 @@ import { standing } from '../online.js';
 const SPECIAL_TILE = { '?': 'f-mono', '??': 'f-colour', '$': 'f-front', '$$': 'f-back' };
 
 // The floors list's own settings, kept in this browser only: which deck is
-// showing and which suits are folded away.
+// showing (the campaign, the bonus deck or the floor) and which suits are
+// folded away.
+const DECKS = ['campaign', 'bonus', 'floor'];
 const UI_KEY = CHANNEL === 'beta' ? 'stacked-deck-beta-ui' : 'stacked-deck-ui';
 function loadUi() {
   try {
     const u = JSON.parse(localStorage.getItem(UI_KEY) || 'null');
-    if (u && typeof u === 'object') return { deck: u.deck === 'bonus' ? 'bonus' : 'campaign', folded: Array.isArray(u.folded) ? u.folded : [] };
+    if (u && typeof u === 'object') return { deck: DECKS.includes(u.deck) ? u.deck : 'campaign', folded: Array.isArray(u.folded) ? u.folded : [] };
   } catch { /* unreadable or blocked storage */ }
   return { deck: 'campaign', folded: [] };
 }
@@ -43,8 +45,9 @@ export function levelSelect(root, ctx, focus = null) {
   const { save, cloud } = ctx;
   const signedIn = cloud?.state() === 'signed-in';
   const ui = loadUi();
-  if (focus) ui.deck = BONUS.some((l) => l.id === focus) ? 'bonus' : 'campaign';
-  if (!BONUS.length) ui.deck = 'campaign';
+  if (focus) ui.deck = BONUS.some((l) => l.id === focus) ? 'bonus' : FLOOR.some((l) => l.id === focus) ? 'floor' : 'campaign';
+  if (ui.deck === 'bonus' && !BONUS.length) ui.deck = 'campaign';
+  if (ui.deck === 'floor' && !FLOOR.length) ui.deck = 'campaign';
   const chapters = new Map();
   LEVELS.forEach((lv, i) => {
     const ch = lv.chapter ?? 1;
@@ -53,6 +56,7 @@ export function levelSelect(root, ctx, focus = null) {
   });
   const solvedCount = LEVELS.filter((l) => save.levels[l.id]?.solved).length;
   const bonusSolved = BONUS.filter((l) => save.levels[l.id]?.solved).length;
+  const floorSolved = FLOOR.filter((l) => save.levels[l.id]?.solved).length;
 
   // Everyone's and friends' scores on a floor, as last read (signed in only),
   // and how the player's best compares with them and with par.
@@ -86,10 +90,10 @@ export function levelSelect(root, ctx, focus = null) {
           h('button', { class: 'btn ghost small', title: 'Download your progress, or load a save file', onclick: () => saveFileDialog(ctx, ALL_LEVELS) }, 'Save file'),
           h('span', { class: 'rules-version', title: 'Version of the game rules this page is running' }, `rules v${RULES_VERSION}`),
           channelBadge()),
-        solvedCount + bonusSolved ? legend() : null,
+        solvedCount + bonusSolved + floorSolved ? legend() : null,
         devBar(() => (ctx.rerender ?? draw)(), () => ctx.rescoreAll())),
-      BONUS.length ? deckTabs() : null,
-      ui.deck === 'bonus' ? bonusDeck() : campaignDeck(),
+      BONUS.length || FLOOR.length ? deckTabs() : null,
+      ui.deck === 'bonus' ? bonusDeck() : ui.deck === 'floor' ? floorDeck() : campaignDeck(),
       pop].flat().filter(Boolean));
     layHands();
     pinFoil();
@@ -109,8 +113,9 @@ export function levelSelect(root, ctx, focus = null) {
         : cloud ? h('span', { class: 'muted' }, 'Sign in to compare with everyone else') : null);
   }
 
-  // The two decks, as two card boxes: the campaign (red backs) and the bonus
-  // deck (blue backs), each with how much of it is cleared.
+  // The decks, as card boxes: the campaign (red backs), the bonus deck (blue
+  // backs) and the floor (cards dropped from the campaign), each with how much
+  // of it is cleared.
   function deckTabs() {
     const tab = (deck, title, sub, done, total) => h('button', {
       class: `deck-tab ${deck}${ui.deck === deck ? ' on' : ''}`, role: 'tab', 'aria-selected': String(ui.deck === deck), 'data-deck': deck,
@@ -131,7 +136,8 @@ export function levelSelect(root, ctx, focus = null) {
       h('span', { class: 'deck-bar', 'aria-hidden': 'true' }, h('i', { style: { width: `${total ? (100 * done) / total : 0}%` } }))));
     return h('nav', { class: 'decks', role: 'tablist', 'aria-label': 'Decks' },
       tab('campaign', 'Campaign', 'Red deck · the story', solvedCount, LEVELS.length),
-      tab('bonus', 'Bonus deck', 'Blue deck · off the books', bonusSolved, BONUS.length));
+      BONUS.length ? tab('bonus', 'Bonus deck', 'Blue deck · off the books', bonusSolved, BONUS.length) : null,
+      FLOOR.length ? tab('floor', 'The floor', 'Dropped cards · old floors', floorSolved, FLOOR.length) : null);
   }
 
   function campaignDeck() {
@@ -151,6 +157,30 @@ export function levelSelect(root, ctx, focus = null) {
       h('p', { class: 'bonus-note' }, 'Extra floors outside the campaign. Each one opens when you clear the floors named on its back (★ marks a bonus floor).'),
       groups.map((g) => suitSection(`b${g.key}`, g.floors.map((lv) => ({ lv, i: -1 })),
         { glyph: g.glyph, suitName: g.name, red: g.red, name: '', chapter: 'bonus' }, true)));
+  }
+
+  // The floor: floors that have left the campaign, lying where they were
+  // dropped. No suits and no order: each card's place and tilt come from its
+  // id, so they stay put from one visit to the next.
+  function floorDeck() {
+    const hash = (id) => [...id].reduce((a, c) => (Math.imul(a, 31) + c.charCodeAt(0)) >>> 0, 2166136261);
+    const floors = [...FLOOR].sort((a, b) => hash(a.id) - hash(b.id) || (a.id < b.id ? -1 : 1));
+    const tiles = h('div', { class: 'tiles scatter' }, floors.map((lv) => {
+      const k = hash(`${lv.id}:tilt`);
+      const card = bonusTile(lv);
+      card.style.setProperty('--tilt', `${((k % 21) - 10) * 0.8}deg`);
+      card.style.setProperty('--nudge-x', `${(((k >>> 5) % 13) - 6) / 16}rem`);
+      card.style.setProperty('--nudge-y', `${(((k >>> 9) % 13) - 6) / 16}rem`);
+      return card;
+    }));
+    const done = floors.filter((lv) => save.levels[lv.id]?.solved).length;
+    return h('div', { class: 'deck floor' },
+      h('p', { class: 'bonus-note' }, 'Floors that used to be in the campaign, swept off the table but still playable. Each one opens when you clear the floors named on its back.'),
+      h('section', { class: 'chapter floor', 'data-suit': 'floor' },
+        h('h2', {}, h('span', { class: 'ch-toggle static' }, h('span', { class: 'ch-suit' }, '✦'), 'The floor',
+          h('span', { class: 'ch-rule', 'aria-hidden': 'true' }),
+          h('span', { class: `ch-count${done === floors.length ? ' all' : ''}` }, `${done} / ${floors.length}`))),
+        tiles));
   }
 
   // One suit: its heading (a button that folds it away), and its cards; or,
@@ -437,6 +467,7 @@ export function levelSelect(root, ctx, focus = null) {
       // cleared are struck through.
       const needs = unlockIds(lv).map((id) => findLevel(id) ?? id);
       const isBonus = (x) => typeof x !== 'string' && BONUS.includes(x);
+      // (A floor's level opens after campaign floors, named by their cards.)
       const done = (x) => typeof x !== 'string' && !!save.levels[x.id]?.solved;
       const chip = (x) => {
         if (typeof x === 'string') return h('span', { class: 'req' }, x);
@@ -449,7 +480,7 @@ export function levelSelect(root, ctx, focus = null) {
       const title = needs.length
         ? `Clear ${list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list[0]} to open` : 'Locked';
       return devEnter(lv, h('div', {
-        class: 'tile locked bonus', 'data-bonus': lv.id, 'data-card': f.card ?? f.text, title,
+        class: `tile locked${FLOOR.includes(lv) ? ' dropped' : ' bonus'}`, 'data-bonus': lv.id, 'data-card': f.card ?? f.text, title,
       },
       h('div', { class: 'tile-back' }, h('span', { class: 'lock' },
         needs.length ? ['After ', needs.map((x, i) => [i ? ' + ' : '', chip(x)])] : 'Locked')),

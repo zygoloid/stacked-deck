@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LEVELS, BONUS } from '../src/levels.js';
+import { LEVELS, BONUS, ALL_LEVELS } from '../src/levels.js';
 import { CHANNEL } from '../src/build.js';
 
 assert.strictEqual(CHANNEL, 'dev', 'src/build.js says dev in the repository (only builds say otherwise)');
@@ -20,7 +20,7 @@ try {
   assert.strictEqual(channel(join(dir, 'live')), 'live');
   assert.strictEqual(channel(join(dir, 'beta')), 'beta');
   assert(!existsSync(join(dir, 'live/solutions')), 'the live site has no reference solutions');
-  for (const l of [...LEVELS, ...BONUS]) assert(existsSync(join(dir, 'beta/solutions/levels', `${l.id}.js`)), `the beta has ${l.id}'s reference solution`);
+  for (const l of ALL_LEVELS) assert(existsSync(join(dir, 'beta/solutions/levels', `${l.id}.js`)), `the beta has ${l.id}'s reference solution`);
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

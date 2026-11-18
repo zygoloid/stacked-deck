@@ -6,8 +6,11 @@
 // Bonus floors (catalog.js BONUS) have their own `card` labels in the bonus
 // deck: a playing card or special card is drawn as one, any other string is
 // shown as it is, and without one they are numbered B1, B2, ...
+//
+// The floor's levels (catalog.js FLOOR) keep the card they had in the
+// campaign.
 import { CHAPTERS } from '../levels.js';
-import { CAMPAIGN as LEVELS, BONUS } from './catalog.js';
+import { CAMPAIGN as LEVELS, BONUS, FLOOR } from './catalog.js';
 import { h, SUIT_GLYPH, SUIT_NAME, isSpecialCard, rankText, cardClass, SPECIAL_FACE } from './dom.js';
 import { RANKS } from '../cards.js';
 
@@ -56,6 +59,8 @@ function cardLabel(card) {
 // a campaign floor without a card is "chapter-position".
 export function floorLabel(x) {
   const i = indexOf(x);
+  // The floor's levels keep the campaign card they had (not a bonus card).
+  if (i < 0 && FLOOR.includes(x) && (isSuitCard(x.card) || isSpecialCard(x.card))) return { ...cardLabel(x.card), floor: true };
   if (i < 0) return bonusLabel(x);
   const card = floorCardOf(i);
   if (!card) {
