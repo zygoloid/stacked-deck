@@ -500,7 +500,7 @@ export function levelSelect(root, ctx, focus = null) {
     const f = label ?? floorLabel(i);
     if (!open) {
       // A card back. Special floors keep their card hidden until they open.
-      return devEnter(lv, h('div', { class: 'tile locked', title: 'Clear the previous floors to unlock', 'data-card': f.special ? null : f.card },
+      return devEnter(lv, h('div', { class: 'tile locked', title: 'Clear one of the three floors before it to unlock', 'data-card': f.special ? null : f.card },
         h('div', { class: 'tile-back' }, h('span', { class: 'lock' }, 'Locked')),
         f.special ? null : h('div', { class: `tile-no${f.cls === 'red' ? ' red' : ''}` }, f.text)));
     }

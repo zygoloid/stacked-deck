@@ -90,22 +90,29 @@ export const levelSave = (save, id) => (save.levels[id] ??= {});
 
 export const unlockAll = () => /[?&]unlockall\b/.test(location.search);
 
-// Up to this many unsolved floors are open at once, so a stuck player can
-// skip ahead a little.
-export const OPEN_UNSOLVED = 3;
+// The campaign is open this many floors past the furthest one cleared, so a
+// stuck player can skip ahead a little. Floors skipped behind the furthest
+// clear stay open and don't shrink the window, and a floor inserted earlier
+// in the campaign never closes the ones past it.
+export const OPEN_AHEAD = 3;
 
-// A floor is open if fewer than OPEN_UNSOLVED floors before it are unsolved
-// (solved floors always stay open).
+// The index of the furthest campaign floor cleared (-1 for none).
+export function furthestSolved(save) {
+  for (let i = LEVELS.length - 1; i >= 0; i--) if (save.levels[LEVELS[i].id]?.solved) return i;
+  return -1;
+}
+
+// A campaign floor is open if it is solved or at most OPEN_AHEAD floors past
+// the furthest one cleared (so the first OPEN_AHEAD are open from the start).
 export function isUnlocked(save, index) {
   if (index <= 0 || unlockAll()) return true;
   if (save.levels[LEVELS[index].id]?.solved) return true;
-  const unsolvedBefore = LEVELS.slice(0, index).filter((l) => !save.levels[l.id]?.solved).length;
-  return unsolvedBefore < OPEN_UNSOLVED;
+  return index <= furthestSolved(save) + OPEN_AHEAD;
 }
 
 // A bonus floor opens once its `unlockAfter` floors (campaign or bonus: one
 // id or a list of them) are all solved (one without unlockAfter is open from
-// the start); it never counts towards the campaign's OPEN_UNSOLVED window.
+// the start); it never counts towards the campaign's window.
 // Solved floors always stay open.
 export const unlockIds = (level) => [].concat(level.unlockAfter ?? []);
 export function isBonusOpen(save, level) {
