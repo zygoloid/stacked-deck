@@ -2,7 +2,7 @@
 //   node tools/ui-smoke.js [screenshot-dir]
 // Uses the `playwright` package from node_modules or the global npm root, and
 // the browsers in PLAYWRIGHT_BROWSERS_PATH. It serves the repo itself, solves
-// 'opening-night', checks the save and unlock, records a second (longer)
+// the first campaign floor, checks the save and unlock, records a second (different)
 // solution and checks the solutions plot (load, delete), checks that a wrong payout
 // on the first level that drops hands pauses the run and can be stepped back,
 // checks floor numbering (playing-card labels), special card faces, the shoe
@@ -34,6 +34,11 @@ import { dealLabel } from '../src/ui/board.js';
 const { LEVELS } = L;
 const BONUS_LEVELS = Array.isArray(L.BONUS) ? L.BONUS : [];
 const FLOOR_LEVELS = Array.isArray(L.FLOOR) ? L.FLOOR : [];
+// The first two campaign floors (the campaign flow: solving, unlocking),
+// and a roomy line-of-passes floor for the editor checks that need space
+// (Opening Night as it was, now on the floor tab: opened with ?unlockall).
+const FIRST = LEVELS[0].id, SECOND = LEVELS[1].id;
+const ROOMY = FLOOR_LEVELS.find((l) => l.id === 'opening-night') ?? LEVELS[0];
 const repo = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
 const all = args.includes('--all');          // also solve every level with its reference solution
@@ -48,33 +53,40 @@ async function loadPlaywright() {
 
 const { chromium } = await loadPlaywright();
 
-// Shortest line of passes from the (single) source to the desk: [[at, outSide], ...],
-// avoiding the hexes in `blocked` ("q,r" keys).
-function passLine(lv, blocked = new Set()) {
+// Lines of passes from each source to a desk: [[at, outSide], ...] for all
+// of them, avoiding the hexes in `blocked` ("q,r" keys) and each other. With
+// `merge`, a later source's line may end by joining an earlier one. Null if
+// some source can't reach a desk.
+function passLine(lv, blocked = new Set(), { merge = false } = {}) {
   const key = ([q, r]) => `${q},${r}`;
   const add = ([q, r], d) => [q + DIRS[d][0], r + DIRS[d][1]];
-  const src = lv.fixed.find((c) => c.kind === 'source');
-  const desk = lv.fixed.find((c) => c.kind === 'payout');
+  const desks = new Set(lv.fixed.filter((c) => c.kind === 'payout').map((c) => key(c.at)));
   const floor = new Set(lv.floor.map(key));
   lv.fixed.forEach((c) => floor.delete(key(c.at)));
   blocked.forEach((k) => floor.delete(k));
-  const start = add(src.at, src.out);
-  if (!floor.has(key(start))) return null;
-  const prev = new Map([[key(start), null]]);
-  const queue = [start];
-  while (queue.length) {
-    const at = queue.shift();
-    for (let d = 0; d < 6; d++) {
-      const n = add(at, d);
-      if (key(n) === key(desk.at)) {
-        const line = [[at, d]];
-        for (let p = prev.get(key(at)); p; p = prev.get(key(p[0]))) line.unshift(p);
-        return line;
+  const all = [];
+  for (const src of lv.fixed.filter((c) => c.kind === 'source')) {
+    const used = new Set(all.map(([at]) => key(at)));
+    const start = add(src.at, src.out);
+    if (merge && used.has(key(start))) continue;
+    if (!floor.has(key(start)) || used.has(key(start))) return null;
+    const prev = new Map([[key(start), null]]);
+    const queue = [start];
+    let line = null;
+    while (queue.length && !line) {
+      const at = queue.shift();
+      for (let d = 0; d < 6 && !line; d++) {
+        const n = add(at, d);
+        if (desks.has(key(n)) || (merge && used.has(key(n)))) {
+          line = [[at, d]];
+          for (let p = prev.get(key(at)); p; p = prev.get(key(p[0]))) line.unshift(p);
+        } else if (floor.has(key(n)) && !used.has(key(n)) && !prev.has(key(n))) { prev.set(key(n), [at, d]); queue.push(n); }
       }
-      if (floor.has(key(n)) && !prev.has(key(n))) { prev.set(key(n), [at, d]); queue.push(n); }
     }
+    if (!line) return null;
+    all.push(...line);
   }
-  return null;
+  return all;
 }
 const port = 8000 + Math.floor(Math.random() * 900) + 100;
 const server = spawn(process.execPath, [join(repo, 'tools/serve.js')], { env: { ...process.env, PORT: String(port) }, stdio: 'pipe' });
@@ -112,7 +124,7 @@ try {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.waitForSelector('.tile');
-  check(await page.locator('a.tile[data-level="opening-night"]').count() === 1, 'level select lists opening-night');
+  check(await page.locator(`a.tile[data-level="${FIRST}"]`).count() === 1, `level select lists ${FIRST}`);
   check(await page.locator(`a.tile[data-level="${LEVELS[2].id}"]`).count() === 1, 'first three levels are open');
   check(await page.locator(`a.tile[data-level="${LEVELS[3].id}"]`).count() === 0, 'fourth level is locked');
   // Nothing covers the floors list's header (the editor's styles once took it out of the page flow).
@@ -124,11 +136,15 @@ try {
   check(!covered.length && await page.locator('header.marquee button').count() > 0, `the floors list's header buttons are on top${covered.length ? ` (covered: ${covered.join(', ')})` : ''}`);
   if (shots) await page.screenshot({ path: join(shots, '1-level-select.png') });
 
-  await page.click('a.tile[data-level="opening-night"]');
+  await page.click(`a.tile[data-level="${FIRST}"]`);
   await page.waitForSelector('.story-card');
   check((await page.textContent('.story-card h1')).includes('Opening Night'), 'story screen shows the title');
   await page.click('.story-actions .btn.gold');
   await page.waitForSelector('svg.board');
+  // The tutorial (src/ui/coach.js) on the first floor: a strip above the board.
+  const tutorial = LEVELS[0].tutorial ?? [];
+  const coachStep = async () => ((await page.textContent('.coach:not(.hidden) .coach-count').catch(() => '')) || '').trim();
+  if (tutorial.length) check(await coachStep() === `1 / ${tutorial.length}`, `the first floor starts its tutorial (${await coachStep()})`);
 
   // Screen position of a hex centre (and of a point toward side d).
   const hexPoint = (at, d = null, frac = 0.8) => page.evaluate(([[q, r], d, frac]) => {
@@ -140,8 +156,8 @@ try {
   }, [at, d, frac]);
   const clickHex = async (at, d, frac) => { const [x, y] = await hexPoint(at, d, frac); await page.mouse.click(x, y); };
 
-  // Build the trivial solution: a line of passes from the player to the desk
-  // (for 'opening-night': [-1,0] [0,0] [1,0], out -> E), derived from level.fixed.
+  // Build the trivial solution: a line of passes from each player to a desk,
+  // derived from level.fixed.
   const line1 = passLine(LEVELS[0]);
   const buildLine = async (line) => {
     for (const [at] of line) { await page.click('.pal-item[data-tool="pass"]'); await clickHex(at); } // placing one puts the tool down
@@ -153,10 +169,16 @@ try {
     }
   };
   await buildLine(line1);
+  if (tutorial.length) {
+    // Built ahead of it: it skips to the first step not done yet (play).
+    const playStep = tutorial.findIndex((st) => st.until === 'ran') + 1;
+    check(await coachStep() === `${playStep} / ${tutorial.length}` && await page.locator('.transport .tp.main.coach-glow').count() === 1,
+      `building ahead of the tutorial skips it on to "play", lit up (${await coachStep()})`);
+  }
   check(await page.locator('.sol-btn.hidden').count() === 1, 'no Solutions button before the floor is cleared');
   check((await page.textContent('.stats .stat-v')).trim() === String(line1.length), `croupier count shows ${line1.length}`);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')));
-  const cells = saved?.levels?.['opening-night']?.cells ?? [];
+  const cells = saved?.levels?.[FIRST]?.cells ?? [];
   check(cells.length === line1.length && line1.every(([at, d]) => cells.some((c) => c.at.join() === at.join() && c.fn === 'pass' && c.out.out === d)),
     `machine autosaved: ${line1.map(([at, d]) => `[${at}]->${'E SE SW W NW NE'.split(' ')[d]}`).join(' ')}`);
   // Placing a croupier selects it and puts the palette tool down.
@@ -318,7 +340,7 @@ try {
   check((await page.textContent('.modal.results h2')).includes('cleared'), 'results panel shows the floor cleared');
   if (shots) await page.screenshot({ path: join(shots, '4-results.png') });
   const save = await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')));
-  const lv = save.levels['opening-night'];
+  const lv = save.levels[FIRST];
   check(lv.solved === true && lv.best.croupiers === line1.length && Number.isInteger(lv.best.rounds), `saved solved with best ${JSON.stringify(lv.best)}`);
   check(lv.solutions?.length === 1 && lv.solutions[0].croupiers === line1.length && lv.solutions[0].rounds === lv.best.rounds &&
     lv.solutions[0].cells.length === line1.length && Number.isFinite(lv.solutions[0].at), 'the solution is recorded');
@@ -326,25 +348,43 @@ try {
     'results plot shows the new solution, highlighted');
   const best1 = lv.best;
 
+  if (tutorial.length) {
+    // Cleared: its last step, then gone, and the floor panel offers it again.
+    await page.click('.modal-actions .btn:first-child'); // Keep tinkering
+    check(await coachStep() === `${tutorial.length} / ${tutorial.length}`, `clearing the floor brings the tutorial's last step (${await coachStep()})`);
+    await page.click('.coach-next');
+    await page.keyboard.press('Escape');
+    check(await page.locator('.coach.hidden').count() === 1 && await page.locator('.inspector .coach-again').count() === 1,
+      'finished, the tutorial goes, and the floor panel offers it again');
+    await page.click('.inspector .coach-again');
+    check(await coachStep() !== '', 'the floor panel brings the tutorial back');
+    await page.click('.coach-skip');
+    check(await page.locator('.coach.hidden').count() === 1, 'Skip tutorial hides it');
+    await page.click('.tp.main');
+    await page.waitForSelector('.modal.results', { timeout: 20000 });
+  }
   // Clearing again with the same machine doesn't add a duplicate.
   await page.click('.modal-actions .btn:first-child'); // Keep tinkering
   await page.click('.tp.main');
   await page.waitForSelector('.modal.results', { timeout: 20000 });
-  let ls = (await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')))).levels['opening-night'];
+  let ls = (await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')))).levels[FIRST];
   check(ls.solutions.length === 1 && /already saved/.test(await page.textContent('.modal.results')), 'clearing with the same machine adds no duplicate');
   await page.click('.modal-actions .btn:first-child');
 
-  // A second, longer solution: the shortest line that avoids the first line's middle hex.
-  const line2 = passLine(LEVELS[0], new Set([line1[Math.floor(line1.length / 2)][0].join()]));
-  check(!!line2 && line2.length > line1.length, `a longer route exists (${line2?.length} passes)`);
+  // A second solution: lines that may join each other (on the first floor,
+  // one table's cards into the other's line: fewer croupiers, more rounds),
+  // else the shortest lines that avoid the first machine's middle hex.
+  let line2 = passLine(LEVELS[0], new Set(), { merge: true });
+  if (!line2 || line2.length === line1.length) line2 = passLine(LEVELS[0], new Set([line1[Math.floor(line1.length / 2)][0].join()]));
+  check(!!line2 && line2.length !== line1.length, `a different machine exists (${line2?.length} passes)`);
   await page.click('.pal-tools .btn.danger'); // Clear floor (confirm accepted)
   await buildLine(line2);
   await page.keyboard.press('Escape');
   await page.click('.speeds .sp:last-child');
   await page.waitForSelector('.modal.results', { timeout: 20000 });
-  ls = (await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')))).levels['opening-night'];
+  ls = (await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')))).levels[FIRST];
   check(ls.solutions.length === 2 && ls.solutions[1].croupiers === line2.length, `second solution recorded (${ls.solutions.map((s) => `${s.croupiers}/${s.rounds}`).join(', ')})`);
-  check(ls.best.croupiers === best1.croupiers && ls.best.rounds === Math.min(best1.rounds, ls.solutions[1].rounds), `best is kept per axis: ${JSON.stringify(ls.best)}`);
+  check(ls.best.croupiers === Math.min(best1.croupiers, line2.length) && ls.best.rounds === Math.min(best1.rounds, ls.solutions[1].rounds), `best is kept per axis: ${JSON.stringify(ls.best)}`);
   check(await page.locator('.modal.results .sc-pt').count() === 2 && await page.locator('.modal.results .sc-pt.fresh[data-index="1"]').count() === 1,
     'results plot shows both solutions, the new one highlighted');
   check(await page.locator('.modal.results .sc-front').count() === 1 && await page.locator('.modal.results .sc-par').count() === (LEVELS[0].par ? 1 : 0), 'plot draws the frontier and par');
@@ -369,7 +409,7 @@ try {
   check(await page.locator('.modal.solutions .sc-pt.current[data-index="0"]').count() === 1, 'the loaded machine is highlighted');
   if (shots) await page.screenshot({ path: join(shots, '4c-solutions-panel.png') });
   await page.click('.modal.solutions .sol-row[data-index="1"] .sol-del'); // confirm accepted
-  ls = (await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')))).levels['opening-night'];
+  ls = (await page.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')))).levels[FIRST];
   check(ls.solutions.length === 1 && ls.solutions[0].croupiers === line1.length && ls.solved, 'deleting removes it from the save');
   check(ls.best.croupiers === best1.croupiers && ls.best.rounds === best1.rounds, `best recomputed: ${JSON.stringify(ls.best)}`);
   check(await page.locator('.modal.solutions .sc-pt').count() === 1 && await page.locator('.modal.solutions .sol-row').count() === 1 &&
@@ -408,7 +448,7 @@ try {
 
   await page.goto(base);
   await page.waitForSelector('.tile');
-  check(await page.locator('a.tile.solved[data-level="opening-night"]').count() === 1, 'level select marks opening-night solved');
+  check(await page.locator(`a.tile.solved[data-level="${FIRST}"]`).count() === 1, `level select marks ${FIRST} solved`);
   check(await page.locator(`a.tile[data-level="${LEVELS[3].id}"]`).count() === 1, `clearing a floor opens ${LEVELS[3].id}`);
   check(await page.locator(`a.tile[data-level="${LEVELS[4].id}"]`).count() === 0, `${LEVELS[4].id} still locked`);
   {
@@ -417,22 +457,22 @@ try {
     const [w, hgt] = sizes[0].split('x').map(Number);
     check(new Set(sizes).size === 1 && Math.abs(w / hgt - 5 / 7) < 0.01, `floor cards are all ${sizes[0]} (${new Set(sizes).size} sizes)`);
     // The cleared floor's best against par, and its chart on hovering it.
-    const marks = await page.$$eval('a.tile[data-level="opening-night"] .ts-axis', (els) => els.map((e) => e.className));
+    const marks = await page.$$eval(`a.tile[data-level="${FIRST}"] .ts-axis`, (els) => els.map((e) => e.className));
     const par = LEVELS[0].par;
-    check(marks.length === 2 && (par.croupiers !== 3 || par.rounds !== 33 || marks.every((c) => c.includes('ts-at'))), `cleared card marks its best against par (${marks.join(', ')})`);
-    await page.hover('a.tile[data-level="opening-night"]');
+    check(marks.length === 2 && (best1.croupiers !== par.croupiers || best1.rounds !== par.rounds || marks.every((c) => c.includes('ts-at'))), `cleared card marks its best against par (${marks.join(', ')})`);
+    await page.hover(`a.tile[data-level="${FIRST}"]`);
     await page.waitForSelector('.tile-pop:not(.hidden) .sc-svg', { timeout: 3000 }).catch(() => {});
     check(await page.locator('.tile-pop:not(.hidden) .sc-pt').count() >= 1, 'hovering a cleared card shows its chart');
     await page.mouse.move(2, 2);
     await page.waitForTimeout(300);
     check(await page.locator('.tile-pop.hidden').count() === 1, 'the chart goes away on leaving the card');
     // Clicking one of the player's points on it opens the floor with that machine.
-    await page.hover('a.tile[data-level="opening-night"]');
+    await page.hover(`a.tile[data-level="${FIRST}"]`);
     await page.waitForSelector('.tile-pop:not(.hidden) .sc-pt', { timeout: 3000 }).catch(() => {});
     await page.click('.tile-pop .sc-pt');
     await page.waitForSelector('svg.board', { timeout: 5000 }).catch(() => {});
     const toast = await page.textContent('.toast').catch(() => '');
-    check(page.url().endsWith('#/level/opening-night') && /Loaded your/.test(toast ?? ''),
+    check(page.url().endsWith(`#/level/${FIRST}`) && /Loaded your/.test(toast ?? ''),
       `clicking a point on a card's chart opens the floor with that solution ("${(toast ?? '').slice(0, 50)}")`);
     await page.goto(base);
     await page.waitForSelector('.tile');
@@ -467,7 +507,7 @@ try {
   // at the failure. This 'Beat the Dealer' machine plays an 8 instead of a 9,
   // so it passes test 4 (no 9s) and pays a 9 wrongly in test 1.
   {
-    const lv = LEVELS.find((l) => l.id === 'beat-the-dealer');
+    const lv = L.ALL_LEVELS.find((l) => l.id === 'beat-the-dealer');
     const sol = (await import(join(repo, 'solutions/levels/beat-the-dealer.js'))).default;
     const cells = sol.cells.map((c) => (c.kind === 'shoe' ? { ...c, deck: ['8S'] } : c));
     await page.goto(base);
@@ -494,7 +534,7 @@ try {
   // score is corrected, a machine that no longer works is marked broken, and
   // best follows. Re-clearing a saved machine also refreshes its score.
   {
-    const lv = LEVELS.find((l) => l.id === 'beat-the-dealer');
+    const lv = L.ALL_LEVELS.find((l) => l.id === 'beat-the-dealer');
     const sol = (await import(join(repo, 'solutions/levels/beat-the-dealer.js'))).default;
     const broken = sol.cells.map((c) => (c.kind === 'shoe' ? { ...c, deck: ['8S'] } : c));
     await page.goto(base);
@@ -703,7 +743,7 @@ try {
     await phone.reload();
     await phone.waitForSelector('svg.board');
     await phone.locator('svg.board').scrollIntoViewIfNeeded();
-    const free = LEVELS[0].floor.filter((at) => !LEVELS[0].fixed.some((c) => c.at.join() === at.join()));
+    const free = ROOMY.floor.filter((at) => !ROOMY.fixed.some((c) => c.at.join() === at.join()));
     check(!(await phone.isVisible('.palette')), 'phone: no palette');
     // The floor panel: Clear floor at its top; its list of the floor's
     // croupiers unfolded at first (folding it is remembered); touch hints,
@@ -733,7 +773,7 @@ try {
     await phone.click('.zoom button:last-child'); // fit
     const tapItem = async (tool) => { const r = await phone.locator(`.picker-item[data-tool="${tool}"]`).boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
     await tap(await hexAt(free[0]));
-    check(await phone.isVisible('.picker') && await phone.locator('.picker-item').count() === LEVELS[0].croupiers.length,
+    check(await phone.isVisible('.picker') && await phone.locator('.picker-item').count() === ROOMY.croupiers.length,
       'a tap on an empty hex opens the croupier picker');
     if (shots) await phone.screenshot({ path: join(shots, '7a-phone-picker.png') });
     // A long press on a croupier in it shows what it does, without placing it.
@@ -1167,7 +1207,10 @@ try {
       return l.floor.map(([q, r]) => [[q, r], [q + 1, r], [q + 2, r]]).find((hs) => hs.every((x) => buildable.has(key(x))) &&
         hs.every(([q, r]) => DIRS.every(([dq, dr]) => buildable.has(key([q + dq, r + dr])) || hs.some((x) => key(x) === key([q + dq, r + dr])))));
     };
-    const lv = LEVELS.find((l) => ['straight', 'war', 'pass'].every((t) => l.croupiers.includes(t)) && freeRow(l));
+    // (Acey-Deucey, as this was written for: its free row is in the middle of
+    // a wide floor, away from the controls over the board's edges; else the
+    // first floor that fits.)
+    const lv = [L.ALL_LEVELS.find((l) => l.id === 'acey-deucey'), ...LEVELS].find((l) => l && ['straight', 'war', 'pass'].every((t) => l.croupiers.includes(t)) && freeRow(l));
     const digit = (tool) => String(lv.croupiers.indexOf(tool) + 1);
     await page.goto(base);
     await page.evaluate((id) => {
@@ -1868,13 +1911,13 @@ try {
     check(await page.locator('svg.board').count() === 0, 'a locked bonus floor cannot be opened by URL');
     if (shots) await page.locator('.deck.bonus').screenshot({ path: join(shots, '12-bonus-deck-locked.png') });
 
-    await setSave({ 'opening-night': { solved: true } });
+    await setSave({ [FIRST]: { solved: true } });
     await page.goto(T);
     await page.reload();
     await showDeck(page, 'bonus');
     check(await page.locator('.chapter.bonus a.tile.bonus[data-level="test-pay-twice"]').count() === 1 &&
       await page.locator('.chapter.bonus a.tile.bonus[data-level="test-sorted"]').count() === 1 &&
-      await page.locator('.tile.locked.bonus[data-bonus="test-locked"]').count() === 1, 'solving opening-night opens its bonus floors only');
+      await page.locator('.tile.locked.bonus[data-bonus="test-locked"]').count() === 1, `solving ${FIRST} opens its bonus floors only`);
     check((await page.textContent('a.tile[data-level="test-pay-twice"] .tile-corner.tl')) === 'A♠' &&
       (await page.textContent('.tile.locked.bonus[data-bonus="test-locked"] .tile-no')).startsWith('B'), 'bonus tiles are labelled by their bonus card (A♠; B… without one)');
     check(await page.locator(`a.tile[data-level="${LEVELS[4].id}"]`).count() === 0, 'open bonus floors leave the campaign window alone');
@@ -1885,12 +1928,12 @@ try {
       (await page.textContent(`${keys} .req:not(.bonus)`)) === floorLabel(1).text &&
       (await page.textContent(`${keys} .req.bonus`)) === '★A♠' &&
       await page.locator(`${keys} .req.done`).count() === 0, 'a bonus floor needing two floors names both, the bonus one starred');
-    await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true } });
+    await setSave({ [FIRST]: { solved: true }, [SECOND]: { solved: true } });
     await page.reload();
     await showDeck(page, 'bonus');
     check(await page.locator(keys).count() === 1 && await page.locator(`${keys} .req.done:not(.bonus)`).count() === 1 &&
       await page.locator(`${keys} .req.bonus.done`).count() === 0, 'it stays locked with one of the two cleared, which is struck through');
-    await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true }, 'test-pay-twice': { solved: true } });
+    await setSave({ [FIRST]: { solved: true }, [SECOND]: { solved: true }, 'test-pay-twice': { solved: true } });
     await page.reload();
     await showDeck(page, 'bonus');
     check(await page.locator('a.tile[data-level="test-two-keys"]').count() === 1, 'and opens once both are cleared');
@@ -1908,7 +1951,7 @@ try {
       check(await page.locator('.deck.floor .tiles.scatter').count() === 1, 'the floor\'s cards lie scattered');
       if (shots) await page.locator('.deck.floor').screenshot({ path: join(shots, '12c-the-floor.png') });
     }
-    await setSave({ 'opening-night': { solved: true } });
+    await setSave({ [FIRST]: { solved: true } });
     await page.reload();
     await showDeck(page, 'bonus');
 
@@ -1923,7 +1966,7 @@ try {
     await page.waitForSelector('.deck');
     check(await page.locator('.deck.bonus a.tile[data-level="test-pay-twice"]').isVisible() && await page.locator('.deck-tab.bonus.on').count() === 1,
       'back from a bonus floor, the floors list shows the bonus deck');
-    await setSave({ 'opening-night': { solved: true }, 'test-pay-twice': { cells: SOLUTIONS['test-pay-twice'] } });
+    await setSave({ [FIRST]: { solved: true }, 'test-pay-twice': { cells: SOLUTIONS['test-pay-twice'] } });
     await page.goto(`${T}#/level/test-pay-twice`);
     await page.reload();
     await page.waitForSelector('svg.board');
@@ -1975,7 +2018,7 @@ try {
     // Check deals: a machine that only fits the published tests (they deal
     // only hearts) passes them and fails a check deal, which is loaded and
     // explained, and the floor stays uncleared.
-    await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true }, 'test-hearts': { cells: SOLUTIONS['test-hearts-everything'] } });
+    await setSave({ [FIRST]: { solved: true }, [SECOND]: { solved: true }, 'test-hearts': { cells: SOLUTIONS['test-hearts-everything'] } });
     await page.goto(`${T}#/level/test-hearts`);
     await page.reload();
     await page.waitForSelector('svg.board');
@@ -1992,7 +2035,7 @@ try {
 
     // A croupier bolted to the floor: drawn as such, can't be selected, isn't
     // counted; and a floor where only some card places matter says so.
-    await setSave({ 'opening-night': { solved: true }, 'around-the-bar': { solved: true }, 'test-bolted': { cells: SOLUTIONS['test-bolted'] } });
+    await setSave({ [FIRST]: { solved: true }, [SECOND]: { solved: true }, 'test-bolted': { cells: SOLUTIONS['test-bolted'] } });
     await page.goto(`${T}#/level/test-bolted`);
     await page.reload();
     await page.waitForSelector('svg.board');
