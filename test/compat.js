@@ -8,7 +8,7 @@
 //   node test/compat.js --update   record new floors (and, deliberately,
 //                                  accept changes to existing ones)
 import { readFileSync, writeFileSync } from 'node:fs';
-import { LEVELS, BONUS } from '../src/levels.js';
+import { ALL_LEVELS } from '../src/levels.js';
 
 const file = new URL('./compat.json', import.meta.url);
 const update = process.argv.includes('--update');
@@ -19,7 +19,7 @@ const key = (h) => h.join(',');
 const fixedOf = (l) => l.fixed.map((c) => (c.kind === 'source' || c.kind === 'payout'
   ? { at: c.at, kind: c.kind, ...(c.out !== undefined ? { out: c.out } : {}), ...(c.seat !== undefined ? { seat: c.seat } : {}), ...(c.desk !== undefined ? { desk: c.desk } : {}) }
   : c));
-const levels = [...LEVELS, ...(BONUS ?? [])];
+const levels = ALL_LEVELS;
 const ids = new Set(levels.map((l) => l.id));
 
 const problems = [];
