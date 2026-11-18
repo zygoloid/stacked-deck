@@ -1,5 +1,5 @@
 // Level select, story and help screens.
-import { h, s, handEl, SPECIAL_FACE, SUIT_GLYPH, SUIT_NAME } from './dom.js';
+import { h, s, handEl, SPECIAL_FACE, SUIT_GLYPH, SUIT_NAME, uiScale } from './dom.js';
 import { CROUPIERS, PORT_STYLE, chipLabel, sampleCell } from './croupiers.js';
 import { CAMPAIGN as LEVELS, BONUS, ALL_LEVELS, findLevel } from './catalog.js';
 import { RULES_VERSION } from '../engine.js';
@@ -203,11 +203,13 @@ export function levelSelect(root, ctx, focus = null) {
   const MOVE_MS = 550;
 
   // The width of a card: as many columns of at least 150px as fit the deck,
-  // as the grid in style.css lays them out.
+  // 18px apart, as the grid in style.css lays them out (at the page's
+  // design size: see uiScale).
   function cardWidth() {
     const W = page.querySelector('.deck')?.clientWidth ?? 0;
-    const cols = Math.max(1, Math.floor((W + 18) / (150 + 18)));
-    return { W, w: (W - 18 * (cols - 1)) / cols };
+    const k = uiScale(), min = 150 * k, gap = 18 * k;
+    const cols = Math.max(1, Math.floor((W + gap) / (min + gap)));
+    return { W, w: (W - gap * (cols - 1)) / cols };
   }
 
   // Each card's place in a hand of n cards w wide that fits in W:
@@ -696,7 +698,7 @@ const AXES = ['croupiers', 'rounds'];
 
 
 // A small staircase chart, for the chart button.
-const chartIcon = () => s('svg', { viewBox: '0 0 16 16', width: 14, height: 14, 'aria-hidden': 'true' },
+const chartIcon = () => s('svg', { class: 'chart-icon', viewBox: '0 0 16 16', width: 14, height: 14, 'aria-hidden': 'true' },
   s('path', { d: 'M2 1.5V14.5H15', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5 }),
   s('path', { d: 'M5 3V8.5H9V11.5H13.5', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5 }),
   s('circle', { cx: 5, cy: 8.5, r: 1.6, fill: 'currentColor' }), s('circle', { cx: 9, cy: 11.5, r: 1.6, fill: 'currentColor' }));

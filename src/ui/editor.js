@@ -2,7 +2,7 @@
 import {
   runTest, expectedPayouts, payoutHand, payoutDesk, MAX_FLOOR_CARDS, DIRS,
 } from '../engine.js';
-import { h, s, handEl, cardEl, fmtCards } from './dom.js';
+import { h, s, handEl, cardEl, fmtCards, uiScale } from './dom.js';
 import { listField } from './listfield.js';
 import { formatList, SIDE_TEXT } from './listtext.js';
 import { Board, R, center, axialRound } from './board.js';
@@ -1583,7 +1583,7 @@ export function openEditor(root, ctx, level) {
     if (!ports.length) return;
     radialSide = side;
     const n = ports.length;
-    const ring = n > 4 ? 64 : 54;
+    const ring = (n > 4 ? 64 : 54) * uiScale();
     const items = ports.map((p, i) => {
       const st = PORT_STYLE[p];
       const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
@@ -1610,7 +1610,7 @@ export function openEditor(root, ctx, level) {
     markRadial();
     // Centred on the press, kept inside the board.
     const wrap = radial.parentElement.getBoundingClientRect();
-    const m = ring + 34;
+    const m = ring + 34 * uiScale();
     const cx = Math.max(m, Math.min(wrap.width - m, x - wrap.left));
     const cy = Math.max(m, Math.min(wrap.height - m, y - wrap.top));
     radial.style.transform = `translate(${cx.toFixed(0)}px, ${cy.toFixed(0)}px)`;
@@ -1700,7 +1700,7 @@ export function openEditor(root, ctx, level) {
     pickerArmed = false;
     picker.replaceChildren(
       h('div', { class: 'picker-head' }, side === undefined ? 'Place a croupier' : `Place a croupier, first port ${ARROW[side]} ${SIDE_NAMES[side]}`),
-      h('div', { class: 'picker-grid', style: { gridTemplateColumns: `repeat(${Math.min(4, level.croupiers.length)}, 64px)` } }, level.croupiers.map((name, i) => {
+      h('div', { class: 'picker-grid', style: { gridTemplateColumns: `repeat(${Math.min(4, level.croupiers.length)}, 4rem)` } }, level.croupiers.map((name, i) => {
         const info = CROUPIERS[name];
         if (!info) return null;
         const item = h('button', {
