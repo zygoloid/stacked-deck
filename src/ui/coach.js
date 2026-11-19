@@ -25,7 +25,7 @@ const KEY = CHANNEL === 'beta' ? 'stacked-deck-beta-coach' : 'stacked-deck-coach
 const UI = {
   play: '.transport .tp.main',
   tests: '.panel.tests',
-  ports: '.inspector .port-row',
+  ports: '.inspector .port-row.active', // the port the next edge points
   roster: '.inspector .roster-box',
   undo: '.board-wrap .history',
   brief: '.topbar .brief',
@@ -62,7 +62,7 @@ function met(until, state, acked) {
 // createCoach(level, { tapWord: () => 'tap' | 'click', root: () => element
 // the `ui` selectors are looked up in, changed: () => redraw the editor
 // (which calls update()) }) -> { el, update(state), mark() (the ring for the board, or
-// null), restart(), available, active() }.
+// null), relight(), restart(), available, active() }.
 export function createCoach(level, { tapWord, root, changed }) {
   const steps = level.tutorial ?? [];
   const el = h('div', { class: 'coach hidden', role: 'status', 'aria-live': 'polite' });
@@ -97,8 +97,7 @@ export function createCoach(level, { tapWord, root, changed }) {
   }
 
   function draw() {
-    if (lit) { lit.classList.remove('coach-glow'); lit = null; }
-    if (!on) { el.classList.add('hidden'); el.replaceChildren(); return; }
+    if (!on) { relight(); el.classList.add('hidden'); el.replaceChildren(); return; }
     const step = steps[index];
     el.classList.remove('hidden');
     el.replaceChildren(
@@ -108,16 +107,25 @@ export function createCoach(level, { tapWord, root, changed }) {
         step.until === 'next' ? h('button', { class: 'btn small gold coach-next', onclick: () => { acked = true; advance(); changed(); } },
           index === steps.length - 1 ? 'Done' : 'Next') : null,
         h('button', { class: 'btn small ghost coach-skip', title: 'Hide the tutorial (the floor panel can show it again)', onclick: () => finish(true) }, 'Skip tutorial')));
-    if (step.ui && UI[step.ui]) {
-      lit = root().querySelector(UI[step.ui]);
-      lit?.classList.add('coach-glow');
-    }
+    relight();
+  }
+
+  // Light up the part of the editor the step names (again, after the editor
+  // redraws that part).
+  function relight() {
+    const sel = on && UI[steps[index]?.ui];
+    const now = sel ? root().querySelector(sel) : null;
+    if (lit && lit !== now) lit.classList.remove('coach-glow');
+    lit = now;
+    lit?.classList.add('coach-glow');
   }
 
   return {
     el,
     available: steps.length > 0,
     active: () => on,
+    // The editor redrew a panel: light up the step's part of it again.
+    relight,
     // The hex (and edge) to ring on the board, or null.
     mark: () => (on && steps[index]?.at ? { at: steps[index].at, side: steps[index].side ?? null } : null),
     // The editor's state changed ({ cells, round, cleared }): move on if a
