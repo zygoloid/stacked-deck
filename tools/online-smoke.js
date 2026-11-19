@@ -34,13 +34,15 @@ if (shots) mkdirSync(shots, { recursive: true });
 const DB = process.env.FIREBASE_DATABASE_EMULATOR_HOST;
 if (!DB || !process.env.FIREBASE_AUTH_EMULATOR_HOST) throw new Error('run under firebase emulators:exec with auth and database');
 const NS = 'zygoloid-stacked-deck';
-const LEVEL = 'opening-night';
-const level = LEVELS.find((l) => l.id === LEVEL);
+// The first campaign floor (open from the start, whatever it is).
+const level = LEVELS[0];
+const LEVEL = level.id;
 const refOf = async (id) => ((m) => (m.default ?? Object.values(m)[0]).cells ?? (m.default ?? Object.values(m)[0]))(await import(`../solutions/levels/${id}.js`));
 const REF = await refOf(LEVEL);
-// A second floor, which a friend solves while the player's session is open.
-const LEVEL2 = 'around-the-bar';
-const level2 = LEVELS.find((l) => l.id === LEVEL2);
+// A second floor (the second campaign floor, also open from the start),
+// which a friend solves while the player's session is open.
+const level2 = LEVELS[1];
+const LEVEL2 = level2.id;
 const REF2 = await refOf(LEVEL2);
 
 async function loadPlaywright() {
