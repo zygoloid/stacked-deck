@@ -242,7 +242,7 @@ try {
       document.body.append(svg);
       const board = new Board(svg, level);
       const sim = new Sim({ cells: [...level.fixed, ...cells] }, [['AS', 'KH']], () => true);
-      const draw = (anim) => board.render({ cells, live: sim.floor, paidNow: sim.paidNow, paidNowDesk: sim.paidNowDesk, anim });
+      const draw = (anim) => board.render({ cells, live: sim.floor, paidNow: sim.paidNow, paidNowHex: sim.paidNowHex, anim });
       const inv = svg.getScreenCTM().inverse();
       const at = (el) => { const p = new DOMPoint(0, 0).matrixTransform(el.getScreenCTM()).matrixTransform(inv); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; };
       draw(null);
@@ -267,6 +267,31 @@ try {
     check(r && r.paid && r.desk === r.paid && r.fading.includes(r.dropped) && !r.fading.includes(r.paid),
       `a paid copy of a card slides from its own place, the dropped copy fades (${JSON.stringify(r)})`);
   }
+  // Two desks without labels: a payout is drawn (and counted) only at the
+  // desk it reached.
+  {
+    const r = await page.evaluate(async () => {
+      const { Board } = await import('./src/ui/board.js');
+      const { Sim } = await import('./src/ui/sim.js');
+      const level = {
+        floor: [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1]],
+        fixed: [{ at: [0, 0], kind: 'source', out: 0 }, { at: [2, 0], kind: 'payout' }, { at: [1, 1], kind: 'payout' }],
+      };
+      const cells = [{ at: [1, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } }];
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.style.cssText = 'position:fixed;left:0;top:0;width:600px;height:400px';
+      document.body.append(svg);
+      const board = new Board(svg, level);
+      const sim = new Sim({ cells: [...level.fixed, ...cells] }, [['AS'], ['KH']], () => true);
+      for (let i = 0; i < 10 && !sim.floor.paid.length; i++) sim.step();
+      board.render({ cells, live: sim.floor, paidNow: sim.paidNow, paidNowHex: sim.paidNowHex });
+      const out = [...svg.querySelectorAll('.cell.payout')].map((g) => `${g.dataset.at}:${g.querySelector('.paid-badge-t')?.textContent ?? 0}`);
+      const now = [...svg.querySelectorAll('.paid-now')].length;
+      svg.remove();
+      return { out, now };
+    });
+    check(r.now === 1 && r.out.sort().join(' ') === '1,1:0 2,0:1', `two unlabelled desks: a payout shows only at its own desk (${JSON.stringify(r)})`);
+  }
   // Stepping back over a Duplicate: its copies slide back into the card they
   // copy (rather than fading), and the hand it took slides back to its slot.
   {
@@ -287,7 +312,7 @@ try {
       document.body.append(svg);
       const board = new Board(svg, level);
       const sim = new Sim({ cells: [...level.fixed, ...cells] }, [['AS', 'KH']], () => true);
-      const draw = (anim) => board.render({ cells, live: sim.floor, paidNow: sim.paidNow, paidNowDesk: sim.paidNowDesk, anim });
+      const draw = (anim) => board.render({ cells, live: sim.floor, paidNow: sim.paidNow, paidNowHex: sim.paidNowHex, anim });
       const loose = () => [...svg.querySelectorAll('.l-cards > .scard')].map((e) => {
         const [x, y] = e.getAttribute('transform').match(/translate\(([^,]*),([^)]*)\)/).slice(1).map(Number);
         return { x, y, op: e.getAttribute('opacity') };
@@ -862,8 +887,11 @@ try {
     await tap([playAt.x + playAt.width / 2, playAt.y + playAt.height / 2]);
     check((await phone.textContent('.tp.main')).trim() === '▶' && await phone.locator('.cell.selected').count() === 1,
       'phone: a tap where the play button was neither plays nor deselects');
-    check(/^Pass/.test(await phone.textContent('.sel-bar')) && await phone.locator('.inspector .insp-head button').count() === 0,
+    check(/^Pass/.test(await phone.textContent('.sel-bar')) && await phone.locator('.inspector .insp-head > button').count() === 0,
       'the bar on the floor names the croupier, and has its buttons (none left in the panel)');
+    // With the play controls aside, the panel has play and step of its own.
+    check(await phone.isVisible('.inspector .insp-tp .tp.main') && await phone.isVisible('.inspector .insp-tp .tp:not(.main)'),
+      'phone: the panel of a selected croupier has play and step');
     await phone.tap('.sel-bar [data-act="done"]');
     check(await phone.locator('.cell.selected').count() === 0 && await phone.isVisible('.transport'),
       '✓ (done) deselects it and brings them back');
