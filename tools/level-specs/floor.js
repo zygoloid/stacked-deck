@@ -40,37 +40,6 @@ export const SPECS = {
     },
     links: [['s7', null, 'g', 'under'], ['g', 'out', 'st'], ['st', 'yes', 'cut'], ['cut', 'top', 'desk']],
   },
-  'penny-ante': {
-    // [X, 2] catches A and 3; what's left loses its 2 and goes on to [X, 3]
-    // for 2 and 4. Each stage strips its reference with its own cut.
-    cells: [
-      shoe([-2, -1], '2C', { out: SE }), c([-2, 0], 'gather', { under: NW, out: { out: E } }),
-      c([-1, 0], 'straight', { out: { yes: SE, no: NE } }),
-      c([-1, 1], 'cut', { out: { top: E } }),
-      c([0, -1], 'cut', { out: { top: NE } }),
-      shoe([0, -2], '3C', { out: E }), c([1, -2], 'gather', { under: W, out: { out: SE } }),
-      c([1, -1], 'straight', { out: { yes: SW } }),
-      c([0, 0], 'cut', { out: { top: SE } }),
-      pass([0, 1], E),
-    ],
-  },
-  'royalty': {
-    // Three neighbour tests: [X, Q] catches J and K; the rest lose the Q and
-    // meet [X, J] (10 and Q), and those meet [X, K], which keeps the queens.
-    // Every stage strips its reference with its own cut.
-    cells: [
-      shoe([-3, -1], 'QC', { out: SE }), c([-3, 0], 'gather', { under: NW, out: { out: E } }),
-      c([-2, 0], 'straight', { out: { yes: SE, no: NE } }),
-      c([-2, 1], 'cut', { out: { top: E } }),
-      c([-1, -1], 'cut', { out: { top: E } }),
-      shoe([0, -2], 'JC', { out: SE }), c([0, -1], 'gather', { under: NW, out: { out: E } }),
-      c([1, -1], 'straight', { out: { yes: SE } }),
-      c([1, 0], 'cut', { out: { top: SE } }),
-      shoe([0, 2], 'KC', { out: NE }), c([1, 1], 'gather', { under: SW, out: { out: W } }),
-      c([0, 1], 'straight', { out: { yes: SW } }),
-      c([-1, 2], 'cut', { out: { top: NW } }),
-    ],
-  },
   // Chapter 2's floors replaced when Flush moved after War.
   'either-or': {
     // Suited hands pay unless they're a run; unsuited ones only if they are.
@@ -106,16 +75,6 @@ export const SPECS = {
       shoe([-2, -1], '8C', { out: SE }), war([-2, 0], { dealer: NW, out: { win: E } }),
       shoe([-1, -1], 'QC', { out: SE }), war([-1, 0], { dealer: NW, out: { lose: E } }),
       pass([0, 0], E),
-    ],
-  },
-  'top-of-the-heap': {
-    // Two cuts split off the top card; the other four are gathered as the
-    // dealer's hand, and a gather puts a winning hand back together.
-    cells: [
-      c([-2, 0], 'cut', { out: { top: NE, bottom: E } }), c([-1, -1], 'cut', { out: { top: E, bottom: SE } }),
-      c([-1, 0], 'gather', { out: { out: NE } }),
-      war([0, -1], { dealer: SW, out: { win: E, dlose: SE } }), pass([0, 0], NE),
-      c([1, -1], 'gather', { out: { out: SE } }),
     ],
   },
 };

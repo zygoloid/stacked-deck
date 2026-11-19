@@ -23,14 +23,6 @@ export const MUTANTS = {
   'next-door': {
     '6 only': (h) => r(h) === '6', '8 only': (h) => r(h) === '8', '6 to 8': (h) => '678'.includes(r(h)),
   },
-  'penny-ante': {
-    'aces high': (h) => '234'.includes(r(h)), 'A to 5': (h) => 'A2345'.includes(r(h)),
-    '2 to 4': (h) => '234'.includes(r(h)), 'A to 3': (h) => 'A23'.includes(r(h)),
-  },
-  royalty: {
-    'J and K only': (h) => 'JK'.includes(r(h)), 'with aces': (h) => 'JQKA'.includes(r(h)),
-    'with tens': (h) => 'TJQK'.includes(r(h)),
-  },
   // Chapter 2's floors replaced when Flush moved after War.
   'beat-the-dealer': { 'ties pay': (h) => hv(h[0]) >= 9, 'aces low': (h) => rankValue(h[0]) > 9 },
   'ace-in-the-hole': { 'king or better': (h) => high(h) >= 13, 'top card ace': (h) => rankOf(h[0]) === 'A' },
@@ -53,11 +45,6 @@ export const MUTANTS = {
     '9 to K': (h) => high(h) >= 9 && high(h) <= 13, '10 to Q': (h) => high(h) >= 10 && high(h) <= 12,
     '8 to Q': (h) => high(h) >= 8 && high(h) <= 12, '9 to J': (h) => high(h) >= 9 && high(h) <= 11,
     'top card': (h) => hv(h[0]) >= 9 && hv(h[0]) <= 12,
-  },
-  'top-of-the-heap': {
-    'ties pay': (h) => h.every((c) => hv(h[0]) >= hv(c)), 'beats the next card': (h) => hv(h[0]) > hv(h[1]),
-    'beats the bottom card': (h) => hv(h[0]) > hv(h[4]), 'holds the high card': (h) => h.some((c) => hv(c) === high(h)),
-    'aces low': (h) => h.slice(1).every((c) => rankValue(h[0]) > rankValue(c)),
   },
 };
 
