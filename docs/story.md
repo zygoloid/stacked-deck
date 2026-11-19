@@ -201,47 +201,50 @@ regulation; Ace Count does).
 | 6♠ | Off Suit | Red Flush | the suits croupier is at a wedding; the uncle's red flushes |
 | 7♠ | Every Other | Ace Count | the string quartet's game for the bar |
 | 8♠ | Bookends | Burn Card | the doormen's game, hand against hand |
-| 9♠ | One Deck | Seven Heaven | the auditors have the card room; one deck in a bolted shoe |
-| 10♠ | Cut to the Ace | Burn Card | Old Thursday's force: every long hand comes back with the ace of spades on top |
-| J♠ | Uneven Tables | Crossed Wires and Déjà Vu | the cousins stop playing in step |
-| Q♠ | Four of a Kind | Déjà Vu | the city asks for one more game |
-| K♠ | Missing Card | Four of a Kind | the bottom dealer palms a card from a fresh deck |
-| A♥ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
-| 2♥ | Ceasefire | Next in Line | Pryce bans War for a week; spades only |
-| 3♥ | Three in a Row | Next in Line and Déjà Vu | the mayor's napkin: three in a row |
-| 4♥ | Rising | Every Other and Déjà Vu | the string quartet takes up scales |
-| 5♥ | Odds and Evens | Déjà Vu | Dmitri counts red cards; nought is even |
-| 6♥ | After a Pair | Small Pairs | Dmitri's theory of streaks |
-| 7♥ | Two by Two | Two Pair | the rival's brass section stays for breakfast |
-| 8♥ | The Rest of the Deck | Four of a Kind | Commissioner Pryce audits the house deck |
-| 9♥ | Crazy Eights | High Roller | the rival's old owner's favourite game; nobody calls a new suit |
-| 10♥ | Perfect Pair | Four of a Kind | the two-deck shoe; Sal Vellani's perfect pairs |
-| J♥ | Pot Luck | Crossed Wires and Hot Streak | the Marchetti twins play War for a pot |
-| Q♥ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
-| K♥ | Skeleton Crew | Calling Card and Night Off | the suits and flush croupiers both off; the uncle asks only for hearts |
-| A♣ | In-Between | Low Kicker and One Deck | the uncle bets the middle at In-Between; the one War croupier is bolted down |
-| 2♣ | Dumbwaiter | In-Between and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
-| 3♣ | No Kings | Skeleton Crew | both croupiers off at a No Kings rally; the players leave their kings at home |
-| 4♣ | One Up | Counting Up | Old Thursday's last (and best) trick |
-| 5♣ | Twenty-One Card Trick | One Up | Old Thursday's last trick wasn't: the chosen card always comes back 11th |
-| 6♣ | Round the Clock | Counting Up | Old Thursday goes round the clock |
-| 7♣ | Running Count | Ace Count and Hot Streak | the Kesslers count every card |
-| 8♣ | Counterfeit | Perfect Pair | the Kesslers call every second copy a forgery |
-| 9♣ | Rank and File | Change of Heart | Dmitri looks over the paperwork; every hand filed in order; the aces argued out of the decks |
-| 10♣ | Head Count | The Rest of the Deck | Pryce's regulation on honest labelling |
-| J♣ | Mirror Image | Crossed Wires and Déjà Vu | the Marchetti twins, a deck each |
-| Q♣ | Casino Numbers | Crossed Wires and Déjà Vu | the Owner counts in thirteens, with no zero |
-| K♣ | Every Twenty-One | Casino Numbers | blackjack is coming, and Dmitri practises: a running total, a card paid every 21 |
-| A♦ | Hit Me | Every Twenty-One | blackjack arrives in the house style, with no dealer to beat; Sal asks for five aces |
-| 2♦ | Punto Banco | Hit Me | Sal brings baccarat from out of town; naturals pay, and Dmitri won't keep the score |
-| 3♦ | Split the Difference | Casino Numbers | the bottom dealer and his cousin settle up |
-| 4♦ | Last In, First Out | Three Apart and The Rest of the Deck | the cloakroom's new attendant |
-| 5♦ | First Sighting | Four of a Kind | the mayor takes up birdwatching at the tables |
-| 6♦ | Times Tables | Casino Numbers | Dmitri finds the multiplication sheet |
-| 7♦ | Showdown | Mirror Image | Sal and Dmitri settle things at the table |
-| 8♦ | Follow Suit | Showdown | Sal's uncle brings the family's trick-taking game, played without aces since a wedding |
-| 9♦ | Twice Shy | Mirror Image | the twins again; the Owner won't pay twice |
-| 10♦ | Carry the One | Times Tables | two-digit casino numbers; totals of three cards |
+| 9♠ | Top of the Heap | Top Dog | the doormen's game goes to their heads |
+| 10♠ | One Deck | Seven Heaven | the auditors have the card room; one deck in a bolted shoe |
+| J♠ | Penny Ante | Lucky Seven | Old Thursday's pension runs out again |
+| Q♠ | Cut to the Ace | Burn Card | Old Thursday's force: every long hand comes back with the ace of spades on top |
+| K♠ | Uneven Tables | Crossed Wires and Déjà Vu | the cousins stop playing in step |
+| A♥ | Four of a Kind | Déjà Vu | the city asks for one more game |
+| 2♥ | Missing Card | Four of a Kind | the bottom dealer palms a card from a fresh deck |
+| 3♥ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
+| 4♥ | Ceasefire | Next in Line | Pryce bans War for a week; spades only |
+| 5♥ | Three in a Row | Next in Line and Déjà Vu | the mayor's napkin: three in a row |
+| 6♥ | Rising | Every Other and Déjà Vu | the string quartet takes up scales |
+| 7♥ | Odds and Evens | Déjà Vu | Dmitri counts red cards; nought is even |
+| 8♥ | After a Pair | Small Pairs | Dmitri's theory of streaks |
+| 9♥ | Two by Two | Two Pair | the rival's brass section stays for breakfast |
+| 10♥ | Royalty | Lucky Seven | the minor royal and her bodyguards |
+| J♥ | The Rest of the Deck | Four of a Kind | Commissioner Pryce audits the house deck |
+| Q♥ | Crazy Eights | High Roller | the rival's old owner's favourite game; nobody calls a new suit |
+| K♥ | Perfect Pair | Four of a Kind | the two-deck shoe; Sal Vellani's perfect pairs |
+| A♣ | Pot Luck | Crossed Wires and Hot Streak | the Marchetti twins play War for a pot |
+| 2♣ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
+| 3♣ | Skeleton Crew | Calling Card and Night Off | the suits and flush croupiers both off; the uncle asks only for hearts |
+| 4♣ | In-Between | Low Kicker and One Deck | the uncle bets the middle at In-Between; the one War croupier is bolted down |
+| 5♣ | Dumbwaiter | In-Between and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
+| 6♣ | No Kings | Skeleton Crew | both croupiers off at a No Kings rally; the players leave their kings at home |
+| 7♣ | One Up | Counting Up | Old Thursday's last (and best) trick |
+| 8♣ | Twenty-One Card Trick | One Up | Old Thursday's last trick wasn't: the chosen card always comes back 11th |
+| 9♣ | Round the Clock | Counting Up | Old Thursday goes round the clock |
+| 10♣ | Running Count | Ace Count and Hot Streak | the Kesslers count every card |
+| J♣ | Counterfeit | Perfect Pair | the Kesslers call every second copy a forgery |
+| Q♣ | Rank and File | Change of Heart | Dmitri looks over the paperwork; every hand filed in order; the aces argued out of the decks |
+| K♣ | Head Count | The Rest of the Deck | Pryce's regulation on honest labelling |
+| A♦ | Mirror Image | Crossed Wires and Déjà Vu | the Marchetti twins, a deck each |
+| 2♦ | Casino Numbers | Crossed Wires and Déjà Vu | the Owner counts in thirteens, with no zero |
+| 3♦ | Every Twenty-One | Casino Numbers | blackjack is coming, and Dmitri practises: a running total, a card paid every 21 |
+| 4♦ | Hit Me | Every Twenty-One | blackjack arrives in the house style, with no dealer to beat; Sal asks for five aces |
+| 5♦ | Punto Banco | Hit Me | Sal brings baccarat from out of town; naturals pay, and Dmitri won't keep the score |
+| 6♦ | Split the Difference | Casino Numbers | the bottom dealer and his cousin settle up |
+| 7♦ | Last In, First Out | Three Apart and The Rest of the Deck | the cloakroom's new attendant |
+| 8♦ | First Sighting | Four of a Kind | the mayor takes up birdwatching at the tables |
+| 9♦ | Times Tables | Casino Numbers | Dmitri finds the multiplication sheet |
+| 10♦ | Showdown | Mirror Image | Sal and Dmitri settle things at the table |
+| J♦ | Follow Suit | Showdown | Sal's uncle brings the family's trick-taking game, played without aces since a wedding |
+| Q♦ | Twice Shy | Mirror Image | the twins again; the Owner won't pay twice |
+| K♦ | Carry the One | Times Tables | two-digit casino numbers; totals of three cards |
 
 ## Notes for writers
 
