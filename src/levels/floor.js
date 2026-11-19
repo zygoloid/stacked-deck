@@ -25,8 +25,6 @@ const H6 = [source([-2, -2], E), source([-3, 0], E), source([-4, 2], E), desk([3
 const H7 = [source([-3, -1], SE), source([-3, 2], NE), desk([3, -1])];
 const H8 = [source([-4, 0], E), source([-5, 2], E), desk([4, 0])];
 const H9 = [source([-4, 0], E), desk([3, -1])];
-const H11 = [source([-3, 0], E), desk([1, 1])];
-const H12 = [source([-4, 0], E), desk([-1, 1])];
 
 // Chapter 2's floors replaced when Flush moved after War.
 const D2 = [source([-3, 0], E), desk([1, 0])];
@@ -35,7 +33,6 @@ const D4 = [source([-3, 1], NE), desk([2, -1])];
 const D7 = [source([-2, 0], E), desk([2, -1])];
 const D8 = [source([-2, 0], E), desk([2, 0])];
 const D9 = [source([-3, 0], E), desk([1, 0])];
-const D11 = [source([-3, 0], E), desk([1, 0])];
 
 export const LEVELS = [
   {
@@ -226,50 +223,6 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'penny-ante',
-    unlockAfter: 'lucky-seven',
-    card: 'JH',
-    title: 'Penny Ante',
-    difficulty: 5,
-    story: [
-      'Old Thursday\'s pension has run out before the end of the month again, so tonight he plays penny ante: any card from the ace to the 4 wins.',
-      'At this table the ace counts low. The Owner\'s note says the house can afford it.',
-    ],
-    brief: 'Pay out every ace, 2, 3 and 4.',
-    handSize: 1,
-    floor: floorOf(hexRange(2, [-1, 0]), H11, [[1, 0]]),
-    fixed: H11,
-    croupiers: paletteOf('pass', 'suits', 'straight', 'gather', 'cut', 'shoe'),
-    pays: ranks('A 2 3 4'),
-    tests: makeTests({
-      handSize: 1, handsPerTest: 20,
-      fixed: [suitRun('C'), one('AH KH QH 2D 5D 4S 3S 6S 5H AS')],
-      nRandom: 3, seed: 133,
-    }),
-  },
-  {
-    id: 'royalty',
-    unlockAfter: 'lucky-seven',
-    card: 'QH',
-    title: 'Royalty',
-    difficulty: 6,
-    story: [
-      'A minor royal from somewhere small and mountainous has booked the whole room. She will only be paid in court cards: every jack, queen and king.',
-      'Her bodyguards stand very still in the middle of the floor and do not care for small talk.',
-    ],
-    brief: 'Pay out every jack, queen and king.',
-    handSize: 1,
-    floor: floorOf(hexRect(-3, 2, -7, 3), H12, [[0, 0], [-3, 2]]),
-    fixed: H12,
-    croupiers: paletteOf('pass', 'suits', 'straight', 'gather', 'cut', 'shoe'),
-    pays: ranks('J Q K'),
-    tests: makeTests({
-      handSize: 1, handsPerTest: 20,
-      fixed: [suitRun('D'), one('QS QH TS AS JC KC 9C QC KS JH')],
-      nRandom: 3, seed: 134,
-    }),
-  },
-  {
     id: 'either-or',
     unlockAfter: 'red-flush',
     card: '2D',
@@ -403,29 +356,6 @@ export const LEVELS = [
       nRandom: 4, seed: 135,
     }),
   },
-  {
-    id: 'top-of-the-heap',
-    unlockAfter: 'top-dog',
-    card: 'JD',
-    title: 'Top of the Heap',
-    difficulty: 5,
-    story: [
-      'The doormen\'s game has gone to their heads. Now it is five cards, and the top card has to beat every other card in the hand. A tie with any of them is a loss.',
-      'The head doorman has started calling himself the top dog. Nobody has the heart to stop him.',
-    ],
-    brief: 'Five-card hands. Pay out every hand whose top card beats each of the other four.',
-    handSize: 5,
-    floor: floorOf(hexRect(-2, 1, -5, 4), D11, [[-1, 1]]),
-    fixed: D11,
-    croupiers: paletteOf('pass', 'suits', 'straight', 'gather', 'cut', 'shoe', 'kind', 'war', 'flush'),
-    pays: (h) => h.slice(1).every((c) => hv(h[0]) > hv(c)),
-    tests: makeTests({
-      handSize: 5, handsPerTest: 10,
-      fixed: [['AS KD 2C 3H 4S', 'KS AD 2C 3H 4S', 'KS KD 2C 3H 4S', '2S 3D 4C 5H 6S', '6S 2D 3C 4H 5S',
-        '9S 2D 3C 4H 9H', 'TS 9D 8C 7H 6S', 'TS 9D 8C 7H JS', 'AH AD 2C 3C 4C', '3D 2S 2D 2C 2H']],
-      nRandom: 4, seed: 136,
-    }),
-  },
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
@@ -443,15 +373,12 @@ const PAR = {
   'black-tie': { croupiers: 7, rounds: 74 },
   'back-to-back': { croupiers: 9, rounds: 83 },
   'next-door': { croupiers: 7, rounds: 75 },
-  'penny-ante': { croupiers: 10, rounds: 103 },
-  'royalty': { croupiers: 13, rounds: 114 },
   'either-or': { croupiers: 5, rounds: 84 },
   'pair-night': { croupiers: 3, rounds: 60 },
   'inside-seven': { croupiers: 5, rounds: 82 },
   'beat-the-dealer': { croupiers: 4, rounds: 69 },
   'ace-in-the-hole': { croupiers: 4, rounds: 52 },
   'inside-bet': { croupiers: 5, rounds: 60 },
-  'top-of-the-heap': { croupiers: 6, rounds: 74 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);
