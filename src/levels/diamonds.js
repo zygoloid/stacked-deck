@@ -306,7 +306,7 @@ export const LEVELS = [
     difficulty: 6,
     story: [
       'The doormen have taken up a game the Owner can\'t follow, and want each three-card hand paid back in order: the highest card on top, then the middle one, then the lowest. Aces high.',
-      'Every hand is dealt from a single suit, so no two cards are ever the same rank. The doormen check the order card by card.',
+      'The doormen check the order card by card.',
     ],
     brief: 'Three-card hands, each all one suit. Pay out every hand with its cards in order, highest on top (aces high; card order checked).',
     handSize: 3,
