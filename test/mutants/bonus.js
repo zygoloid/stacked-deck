@@ -2,6 +2,7 @@
 import { RANKS, rankOf, rankValue, largestSet, newDeckIndex } from '../../src/cards.js';
 import { hv, high, last, countsOf, setOf, groupBy, count, has, chunks } from './shared.js';
 
+const r = (h) => rankOf(h[0]);
 const rv = (c) => rankValue(c);
 const highIn = (h, idx) => Math.max(...idx.map((i) => hv(h[i])));
 const kings = (t) => t.filter(([c]) => rankOf(c) === 'K');
@@ -184,6 +185,20 @@ const followBy = ({ beats = (c, w, led) => c[1] === led && hv(c) > hv(w), desk =
   });
 
 export const MUTANTS = {
+  // From the floor (chapter 1's and 2's old floors).
+  'penny-ante': {
+    'aces high': (h) => '234'.includes(r(h)), 'A to 5': (h) => 'A2345'.includes(r(h)),
+    '2 to 4': (h) => '234'.includes(r(h)), 'A to 3': (h) => 'A23'.includes(r(h)),
+  },
+  'royalty': {
+    'J and K only': (h) => 'JK'.includes(r(h)), 'with aces': (h) => 'JQKA'.includes(r(h)),
+    'with tens': (h) => 'TJQK'.includes(r(h)),
+  },
+  'top-of-the-heap': {
+    'ties pay': (h) => h.every((c) => hv(h[0]) >= hv(c)), 'beats the next card': (h) => hv(h[0]) > hv(h[1]),
+    'beats the bottom card': (h) => hv(h[0]) > hv(h[4]), 'holds the high card': (h) => h.some((c) => hv(c) === high(h)),
+    'aces low': (h) => h.slice(1).every((c) => rankValue(h[0]) > rankValue(c)),
+  },
   checkerboard: {
     'black on top': colours((r, b) => alternate(b, r)),
     'reds then blacks': colours((r, b) => [...r, ...b]),
