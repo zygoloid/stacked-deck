@@ -732,17 +732,15 @@ export function openEditor(root, ctx, level) {
 
   function renderBoard() {
     const live = sim && sim.round > 0 ? sim.floor : null;
-    // The desk to flag on a wrong payout: the one it was paid at.
-    const wrongDesk = sim?.status.desk;
-    const desk = level.fixed.find((c) => c.kind === 'payout' && (wrongDesk === undefined || c.desk === wrongDesk));
     const t = anim ? Math.min(1, (performance.now() - anim.start) / anim.dur) : 1;
     const lifted = lift ? lift.items.map((i) => i.cell) : [];
     board.render({
       cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftOff(), covers: liftCovers() } : null, pick,
       selected, activePort, hover, live, tool, drag: drag?.active && drag.kind !== 'box' && drag.kind !== 'group' ? drag : null,
       preview: clickPreview(), ghost: placePreview(),
-      paidNow: live ? sim.paidNow : null, paidNowDesk: sim?.paidNowDesk, paidWrong: sim?.paidWrong,
-      alert: sim?.status.kind === 'wrong' && desk ? hexKey(desk.at) : null,
+      paidNow: live ? sim.paidNow : null, paidNowHex: sim?.paidNowHex, paidWrong: sim?.paidWrong,
+      // The desk to flag on a wrong payout: the one it was paid at.
+      alert: sim?.status.kind === 'wrong' ? sim.status.at ?? null : null,
       anim: anim && t < 1 ? Object.assign(anim, { t }) : null,
     });
     if (t >= 1) anim = null;
@@ -994,7 +992,11 @@ export function openEditor(root, ctx, level) {
         h('div', {}, h('h3', {}, info.name), h('div', { class: 'insp-at' }, template ? `${Tap()} an empty hex to place` : `hex ${c.at[0]}, ${c.at[1]}`)),
         template
           ? h('button', { class: 'btn small', title: 'Stop placing (Esc)', onclick: () => setTool(null) }, 'Done')
-          : null),
+          // Play and step, for when the play controls step aside for this
+          // panel (on a phone; style.css): either one leaves the croupier.
+          : h('div', { class: 'insp-tp' },
+            h('button', { class: 'tp main', title: 'Play (Space)', disabled: running, onclick: play }, '▶'),
+            h('button', { class: 'tp', title: 'Step (.)', disabled: running || !!sim?.finished, onclick: stepOnce }, icon('step')))),
       h('p', { class: 'insp-desc' }, info.desc),
     ];
     // params

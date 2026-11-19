@@ -613,6 +613,7 @@ svg.board.placing { cursor: copy; }
 .keys { color: var(--muted); font-size: 0.75rem; margin: 0.625rem 0 0; line-height: 2; }
 .insp-head { display: flex; align-items: center; gap: 0.625rem; }
 .insp-head > div { flex: 1; }
+.insp-head > .insp-tp { flex: none; display: none; gap: 0.25rem; align-self: flex-start; }
 .insp-at { color: var(--muted); font-size: 0.71875rem; }
 .insp-desc { color: var(--ink-2); font-size: 0.78125rem; margin: 0.5rem 0 0.625rem; }
 .param { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0.5rem 0; }
@@ -1047,6 +1048,8 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   .story-card { padding: 1.75rem 1.375rem; }
   /* A selected croupier: its panel right under the floor (in play mode, under the play controls); ✓ on the floor to go back. */
   .editor.cell-selected:not(.watching) .transport, .editor.cell-selected .palette { display: none; }
+  /* ... and the panel has play and step of its own. */
+  .editor.cell-selected:not(.watching) .insp-head > .insp-tp { display: flex; }
 }
 .fixed-rule { font-size: 0.78125rem; font-weight: 700; color: var(--gold-2); }
 

@@ -202,7 +202,7 @@ export class Board {
   render(state) {
     const { cells, live } = state;
     this.paidNow = state.paidNow;
-    this.paidNowDesk = state.paidNowDesk;
+    this.paidNowHex = state.paidNowHex;
     this.paidWrong = state.paidWrong;
     this.anim = live || state.anim?.back ? state.anim : null;
     // New copies come from the card they copy (not when going back: the
@@ -366,8 +366,9 @@ export class Board {
       }
       g.append(s('text', { class: 'desk-sign', y: -14, 'text-anchor': 'middle' }, '$'),
         s('text', { class: 'fixed-label dark', y: 26, 'text-anchor': 'middle' }, cell.desk === undefined ? 'CHIP DESK' : `DESK ${DESK_NAMES[cell.desk]}`));
-      // Hands paid here (on a floor with labelled desks, at this desk).
-      const paid = live ? live.paidAt.filter((d) => d === cell.desk).length : 0;
+      // Hands paid at this desk.
+      const here = hexKey(cell.at);
+      const paid = live ? live.paidHex.filter((k) => k === here).length : 0;
       if (paid) {
         g.append(s('circle', { class: 'paid-badge', cx: 24, cy: -22, r: 10 }),
           s('text', { class: 'paid-badge-t', x: 24, y: -18.5, 'text-anchor': 'middle' }, String(paid)));
@@ -646,8 +647,8 @@ export class Board {
     const g = s('g', { transform: t, class: 'live' });
     const hand = (cards, x, y, cls) => this.handSvg(cards, x, y, cls, origin);
     if (lc.kind === 'payout') {
-      // (On a floor with labelled desks, only at the desk it was paid at.)
-      if (this.paidNow && this.paidNowDesk === lc.desk) g.append(hand(this.paidNow, 0, -2, `paid-now${this.paidWrong ? ' wrong' : ''}`));
+      // (Only at the desk it was paid at.)
+      if (this.paidNow && this.paidNowHex === `${lc.q},${lc.r}`) g.append(hand(this.paidNow, 0, -2, `paid-now${this.paidWrong ? ' wrong' : ''}`));
       return g;
     }
     // Hands waiting at an input: on a tray, with a notch pointing at the

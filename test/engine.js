@@ -381,6 +381,8 @@ console.log('seated players ok');
   // Labelled desks: each payout records its desk, and expected payouts
   // name theirs.
   assert.deepStrictEqual(f.paid.map((h, n) => `${h[0]}@${f.paidAt[n]}`).sort(), ['2S@1', '3S@0', '5S@0', 'AS@0']);
+  // ... and its hex, for drawing (also on floors whose desks have no labels).
+  assert.deepStrictEqual(f.paid.map((h, n) => `${h[0]}@${f.paidHex[n]}`).sort(), ['2S@0,2', '3S@0,0', '5S@0,0', 'AS@0,0']);
   const at = (desks) => ({ expected: (t) => t.map((h, i) => h && { desk: desks[i % 2], hand: h }).filter(Boolean) });
   const r = runTest(spec, inputs, at([0, 1]));
   assert(r.ok, JSON.stringify(r));

@@ -51,7 +51,7 @@ export class Sim {
     this.lookedAhead = null; // the round it last ran a copy ahead from
     this.status = { kind: 'ready' };
     this.paidNow = null;
-    this.paidNowDesk = undefined;
+    this.paidNowHex = null;
     this.paidWrong = false;
   }
 
@@ -110,7 +110,7 @@ export class Sim {
     const stop = run.step();
     this.status = { kind: 'running' };
     this.paidNow = null;
-    this.paidNowDesk = undefined;
+    this.paidNowHex = null;
     this.paidWrong = false;
     this.store();
     if (stop === 'overflow') {
@@ -121,13 +121,13 @@ export class Sim {
       // paidNow is the hand as card objects ({c, src}), so the board can
       // tell which copy of a card went to the desk.
       this.paidNow = f.justPaid[f.justPaid.length - 1];
-      this.paidNowDesk = f.paidAt[f.paidAt.length - 1];
+      this.paidNowHex = f.paidHex[f.paidHex.length - 1];
       if (stop === 'wrong') {
         const h = f.paid[run.wrong], desk = f.paidAt[run.wrong];
         this.paidWrong = true;
         this.paidNow = f.justPaid[run.wrong - before];
-        this.paidNowDesk = desk;
-        this.status = { kind: 'wrong', hand: h, desk, msg: this.wrongReason(h, desk) };
+        this.paidNowHex = f.paidHex[run.wrong];
+        this.status = { kind: 'wrong', hand: h, desk, at: this.paidNowHex, msg: this.wrongReason(h, desk) };
         return this.status.kind;
       }
     }
@@ -196,7 +196,7 @@ export class Sim {
     if (this.lookedAhead !== null && this.lookedAhead > target) this.lookedAhead = null;
     this.status = { kind: target === 0 ? 'ready' : 'paused' };
     this.paidNow = null;
-    this.paidNowDesk = undefined;
+    this.paidNowHex = null;
     this.paidWrong = false;
     return { copiedFrom };
   }
