@@ -109,7 +109,8 @@ says when they have all been dealt.
 
 **Desks.** A floor may label its chip desks (`desk: 0`, `1`, ...; all or
 none), which the UI names DESK X, Y, Z, W. `floor.paidAt[n]` is the label of
-the desk the n-th payout reached (undefined for an unlabelled desk). On such a
+the desk the n-th payout reached (undefined for an unlabelled desk), and
+`floor.paidHex[n]` its hex ("q,r"; the UI draws payouts by it). On a labelled
 floor every expected payout says where it must be paid (see Payouts).
 
 **Outputs to the same side are stacked** into one hand, earlier outputs on
