@@ -218,6 +218,7 @@ export class Floor {
     this.round = 0;
     this.paid = [];
     this.paidAt = []; // the desk (its `desk` label) each payout went to
+    this.paidHex = []; // and its hex ("q,r"), for drawing: desks need no label
     // For drawing the last step (not part of the state): the hands (card
     // objects, not just cards) paid in it, in order, and each card Duplicate
     // made in it -> the card it is a copy of.
@@ -378,6 +379,7 @@ export class Floor {
     if (to.kind === 'payout') {
       this.paid.push(cardsOf(hand));
       this.paidAt.push(to.desk);
+      this.paidHex.push(key(to.q, to.r));
       this.justPaid.push(hand);
       if (!fromSource) this.live -= playerCards(hand);
       return true;
@@ -398,7 +400,7 @@ export class Floor {
       slots: [...c.slots], pending: c.pending.map(([d, h]) => [d, h]), held: c.held, facing: c.facing, pos: c.pos,
     }));
     return {
-      cells, round: this.round, paid: [...this.paid], paidAt: [...this.paidAt], inputPos: this.inputPos, live: this.live,
+      cells, round: this.round, paid: [...this.paid], paidAt: [...this.paidAt], paidHex: [...this.paidHex], inputPos: this.inputPos, live: this.live,
     };
   }
 
@@ -408,7 +410,7 @@ export class Floor {
       const { slots, pending, held, facing, pos } = s.cells[i];
       Object.assign(c, { slots: [...slots], pending: pending.map(([d, h]) => [d, h]), held, facing, pos });
     });
-    Object.assign(this, { round: s.round, paid: [...s.paid], paidAt: [...s.paidAt], inputPos: s.inputPos, live: s.live });
+    Object.assign(this, { round: s.round, paid: [...s.paid], paidAt: [...s.paidAt], paidHex: [...s.paidHex], inputPos: s.inputPos, live: s.live });
   }
 
   // Every player card has left the floor (house cards may still be on it).
