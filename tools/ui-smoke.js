@@ -609,6 +609,28 @@ try {
     check(after === lv.par.rounds, `re-clearing a saved machine updates its score (77 -> ${after})`);
   }
 
+  // The tutorial's light on a part of the editor survives that part being
+  // drawn again: on the second floor's ports step, selecting the croupier by
+  // a click (which redraws the panel) lights its active port.
+  {
+    const lv = LEVELS[1];
+    const step = (lv.tutorial ?? []).findIndex((st) => st.ui === 'ports');
+    const before = (lv.tutorial ?? []).slice(0, step).filter((st) => st.until?.cell).map((st) => st.until.cell);
+    if (step >= 0 && before.length) {
+      await page.goto(base);
+      await page.evaluate(([id, cells]) => {
+        localStorage.removeItem('stacked-deck-coach');
+        localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: { [id]: { cells } } }));
+      }, [lv.id, before.map((c) => ({ at: c.at, kind: 'croupier', fn: c.fn, out: c.out ?? {} }))]);
+      await page.goto(`${base}?unlockall#/level/${lv.id}`);
+      await page.waitForSelector('svg.board');
+      await clickHex(before[before.length - 1].at);
+      check((await page.textContent('.coach .coach-count')).trim() === `${step + 1} / ${lv.tutorial.length}` &&
+        await page.locator('.inspector .port-row.active.coach-glow').count() === 1, 'the tutorial lights the selected croupier\'s active port');
+      await page.evaluate(() => localStorage.removeItem('stacked-deck-coach'));
+    }
+  }
+
   // The palette's War chip shows the rule the level allows.
   for (const [id, want] of [['beat-the-dealer', 'WAR·H'], ['new-rules', 'WAR·T'], ['hot-streak', 'WAR']]) {
     await page.goto(`${base}?unlockall#/level/${id}`);
