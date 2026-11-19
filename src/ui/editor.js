@@ -1429,7 +1429,7 @@ export function openEditor(root, ctx, level) {
     }
     if (drag.id !== undefined && e.pointerId !== drag.id) return;
     // Still holding after the port menu opened: slide onto a port to pick it on release.
-    if (drag.radial) { radialHover(e.clientX, e.clientY, true); return; }
+    if (drag.radial) { radialHover(e.clientX, e.clientY); return; }
     if (!drag.active && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > (drag.slop ?? 6)) { drag.active = true; clearTimeout(drag.hold); }
     if (!drag.active) return;
     if (drag.kind === 'box') {
@@ -1486,12 +1486,10 @@ export function openEditor(root, ctx, level) {
     // (The press that opened the port menu leaves it open even if the browser cancels it.)
     if (e.type === 'pointercancel' && !d.radial) { svg.classList.remove('panning'); boxSel.className = 'box-select hidden'; renderBoard(); return; }
     if (d.radial) {
-      // Released on a port: pick it (unless holding there just toggled it);
-      // anywhere else the menu stays open for a tap.
-      holdRadial(null);
+      // Released on a port: pick it (and close the menu); anywhere else the
+      // menu stays open for a tap.
       const item = e.type === 'pointerup' && radialHover(e.clientX, e.clientY);
-      if (item && radialSkip === item.dataset.port) radialSkip = null;
-      else if (item) pickRadial(item.dataset.port);
+      if (item) pickRadial(item.dataset.port);
       return;
     }
     if (d.kind === 'box') {
@@ -1540,9 +1538,10 @@ export function openEditor(root, ctx, level) {
   // the press: pick one (tap it, or slide onto it and let go) to point it at
   // that side. Ports already pointing there are marked; picking one of those
   // sends it to the floor (unless it must point somewhere). Deal's entry adds
-  // the side to its list. A Shift-click or a long press on a port (or
-  // sliding onto it and holding) does the same but leaves the menu open, to
-  // point more ports there. The port under the pointer shows on the board
+  // the side to its list. A Shift-click or a long press on a port does the
+  // same but leaves the menu open, to point more ports there (sliding onto
+  // one from the press that opened the menu always closes it: one change is
+  // the usual case). The port under the pointer shows on the board
   // what picking it would do.
   const HOLD_MS = 300;
   let radialSide = null;
@@ -1552,7 +1551,7 @@ export function openEditor(root, ctx, level) {
   let radialArmed = false;
   // The port the pointer is on (for the board's preview), and the pending
   // long press on one: { port, timer }. A port toggled by a long press
-  // ignores the click (or the release) that ends that press.
+  // ignores the click that ends that press.
   let radialHot = null, radialHold = null, radialSkip = null;
   // (Set while a port picked to keep the menu open is pointed: changes
   // otherwise close the menu.)
@@ -1643,14 +1642,12 @@ export function openEditor(root, ctx, level) {
     radialHot = p;
     renderBoard();
   }
-  // The port under (x, y), highlighted, or null. (Sliding onto one from the
-  // press that opened the menu and holding there toggles it.)
-  function radialHover(x, y, slide = false) {
+  // The port under (x, y), highlighted, or null.
+  function radialHover(x, y) {
     const item = document.elementFromPoint(x, y)?.closest?.('.radial-item');
     radial.querySelectorAll('.radial-item').forEach((el) => el.classList.toggle('hot', el === item));
     const p = item?.dataset.port ?? null;
     setRadialHot(p);
-    if (slide) holdRadial(p);
     return item ?? null;
   }
   // What picking port p on the menu (side `side`) would make of cell c: a
