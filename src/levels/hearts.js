@@ -153,7 +153,7 @@ export const LEVELS = [
       { say: 'Place a Pass on the ringed hex, pointing east.', at: [-2, 0], side: E, until: { cell: { at: [-2, 0], fn: 'pass', out: { out: E } } } },
       { say: 'Now the new croupier, Suits, on the ringed hex. The floor panel\'s list of croupiers says what each one does.', at: [-1, 0], until: { cell: { at: [-1, 0], fn: 'suits' } } },
       { say: 'Suits has a port for each suit, and one (misc) for anything else. With it selected, each {click} on an edge points the highlighted port there and moves on to the next; the panel lists its ports, with buttons for the six sides. A port pointing nowhere drops its cards on the carpet.', ui: 'ports', until: 'next' },
-      { say: 'Made a mistake? Undo takes back any change, a croupier can be dragged to another hex, and Remove (or the Delete key) takes it away.', ui: 'undo', until: 'next' },
+      { say: 'Made a mistake? Undo takes back any change, a croupier can be dragged to another hex, and the bin on a selected croupier\'s bar (or the Delete key) takes it away.', ui: 'undo', until: 'next' },
       { say: 'Your turn: get every card to its desk, and clear the floor.', until: 'cleared' },
       { say: 'Once a machine passes the tests, it is also tried on a few random deals of its own, so it has to follow the rule, not just the tests. That\'s the tutorial; ? Help explains every croupier.', until: 'next' },
     ],
