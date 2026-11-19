@@ -67,6 +67,7 @@ export function dealLabel(positions, maxW = Infinity) {
 }
 
 const CARD_W = 15, CARD_H = 20, CARD_STEP = 11, MAX_SHOWN = 6;
+const FADE_MS = 150; // an arrow a click would take away turning grey (style.css)
 const cardCount = (n) => `${n} card${n === 1 ? '' : 's'}`;
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
@@ -138,6 +139,11 @@ export class Board {
     this.applyView();
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     this.floorKeys = new Set(level.floor.map(hexKey));
+    // Arrows (pills, input marks) a click would take away, by fade key: when
+    // each turned grey, and when each that was grey stopped being (so their
+    // fades carry on smoothly over the next renders).
+    this.fadeGone = new Map();
+    this.fadeBack = new Map();
     for (const f of level.fixed) this.floorKeys.delete(hexKey(f.at));
   }
 
@@ -218,7 +224,11 @@ export class Board {
     this.landing = new Map();
     this.peeks = [];
     const svg = this.svg;
-    svg.replaceChildren();
+    svg.replaceChildren(s('defs', {}, s('filter', {
+      id: 'desaturate', filterUnits: 'userSpaceOnUse', x: -2 * R, y: -2 * R, width: 4 * R, height: 4 * R,
+    }, s('feColorMatrix', { type: 'saturate', values: '0' }))));
+    this.nextGone = new Map();
+    this.nextBack = new Map();
     const gFloor = s('g', { class: 'l-floor' }), gBody = s('g', { class: 'l-body' });
     const gArrow = s('g', { class: 'l-arrows' }), gCards = s('g', { class: 'l-cards' }), gOver = s('g', { class: 'l-over' });
     // A picked-up group floats over everything on the floor, ports and all.
@@ -250,7 +260,8 @@ export class Board {
       // hidden (they would only show round the edges).
       // (With the pointer on an edge of the selected croupier: what a click there would do.)
       const preview = selected && state.preview;
-      const arrows = preview ? this.arrowsSvg(preview, t, state.activePort, { was: cell }) : this.arrowsSvg(cell, t, selected ? state.activePort : null);
+      const arrows = preview ? this.arrowsSvg(preview, t, state.activePort, { was: cell, key: k })
+        : this.arrowsSvg(cell, t, selected ? state.activePort : null, { key: k });
       if (state.lifted?.cells.has(cell)) {
         const bad = state.lifted.bad.has(k), under = bad ? null : state.lifted.covers.get(k);
         body.classList.add('lifted', ...(bad ? ['bad'] : []), ...(under ? ['covers'] : []));
@@ -326,6 +337,8 @@ export class Board {
       gOver.append(s('polygon', { class: `hex drop ${cls}`, points: HEX_IN, transform: t }));
       if (cls === 'covers') gOver.append(this.coverTag(under, t));
     }
+    this.fadeGone = this.nextGone;
+    this.fadeBack = this.nextBack;
   }
 
   bodySvg(cell, t, selected, alert, live) {
@@ -413,11 +426,38 @@ export class Board {
     return g;
   }
 
+  // An arrow, pill or input mark `el` that a click would take away (`gone`)
+  // turns grey, fading quickly; one that was grey fades back. Elsewhere `el`
+  // is drawn as it is. `k` names it across renders (fade keys, arrowsSvg).
+  fade(el, k, gone) {
+    const now = performance.now();
+    const grey = (x) => { x.classList.add('fade-grey'); x.setAttribute('filter', 'url(#desaturate)'); return x; };
+    const plain = (x) => { x.classList.add('fade-plain'); return x; };
+    if (gone) {
+      const t0 = this.fadeGone.get(k) ?? now;
+      this.nextGone.set(k, t0);
+      const e = now - t0, g = s('g', { class: 'gone' });
+      if (e < FADE_MS) {
+        g.classList.add('fading');
+        g.setAttribute('style', `--fade-t: -${e.toFixed(0)}ms`);
+        g.append(plain(el.cloneNode(true)));
+      }
+      g.append(grey(el));
+      return g;
+    }
+    const t0 = this.fadeGone.has(k) ? now : this.fadeBack.get(k);
+    if (t0 === undefined || now - t0 >= FADE_MS) return el;
+    this.nextBack.set(k, t0);
+    return s('g', { class: 'back', style: `--fade-t: -${(now - t0).toFixed(0)}ms` }, grey(el.cloneNode(true)), plain(el));
+  }
+
   // A cell's port arrows. With `was` (the same cell as it is now), `cell` is
   // how a click would leave it, and the arrows show the difference: what the
-  // click adds is drawn see-through, what it takes away shaded red. With
-  // `ghost`, every arrow is drawn see-through (a croupier not yet placed).
-  arrowsSvg(cell, t, activePort, { was = null, ghost = false } = {}) {
+  // click adds is drawn see-through, at once; what it takes away turns grey
+  // (fade). With `ghost`, every arrow is drawn see-through (a croupier not
+  // yet placed). `key` (the cell's) lets fades carry over between renders.
+  arrowsSvg(cell, t, activePort, { was = null, ghost = false, key = null } = {}) {
+    const fade = (el, k, gone) => (key === null ? el : this.fade(el, `${key}|${k}`, gone));
     const g = s('g', { transform: t, class: 'arrows' });
     const keyOf = ([side, port, idx]) => `${side}|${port}|${idx ?? ''}`;
     const now = arrowsOf(cell);
@@ -439,15 +479,14 @@ export class Board {
         const st = PORT_STYLE[p];
         const [[x1, y1], [x2, y2]] = edge(d, R - 4, 0.62);
         const [ux, uy] = unit(d);
-        const m = s('g', { class: mark ?? '' });
-        if (mark === 'gone') m.append(s('line', { class: 'gone-halo', x1, y1, x2, y2 }));
+        const m = s('g', { class: mark === 'new' ? 'new' : '' });
         m.append(s('line', { class: 'in-mark', x1, y1, x2, y2, stroke: st.color }));
         const bx = ux * (AP - 12), by = uy * (AP - 12);
         m.append(s('g', { class: `badge${activePort === p && mark !== 'gone' ? ' active' : ''}`, transform: `translate(${bx.toFixed(1)},${by.toFixed(1)})` },
           s('title', {}, `${st.label} side`),
           s('circle', { r: 6, fill: st.color }),
           s('text', { y: 2.6, 'text-anchor': 'middle' }, st.short)));
-        g.append(m);
+        g.append(mark === 'new' ? m : fade(m, `${p}|${d}`, mark === 'gone'));
       }
     }
     const groups = new Map();
@@ -463,14 +502,13 @@ export class Board {
       const st = PORT_STYLE[(staying[0] ?? ports[0])[0]];
       const [ux, uy] = unit(side);
       const r0 = isFixed ? 16 : CHIP + 1, r1 = AP + 1;
-      const a = s('g', { class: mark ?? '' });
-      g.append(a);
+      const a = s('g', { class: mark === 'new' ? 'new' : '' });
+      g.append(mark === 'new' ? a : fade(a, side, mark === 'gone'));
       const line = { x1: ux * r0, y1: uy * r0, x2: ux * (r1 - 6), y2: uy * (r1 - 6) };
       // arrowhead straddling the edge
       const bx = ux * (r1 - 7), by = uy * (r1 - 7), tx = ux * (r1 + 6), ty = uy * (r1 + 6);
       const px = -uy * 6, py = ux * 6;
       const head = `${bx + px},${by + py} ${tx},${ty} ${bx - px},${by - py}`;
-      if (mark === 'gone') a.append(s('line', { class: 'gone-halo', ...line }), s('polygon', { class: 'gone-halo', points: head }));
       a.append(s('line', { class: 'port-line', ...line, stroke: st.color }),
         s('polygon', { class: 'port-head', fill: st.color, points: head }));
       if (isFixed || (ports.length === 1 && ports[0][0] === 'out')) continue;
@@ -485,7 +523,7 @@ export class Board {
         // (A deal pill that gains a position is see-through.)
         pills = [[text, st.color, activePort === 'to', peek, !mark && ports.some((p) => p[2] === 'new') ? 'new' : null]];
       } else {
-        pills = ports.map(([p, , m]) => [PORT_STYLE[p].short, PORT_STYLE[p].color, p === activePort && m !== 'gone', null, mark ? null : m]);
+        pills = ports.map(([p, idx, m]) => [PORT_STYLE[p].short, PORT_STYLE[p].color, p === activePort && m !== 'gone', null, mark ? null : m, `${side}|${p}|${idx ?? ''}`]);
       }
       const widths = pills.map(([text]) => pillWidth(text));
       const gap = 2;
@@ -494,13 +532,14 @@ export class Board {
       const rr = AP - 15;
       const cx = ux * rr, cy = uy * rr;
       let off = -total / 2;
-      pills.forEach(([text, color, active, peek, pm], i) => {
+      pills.forEach(([text, color, active, peek, pm, pk], i) => {
         const mid = off + along[i] / 2;
         off += along[i] + gap;
         const x = horizontal ? cx + mid : cx, y = horizontal ? cy : cy + mid;
         const pill = this.pill(text, color, x, y, active, peek);
-        if (pm) pill.classList.add(pm);
-        a.append(pill);
+        if (pm === 'new') pill.classList.add('new');
+        // (A port leaving an arrow that stays: its pill alone turns grey.)
+        a.append(pm === 'new' || !pk || mark ? pill : fade(pill, pk, pm === 'gone'));
       });
     }
     return g;
