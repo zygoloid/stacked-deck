@@ -989,6 +989,7 @@ export function openEditor(root, ctx, level) {
         roster,
         h('p', { class: 'keys kbd-only' }, h('kbd', {}, 'Space'), ' play  ', h('kbd', {}, '.'), ' step  ', h('kbd', {}, ','), ' back  ',
           h('kbd', {}, '1'), '–', h('kbd', {}, '9'), ' place at the pointer  ', h('kbd', {}, 'Del'), ' remove  ', h('kbd', {}, '?'), ' help'));
+      coach.relight();
       return;
     }
     const info = infoFor(c);
@@ -1076,6 +1077,7 @@ export function openEditor(root, ctx, level) {
     }
     inspector.replaceChildren(...parts.filter(Boolean));
     if (refocus && listUi?.key === refocus) listUi.field.focus();
+    coach.relight();
   }
 
   // A payout's desk, on a floor with labelled desks.
@@ -1243,6 +1245,7 @@ export function openEditor(root, ctx, level) {
     tp.speeds.forEach((b, i) => b.classList.toggle('on', i === speed));
     tp.round.textContent = String(r);
     tp.which.textContent = ` · ${isCheck(testIndex) ? `${testName(testIndex)}/${checks?.length ?? CHECK_DEALS}` : `Test ${testIndex + 1}/${level.tests.length}`}`;
+    coach.relight();
   }
 
   // ---------- board pointer handling ----------
