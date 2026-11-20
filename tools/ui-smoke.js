@@ -2093,6 +2093,10 @@ try {
     for (let i = 0; i < 3; i++) await page.keyboard.press('.');
     const ticked = await page.locator('.paid.expected .e-item.ok').count();
     check(ticked > 0 && ticked < nExp, `expected payouts are ticked off as they are paid (${ticked}/${nExp})`);
+    // `letters`: each hand's letters (AS 5H is NE), and the payouts as a message, lit as paid.
+    check((await page.textContent('.queue .q-item:first-child .letter-tag').catch(() => '')) === 'NE' &&
+      (await page.textContent('.message').catch(() => '')) === 'NENEZBZBVIVI' && await page.locator('.message .got').count() === ticked,
+    'a floor with letters shows hands as letters and the payouts as a message');
     if (shots) {
       await page.screenshot({ path: join(shots, '13-expected-payouts.png') });
       await page.locator('.panel.tests').screenshot({ path: join(shots, '13b-expected-panel.png') });

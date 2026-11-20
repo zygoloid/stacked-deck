@@ -60,6 +60,18 @@ export function cardEl(c, cls = '') {
   return h('span', { class: `card ${cardClass(c)} ${cls}` }, h('b', rank.length > 1 ? { class: 'ten' } : {}, rank), h('i', {}, SUIT_GLYPH[c[1]]));
 }
 
+// A card's letter in the Solitaire cipher (floors with `letters`): clubs
+// and hearts A..K are A..M, diamonds and spades A..K are N..Z; the special
+// cards have none.
+const RANK_VALUE = { A: 1, T: 10, J: 11, Q: 12, K: 13 };
+export function cardLetter(c) {
+  if (isSpecialCard(c)) return null;
+  const v = RANK_VALUE[c[0]] ?? Number(c[0]);
+  return String.fromCharCode(64 + v + (c[1] === 'D' || c[1] === 'S' ? 13 : 0));
+}
+// A hand's letters, or null if a card has none.
+export const handLetters = (hand) => (hand.every((c) => cardLetter(c)) ? hand.map(cardLetter).join('') : null);
+
 // A hand as a row of little HTML cards.
 export function handEl(hand, cls = '') {
   return h('span', { class: `hand ${cls}` }, hand.map((c) => cardEl(c)));
