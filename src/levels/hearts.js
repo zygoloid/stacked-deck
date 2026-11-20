@@ -91,7 +91,10 @@ function blackRuns(inputs) {
   return out;
 }
 
-const F1 = [source([-1, -1], E), source([-1, 1], NE), desk([2, -1]), desk([1, 1])];
+// In a tutorial step's `until`, a port pointed anywhere (src/ui/coach.js).
+const ANY = '*';
+
+const F1 = [source([-2, -1], E), source([-3, 1], E), desk([2, -1]), desk([1, 1])];
 const F2 = [source([-3, 0], E), labelled([0, -1], 0), labelled([-1, 1], 1)];
 const F3 = [source([-1, 0], E), source([-2, 1], E), desk([1, 0])];
 const F4 = [source([-3, 0], E), desk([-2, -1]), desk([1, 0])];
@@ -121,15 +124,15 @@ export const LEVELS = [
     // the player's turn. Nothing here says how to do the bottom table.
     tutorial: [
       { say: 'Welcome to the floor. The players at the tables on the left lay down cards; the chip desks on the right pay out whatever reaches them. Croupiers carry the cards in between, and you place them on the empty hexes.', until: 'next' },
-      { say: '{Click} the ringed hex and pick Pass, the one croupier on this floor.', at: [0, -1], until: { cell: { at: [0, -1], fn: 'pass' } } },
-      { say: 'A Pass hands each card on through its port (the arrow). With it selected, {click} the ringed edge of its hex to point the port east, at the next hex.', at: [0, -1], side: E, until: { cell: { at: [0, -1], fn: 'pass', out: { out: E } } } },
-      { say: 'Now a second Pass on the next hex, pointing east into the chip desk. (Placing a croupier near an edge points it there straight away.)', at: [1, -1], side: E, until: { cell: { at: [1, -1], fn: 'pass', out: { out: E } } } },
+      { say: '{Click} the ringed hex and pick Pass, the one croupier on this floor.', at: [-1, -1], until: { cell: { at: [-1, -1], fn: 'pass' } } },
+      { say: 'A Pass hands each card on through its port (the arrow). With it selected, {click} the ringed edge of its hex to point the port east, at the next hex.', at: [-1, -1], side: E, until: { cell: { at: [-1, -1], fn: 'pass', out: { out: E } } } },
+      { say: 'Another Pass on the next hex. A new croupier points the way the last one did, so this one faces east already.', at: [0, -1], side: E, until: { cell: { at: [0, -1], fn: 'pass', out: { out: E } } } },
+      { say: 'And a third, into the chip desk.', at: [1, -1], side: E, until: { cell: { at: [1, -1], fn: 'pass', out: { out: E } } } },
       { say: 'That\'s a machine for the top table. Press play to watch a test: the cards move a round at a time, and the panel lists each test\'s hands.', ui: 'play', until: 'ran' },
-      { say: 'The other table\'s cards still fall on the carpet. Your turn: get them to a desk too. The floor is cleared when every test passes; play runs the test you are watching, then checks the rest.', until: 'cleared' },
-      { say: 'Cleared! Your score is two numbers, croupiers and rounds, and fewer is better on both; they often pull against each other. Par is the house\'s own machine. Come back and beat it on either count whenever you like.', ui: 'stats', until: 'next' },
+      { say: 'The other table\'s cards still fall on the carpet. Your turn: get them to a desk too. The floor is cleared when every test passes, and fewer croupiers and fewer rounds score better.', until: 'cleared' },
     ],
     handSize: 1,
-    floor: floorOf([[0, -1], [1, -1], [0, 0], [0, 1]], F1),
+    floor: floorOf([[-1, -1], [0, -1], [1, -1], [-1, 0], [-2, 1], [-1, 1], [0, 1]], F1),
     fixed: F1,
     croupiers: paletteThrough('pass'),
     pays: () => true,
@@ -152,13 +155,12 @@ export const LEVELS = [
       { say: 'Two desks tonight, and each card must reach the right one, X or Y: the brief at the top says which.', ui: 'brief', until: 'next' },
       { say: 'Place a Pass on the ringed hex, pointing east.', at: [-2, 0], side: E, until: { cell: { at: [-2, 0], fn: 'pass', out: { out: E } } } },
       { say: 'Now the new croupier, Suits, on the ringed hex. The floor panel\'s list of croupiers says what each one does.', at: [-1, 0], until: { cell: { at: [-1, 0], fn: 'suits' } } },
-      { say: 'Suits has a port for each suit, and one (misc) for anything else. With it selected, each {click} on an edge points the highlighted port there and moves on to the next; the panel lists its ports, with buttons for the six sides. A port pointing nowhere drops its cards on the carpet.', ui: 'ports', until: 'next' },
-      { say: 'Made a mistake? Undo takes back any change, a croupier can be dragged to another hex, and the bin on a selected croupier\'s bar (or the Delete key) takes it away.', ui: 'undo', until: 'next' },
-      { say: 'Your turn: get every card to its desk, and clear the floor.', until: 'cleared' },
-      { say: 'Once a machine passes the tests, it is also tried on a few random deals of its own, so it has to follow the rule, not just the tests. That\'s the tutorial; ? Help explains every croupier.', until: 'next' },
+      { say: 'Suits has a port for each suit, and one (misc) for any card without an assigned direction. With it selected, each {click} on an edge points the highlighted port there and moves on to the next; the panel lists its ports, with buttons for the six sides. A port pointing nowhere drops its cards on the carpet.', ui: 'ports', until: { cell: { at: [-1, 0], fn: 'suits', out: { S: ANY, H: ANY, D: ANY, C: ANY } } } },
+      { say: 'Made a mistake? Undo takes back any change, a croupier can be dragged to another hex, and the 🗑 on a selected croupier\'s bar (or the Delete key) takes it away.', ui: 'undo', until: 'next' },
+      { say: 'Your turn: get every card to its desk. Once a machine passes the tests, it is also tried on a few random deals, so it has to follow the rule, not just the tests.', until: 'cleared' },
     ],
     handSize: 1,
-    floor: floorOf([[-2, 0], [-1, 0]], F2),
+    floor: floorOf([[-2, 0], [-1, 0], [0, 0], [-1, -1], [-2, 1]], F2),
     fixed: F2,
     croupiers: paletteThrough('suits'),
     expected: (inputs) => inputs.map((h) => ({ desk: isRed(h[0]) ? 0 : 1, hand: h })),
@@ -425,7 +427,7 @@ export const LEVELS = [
 // this table from the recipes in tools/level-specs/hearts.js.
 // BEGIN PAR
 const PAR = {
-  'first-night': { croupiers: 4, rounds: 21 },
+  'first-night': { croupiers: 6, rounds: 24 },
   'red-and-black': { croupiers: 2, rounds: 57 },
   'two-at-a-time': { croupiers: 2, rounds: 49 },
   'thursdays-game': { croupiers: 6, rounds: 92 },

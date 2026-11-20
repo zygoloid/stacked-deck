@@ -98,7 +98,8 @@ export function openEditor(root, ctx, level) {
 
   // The tutorial (first floors only; src/ui/coach.js), in a strip above the board.
   const coach = createCoach(level, { tapWord: tap, root: () => editorEl, changed: () => renderAll() });
-  const coachState = () => ({ cells, round: sim?.round ?? 0, cleared: !!ls.solved });
+  let clearedHere = false; // the floor was cleared since the editor opened
+  const coachState = () => ({ cells, round: sim?.round ?? 0, cleared: clearedHere });
 
   const par = level.par;
   // `expected` levels list the exact payouts (which may repeat, regroup or
@@ -517,6 +518,7 @@ export function openEditor(root, ctx, level) {
       const wasSolved = !!ls.solved;
       const { index: found, isNew } = recordSolution(ls, machine, { croupiers, rounds }, level);
       ls.last = { croupiers, rounds };
+      clearedHere = true;
       ctx.persist();
       ctx.cloud?.levelChanged(level.id, { solved: true });
       ctx.cloud?.queueUploads();
@@ -979,7 +981,6 @@ export function openEditor(root, ctx, level) {
             onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; lift = null; }); },
           }, 'Clear floor')),
         h('p', { class: 'brief-big' }, level.brief ?? ''),
-        ...(coach.available && !coach.active() ? [h('button', { class: 'btn small ghost coach-again', onclick: () => coach.restart() }, 'Show the tutorial')] : []),
         h('ul', { class: 'howto' },
           h('li', {}, `${Tap()} an empty hex to place a croupier there.`),
           h('li', {}, `Select a croupier, then ${tap()} the edges of its hex to point its ports.`),

@@ -5,7 +5,9 @@ import { E, SE, SW, W, NW, NE, c, pass, shoe } from './shared.js';
 export const SPECS = {
   // A pass line per table. Sending the bottom table up into the top line
   // through the gap in the bar saves a croupier, and is slower.
-  'first-night': { cells: [pass([0, -1], E), pass([1, -1], E), pass([0, 0], SE), pass([0, 1], E)] },
+  // A pass line per table; the bottom table can join the top line through
+  // the gap instead, a croupier fewer.
+  'first-night': { cells: [pass([-1, -1], E), pass([0, -1], E), pass([1, -1], E), pass([-2, 1], E), pass([-1, 1], E), pass([0, 1], E)] },
   'red-and-black': {
     cells: [pass([-2, 0], E), c([-1, 0], 'suits', { out: { H: NE, D: NE, S: SE, C: SE } })],
   },
