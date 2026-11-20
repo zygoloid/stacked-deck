@@ -211,19 +211,19 @@ regulation; Ace Count does).
 | 3♥ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
 | 4♥ | Ceasefire | Next in Line | Pryce bans War for a week; spades only |
 | 5♥ | Three in a Row | Next in Line and Déjà Vu | the mayor's napkin: three in a row |
-| 6♥ | Rising | Every Other and Déjà Vu | the string quartet takes up scales |
-| 7♥ | Odds and Evens | Déjà Vu | Dmitri counts red cards; nought is even |
-| 8♥ | After a Pair | Small Pairs | Dmitri's theory of streaks |
-| 9♥ | Two by Two | Two Pair | the rival's brass section stays for breakfast |
-| 10♥ | Royalty | Lucky Seven | the minor royal and her bodyguards |
-| J♥ | The Rest of the Deck | Four of a Kind | Commissioner Pryce audits the house deck |
-| Q♥ | Crazy Eights | High Roller | the rival's old owner's favourite game; nobody calls a new suit |
-| K♥ | Perfect Pair | Four of a Kind | the two-deck shoe; Sal Vellani's perfect pairs |
-| A♣ | Pot Luck | Crossed Wires and Hot Streak | the Marchetti twins play War for a pot |
-| 2♣ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
-| 3♣ | Skeleton Crew | Calling Card and Night Off | the suits and flush croupiers both off; the uncle asks only for hearts |
-| 4♣ | In-Between | Low Kicker and One Deck | the uncle bets the middle at In-Between; the one War croupier is bolted down |
-| 5♣ | Dumbwaiter | In-Between and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
+| 6♥ | In-Between | Low Kicker and One Deck | the uncle bets the middle at In-Between; the auditors have taken the War croupier's table away |
+| 7♥ | Dumbwaiter | In-Between and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
+| 8♥ | Rising | Every Other and Déjà Vu | the string quartet takes up scales |
+| 9♥ | Odds and Evens | Déjà Vu | Dmitri counts red cards; nought is even |
+| 10♥ | After a Pair | Small Pairs | Dmitri's theory of streaks |
+| J♥ | Two by Two | Two Pair | the rival's brass section stays for breakfast |
+| Q♥ | Royalty | Lucky Seven | the minor royal and her bodyguards |
+| K♥ | The Rest of the Deck | Four of a Kind | Commissioner Pryce audits the house deck |
+| A♣ | Crazy Eights | High Roller | the rival's old owner's favourite game; nobody calls a new suit |
+| 2♣ | Perfect Pair | Four of a Kind | the two-deck shoe; Sal Vellani's perfect pairs |
+| 3♣ | Pot Luck | Crossed Wires and Hot Streak | the Marchetti twins play War for a pot |
+| 4♣ | Night Off | Off Suit | the suits croupier is back; now the flush croupier has the night off |
+| 5♣ | Skeleton Crew | Calling Card and Night Off | the suits and flush croupiers both off; the uncle asks only for hearts |
 | 6♣ | No Kings | Skeleton Crew | both croupiers off at a No Kings rally; the players leave their kings at home |
 | 7♣ | One Up | Counting Up | Old Thursday's last (and best) trick |
 | 8♣ | Twenty-One Card Trick | One Up | Old Thursday's last trick wasn't: the chosen card always comes back 11th |
