@@ -3,7 +3,8 @@
 // A step is
 //   { say: 'text', at?: [q, r], side?: 0-5, ui?: name, until }
 // `say` may use {Click} / {click}, which read "Tap" / "tap" on a touch-only
-// screen. `at` (and `side`) ring a hex (and one of its edges) on the board;
+// screen, and {kbd:text}, shown only where there is a keyboard (not on a
+// touch-only screen). `at` (and `side`) ring a hex (and one of its edges) on the board;
 // `ui` lights up part of the editor (UI below). `until` is when the step is
 // done:
 //   'next'                 the player presses Next
@@ -83,7 +84,8 @@ export function createCoach(level, { tapWord, root, changed }) {
 
   const words = (text) => {
     const t = tapWord();
-    return text.replaceAll('{Click}', t[0].toUpperCase() + t.slice(1)).replaceAll('{click}', t);
+    return text.replaceAll('{Click}', t[0].toUpperCase() + t.slice(1)).replaceAll('{click}', t)
+      .replace(/\{kbd:([^}]*)\}/g, (m, keys) => (t === 'tap' ? '' : keys));
   };
   // Done with the tutorial (finished, or skipped: `byPlayer`, so the
   // editor is redrawn here; otherwise update()'s caller redraws).
@@ -113,13 +115,13 @@ export function createCoach(level, { tapWord, root, changed }) {
     // A tutorial of one step is a note: no count, and no Skip beside its button.
     const note = steps.length === 1;
     el.classList.remove('hidden');
-    el.replaceChildren(
+    el.replaceChildren(...[
       note ? null : h('span', { class: 'coach-count', title: 'Tutorial step' }, `${index + 1} / ${steps.length}`),
       h('p', { class: 'coach-text' }, words(step.say)),
       h('div', { class: 'coach-actions' },
         step.until === 'next' ? h('button', { class: 'btn small gold coach-next', onclick: () => { acked = true; advance(); changed(); } },
           note ? 'Got it' : index === steps.length - 1 ? 'Done' : 'Next') : null,
-        note ? null : h('button', { class: 'btn small ghost coach-skip', title: 'Hide the tutorial (the floor\'s story page can show it again)', onclick: () => finish(true) }, 'Skip tutorial')));
+        note ? null : h('button', { class: 'btn small ghost coach-skip', title: 'Hide the tutorial (the floor\'s story page can show it again)', onclick: () => finish(true) }, 'Skip tutorial'))].filter(Boolean));
     relight();
   }
 
