@@ -747,8 +747,8 @@ export function storyScreen(root, ctx, level) {
       h('div', { class: 'story-brief' }, h('span', { class: 'stat-k' }, 'Tonight'), h('div', {}, level.brief ?? '')),
       storyScore(ctx.save.levels[level.id], level.par),
       h('div', { class: 'story-actions' },
-        h('button', { class: 'btn ghost', onclick: () => ctx.go('#/') }, '← All floors'),
-        h('div', { class: 'story-go' },
+        h('div', { class: 'story-back' },
+          h('button', { class: 'btn ghost', onclick: () => ctx.go('#/') }, '← All floors'),
           // A tutorial finished or skipped can be shown again, on an empty
           // floor (the tutorial floors are small). (Not a one-step note.)
           level.tutorial?.length > 1 && tutorialDone(level.id) ? h('button', {
@@ -763,8 +763,8 @@ export function storyScreen(root, ctx, level) {
               }
               go();
             },
-          }, 'Replay the tutorial') : null,
-          h('button', { class: 'btn gold', onclick: go, autofocus: true }, 'Open the floor →'))))));
+          }, 'Replay tutorial') : null),
+        h('button', { class: 'btn gold', onclick: go, autofocus: true }, 'Open the floor →')))));
   return () => document.removeEventListener('keydown', onKey);
 }
 
