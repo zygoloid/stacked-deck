@@ -380,7 +380,9 @@ try {
     await page.goto(`${base}#/level/${FIRST}/story`);
     await page.click('.story-actions .coach-again');
     await page.waitForSelector('svg.board');
-    check(await coachStep() !== '', `the story page's Replay the tutorial brings it back (${await coachStep()})`);
+    check(await coachStep() === `1 / ${tutorial.length}` && (await page.textContent('.stats .stat-v')).trim() === '0',
+      `the story page's Replay the tutorial brings it back, on an empty floor (${await coachStep()})`);
+    await buildLine(line1);
     await page.click('.coach-skip');
     check(await page.locator('.coach.hidden').count() === 1, 'Skip tutorial hides it');
     await page.click('.tp.main');
@@ -614,6 +616,20 @@ try {
       await clickHex(before[before.length - 1].at);
       check((await page.textContent('.coach .coach-count')).trim() === `${step + 1} / ${lv.tutorial.length}` &&
         await page.locator('.inspector .port-row.active.coach-glow').count() === 1, 'the tutorial lights the selected croupier\'s active port');
+      await page.evaluate(() => localStorage.removeItem('stacked-deck-coach'));
+    }
+  }
+
+  // A one-step tutorial is a note: no count, no Skip; Got it puts it away.
+  {
+    const lv = LEVELS.find((l) => l.tutorial?.length === 1);
+    if (lv) {
+      await page.goto(`${base}?unlockall#/level/${lv.id}`);
+      await page.waitForSelector('svg.board');
+      check(await page.isVisible('.coach .coach-next') && (await page.textContent('.coach .coach-next')).trim() === 'Got it' &&
+        await page.locator('.coach .coach-skip, .coach .coach-count').count() === 0, `${lv.id}: its note shows, with only Got it`);
+      await page.click('.coach .coach-next');
+      check(await page.locator('.coach.hidden').count() === 1, `${lv.id}: Got it puts the note away`);
       await page.evaluate(() => localStorage.removeItem('stacked-deck-coach'));
     }
   }

@@ -11,6 +11,7 @@
 //   'cleared'              the floor is cleared (since the editor opened)
 //   { cell: { at, fn, out? } }   a croupier `fn` at `at`, with these ports
 //                          pointed so (only the ports named; '*': anywhere)
+//   { any: [until, ...] }  any one of these
 // Steps only go forward: once one is done the next shows, even if the
 // machine later changes (the player may well build it some other way), and
 // a player who is ahead (a later step already done) skips the ones between.
@@ -59,6 +60,7 @@ function met(until, state, acked) {
   if (until === 'next') return acked;
   if (until === 'ran') return state.round > 0;
   if (until === 'cleared') return !!state.cleared;
+  if (until?.any) return until.any.some((u) => met(u, state, acked));
   if (until?.cell) {
     const want = until.cell;
     const c = state.cells.find((x) => hexKey(x.at) === hexKey(want.at));
@@ -108,14 +110,16 @@ export function createCoach(level, { tapWord, root, changed }) {
   function draw() {
     if (!on) { relight(); el.classList.add('hidden'); el.replaceChildren(); return; }
     const step = steps[index];
+    // A tutorial of one step is a note: no count, and no Skip beside its button.
+    const note = steps.length === 1;
     el.classList.remove('hidden');
     el.replaceChildren(
-      h('span', { class: 'coach-count', title: 'Tutorial step' }, `${index + 1} / ${steps.length}`),
+      note ? null : h('span', { class: 'coach-count', title: 'Tutorial step' }, `${index + 1} / ${steps.length}`),
       h('p', { class: 'coach-text' }, words(step.say)),
       h('div', { class: 'coach-actions' },
         step.until === 'next' ? h('button', { class: 'btn small gold coach-next', onclick: () => { acked = true; advance(); changed(); } },
-          index === steps.length - 1 ? 'Done' : 'Next') : null,
-        h('button', { class: 'btn small ghost coach-skip', title: 'Hide the tutorial (the floor panel can show it again)', onclick: () => finish(true) }, 'Skip tutorial')));
+          note ? 'Got it' : index === steps.length - 1 ? 'Done' : 'Next') : null,
+        note ? null : h('button', { class: 'btn small ghost coach-skip', title: 'Hide the tutorial (the floor\'s story page can show it again)', onclick: () => finish(true) }, 'Skip tutorial')));
     relight();
   }
 

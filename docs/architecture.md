@@ -222,20 +222,23 @@ whenever a rule changes; the level select shows it.
 ```
 
 **Tutorial.** A level may have `tutorial`, a list of steps that
-`src/ui/coach.js` shows in a strip above the board (the last step is usually
-`'cleared'`: the results that follow would hide anything after it): `{ say, at?, side?, ui?,
+`src/ui/coach.js` shows in a strip above the board: `{ say, at?, side?, ui?,
 until }`. `say` is the text ({Click}/{click} read "Tap"/"tap" on a touch-only
 screen); `at` and `side` ring a hex and one of its edges; `ui` lights up part
 of the editor (`play`, `tests`, `ports`, `roster`, `undo`, `brief`,
 `stats`); `until` is `'next'` (the player presses Next), `'ran'` (a test has
-run), `'cleared'` (since the editor opened), or `{ cell: { at, fn, out? } }`
-(that croupier there, with those ports; `'*'` for a port pointed anywhere). Steps only go forward, and a player who is ahead skips the
-steps between. Finishing or skipping it is remembered in this browser
-(`stacked-deck-coach`); the floor's story page offers it again (Replay the
-tutorial). `test/levels.js`
+run), `'cleared'` (since the editor opened), `{ cell: { at, fn, out? } }`
+(that croupier there, with those ports; `'*'` for a port pointed anywhere),
+or `{ any: [...] }` (any one of those). Steps only go forward, and a player
+who is ahead skips the steps between. The last step is usually `'cleared'`:
+the results that follow would hide anything after it. Finishing or skipping
+it is remembered in this browser (`stacked-deck-coach`); the floor's story
+page offers it again (Replay the tutorial, on an empty floor). A tutorial of
+one step is a note (no count, no Skip, and no replay). `test/levels.js`
 checks the steps, and that every croupier a step asks for is in the floor's
-reference solution. The first two floors carry it; it explains the controls,
-never the floor's solution.
+reference solution. The first two floors carry a tutorial, which explains
+the controls, never the floor's solution; 6♥, the first big step up, has a
+note that floors can be left for later.
 
 **Payouts.** A `pays` level pays out a subset of the input hands unchanged. An
 `expected` level lists the hands the chip desk should receive for a test's

@@ -155,7 +155,11 @@ export const LEVELS = [
       { say: 'Two desks tonight, and each card must reach the right one, X or Y: the brief at the top says which.', ui: 'brief', until: 'next' },
       { say: 'Place a Pass on the ringed hex, pointing east.', at: [-2, 0], side: E, until: { cell: { at: [-2, 0], fn: 'pass', out: { out: E } } } },
       { say: 'Now the new croupier, Suits, on the ringed hex. The floor panel\'s list of croupiers says what each one does.', at: [-1, 0], until: { cell: { at: [-1, 0], fn: 'suits' } } },
-      { say: 'Suits has a port for each suit, and one (misc) for any card without an assigned direction. With it selected, each {click} on an edge points the highlighted port there and moves on to the next; the panel lists its ports, with buttons for the six sides. A port pointing nowhere drops its cards on the carpet.', ui: 'ports', until: { cell: { at: [-1, 0], fn: 'suits', out: { S: ANY, H: ANY, D: ANY, C: ANY } } } },
+      { say: 'Suits has a port for each suit, and one (misc) for any card without an assigned direction. With it selected, each {click} on an edge points the highlighted port there and moves on to the next; the panel lists its ports, with buttons for the six sides. A port pointing nowhere drops its cards on the carpet.', ui: 'ports', until: {
+          // Every suit pointed, or misc (which takes the rest).
+          any: [{ cell: { at: [-1, 0], fn: 'suits', out: { S: ANY, H: ANY, D: ANY, C: ANY } } }, { cell: { at: [-1, 0], fn: 'suits', out: { misc: ANY } } }],
+        },
+      },
       { say: 'Made a mistake? Undo takes back any change, a croupier can be dragged to another hex, and the 🗑 on a selected croupier\'s bar (or the Delete key) takes it away.', ui: 'undo', until: 'next' },
       { say: 'Your turn: get every card to its desk. Once a machine passes the tests, it is also tried on a few random deals, so it has to follow the rule, not just the tests.', until: 'cleared' },
     ],
@@ -222,10 +226,10 @@ export const LEVELS = [
     title: 'Three\'s Company',
     difficulty: 2,
     story: [
-      'Old Thursday and the Marchetti twins share a table at last, and each lays down one card a deal. When the three cards make a run (4, 5 and 6, in any order), the house pays all three together as one hand. Otherwise, nothing.',
+      'Old Thursday and the Marchetti twins share a table at last, and each lays down one card a deal. When the three cards make a run (4, 5 and 6, dealt in any order), the house pays all three together as one hand, stacked in seating order: player A\'s card on top, then B\'s, then C\'s. Otherwise, nothing.',
       'Your new croupier gathers: it stacks two hands into one.',
     ],
-    brief: 'Three players, one card each a deal. Pay out a deal\'s three cards together, as one hand, when they make a run (aces high or low, no wrapping).',
+    brief: 'Three players, one card each a deal. Pay out a deal\'s three cards together, as one hand, when they make a run (aces high or low, no wrapping): A\'s card on top, then B\'s, then C\'s (card order checked).',
     handSize: 1,
     floor: floorOf(hexRange(2), F5),
     fixed: F5,
@@ -238,6 +242,7 @@ export const LEVELS = [
       }
       return out;
     },
+    ordered: true,
     tests: dealtTests({
       deal: threeRunDeals,
       fixed: [one('5S 6H 7D 9C 8S TH AS 2H 3D KD QC AH 3H 2D 4C 6C 6D 7S'),
@@ -256,6 +261,10 @@ export const LEVELS = [
       'Runs as always: aces high or low, no wrapping. Black cards still waiting when the night ends are not paid.',
     ],
     brief: 'One card at a time, suits in turn (spade, heart, club, diamond). Pay out all the black cards since the last payout, as one hand, as soon as there are at least two and they make a run.',
+    // A word on moving on (a one-step tutorial: a note, src/ui/coach.js).
+    tutorial: [
+      { say: 'Some floors are more of a challenge than others. This one is worth the effort, but it can also wait: floors open up to three past the furthest one you\'ve cleared, so you can play on and come back to it.', until: 'next' },
+    ],
     handSize: 1,
     floor: floorOf(hexRange(2), F6),
     fixed: F6,
@@ -275,7 +284,7 @@ export const LEVELS = [
     title: 'Top and Bottom',
     difficulty: 3,
     story: [
-      'Five-card hands tonight. The Owner\'s note asks for the top card and the bottom card of each hand to be paid together, as one hand, and the three in the middle to go back in the box.',
+      'Five-card hands tonight. The Owner\'s note asks for the top card and the bottom card of each hand to be paid together, as one hand. The three in the middle can go on the carpet; nobody will ask after them.',
       'Your new croupier cuts: it splits a hand into its top half and the rest.',
     ],
     brief: 'Five-card hands. Pay out the top card and the bottom card of every hand, together as one hand.',
@@ -432,7 +441,7 @@ const PAR = {
   'two-at-a-time': { croupiers: 2, rounds: 49 },
   'thursdays-game': { croupiers: 6, rounds: 92 },
   'threes-company': { croupiers: 3, rounds: 61 },
-  'in-the-black': { croupiers: 4, rounds: 154 },
+  'in-the-black': { croupiers: 4, rounds: 156 },
   'top-and-bottom': { croupiers: 5, rounds: 52 },
   'neighbours': { croupiers: 4, rounds: 62 },
   'lucky-seven': { croupiers: 8, rounds: 77 },
