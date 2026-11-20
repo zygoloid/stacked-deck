@@ -76,7 +76,8 @@ export function levelSelect(root, ctx, focus = null) {
     page.replaceChildren(...[
       h('header', { class: 'marquee' },
         h('div', { class: 'marquee-suits' }, '♠ ♥ ♣ ♦'),
-        h('h1', {}, 'Stacked Deck'),
+        // (The name opens the title screen again: title.js.)
+        h('h1', {}, h('button', { class: 'logo-btn', title: 'Back to the title screen', onclick: () => ctx.title?.() }, 'Stacked Deck')),
         h('p', { class: 'tagline' }, 'An esoteric casino. Build machines of croupiers that pay out exactly the right hands.'),
         h('div', { class: 'marquee-meta' },
           BONUS.length ? null : h('span', { class: 'meta-count' }, `${solvedCount} / ${LEVELS.length} floors cleared`),

@@ -15,10 +15,12 @@ import { downloadSave } from './savefile.js';
 import { h } from './dom.js';
 import { CHANNEL } from '../build.js';
 import { devMode } from './dev.js';
+import { showTitle, titleSeen } from './title.js';
 
 const root = document.getElementById('app');
 const helpHost = document.getElementById('help');
 const noticeHost = document.getElementById('notice');
+const titleHost = document.getElementById('title');
 const save = loadSave();
 let cleanup = null;
 let lastFloor = null; // the floor last opened, shown when coming back to the floors list
@@ -39,6 +41,8 @@ const ctx = {
     helpHost.replaceChildren(helpPanel(() => helpHost.replaceChildren(), save));
   },
   helpOpen: () => !!helpHost.firstChild,
+  // The title screen (title.js), over the floors list.
+  title: () => openTitle(),
   nextLevel,
   // Open a floor's editor with one of its saved solutions loaded (by its
   // index in the save's list); the editor takes it when it opens.
@@ -159,8 +163,27 @@ function takeInvite() {
   return true;
 }
 
-window.addEventListener('hashchange', () => { if (!takeInvite()) route(); });
-if (!takeInvite()) route();
+// The title screen, over the floors list: when the game opens on the floors
+// list, once a visit (title.js), and from the floors list's heading.
+let title = null;
+function openTitle() {
+  if (title?.open) return;
+  if (document.body.dataset.screen !== 'select') ctx.go('#/');
+  const solved = CAMPAIGN.filter((l) => save.levels[l.id]?.solved).length;
+  title = showTitle(titleHost, {
+    progress: solved ? `${solved} of ${CAMPAIGN.length} floors cleared` : null,
+    onClose: () => { title = null; },
+  });
+}
+
+window.addEventListener('hashchange', () => {
+  if (title?.open) title.finish();
+  if (!takeInvite()) route();
+});
+if (!takeInvite()) {
+  route();
+  if (document.body.dataset.screen === 'select' && !titleSeen()) openTitle();
+}
 
 // Saved solutions scored under older rules are re-run in the background.
 rescoreStale(save, ALL_LEVELS, () => {
