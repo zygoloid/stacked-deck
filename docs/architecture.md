@@ -213,6 +213,7 @@ whenever a rule changes; the level select shows it.
   ordered: false,                          // compare card order within payouts (true), or
                                            //   only the cards in some places ([10]: the 11th card)
   inOrder: false,                          // payouts must come in the listed order
+  letters: false,                          // the tests panel reads short hands as letters (below)
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays);
                                 //   made by dealtTests (src/levels/shared.js; makeTests and
                                 //   makeMixedTests use it), which also records the deal function
@@ -256,6 +257,12 @@ must also arrive in the order listed: the n-th payout must match the n-th
 expected hand (the UI marks such a floor "payout order matters").
 On a floor with labelled desks an expected payout is `{ desk, hand }`, and a
 payout matches only at that desk (`payoutKey` in `src/engine.js`).
+On a floor with `letters: true` (the Solitaire cipher's) the tests panel shows
+each hand of up to three cards as letters, by the cipher's mapping (clubs and
+hearts A..K are A..M, diamonds and spades A..K are N..Z, special cards have
+none; `cardLetter` in `src/ui/dom.js`), and an `expected` floor's payouts as a
+message, each letter lit once it is paid. It is display only: the rules and
+scoring are unchanged.
 
 **When a run stops** (`Run` in `src/engine.js`). The only irreversible
 events are **progress**: a player handing over a hand, or a payout. A run
