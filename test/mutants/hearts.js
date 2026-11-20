@@ -41,6 +41,8 @@ export const MUTANTS = {
     'pairs too': (h) => isStraight(h) || isFlush(h) || rankOf(h[0]) === rankOf(h[1]),
   },
   'threes-company': {
+    'C on top': (inputs) => deals(inputs).filter(isStraight).map((h) => [...h].reverse()),
+    'B and A swapped': (inputs) => deals(inputs).filter(isStraight).map(([a, b, c]) => [b, a, c]),
     'any two in a run': (inputs) => deals(inputs).filter((h) => isStraight(h.slice(0, 2)) || isStraight(h.slice(1)) || isStraight([h[0], h[2]])),
     'ace low only': (inputs) => deals(inputs).filter((h) => isStraight(h) && !h.some((c) => rankOf(c) === 'A' && h.some((d) => rankOf(d) === 'K'))),
     'wraps round': (inputs) => deals(inputs).filter((h) => isStraight(h) || ['QKA', 'KA2'].some((w) => [...w].every((x) => h.some((c) => rankOf(c) === x))) ||
