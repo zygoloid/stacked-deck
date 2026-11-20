@@ -1094,6 +1094,10 @@ export function openEditor(root, ctx, level) {
   // A payout's desk, on a floor with labelled desks.
   const deskTag = (d) => (d === undefined ? null : h('span', { class: 'desk-tag', title: `At desk ${DESK_NAMES[d]}` }, `→ ${DESK_NAMES[d]}`));
   // A payout ({ desk, hand } on a floor with labelled desks), with its desk.
+  // A floor with `sealed` shows only the first test's expected payouts; the
+  // other tests' (and the check deals') stay face down until paid.
+  const isSealed = (i) => !!level.sealed && i > 0;
+  const sealedEl = (p) => h('span', { class: 'hand', title: 'Sealed: shown once paid' }, payoutHand(p).map(() => h('span', { class: 'card down' })));
   // An expected payout; on a floor that checks only some card places, the
   // cards in those places are marked.
   const payoutEl = (p) => {
@@ -1185,7 +1189,8 @@ export function openEditor(root, ctx, level) {
     parts.push(statusEl);
     if (st && (st.kind === 'wrong')) parts.push(h('div', { class: 'sim-detail bad' }, 'Paid: ', handEl(st.hand), deskTag(st.desk)));
     if (st && st.missing?.length) {
-      parts.push(h('div', { class: 'sim-detail' }, 'Never paid: ', st.missing.slice(0, 6).map((m) => payoutEl(m)), st.missing.length > 6 ? ` +${st.missing.length - 6}` : ''));
+      parts.push(h('div', { class: 'sim-detail' }, 'Never paid: ', isSealed(testIndex) ? `${st.missing.length} sealed payout${st.missing.length === 1 ? '' : 's'}`
+        : [st.missing.slice(0, 6).map((m) => payoutEl(m)), st.missing.length > 6 ? ` +${st.missing.length - 6}` : '']));
     }
     // queue
     // Seated floors: hand i belongs to player A, B, ... (i % seats), each dealing their own.
@@ -1217,15 +1222,21 @@ export function openEditor(root, ctx, level) {
         parts.push(h('div', { class: 'order-note' }, h('span', { class: 'order-tag' }, 'payout order matters'),
           h('span', { class: 'muted small' }, 'pay these hands in the order listed, first to last')));
       }
-      // The expected payouts read as a message, letter by letter as they are paid.
+      const sealed = isSealed(testIndex);
+      if (sealed) {
+        parts.push(h('div', { class: 'order-note' }, h('span', { class: 'order-tag' }, 'sealed'),
+          h('span', { class: 'muted small' }, 'the expected payouts are shown only as they are paid')));
+      }
+      // The expected payouts read as a message, letter by letter as they are
+      // paid (a sealed test's unpaid letters are blanks).
       const message = level.letters ? expected.map((p) => handLetters(payoutHand(p))) : [];
       if (message.length && message.every(Boolean)) {
-        parts.push(h('div', { class: 'message', title: 'The expected payouts as letters' },
-          message.map((t, i) => h('span', { class: matched[i] ? 'got' : '' }, t))));
+        parts.push(h('div', { class: 'message', title: sealed ? 'The payouts so far as letters' : 'The expected payouts as letters' },
+          message.map((t, i) => h('span', { class: matched[i] ? 'got' : '' }, sealed && !matched[i] ? '·'.repeat(t.length) : t))));
       }
       parts.push(h('div', { class: 'paid expected' },
         expected.map((hand, i) => h('div', { class: `p-item e-item${matched[i] ? ' ok' : ''}`, title: matched[i] ? `Paid (payout ${matched[i]})` : 'Not paid yet' },
-          h('span', { class: 'p-n' }, String(i + 1)), payoutEl(hand), h('span', { class: 'p-mark' }, matched[i] ? '✓' : '$'))),
+          h('span', { class: 'p-n' }, String(i + 1)), sealed && !matched[i] ? sealedEl(hand) : payoutEl(hand), h('span', { class: 'p-mark' }, matched[i] ? '✓' : '$'))),
         wrong.map(([p, i]) => h('div', { class: 'p-item bad', title: `Payout ${i + 1} is not an expected payout` },
           h('span', { class: 'p-n' }, '✗'), handEl(p.h), deskTag(p.desk), letterTag(p.h), h('span', { class: 'p-mark' }, 'wrong'))),
         expected.length ? null : h('div', { class: 'muted small' }, 'Nothing should be paid in this test.')));
