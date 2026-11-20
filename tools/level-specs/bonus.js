@@ -1187,24 +1187,26 @@ export const SPECS = {
   'in-between': {
     // No War: the deal's three cards are gathered as [A, B, C] on a whole
     // suit, 2 up to the ace (a shoe into Hand(13)), so each of their ranks
-    // is there twice. Set keeps those six cards in order: A, B, C, then the
-    // suit's cards of their three ranks, lowest first. A's card is between
-    // the posts exactly when its rank is the middle one, the 5th card, so
-    // Deal sends the 1st and 5th to Kind(2): a pair pays (Burn takes the
-    // suit's card off). A tie with a post makes that rank three of a kind,
-    // and then Set keeps only those three cards: no 5th card, no pair. (The
-    // suit is dealt afresh for every deal, 13 rounds; keeping one going
-    // round instead, a copy for each deal, is faster.)
+    // is there twice. Kind(3) drops a deal where A's card ties a post (that
+    // rank is then there three times). Set keeps the six cards of the three
+    // ranks in order: A, B, C, then the suit's cards, lowest first. A's
+    // card is between the posts exactly when its rank is the middle one,
+    // the 5th card, so Deal sends the 1st and 5th to Kind(2): a pair pays
+    // (Burn takes the suit's card off). (A tie needs no Kind(3): Set then
+    // keeps only the three cards of the tied rank, so there is no 5th card
+    // to pair. And the suit is dealt afresh for every deal, 13 rounds;
+    // keeping one going round instead, a copy for each deal, is faster.)
     cells: [
       pass([0, -3], E), c([1, -3], 'gather', { under: W, out: { out: SE } }),
       pass([2, -3], SW), c([1, -2], 'gather', { under: NE, out: { out: SE } }),
       shoe([3, -3], RANKS.slice(1).concat('A').map((r) => `${r}S`), { out: SW }), c([2, -2], 'hand', { n: 13, out: { out: SW } }),
-      c([1, -1], 'gather', { under: NE, out: { out: SE } }),
-      c([1, 0], 'set', { out: { set: W } }),
+      c([1, -1], 'gather', { under: NE, out: { out: SW } }),
+      c([0, 0], 'kind', { n: 3, out: { no: SE } }),
+      c([0, 1], 'set', { out: { set: E } }),
       // places 1 and 5 to Kind; the rest onto the floor
-      c([0, 0], 'deal', { out: { to: [SE, W, W, W, SE, W] } }),
-      c([0, 1], 'kind', { n: 2, out: { yes: E } }),
-      c([1, 1], 'burn', { out: { rest: NE } }),
+      c([1, 1], 'deal', { out: { to: [E, SW, SW, SW, E, SW] } }),
+      c([2, 1], 'kind', { n: 2, out: { yes: NE } }),
+      c([3, 0], 'burn', { out: { rest: W } }),
     ],
   },
   dumbwaiter: {
