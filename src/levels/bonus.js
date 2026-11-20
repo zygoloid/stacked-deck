@@ -13,7 +13,7 @@
 // croupier and special card open in lines from Déjà Vu. docs/campaign.md
 // ("The bonus deck: Opening") lists the lines. Some floors take something
 // away: Off Suit, Night Off, Skeleton Crew and No Kings a croupier (or two),
-// Ceasefire the War; One Deck, In-Between and Dumbwaiter bolt a shoe or
+// Ceasefire and In-Between the War; One Deck and Dumbwaiter bolt a shoe or
 // croupier to the floor (fixed cells). Crossed Wires and Uneven Tables seat
 // three players with labelled desks, In-Between three with one desk, Follow
 // Suit four; Mirror Image, Showdown, Twice Shy, Pot Luck, Twenty-One Card
@@ -340,7 +340,7 @@ function rankDeals(rand, nTests, per) {
   });
 }
 
-// One Deck, In-Between, Dumbwaiter: floors with shoes and croupiers bolted to
+// One Deck and Dumbwaiter: floors with shoes and croupiers bolted to
 // the floor (fixed cells the player can't move or change).
 //
 // One Deck: Seven Heaven with no shoes but one, bolted down, dealing one
@@ -364,15 +364,13 @@ function sevensDeals(rand, nTests, per = 10) {
     return shuffled([...pick(sevens, k), ...pick(fullDeck().filter((c) => rankOf(c) !== '7'), 5 - k)], rand);
   }));
 }
-// In-Between (one bolted War): three seated players across the top, one card each
-// per deal: A's card (the middle seat) is the bet, B's (on the left) the
-// low post and C's (on the right) the high post; the deal makes B's lower
-// than C's. A's card is paid when it ranks strictly between them (aces
-// high). No War croupiers but one, bolted down: top card, its dealer's side
-// and all four ports fixed.
+// In-Between: three seated players across the top, one card each per deal:
+// A's card (the middle seat) is the bet, B's (on the left) the low post and
+// C's (on the right) the high post; the deal makes B's lower than C's. A's
+// card is paid when it ranks strictly between them (aces high). No War
+// croupier at all.
 const IN_BETWEEN = [
   seated([2, -4], SW, 0), seated([1, -4], SW, 1), seated([3, -4], SW, 2), desk([2, 0]),
-  { at: [0, 0], kind: 'croupier', fn: 'war', rule: 'top', dealer: W, out: { win: NE, lose: SE, dwin: SW, dlose: E } },
 ];
 // A test's deals, [A's card, B's, C's] for each.
 const threes = (inputs) => Array.from({ length: Math.floor(inputs.length / 3) }, (_, i) => inputs.slice(3 * i, 3 * i + 3));
@@ -1245,8 +1243,75 @@ export const LEVELS = [
     }),
   },
   {
-    id: 'rising',
+    id: 'in-between',
     card: '6H',
+    unlockAfter: ['low-kicker', 'one-deck'],
+    title: 'In-Between',
+    difficulty: 6,
+    story: [
+      'Sal Vellani\'s uncle likes to bet the middle, and tonight he has brought In-Between from the casinos down the coast. Three players, one card each per deal: player B\'s card is always lower than player C\'s (the deal sees to it), and player A\'s card wins if it ranks strictly between them. A card that ties either of them loses, and aces are high.',
+      'The auditors have taken the War croupier\'s table away for the night, to count the chips under it, so there is no War croupier at all. The uncle says it is the quietest night the casino has had in years.',
+    ],
+    brief: 'Three players, one card each per deal; B\'s card is always lower than C\'s. Pay out A\'s card when it ranks strictly between B\'s and C\'s (a tie with either loses; aces high). No War croupier.',
+    handSize: 1,
+    floor: floorOf(hexRect(-3, 3, -7, 7), IN_BETWEEN),
+    fixed: IN_BETWEEN,
+    croupiers: paletteThrough('hand').filter((c) => c !== 'war'),
+    expected: inBetween,
+    tests: dealtTests({
+      deal: (rand, n) => inBetweenDeals(rand, n),
+      fixed: [
+        // ties with either post, posts next to each other (nothing fits
+        // between), aces, kings and 2s
+        betDeals('7S 3D JC', '3S 3H JD', 'JS 4D JH', '6S 5C 7D', '8S 8H 9C', '9D 8C 9S', '2C 8D 9H', 'KD 7H 8S',
+          'KS 2D AC', 'AH 5D KC', '2H 3C 9C', '3H 2S 4H', 'QH KH AS', 'AD KS AC', '2D 2H AH', '7H 2C AD'),
+        // winners back to back, then losers back to back: too low, ties, too high
+        betDeals('5S 2D 9C', '6D 3C TH', '7C 4H JS', '8H 5S QD', '9S 6D KC', 'TD 7C AH',
+          '2S 5D 9D', '3D 6C TC', '4C 7H JH', '5H 5C 9H', 'QC 8D QS', 'KS 4S 9S', 'AD 6H JD', 'QH 2C 3S'),
+        // winners alternating with hands that fail at the low post (A's card
+        // not above B's) and at the high post (not below C's)
+        betDeals('JC 9D QS', '2H 9H KD', '4S 3D 5C', 'KH 3S 7D', '8C 2S AS', '6H 6C 9C',
+          'TS 9S JD', 'QD 4D QC', '3C 2D 6S', 'AC KC AH', '9H 8S TH', '2C 7S 8D'),
+        // runs: too low, winners, too high, winners
+        betDeals('2S 6D 9C', '3H 7C TD', '4D 8S JC', '5C 9H QS', '7S 6C 8H', 'JD 2H AS', '6H 5S 7C', 'QC TH KD',
+          'AH 3C KC', 'KS 4H QH', 'QD 2D JS', 'TC 5D 9S', '9D 8C TS', '3S 2C 4H', 'JH TS QD', 'KH QC AD'),
+      ],
+      nRandom: 4, seed: 202,
+    }),
+  },
+  {
+    id: 'dumbwaiter',
+    card: '7H',
+    unlockAfter: ['in-between', 'deja-vu'],
+    title: 'Dumbwaiter',
+    difficulty: 6,
+    story: [
+      'The auditors have taken over the main floor. The card tables have moved upstairs and the cash desk downstairs, and the two rooms have nothing in common but the old dumbwaiter, which the auditors have bolted into the wall.',
+      'It takes cards from any side and sends them down one card at a time, and it will not be adjusted. The Owner\'s note says every hand is still to be paid exactly as it was played, card for card, top card first.',
+    ],
+    brief: 'Hands of 1 to 5 cards. Pay out every hand as it was played (card order counts, top card first). The players and the desk are in two rooms joined only by a bolted Hand(1) that hands cards on one at a time, into the desk\'s room.',
+    handSize: [1, 5],
+    floor: floorOf(DUMBWAITER_FLOOR, DUMBWAITER),
+    fixed: DUMBWAITER,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    expected: (inputs) => inputs,
+    ordered: true,
+    tests: makeMixedTests({
+      minSize: 1, maxSize: 5, handsPerTest: 8,
+      fixed: [
+        ['AS', '2D 3C', '4H 5S 6D', '7C 8H 9S TD', 'JC QH KS AD 2C'],
+        // single cards back to back, then full hands back to back, then mixed
+        ['KH', 'QD', 'JS', 'TC 9H 8D 7S 6C', '5H 4D 3S 2C AH', 'KC QS JD TH 9C', 'AC', '8S 7H', '6S'],
+        ['5D 4C 3H 2S', 'AD KD', '9D', 'QC JH TS 9S 8C'],
+      ],
+      nRandom: 4, seed: 203,
+    }),
+  },
+  {
+    id: 'rising',
+    card: '8H',
     unlockAfter: ['every-other', 'deja-vu'],
     title: 'Rising',
     difficulty: 6,
@@ -1276,7 +1341,7 @@ export const LEVELS = [
   },
   {
     id: 'odds-and-evens',
-    card: '7H',
+    card: '9H',
     unlockAfter: 'deja-vu',
     title: 'Odds and Evens',
     difficulty: 6,
@@ -1310,7 +1375,7 @@ export const LEVELS = [
   },
   {
     id: 'after-a-pair',
-    card: '8H',
+    card: 'TH',
     unlockAfter: 'small-pairs',
     title: 'After a Pair',
     difficulty: 6,
@@ -1342,7 +1407,7 @@ export const LEVELS = [
   },
   {
     id: 'two-by-two',
-    card: '9H',
+    card: 'JH',
     unlockAfter: 'two-pair',
     title: 'Two by Two',
     difficulty: 6,
@@ -1376,7 +1441,7 @@ export const LEVELS = [
   {
     id: 'royalty',
     unlockAfter: 'lucky-seven',
-    card: 'TH',
+    card: 'QH',
     title: 'Royalty',
     difficulty: 6,
     story: [
@@ -1398,7 +1463,7 @@ export const LEVELS = [
   },
   {
     id: 'rest-of-the-deck',
-    card: 'JH',
+    card: 'KH',
     unlockAfter: 'missing-card',
     title: 'The Rest of the Deck',
     difficulty: 6,
@@ -1428,7 +1493,7 @@ export const LEVELS = [
   },
   {
     id: 'crazy-eights',
-    card: 'QH',
+    card: 'AC',
     unlockAfter: 'high-roller',
     title: 'Crazy Eights',
     difficulty: 6,
@@ -1459,7 +1524,7 @@ export const LEVELS = [
   },
   {
     id: 'perfect-pair',
-    card: 'KH',
+    card: '2C',
     unlockAfter: 'missing-card',
     title: 'Perfect Pair',
     difficulty: 6,
@@ -1495,7 +1560,7 @@ export const LEVELS = [
   },
   {
     id: 'pot-luck',
-    card: 'AC',
+    card: '3C',
     unlockAfter: ['crossed-wires', 'hot-streak'],
     title: 'Pot Luck',
     difficulty: 6,
@@ -1525,7 +1590,7 @@ export const LEVELS = [
   },
   {
     id: 'night-off',
-    card: '2C',
+    card: '4C',
     unlockAfter: 'off-suit',
     title: 'Night Off',
     difficulty: 6,
@@ -1551,7 +1616,7 @@ export const LEVELS = [
   },
   {
     id: 'skeleton-crew',
-    card: '3C',
+    card: '5C',
     unlockAfter: ['calling-card', 'night-off'],
     title: 'Skeleton Crew',
     difficulty: 6,
@@ -1574,73 +1639,6 @@ export const LEVELS = [
         ['AC KH QH', 'AS AD 7D', 'AH 2H 3H', 'KS KD KC', 'AD 5H 6H', 'AC 2C 3C', '9H TH AH', 'AS 4H 8H'],
       ],
       nRandom: 4, seed: 189,
-    }),
-  },
-  {
-    id: 'in-between',
-    card: '4C',
-    unlockAfter: ['low-kicker', 'one-deck'],
-    title: 'In-Between',
-    difficulty: 7,
-    story: [
-      'Sal Vellani\'s uncle likes to bet the middle, and tonight he has brought In-Between from the casinos down the coast. Three players, one card each per deal: player B\'s card is always lower than player C\'s (the deal sees to it), and player A\'s card wins if it ranks strictly between them. A card that ties either of them loses, and aces are high.',
-      'Only one War croupier came in tonight, and the auditors have bolted her table to the floor: her dealer\'s side, all four of her ports and her rule (top card) stay as they are. There are no other War croupiers. The uncle says he has always liked a croupier who stays put.',
-    ],
-    brief: 'Three players, one card each per deal; B\'s card is always lower than C\'s. Pay out A\'s card when it ranks strictly between B\'s and C\'s (a tie with either loses; aces high). No War croupiers: the only one is bolted down, top card, ports and all.',
-    handSize: 1,
-    floor: floorOf(hexRect(-3, 3, -7, 7), IN_BETWEEN),
-    fixed: IN_BETWEEN,
-    croupiers: paletteThrough('hand').filter((c) => c !== 'war'),
-    expected: inBetween,
-    tests: dealtTests({
-      deal: (rand, n) => inBetweenDeals(rand, n),
-      fixed: [
-        // ties with either post, posts next to each other (nothing fits
-        // between), aces, kings and 2s
-        betDeals('7S 3D JC', '3S 3H JD', 'JS 4D JH', '6S 5C 7D', '8S 8H 9C', '9D 8C 9S', '2C 8D 9H', 'KD 7H 8S',
-          'KS 2D AC', 'AH 5D KC', '2H 3C 9C', '3H 2S 4H', 'QH KH AS', 'AD KS AC', '2D 2H AH', '7H 2C AD'),
-        // winners back to back, then losers back to back: too low, ties, too high
-        betDeals('5S 2D 9C', '6D 3C TH', '7C 4H JS', '8H 5S QD', '9S 6D KC', 'TD 7C AH',
-          '2S 5D 9D', '3D 6C TC', '4C 7H JH', '5H 5C 9H', 'QC 8D QS', 'KS 4S 9S', 'AD 6H JD', 'QH 2C 3S'),
-        // winners alternating with hands that fail at the low post (A's card
-        // not above B's) and at the high post (not below C's)
-        betDeals('JC 9D QS', '2H 9H KD', '4S 3D 5C', 'KH 3S 7D', '8C 2S AS', '6H 6C 9C',
-          'TS 9S JD', 'QD 4D QC', '3C 2D 6S', 'AC KC AH', '9H 8S TH', '2C 7S 8D'),
-        // runs: too low, winners, too high, winners
-        betDeals('2S 6D 9C', '3H 7C TD', '4D 8S JC', '5C 9H QS', '7S 6C 8H', 'JD 2H AS', '6H 5S 7C', 'QC TH KD',
-          'AH 3C KC', 'KS 4H QH', 'QD 2D JS', 'TC 5D 9S', '9D 8C TS', '3S 2C 4H', 'JH TS QD', 'KH QC AD'),
-      ],
-      nRandom: 4, seed: 202,
-    }),
-  },
-  {
-    id: 'dumbwaiter',
-    card: '5C',
-    unlockAfter: ['in-between', 'deja-vu'],
-    title: 'Dumbwaiter',
-    difficulty: 6,
-    story: [
-      'The auditors have taken over the main floor. The card tables have moved upstairs and the cash desk downstairs, and the two rooms have nothing in common but the old dumbwaiter, which the auditors have bolted into the wall.',
-      'It takes cards from any side and sends them down one card at a time, and it will not be adjusted. The Owner\'s note says every hand is still to be paid exactly as it was played, card for card, top card first.',
-    ],
-    brief: 'Hands of 1 to 5 cards. Pay out every hand as it was played (card order counts, top card first). The players and the desk are in two rooms joined only by a bolted Hand(1) that hands cards on one at a time, into the desk\'s room.',
-    handSize: [1, 5],
-    floor: floorOf(DUMBWAITER_FLOOR, DUMBWAITER),
-    fixed: DUMBWAITER,
-    croupiers: paletteThrough('hand'),
-    warRules: ALL,
-    specialCards: ['?', '??', '$', '$$'],
-    expected: (inputs) => inputs,
-    ordered: true,
-    tests: makeMixedTests({
-      minSize: 1, maxSize: 5, handsPerTest: 8,
-      fixed: [
-        ['AS', '2D 3C', '4H 5S 6D', '7C 8H 9S TD', 'JC QH KS AD 2C'],
-        // single cards back to back, then full hands back to back, then mixed
-        ['KH', 'QD', 'JS', 'TC 9H 8D 7S 6C', '5H 4D 3S 2C AH', 'KC QS JD TH 9C', 'AC', '8S 7H', '6S'],
-        ['5D 4C 3H 2S', 'AD KD', '9D', 'QC JH TS 9S 8C'],
-      ],
-      nRandom: 4, seed: 203,
     }),
   },
   {
@@ -2339,9 +2337,6 @@ export const LEVELS = [
 // this table from the recipes in tools/level-specs/bonus.js.
 // BEGIN PAR
 const PAR = {
-  'penny-ante': { croupiers: 10, rounds: 103 },
-  'royalty': { croupiers: 13, rounds: 114 },
-  'top-of-the-heap': { croupiers: 6, rounds: 74 },
   'split-pot': { croupiers: 3, rounds: 56 },
   'checkerboard': { croupiers: 4, rounds: 79 },
   'two-apart': { croupiers: 5, rounds: 120 },
@@ -2350,7 +2345,9 @@ const PAR = {
   'off-suit': { croupiers: 13, rounds: 71 },
   'every-other': { croupiers: 4, rounds: 90 },
   'bookends': { croupiers: 5, rounds: 134 },
+  'top-of-the-heap': { croupiers: 6, rounds: 74 },
   'one-deck': { croupiers: 10, rounds: 837 },
+  'penny-ante': { croupiers: 10, rounds: 103 },
   'cut-to-the-ace': { croupiers: 11, rounds: 913 },
   'uneven-tables': { croupiers: 18, rounds: 94 },
   'four-of-a-kind': { croupiers: 6, rounds: 533 },
@@ -2358,18 +2355,19 @@ const PAR = {
   'counting-up': { croupiers: 9, rounds: 290 },
   'ceasefire': { croupiers: 9, rounds: 212 },
   'three-in-a-row': { croupiers: 9, rounds: 222 },
+  'in-between': { croupiers: 11, rounds: 1270 },
+  'dumbwaiter': { croupiers: 8, rounds: 327 },
   'rising': { croupiers: 12, rounds: 214 },
   'odds-and-evens': { croupiers: 12, rounds: 217 },
   'after-a-pair': { croupiers: 13, rounds: 171 },
   'two-by-two': { croupiers: 13, rounds: 114 },
+  'royalty': { croupiers: 13, rounds: 114 },
   'rest-of-the-deck': { croupiers: 14, rounds: 1506 },
   'crazy-eights': { croupiers: 14, rounds: 1021 },
   'perfect-pair': { croupiers: 14, rounds: 922 },
   'pot-luck': { croupiers: 18, rounds: 747 },
   'night-off': { croupiers: 25, rounds: 398 },
   'skeleton-crew': { croupiers: 10, rounds: 69 },
-  'in-between': { croupiers: 9, rounds: 398 },
-  'dumbwaiter': { croupiers: 8, rounds: 327 },
   'no-kings': { croupiers: 13, rounds: 107 },
   'one-up': { croupiers: 16, rounds: 4076 },
   'twenty-one-card-trick': { croupiers: 14, rounds: 290 },
