@@ -5,8 +5,6 @@ import { E, SE, SW, W, NW, NE, c, pass, shoe } from './shared.js';
 export const SPECS = {
   // A pass line per table. Sending the bottom table up into the top line
   // through the gap in the bar saves a croupier, and is slower.
-  // A pass line per table; the bottom table can join the top line through
-  // the gap instead, a croupier fewer.
   'first-night': { cells: [pass([-1, -1], E), pass([0, -1], E), pass([1, -1], E), pass([-2, 1], E), pass([-1, 1], E), pass([0, 1], E)] },
   'red-and-black': {
     cells: [pass([-2, 0], E), c([-1, 0], 'suits', { out: { H: NE, D: NE, S: SE, C: SE } })],
@@ -27,7 +25,9 @@ export const SPECS = {
     ],
   },
   'threes-company': {
-    cells: [c([-1, 0], 'gather', { out: { out: E } }), c([0, 0], 'gather', { out: { out: E } }), c([1, 0], 'straight', { out: { yes: E } })],
+    // Each gather puts the later player's card underneath: B's under A's,
+    // then C's under both.
+    cells: [c([-1, 0], 'gather', { under: NW, out: { out: E } }), c([0, 0], 'gather', { under: SW, out: { out: E } }), c([1, 0], 'straight', { out: { yes: E } })],
   },
   'in-the-black': {
     // Spades and clubs reach the gather from different sides, so the first
@@ -35,7 +35,7 @@ export const SPECS = {
     // gather and the straight, picking up one black card a lap. Black cards
     // come every other turn, as fast as the pile gets round.
     cells: [
-      c([-1, 1], 'suits', { out: { S: NE, C: E } }), pass([0, 1], NW),
+      c([-1, 1], 'suits', { out: { S: E, C: NE } }), pass([0, 1], NW),
       c([0, 0], 'gather', { out: { out: E } }), c([1, 0], 'straight', { out: { yes: E, no: W } }),
     ],
   },

@@ -352,12 +352,17 @@ for (const level of [...LEVELS, ...BONUS, ...FLOOR]) {
       check(st.side === undefined || (st.at && Number.isInteger(st.side) && st.side >= 0 && st.side < 6), `${where} side is an edge of its hex`);
       check(st.ui === undefined || COACH_UI.includes(st.ui), `${where} ui ${st.ui} is one coach.js knows`);
       const u = st.until;
-      check(['next', 'ran', 'cleared'].includes(u) || (u && u.cell && Array.isArray(u.cell.at)), `${where} until is next, ran, cleared or { cell }`);
-      if (u?.cell) {
-        const ref = cells.find((c) => key(c.at) === key(u.cell.at));
-        check(ref && (!u.cell.fn || (ref.fn ?? ref.kind) === u.cell.fn) && Object.entries(u.cell.out ?? {}).every(([port, side]) => (side === '*' ? ref.out?.[port] !== undefined : ref.out?.[port] === side)),
-          `${where} the croupier it asks for (${u.cell.fn} at ${u.cell.at}) is in the reference solution`);
-      }
+      const cellOk = (x) => x && x.cell && Array.isArray(x.cell.at);
+      check(['next', 'ran', 'cleared'].includes(u) || cellOk(u) || (Array.isArray(u?.any) && u.any.length && u.any.every(cellOk)),
+        `${where} until is next, ran, cleared, { cell } or { any: [{ cell }, ...] }`);
+      // A croupier of the reference solution meets it (one of them, for any).
+      const inRef = (x) => {
+        const ref = cells.find((c) => key(c.at) === key(x.cell.at));
+        return ref && (!x.cell.fn || (ref.fn ?? ref.kind) === x.cell.fn) &&
+          Object.entries(x.cell.out ?? {}).every(([port, side]) => (side === '*' ? ref.out?.[port] !== undefined : ref.out?.[port] === side));
+      };
+      const alts = u?.cell ? [u] : u?.any ?? [];
+      if (alts.length) check(alts.some(inRef), `${where} a croupier it asks for (${alts.map((x) => `${x.cell.fn} at ${x.cell.at}`).join(' or ')}) is in the reference solution`);
     }
   }
   const all = [...level.fixed, ...cells];

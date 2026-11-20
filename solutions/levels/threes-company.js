@@ -8,8 +8,8 @@
 //       .    in'    .     .
 export default {
   cells: [
-    {"at":[-1,0],"kind":"croupier","fn":"gather","out":{"out":0}},
-    {"at":[0,0],"kind":"croupier","fn":"gather","out":{"out":0}},
+    {"at":[-1,0],"kind":"croupier","fn":"gather","under":4,"out":{"out":0}},
+    {"at":[0,0],"kind":"croupier","fn":"gather","under":2,"out":{"out":0}},
     {"at":[1,0],"kind":"croupier","fn":"straight","out":{"yes":0}},
   ],
 };
