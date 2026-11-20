@@ -718,6 +718,83 @@ function sightingDeals(rand, nTests, per) {
   });
 }
 
+// Solitaire (Bruce Schneier's cipher, in this game's cards): clubs A-K
+// are 1-13, diamonds 14-26, hearts 27-39, spades 40-52, either joker 53;
+// joker A is '?', joker B '??'. Letters A..Z are 1..26; a card's letter is
+// its value mod 26 (26: Z).
+const solValue = (c) => (c === '?' || c === '??' ? 53 : 'CDHS'.indexOf(c[1]) * 13 + RANKS.indexOf(c[0]) + 1);
+const letterOf = (c) => ((solValue(c) - 1) % 26) + 1;
+const cardOfLetter = (n) => RANKS[(n - 1) % 13] + (n <= 13 ? 'C' : 'D');
+function moveDown(deck, card, n) {
+  const i = deck.indexOf(card);
+  deck.splice(i, 1);
+  let j = i + n;
+  while (j > deck.length) j -= deck.length;
+  deck.splice(j, 0, card);
+}
+// One keystream value (1..26), and the steps it took (a joker output takes
+// another); `deck` (54 cards, top first) is changed.
+function solNext(deck) {
+  for (let steps = 1; ; steps++) {
+    moveDown(deck, '?', 1);
+    moveDown(deck, '??', 2);
+    const [a, b] = [deck.indexOf('?'), deck.indexOf('??')].sort((x, y) => x - y);
+    deck.splice(0, deck.length, ...deck.slice(b + 1), ...deck.slice(a, b + 1), ...deck.slice(0, a));
+    const v = solValue(deck[53]);
+    if (v !== 53) deck.splice(0, deck.length, ...deck.slice(v, 53), ...deck.slice(0, v), deck[53]);
+    const out = deck[solValue(deck[0])];
+    if (out !== '?' && out !== '??') return { k: ((solValue(out) - 1) % 26) + 1, steps };
+  }
+}
+function solDecrypt(key, cipher) {
+  const deck = [...key, '?', '??'];
+  return cipher.map((c) => cardOfLetter(((letterOf(c) - solNext(deck).k - 1 + 52) % 26) + 1));
+}
+function solEncrypt(key, plain) {
+  const deck = [...key, '?', '??'];
+  return plain.map((c) => cardOfLetter(((letterOf(c) + solNext(deck).k - 1) % 26) + 1));
+}
+// The steps each of a message's first n letters takes.
+const solSteps = (key, n) => { const deck = [...key, '?', '??']; return Array.from({ length: n }, () => solNext(deck).steps); };
+const fromText = (t) => [...t].map((ch) => cardOfLetter(ch.charCodeAt(0) - 64));
+// A test: the key, then the message enciphered, a card per hand.
+const solTest = (key, text) => [key.join(' '), ...solEncrypt(key, fromText(text))];
+// Random tests: a shuffled key and a phrase from the list. A key whose
+// keystream outputs a joker for the phrase is shuffled again: a letter that
+// waits for two steps (as one in each fixed test does) takes the reference
+// machine up to about 850 rounds (STALL_ROUNDS is 1000), so random tests
+// and check deals keep to one step a letter. (The phrases are short, so
+// most keys pass.)
+const SOL_PHRASES = ['PLACEYOURBETS', 'NOMOREBETS', 'THEHOUSEPAYS', 'ACESHIGH', 'DEALMEIN', 'LADYLUCK',
+  'CASHINGOUT', 'HITME', 'DOUBLEDOWN', 'JACKPOT', 'ROYALFLUSH', 'BLACKJACK', 'HIGHROLLER', 'SNAKEEYES',
+  'LETITRIDE', 'FULLHOUSE', 'CUTTHEDECK', 'STACKEDDECK', 'THEBANKWINS', 'TWENTYONE'];
+function solitaireDeals(rand, nTests) {
+  return Array.from({ length: nTests }, () => {
+    const text = SOL_PHRASES[Math.floor(rand() * SOL_PHRASES.length)];
+    let key;
+    do key = shuffled(fullDeck(), rand); while (solSteps(key, text.length).some((s) => s > 1));
+    return solTest(key, text).map((h) => h.split(' '));
+  });
+}
+// The fixed tests, as ciphertext (the floor is sealed: only test 1's
+// payouts show before they are paid). Test 1 is Schneier's published
+// vector: the unkeyed deck (clubs, diamonds, hearts, spades, each ace to
+// king) turns EXKYIZSGEH into AAAAAAAAAA. Tests 2-4 are messages for the
+// player (docs/campaign.md has them), each with its own key, a shuffle from
+// the seeded generator. Each key steps past a joker output once, and has a
+// step with a joker at the bottom after the triple cut (no count cut) and
+// one with a joker on top after it (the output is the bottom card).
+const UNKEYED = ['C', 'D', 'H', 'S'].flatMap((s) => RANKS.map((r) => r + s));
+const cipherTest = (key, text) => [key.join(' '), ...fromText(text)];
+const SOL_FIXED = [
+  cipherTest(UNKEYED, 'EXKYIZSGEH'),
+  cipherTest(shuffled(fullDeck(), rng(13)), 'WHVHKQPXUPWWLYRHJIYRMPALQL'),
+  cipherTest(shuffled(fullDeck(), rng(3007)), 'THUHTHQCBCNTYMMYMBAMFAOZEKUWQZPGO'),
+  cipherTest(shuffled(fullDeck(), rng(6293)), 'LUOBOTIGCASEYYZOPNLXLSEGFYONNCLBJYAV'),
+];
+// Solitaire's player and desk, where the reference machine has them.
+const SOL = [source([84, 5], SE), desk([106, 5])];
+
 export const LEVELS = [
   {
     id: 'split-pot',
@@ -2329,6 +2406,33 @@ export const LEVELS = [
       nRandom: 4, seed: 186,
     }),
   },
+  {
+    id: 'solitaire',
+    card: '?',
+    unlockAfter: ['deja-vu', 'twenty-one-card-trick'],
+    title: 'Solitaire',
+    difficulty: 10,
+    story: [
+      'An envelope comes to the cage addressed to the Owner, which is you now: a deck of cards in no order anybody can name, and a page of capital letters that read as nonsense. Old Thursday takes one look and stops smiling. It is Solitaire, a cipher a spy can work with nothing but a deck of cards in a coat pocket. The deck, in its order, is the key, and each letter of the message is a card.',
+      'Tonight one player plays the key, the whole deck at once, then the message, a card at a time. The house puts its two jokers under the key, the monochrome joker first, and pays back the plain message a letter at a time, in its own clubs (A to M) and diamonds (N to Z). The night is over when the letters stop coming.',
+    ],
+    brief: 'One player. The first hand is the key, a deck of 52 cards; the house puts ? and then ?? under it (54 cards, top first). Every later hand is one card, a letter of the message. A card\'s value is its rank (ace 1 to king 13), plus 13 for diamonds, 26 for hearts, 39 for spades (A♣ is 1, K♠ 52); a joker is 53. Its letter is the value counted round the alphabet: 1 to 26 are A to Z, 27 is A again (A♣ and A♥ are A, K♦ and K♠ Z). For each letter, step the key deck: move ? one card down, then ?? two (a joker moving down from the bottom card goes under the top card instead); swap the cards above the upper joker with the cards below the lower one; then, unless the bottom card is a joker, move as many cards as its value from the top to just above the bottom card. Count down as many cards as the top card\'s value (53 for a joker), counting the top card first: the card after them is the output. If it is a joker, step again. Pay the message letter minus the output\'s letter, round the alphabet (A minus A is Z), as a house card: A to M are clubs and N to Z diamonds, ace to king. One card a letter, in order.',
+    handSize: [1, 52],
+    floor: floorOf(hexRect(-22, 28, -31, 231), SOL),
+    fixed: SOL,
+    croupiers: paletteThrough('hand'),
+    warRules: ALL,
+    specialCards: ['?', '??', '$', '$$'],
+    letters: true,
+    sealed: true,
+    expected: (inputs) => solDecrypt(inputs[0], inputs.slice(1).map((h) => h[0])).map((c) => [c]),
+    inOrder: true,
+    tests: dealtTests({
+      deal: (rand, n) => solitaireDeals(rand, n),
+      fixed: SOL_FIXED,
+      nRandom: 3, seed: 187,
+    }),
+  },
 ];
 
 // Par, from the reference solutions in solutions/levels/ (croupiers including
@@ -2389,6 +2493,7 @@ const PAR = {
   'follow-suit': { croupiers: 38, rounds: 824 },
   'twice-shy': { croupiers: 36, rounds: 1145 },
   'carry-the-one': { croupiers: 75, rounds: 2046 },
+  'solitaire': { croupiers: 1190, rounds: 48955 },
 };
 // END PAR
 // The bonus deck is played at any time, with the house deck as it is now:

@@ -245,6 +245,7 @@ regulation; Ace Count does).
 | J♦ | Follow Suit | Showdown | Sal's uncle brings the family's trick-taking game, played without aces since a wedding |
 | Q♦ | Twice Shy | Mirror Image | the twins again; the Owner won't pay twice |
 | K♦ | Carry the One | Times Tables | two-digit casino numbers; totals of three cards |
+| ? | Solitaire | Déjà Vu and Twenty-One Card Trick | an envelope for the new Owner: a deck as a key, and a message in cards; Old Thursday knows the cipher |
 
 ## Notes for writers
 

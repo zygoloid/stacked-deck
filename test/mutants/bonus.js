@@ -184,7 +184,50 @@ const followBy = ({ beats = (c, w, led) => c[1] === led && hv(c) > hv(w), desk =
     return { desk: desk(w), hand: trick };
   });
 
+// Solitaire with something misread: `sol(opts)` decrypts the test (key,
+// then a card a letter) with the variations named in opts.
+const solV = (c) => (c === '?' || c === '??' ? 53 : 'CDHS'.indexOf(c[1]) * 13 + RANKS.indexOf(c[0]) + 1);
+const solL = (c) => ((solV(c) - 1) % 26) + 1;
+const solC = (n) => RANKS[(n - 1) % 13] + (n <= 13 ? 'C' : 'D');
+function solMove(deck, card, n, o) {
+  const i = deck.indexOf(card);
+  deck.splice(i, 1);
+  let j = i + n;
+  if (o.ontoTop) j %= deck.length + 1;
+  else while (j > deck.length) j -= deck.length;
+  deck.splice(j, 0, card);
+}
+const sol = (o = {}) => (t) => {
+  const deck = [...t[0], ...(o.jokersSwapped ? ['??', '?'] : ['?', '??'])];
+  return t.slice(1).map(([c]) => {
+    let k;
+    for (;;) {
+      solMove(deck, '?', 1, o);
+      solMove(deck, '??', o.bOne ? 1 : 2, o);
+      const [a, b] = [deck.indexOf('?'), deck.indexOf('??')].sort((x, y) => x - y);
+      if (!o.noTriple) deck.splice(0, deck.length, ...deck.slice(b + 1), ...deck.slice(a, b + 1), ...deck.slice(0, a));
+      const v = solV(deck[53]);
+      if (!o.noCount && v < 53) deck.splice(0, deck.length, ...deck.slice(v, 53), ...deck.slice(0, v), deck[53]);
+      const out = deck[Math.min(53, solV(deck[0]) - (o.countFromOne ? 1 : 0))];
+      if (o.jokersPay || (out !== '?' && out !== '??')) { k = ((solV(out) - 1) % 26) + 1; break; }
+    }
+    const d = o.plus ? solL(c) + k : solL(c) - k;
+    return [solC(o.zIsA ? (((d % 26) + 26) % 26) + 1 : ((((d - 1) % 26) + 26) % 26) + 1)];
+  });
+};
+
 export const MUTANTS = {
+  solitaire: {
+    'enciphering instead': sol({ plus: true }),
+    '?? first under the key': sol({ jokersSwapped: true }),
+    'a joker can move onto the top card': sol({ ontoTop: true }),
+    '?? moves one card': sol({ bOne: true }),
+    'no triple cut': sol({ noTriple: true }),
+    'no count cut': sol({ noCount: true }),
+    'the output is the card counted to': sol({ countFromOne: true }),
+    'a joker output counts': sol({ jokersPay: true }),
+    'a letter on (A minus A is A)': sol({ zIsA: true }),
+  },
   // From the floor (chapter 1's and 2's old floors).
   'penny-ante': {
     'aces high': (h) => '234'.includes(r(h)), 'A to 5': (h) => 'A2345'.includes(r(h)),

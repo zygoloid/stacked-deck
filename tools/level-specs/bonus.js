@@ -2,6 +2,7 @@
 // `node tools/write-solutions.js bonus [--par]`.
 import { E, SE, SW, W, NW, NE, c, pass, war, twar, shoe } from './shared.js';
 import { RANKS } from '../../src/cards.js';
+import { solitaireCells } from './solitaire.js';
 
 const SUITED = ['S', 'D', 'C', 'H'];
 
@@ -1031,6 +1032,12 @@ export const SPECS = {
   'split-the-difference': casinoDiffs(),
   'times-tables': casinoProducts(),
   'carry-the-one': casinoLongSums(),
+  // Solitaire: a machine of modules routed by a congestion router; the
+  // design and the router are in tools/level-specs/solitaire.js (built on
+  // first use: it takes a few seconds). The floor's sealed messages (tests
+  // 2-4): WELCOMEHOMETHEHOUSEISYOURS, THEFIRSTOWNERNEVERLEFTTHEBUILDING,
+  // LOOKBEHINDTHEMIRRORINTHECOUNTINGROOM.
+  solitaire: { get cells() { return solitaireCells(); } },
   'off-suit': offSuit(),
   'night-off': nightOff(),
   'skeleton-crew': skeletonCrew(),
