@@ -839,6 +839,12 @@ svg.board.placing { cursor: copy; }
 .queue .hand, .paid .hand { min-width: 0; }
 .q-item > .hand, .p-item > .hand { flex: 0 1 auto; }
 .paid .card.placed { outline: 0.125rem solid var(--gold-2); outline-offset: 1px; }
+/* Floors with letters: each short hand's letter, and the payouts as a message. */
+.letter-tag { font: 700 0.75rem/1 var(--mono, monospace); color: var(--gold-2); min-width: 0.75rem; text-align: center; }
+.message { font: 700 1rem/1.5 var(--mono, monospace); letter-spacing: 0.12em; overflow-wrap: anywhere;
+  margin: 0.125rem 0 0.375rem; padding: 0.25rem 0.5rem; border: 1px solid var(--gold-soft); border-radius: 0.375rem; color: var(--muted);
+}
+.message .got { color: var(--gold-2); }
 
 /* drag ghost */
 .drag-ghost { position: fixed; left: -1.3125rem; top: -1.3125rem; pointer-events: none; z-index: 50; display: flex; align-items: center; gap: 0.375rem; }
