@@ -374,15 +374,13 @@ try {
   const best1 = lv.best;
 
   if (tutorial.length) {
-    // Cleared: its last step, then gone, and the floor panel offers it again.
+    // Cleared: the tutorial is done, and the story page offers it again.
     await page.click('.modal-actions .btn:first-child'); // Keep tinkering
-    check(await coachStep() === `${tutorial.length} / ${tutorial.length}`, `clearing the floor brings the tutorial's last step (${await coachStep()})`);
-    await page.click('.coach-next');
-    await page.keyboard.press('Escape');
-    check(await page.locator('.coach.hidden').count() === 1 && await page.locator('.inspector .coach-again').count() === 1,
-      'finished, the tutorial goes, and the floor panel offers it again');
-    await page.click('.inspector .coach-again');
-    check(await coachStep() !== '', 'the floor panel brings the tutorial back');
+    check(await page.locator('.coach.hidden').count() === 1, 'clearing the floor finishes the tutorial');
+    await page.goto(`${base}#/level/${FIRST}/story`);
+    await page.click('.story-actions .coach-again');
+    await page.waitForSelector('svg.board');
+    check(await coachStep() !== '', `the story page's Replay the tutorial brings it back (${await coachStep()})`);
     await page.click('.coach-skip');
     check(await page.locator('.coach.hidden').count() === 1, 'Skip tutorial hides it');
     await page.click('.tp.main');
