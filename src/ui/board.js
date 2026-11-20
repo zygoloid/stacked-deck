@@ -124,6 +124,29 @@ function sidePos(d, nCards, frac = 0.58) {
   return [ux * dist, uy * dist];
 }
 
+// Make `parent`'s children exactly `list`, in order, moving only what has
+// to move (nodes already in place stay put).
+function syncChildren(parent, list) {
+  const keep = new Set(list);
+  let cur = parent.firstChild;
+  for (const el of list) {
+    // (Nodes no longer wanted go as they are met, so that one changed node
+    // doesn't push all the ones after it along.)
+    while (cur && cur !== el && !keep.has(cur)) {
+      const next = cur.nextSibling;
+      cur.remove();
+      cur = next;
+    }
+    if (cur === el) cur = cur.nextSibling;
+    else parent.insertBefore(el, cur);
+  }
+  while (cur) {
+    const next = cur.nextSibling;
+    cur.remove();
+    cur = next;
+  }
+}
+
 export class Board {
   constructor(svg, level) {
     this.svg = svg;
@@ -223,24 +246,40 @@ export class Board {
     this.positions = new Map();
     this.landing = new Map();
     this.peeks = [];
-    const svg = this.svg;
-    svg.replaceChildren(s('defs', {}, s('filter', {
-      id: 'desaturate', filterUnits: 'userSpaceOnUse', x: -2 * R, y: -2 * R, width: 4 * R, height: 4 * R,
-    }, s('feColorMatrix', { type: 'saturate', values: '0' }))));
     this.nextGone = new Map();
     this.nextBack = new Map();
-    const gFloor = s('g', { class: 'l-floor' }), gBody = s('g', { class: 'l-body' });
-    const gArrow = s('g', { class: 'l-arrows' }), gCards = s('g', { class: 'l-cards' }), gOver = s('g', { class: 'l-over' });
-    // A picked-up group floats over everything on the floor, ports and all.
-    const gLift = s('g', { class: 'l-lift' });
-    svg.append(gFloor, gBody, gArrow, gCards, gLift, gOver);
-
-    const fixedKeys = new Set(this.level.fixed.map((c) => hexKey(c.at)));
-    for (const at of this.level.floor) {
-      if (fixedKeys.has(hexKey(at))) continue;
-      const [x, y] = center(at);
-      gFloor.append(s('polygon', { class: 'hex floor', points: HEX, transform: `translate(${x},${y})`, 'data-at': hexKey(at) }));
+    // The layers stay in the SVG from one render to the next. The floor's
+    // hexes never change, so they are drawn once; croupiers drawn as before
+    // are kept (below), and only the layers' changes touch the page. (On a
+    // huge floor, Solitaire's, drawing it all afresh every round made
+    // stepping take most of a second.)
+    if (!this.layers) {
+      const fixedKeys = new Set(this.level.fixed.map((c) => hexKey(c.at)));
+      const gFloor = s('g', { class: 'l-floor' }, this.level.floor.filter((at) => !fixedKeys.has(hexKey(at))).map((at) => {
+        const [x, y] = center(at);
+        return s('polygon', { class: 'hex floor', points: HEX, transform: `translate(${x},${y})`, 'data-at': hexKey(at) });
+      }));
+      this.layers = {
+        gBody: s('g', { class: 'l-body' }), gArrow: s('g', { class: 'l-arrows' }), gCards: s('g', { class: 'l-cards' }),
+        // A picked-up group floats over everything on the floor, ports and all.
+        gLift: s('g', { class: 'l-lift' }), gOver: s('g', { class: 'l-over' }),
+      };
+      const { gBody, gArrow, gCards, gLift, gOver } = this.layers;
+      this.svg.replaceChildren(s('defs', {}, s('filter', {
+        id: 'desaturate', filterUnits: 'userSpaceOnUse', x: -2 * R, y: -2 * R, width: 4 * R, height: 4 * R,
+      }, s('feColorMatrix', { type: 'saturate', values: '0' }))), gFloor, gBody, gArrow, gCards, gLift, gOver);
     }
+    const { gBody, gArrow, gCards, gLift, gOver } = this.layers;
+    // The bodies and arrows this render draws, in order (synced to the
+    // layers at the end); the other layers are drawn afresh.
+    const bodies = [], arrowEls = [];
+    for (const g of [gCards, gLift, gOver]) g.replaceChildren();
+    // A croupier's body and arrows are kept from the last render that drew it
+    // the same way (cellCache: hex key -> { bodyKey, body, arrows,
+    // peeks: the [data-peek] elements in them, with what each shows }), unless it is selected, lifted or mid-fade. Each
+    // render keeps only the entries it used.
+    const cache = this.cellCache ?? new Map(), nextCache = new Map();
+    const fading = new Set([...this.fadeGone.keys(), ...this.fadeBack.keys()].map((k) => k.split('|')[0]));
 
     const all = [...this.level.fixed, ...cells];
     const liveCells = live ? live.cells : null;
@@ -249,27 +288,45 @@ export class Board {
       const [x, y] = center(cell.at);
       const t = `translate(${x.toFixed(2)},${y.toFixed(2)})`;
       const selected = state.selected === k;
-      const body = this.bodySvg(cell, t, selected, state.alert === k, live);
-      // The alert (the desk after a wrong payout): a red ring over the hex
-      // whose opacity pulses. (Animating the hex's own stroke width made the
-      // page lay itself out again every frame, which on a phone made a long
-      // page, the payout lists of 21-card hands, lag for seconds.)
-      if (state.alert === k) body.append(s('polygon', { class: 'alert-ring', points: HEX }));
+      const isLifted = !!state.lifted?.cells.has(cell);
+      const cacheable = !selected && !isLifted && !fading.has(k) && cell.kind !== 'source' && cell.kind !== 'payout';
+      const bodyKey = cacheable ? `${JSON.stringify(cell)}|${state.alert === k}|${this.level.fixed.includes(cell)}|${live && cell.kind === 'croupier' ? live.cells.get(k)?.facing : ''}` : null;
+      const hit = cacheable ? cache.get(k) : null;
+      const reuse = hit?.bodyKey === bodyKey;
+      let body, arrows;
+      if (reuse) {
+        ({ body, arrows } = hit);
+        for (const [el, item] of hit.peeks) el.setAttribute('data-peek', this.peek(item));
+        nextCache.set(k, hit);
+      } else {
+        const firstPeek = this.peeks.length;
+        body = this.bodySvg(cell, t, selected, state.alert === k, live);
+        // The alert (the desk after a wrong payout): a red ring over the hex
+        // whose opacity pulses. (Animating the hex's own stroke width made the
+        // page lay itself out again every frame, which on a phone made a long
+        // page, the payout lists of 21-card hands, lag for seconds.)
+        if (state.alert === k) body.append(s('polygon', { class: 'alert-ring', points: HEX }));
+        // (With the pointer on an edge of the selected croupier: what a click there would do.)
+        const preview = selected && state.preview;
+        arrows = preview ? this.arrowsSvg(preview, t, state.activePort, { was: cell, key: k })
+          : this.arrowsSvg(cell, t, selected ? state.activePort : null, { key: k });
+        if (cacheable) {
+          const peeks = this.peeks.length > firstPeek ? [...body.querySelectorAll('[data-peek]'), ...arrows.querySelectorAll('[data-peek]')]
+            .map((el) => [el, this.peeks[Number(el.dataset.peek)]]) : [];
+          nextCache.set(k, { bodyKey, body, arrows, peeks });
+        }
+      }
       // A picked-up group floats over the floor, red where it can't go and
       // marked where it would replace a croupier; that croupier's ports are
       // hidden (they would only show round the edges).
-      // (With the pointer on an edge of the selected croupier: what a click there would do.)
-      const preview = selected && state.preview;
-      const arrows = preview ? this.arrowsSvg(preview, t, state.activePort, { was: cell, key: k })
-        : this.arrowsSvg(cell, t, selected ? state.activePort : null, { key: k });
-      if (state.lifted?.cells.has(cell)) {
+      if (isLifted) {
         const bad = state.lifted.bad.has(k), under = bad ? null : state.lifted.covers.get(k);
         body.classList.add('lifted', ...(bad ? ['bad'] : []), ...(under ? ['covers'] : []));
         gLift.append(body, arrows);
         if (under) gLift.append(this.coverTag(under, t));
       } else {
-        gBody.append(body);
-        if (state.lifted?.covers.get(k) !== cell) gArrow.append(arrows);
+        bodies.push(body);
+        if (state.lifted?.covers.get(k) !== cell) arrowEls.push(arrows);
       }
       if (liveCells) {
         const lc = liveCells.get(k);
@@ -347,6 +404,9 @@ export class Board {
       gOver.append(s('polygon', { class: `hex drop ${cls}`, points: HEX_IN, transform: t }));
       if (cls === 'covers') gOver.append(this.coverTag(under, t));
     }
+    syncChildren(gBody, bodies);
+    syncChildren(gArrow, arrowEls);
+    this.cellCache = nextCache;
     this.fadeGone = this.nextGone;
     this.fadeBack = this.nextBack;
   }

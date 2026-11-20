@@ -214,6 +214,7 @@ whenever a rule changes; the level select shows it.
   inOrder: false,                          // payouts must come in the listed order
   letters: false,                          // the tests panel reads short hands as letters (below)
   sealed: false,                           // show only test 1's expected payouts (below)
+  stallRounds: 1000,                       // rounds without progress before a run stops (STALL_ROUNDS)
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays);
                                 //   made by dealtTests (src/levels/shared.js; makeTests and
                                 //   makeMixedTests use it), which also records the deal function
@@ -287,8 +288,8 @@ stops at the first of:
   the rounds it takes to start plus its length. Hands are never changed
   once made, so a saved state keeps references to them, and most rounds
   differ from it in the first few things compared;
-* a **stall**: `STALL_ROUNDS` rounds without progress, taken to mean it
-  never will.
+* a **stall**: `STALL_ROUNDS` rounds without progress (or the level's own
+  `stallRounds`), taken to mean it never will.
 
 It passes if it stops at a cycle or a stall with every hand dealt and every
 expected payout made, and scores the round of its last progress. Whose cards
@@ -305,6 +306,10 @@ payout, so there was no upper bound (the only machines that did were
 cheats, which the new rules reject). A reference solution that needs more
 fails `test/levels.js`. The script that measured it, `tools/stall-bound.js`
 (run on a dump of `/solutions`), is in the history at commit 3b8850d.
+A floor where honest machines are slow between payouts sets its own,
+larger limit as `stallRounds`: Solitaire (5000), whose reference takes
+about 310 rounds a keystream step and up to 766 for a letter that waits for
+a joker output.
 
 The editor's simulator (`src/ui/sim.js`) checks the same `Run` a round at a
 time. Once every hand is dealt and every expected payout made, it runs a copy

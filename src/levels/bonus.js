@@ -772,7 +772,9 @@ function solitaireDeals(rand, nTests) {
   return Array.from({ length: nTests }, () => {
     const text = SOL_PHRASES[Math.floor(rand() * SOL_PHRASES.length)];
     let key;
-    do key = shuffled(fullDeck(), rand); while (solSteps(key, text.length).some((s) => s > 1));
+    // Joker outputs are allowed (stallRounds leaves room); a letter that
+    // waits for four in a row (too rare to matter) is dealt again.
+    do key = shuffled(fullDeck(), rand); while (solSteps(key, text.length).some((s) => s > 4));
     return solTest(key, text).map((h) => h.split(' '));
   });
 }
@@ -2425,6 +2427,10 @@ export const LEVELS = [
     specialCards: ['?', '??', '$', '$$'],
     letters: true,
     sealed: true,
+    // A step takes the reference about 310 rounds and a letter that waits
+    // for a joker output two steps: the usual 1000 would leave a player's
+    // machine little room to be slower.
+    stallRounds: 5000,
     expected: (inputs) => solDecrypt(inputs[0], inputs.slice(1).map((h) => h[0])).map((c) => [c]),
     inOrder: true,
     tests: dealtTests({

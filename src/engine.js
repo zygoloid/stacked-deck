@@ -504,8 +504,10 @@ export const paidPayout = (floor, n) => (floor.paidAt[n] === undefined ? floor.p
 // progress of any machine that should work: 525 for the reference
 // solutions (Times Tables filling its table before taking the second hand)
 // and 171 for every player's machine when it was set. See "When a run
-// stops" in docs/architecture.md.
+// stops" in docs/architecture.md. A floor whose every step is slow
+// (Solitaire) sets its own limit, `stallRounds`.
 export const STALL_ROUNDS = 1000;
+const stallOf = (rule) => (typeof rule === 'object' && rule?.stallRounds) || STALL_ROUNDS;
 
 // A run of one test against `rule` (see expectedPayouts), checked round by
 // round: runTest, and the editor's step-by-step simulator. Progress is
@@ -520,13 +522,14 @@ export const STALL_ROUNDS = 1000;
 //             (found as in Brent's algorithm: the floor is compared with a
 //             state saved 1, 2, 4, 8, ... rounds after the last progress,
 //             so a loop is found within about twice its start and length);
-//   stall     `stall` rounds (STALL_ROUNDS) without progress: taken to mean
+//   stall     `stall` rounds (the rule's stallRounds, or STALL_ROUNDS)
+//             without progress: taken to mean
 //             that it never will.
 // Every way to stop treats house and player cards alike. A run passes if
 // it stopped at a cycle or a stall with every hand dealt and every expected
 // payout made, and it scores the round of its last progress.
 export class Run {
-  constructor(spec, inputs, rule, { stall = STALL_ROUNDS } = {}) {
+  constructor(spec, inputs, rule, { stall = stallOf(rule) } = {}) {
     Object.assign(this, { spec, inputs, rule, stall });
     this.floor = new Floor(spec, inputs);
     this.expected = expectedPayouts(rule, inputs);
@@ -613,7 +616,7 @@ export class Run {
 
 // Run one test case to the end (see Run). `maxRounds` (for tools) gives up
 // sooner, as stop 'limit'.
-export function runTest(spec, inputs, rule, { stall = STALL_ROUNDS, maxRounds = Infinity } = {}) {
+export function runTest(spec, inputs, rule, { stall = stallOf(rule), maxRounds = Infinity } = {}) {
   const run = new Run(spec, inputs, rule, { stall });
   while (!run.step()) if (run.round >= maxRounds) { run.stop = 'limit'; break; }
   const f = run.floor;

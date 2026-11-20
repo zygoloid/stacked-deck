@@ -96,12 +96,13 @@ export function devPanel(level, { measured, loadPar, measure }) {
   const link = (l) => h('a', { class: 'dev-floor', href: `#/level/${l.id}` }, floorBadge(l), ' ', l.title);
   const list = (ls) => (ls.length ? ls.map((l, i) => [i ? ', ' : '', link(l)]) : h('span', { class: 'muted' }, 'none'));
   const after = [].concat(level.unlockAfter ?? []).map((id) => findLevel(id)).filter(Boolean);
+  const stall = level.stallRounds ?? STALL_ROUNDS;
   const rows = measured?.map((r, i) => h('tr', { class: r.ok ? '' : 'bad' },
     h('td', {}, String(i + 1)),
     h('td', {}, r.ok ? 'pass' : r.stop),
     h('td', {}, String(r.rounds)),
     h('td', {}, String(r.maxCards)),
-    h('td', { class: r.maxGap > STALL_ROUNDS / 2 ? 'warn' : '', title: r.maxGap > STALL_ROUNDS / 2 ? `More than half of the ${STALL_ROUNDS}-round limit` : null }, String(r.maxGap))));
+    h('td', { class: r.maxGap > stall / 2 ? 'warn' : '', title: r.maxGap > stall / 2 ? `More than half of the ${stall}-round limit` : null }, String(r.maxGap))));
   const total = measured?.done && measured.every((r) => r.ok) ? measured.reduce((a, r) => a + r.rounds, 0) : null;
   return h('details', { class: 'dev-panel', open: true },
     h('summary', { class: 'sub-title' }, 'Dev'),

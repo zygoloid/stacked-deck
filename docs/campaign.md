@@ -347,17 +347,20 @@ recipe in tools/level-specs/bonus.js calls it), and its floor (6704 hexes) is
 the machine's bounding box with a margin. A step takes the reference about
 310 rounds, and up to about 140 more when both rotations need their second
 lanes, so a letter that waits for a joker output (two steps) can take up to
-about 850 rounds, close to STALL_ROUNDS (1000), and one that waits two
-(three steps) would not always fit. Schneier's vector steps past one joker output,
-and the keys of tests 2 to 4 were picked to step past one each, and to have a
-step with no count cut (a joker at the bottom) and one with a joker on top:
-the longest waits are 766 rounds (test 1) and 536 to 610. The random tests
-and check deals use keys with no joker output for their phrase (longest waits
-about 545). The messages in tests 2 to 4 are for the player, so the floor is
-`sealed` (only test 1's payouts show before they are paid) and its story and
-brief never give them; they may feed a later floor. test/levels.js checks
-that every croupier is needed by running the tests without each in turn: for
-1190 croupiers that takes about half an hour.
+about 850 rounds: the usual STALL_ROUNDS (1000) would leave a player's
+machine little room to be slower, so the floor sets `stallRounds: 5000`.
+Schneier's vector steps past one joker output, and the keys of tests 2 to 4
+were picked to step past one each, and to have a step with no count cut (a
+joker at the bottom) and one with a joker on top: the longest waits are 766
+rounds (test 1) and 536 to 610. The random tests and check deals may step
+past joker outputs too (a key is dealt again only if a letter would wait for
+four in a row). The messages in tests 2 to 4 are for the player, so the
+floor is `sealed` (only test 1's payouts show before they are paid) and its
+story and brief never give them; they may feed a later floor. test/levels.js
+checks that every croupier is needed by running the tests without each in
+turn: for 1190 croupiers that takes most of an hour, so for a machine of
+more than 300 it checks an even sample of 40 (`--every-croupier` checks
+them all).
 
 **Special cards on early bonus floors.** When every bonus floor got the
 player's current house deck (the four special cards, once reached), each of

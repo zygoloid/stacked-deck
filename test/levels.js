@@ -53,7 +53,9 @@ for (const name of [...Object.values(CHAPTER_FILES), BONUS_FILE, FLOOR_FILE]) {
   DOOR.push(...m.DOOR);
 }
 
-const arg = process.argv[2];
+const everyCroupier = process.argv.includes('--every-croupier');
+const arg = process.argv.slice(2).find((a) => !a.startsWith('--'));
+const BIG_MACHINE = 300, BIG_SAMPLE = 40;
 const byName = Object.fromEntries(Object.entries(CHAPTER_FILES).map(([n, f]) => [f, Number(n)]));
 const onlyChapter = arg && (/^[1-5]$/.test(arg) ? Number(arg) : byName[arg]);
 const selected = (level) => !arg || level.id === arg ||
@@ -70,6 +72,8 @@ const check = (cond, msg) => { if (!cond) { failures++; console.log(`   FAIL ${m
 
 // Run every test; a machine "fails the level" if any test is not ok.
 const runAll = (level, cells, opts) => level.tests.map((t) => runTest({ cells }, t, level, opts));
+// Whether some test fails (stopping at the first that does).
+const anyFails = (level, cells, opts) => level.tests.some((t) => !runTest({ cells }, t, level, opts).ok);
 // A test's payouts as a sorted list of hand keys (compared like runTest does;
 // with their desks, on a floor with labelled desks). (In order, for a level
 // whose payouts must come in order.) Null hands (a player's missing hands)
@@ -405,11 +409,15 @@ for (const level of [...LEVELS, ...BONUS, ...FLOOR]) {
       : level.tests.some((t) => t.some((h, i) => wrong(h, t.slice(0, i)) !== level.pays(h, t.slice(0, i))));
     check(differs, `tests tell "${name}" apart from the real rule`);
   }
-  // Every croupier in the reference solution is needed.
+  // Every croupier in the reference solution is needed. A huge machine
+  // (Solitaire's) takes most of an hour to check whole, so only an even
+  // sample of BIG_SAMPLE of its croupiers is, unless --every-croupier.
   const limit = { maxRounds: 4 * level.par.rounds + 200 };
+  const stride = cells.length > BIG_MACHINE && !everyCroupier ? Math.ceil(cells.length / BIG_SAMPLE) : 1;
   cells.forEach((c, i) => {
+    if (i % stride) return;
     const without = [...level.fixed, ...cells.filter((_, j) => j !== i)];
-    check(!runAll(level, without, limit).every((r) => r.ok), `removing ${c.fn ?? c.kind} at ${c.at} breaks the machine`);
+    check(anyFails(level, without, limit), `removing ${c.fn ?? c.kind} at ${c.at} breaks the machine`);
   });
   // The door: replace it with a pass, drop the first ticket, and let the gate
   // drop its verdict cards instead of returning them.
