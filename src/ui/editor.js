@@ -2,7 +2,7 @@
 import {
   runTest, expectedPayouts, payoutHand, payoutDesk, MAX_FLOOR_CARDS, DIRS,
 } from '../engine.js';
-import { h, s, handEl, cardEl, fmtCards, uiScale } from './dom.js';
+import { h, s, handEl, cardEl, fmtCards, uiScale, handLetters } from './dom.js';
 import { listField } from './listfield.js';
 import { formatList, SIDE_TEXT } from './listtext.js';
 import { Board, R, center, axialRound } from './board.js';
@@ -1083,6 +1083,11 @@ export function openEditor(root, ctx, level) {
     coach.relight();
   }
 
+  // On a floor with `letters`, a short hand's letters (the Solitaire cipher's).
+  const letterTag = (hand) => {
+    const t = level.letters && hand.length <= 3 ? handLetters(hand) : null;
+    return t ? h('span', { class: 'letter-tag', title: 'This hand as letters' }, t) : null;
+  };
   // A payout's desk, on a floor with labelled desks.
   const deskTag = (d) => (d === undefined ? null : h('span', { class: 'desk-tag', title: `At desk ${DESK_NAMES[d]}` }, `→ ${DESK_NAMES[d]}`));
   // A payout ({ desk, hand } on a floor with labelled desks), with its desk.
@@ -1096,7 +1101,7 @@ export function openEditor(root, ctx, level) {
         el.children[i]?.setAttribute('title', `This card must be ${placesText([i])}`);
       }
     }
-    return [el, deskTag(payoutDesk(p))];
+    return [el, deskTag(payoutDesk(p)), letterTag(payoutHand(p))];
   };
 
   // Expected payouts for a test before any run (cached per test).
@@ -1171,7 +1176,7 @@ export function openEditor(root, ctx, level) {
     parts.push(h('div', { class: `queue${listed ? ' short' : ''}` }, inputs.map((hand, i) => hand && h('div', {
       class: `q-item${dealt(i) ? ' dealt' : ''}${i === nextIdx || (seats && !dealt(i) && (i < seats || dealt(i - seats))) ? ' next' : ''}${winIdx.has(i) ? ' win' : ''}`,
       title: [seats ? `Player ${'ABCDEF'[i % seats]}` : null, listed ? null : winIdx.has(i) ? 'Should be paid' : 'Should be dropped'].filter(Boolean).join(': ') || null,
-    }, h('span', { class: 'q-n' }, seats ? `${Math.floor(i / seats) + 1}${'ABCDEF'[i % seats]}` : String(i + 1)), handEl(hand), listed ? null : h('span', { class: 'q-mark' }, winIdx.has(i) ? '$' : '')))));
+    }, h('span', { class: 'q-n' }, seats ? `${Math.floor(i / seats) + 1}${'ABCDEF'[i % seats]}` : String(i + 1)), handEl(hand), letterTag(hand), listed ? null : h('span', { class: 'q-mark' }, winIdx.has(i) ? '$' : '')))));
     const paidRows = t ? t.paid : [];
     if (listed) {
       // The hands the chip desk should receive, ticked off as they are paid;
@@ -1193,11 +1198,17 @@ export function openEditor(root, ctx, level) {
         parts.push(h('div', { class: 'order-note' }, h('span', { class: 'order-tag' }, 'payout order matters'),
           h('span', { class: 'muted small' }, 'pay these hands in the order listed, first to last')));
       }
+      // The expected payouts read as a message, letter by letter as they are paid.
+      const message = level.letters ? expected.map((p) => handLetters(payoutHand(p))) : [];
+      if (message.length && message.every(Boolean)) {
+        parts.push(h('div', { class: 'message', title: 'The expected payouts as letters' },
+          message.map((t, i) => h('span', { class: matched[i] ? 'got' : '' }, t))));
+      }
       parts.push(h('div', { class: 'paid expected' },
         expected.map((hand, i) => h('div', { class: `p-item e-item${matched[i] ? ' ok' : ''}`, title: matched[i] ? `Paid (payout ${matched[i]})` : 'Not paid yet' },
           h('span', { class: 'p-n' }, String(i + 1)), payoutEl(hand), h('span', { class: 'p-mark' }, matched[i] ? '✓' : '$'))),
         wrong.map(([p, i]) => h('div', { class: 'p-item bad', title: `Payout ${i + 1} is not an expected payout` },
-          h('span', { class: 'p-n' }, '✗'), handEl(p.h), deskTag(p.desk), h('span', { class: 'p-mark' }, 'wrong'))),
+          h('span', { class: 'p-n' }, '✗'), handEl(p.h), deskTag(p.desk), letterTag(p.h), h('span', { class: 'p-mark' }, 'wrong'))),
         expected.length ? null : h('div', { class: 'muted small' }, 'Nothing should be paid in this test.')));
     } else {
       const nWins = winIdx.size;
