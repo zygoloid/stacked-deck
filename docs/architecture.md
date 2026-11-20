@@ -213,6 +213,7 @@ whenever a rule changes; the level select shows it.
                                            //   only the cards in some places ([10]: the 11th card)
   inOrder: false,                          // payouts must come in the listed order
   letters: false,                          // the tests panel reads short hands as letters (below)
+  sealed: false,                           // show only test 1's expected payouts (below)
   tests: [[hand, ...], ...],    // each test is a list of input hands (card-string arrays);
                                 //   made by dealtTests (src/levels/shared.js; makeTests and
                                 //   makeMixedTests use it), which also records the deal function
@@ -262,6 +263,12 @@ hearts A..K are A..M, diamonds and spades A..K are N..Z, special cards have
 none; `cardLetter` in `src/ui/dom.js`), and an `expected` floor's payouts as a
 message, each letter lit once it is paid. It is display only: the rules and
 scoring are unchanged.
+On a `sealed` floor the tests panel shows only the first test's expected
+payouts, as an example to debug against: every other test's (and every check
+deal's) are face down, and their letters blank, until they are paid, so
+what a message says is found out by solving the floor. The rules and scoring
+are unchanged, and a wrong payout is still flagged; the failure notes give
+only how many sealed payouts were never paid.
 
 **When a run stops** (`Run` in `src/engine.js`). The only irreversible
 events are **progress**: a player handing over a hand, or a payout. A run

@@ -2049,6 +2049,12 @@ try {
       await page.screenshot({ path: join(shots, '13-expected-payouts.png') });
       await page.locator('.panel.tests').screenshot({ path: join(shots, '13b-expected-panel.png') });
     }
+    // `sealed`: the second test's payouts are face down, its message blank.
+    await page.click('.test-chip:nth-child(2)');
+    check(await page.locator('.order-tag', { hasText: 'sealed' }).count() === 1 && await page.locator('.paid.expected .card.down').count() === 8 &&
+      (await page.textContent('.message').catch(() => '')) === '········', 'a sealed test hides its expected payouts and message');
+    if (shots) await page.locator('.panel.tests').screenshot({ path: join(shots, '13c-sealed-panel.png') });
+    await page.click('.test-chip:nth-child(1)');
     await page.click('.speeds .sp:last-child');
     await page.waitForSelector('.modal.results', { timeout: 20000 });
     let ls = (await getSave())['test-pay-twice'];
