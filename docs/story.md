@@ -208,11 +208,11 @@ regulation; Ace Count does).
 | K♠ | Uneven Tables | Crossed Wires and Déjà Vu | the cousins stop playing in step |
 | A♥ | Four of a Kind | Déjà Vu | the city asks for one more game |
 | 2♥ | Missing Card | Four of a Kind | the bottom dealer palms a card from a fresh deck |
-| 3♥ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
-| 4♥ | Ceasefire | Next in Line | Pryce bans War for a week; spades only |
-| 5♥ | Three in a Row | Next in Line and Déjà Vu | the mayor's napkin: three in a row |
-| 6♥ | In-Between | Low Kicker and One Deck | the uncle bets the middle at In-Between; the auditors have taken the War croupier's table away |
-| 7♥ | Dumbwaiter | In-Between and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
+| 3♥ | Dumbwaiter | One Deck and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
+| 4♥ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
+| 5♥ | Ceasefire | Next in Line | Pryce bans War for a week; spades only |
+| 6♥ | Three in a Row | Next in Line and Déjà Vu | the mayor's napkin: three in a row |
+| 7♥ | In-Between | Low Kicker and One Deck | the uncle bets the middle at In-Between; the auditors have taken the War croupier's table away |
 | 8♥ | Rising | Every Other and Déjà Vu | the string quartet takes up scales |
 | 9♥ | Odds and Evens | Déjà Vu | Dmitri counts red cards; nought is even |
 | 10♥ | After a Pair | Small Pairs | Dmitri's theory of streaks |
