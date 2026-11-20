@@ -45,7 +45,7 @@ function suitedDeals(rand, n) {
 
 const F1 = [source([-2, 0], E), desk([0, 0])];
 const F2 = [source([-2, 0], E), desk([0, -1])];
-const F3 = [seat([-2, 0], E, 0), seat([-1, -1], SE, 1), desk([3, 0])];
+const F3 = [seat([-2, 0], E, 0), seat([-1, -1], SE, 1), desk([0, 0])];
 const F4 = [source([-2, 0], E), desk([2, 0])];
 const F5 = [source([-3, 0], E), desk([1, 0])];
 const F6 = [source([-2, 0], E), desk([2, 0])];
@@ -117,7 +117,7 @@ export const LEVELS = [
     ],
     brief: 'Two players, one card each a deal. Pay out the higher of the two cards (aces high), on its own; a tie pays nothing.',
     handSize: 1,
-    floor: floorOf(hexRange(3), F3),
+    floor: floorOf(hexRange(2), F3),
     fixed: F3,
     croupiers: paletteThrough('war'),
     expected: (inputs) => {
@@ -145,6 +145,10 @@ export const LEVELS = [
       'Your new croupier checks for a flush: every card in the hand the same suit. "A heart and two diamonds is not a flush," you remind the uncle. He smiles in a way that suggests he knew.',
     ],
     brief: 'Three-card hands. Pay out every flush in hearts or diamonds.',
+    // A note (a one-step tutorial, src/ui/coach.js): its first bonus floor.
+    tutorial: [
+      { say: 'Clearing some floors also opens floors in the Bonus deck, off the books. This is one of them.', until: 'next' },
+    ],
     handSize: 3,
     floor: floorOf(hexRange(4), F4),
     fixed: F4,
@@ -234,7 +238,7 @@ export const LEVELS = [
     title: 'Low Kicker',
     difficulty: 4,
     story: [
-      'The Kesslers have a two-card game of their own. When the top card beats a 7 and the bottom card does not, the house pays the bottom card, on its own; the top card stays on the table for luck.',
+      'The Kesslers have a two-card game of their own. When the top card beats a 7 and the bottom card does not, the house pays the bottom card, on its own; the top card goes on the carpet.',
       'Aces high, and a 7 does not beat a 7.',
     ],
     brief: 'Two-card hands. When the top card beats a 7 and the bottom card doesn\'t (aces high), pay out the bottom card on its own.',
@@ -392,7 +396,7 @@ export const LEVELS = [
 // BEGIN PAR
 const PAR = {
   'high-card': { croupiers: 2, rounds: 58 },
-  'small-stakes': { croupiers: 4, rounds: 87 },
+  'small-stakes': { croupiers: 4, rounds: 88 },
   'face-off': { croupiers: 5, rounds: 83 },
   'red-flush': { croupiers: 3, rounds: 53 },
   'small-change': { croupiers: 6, rounds: 130 },
