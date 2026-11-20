@@ -196,8 +196,10 @@ kept in difficulty order (the Diff column, which each level repeats as
 `difficulty`, then par croupiers), not the order the floors open in, with
 one exception: if bonus floor A opens bonus floor B, B comes after A
 (test/levels.js checks all of this). Adding a floor renumbers the ones
-after it (cards are labels only; saves are keyed by id). The deck is full
-at 52: a 53rd floor would need a third deck (`BONUS_SUITS`).
+after it (cards are labels only; saves are keyed by id). After the 52 suit cards comes the bonus deck's own finale, the
+true endgame: the special cards `?`, `??`, `$` and `$$`, in that order and in
+difficulty order among themselves (test/levels.js checks both parts), so at
+most 56 bonus floors.
 
 **Opening.** A bonus floor opens when its `unlockAfter` floors are all
 solved: one id or a list, of campaign floors or other bonus floors. Every
