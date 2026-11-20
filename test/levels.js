@@ -355,7 +355,7 @@ for (const level of [...LEVELS, ...BONUS, ...FLOOR]) {
       check(['next', 'ran', 'cleared'].includes(u) || (u && u.cell && Array.isArray(u.cell.at)), `${where} until is next, ran, cleared or { cell }`);
       if (u?.cell) {
         const ref = cells.find((c) => key(c.at) === key(u.cell.at));
-        check(ref && (!u.cell.fn || (ref.fn ?? ref.kind) === u.cell.fn) && Object.entries(u.cell.out ?? {}).every(([port, side]) => ref.out?.[port] === side),
+        check(ref && (!u.cell.fn || (ref.fn ?? ref.kind) === u.cell.fn) && Object.entries(u.cell.out ?? {}).every(([port, side]) => (side === '*' ? ref.out?.[port] !== undefined : ref.out?.[port] === side)),
           `${where} the croupier it asks for (${u.cell.fn} at ${u.cell.at}) is in the reference solution`);
       }
     }

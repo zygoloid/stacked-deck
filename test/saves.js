@@ -195,12 +195,12 @@ console.log('storage ok');
     levels: {
       nope: { solved: true },
       [l2.id]: { solved: 'yes', cells: [{ at: [99, 99], kind: 'croupier', fn: 'pass', out: {} }], solutions: [{ cells: 'bad' }, null], best: { croupiers: 0, rounds: 0 } },
-      [l3.id]: { solutions: [{ cells: c1 }] },
+      [l3.id]: { solutions: [{ cells: [{ at: [0, 0], kind: 'croupier', fn: 'pass', out: { out: 0 } }] }] },
     },
   }), LEVELS);
   assert.deepStrictEqual(Object.keys(odd.save), ['levels']);
   assert.deepStrictEqual(Object.keys(odd.save.levels), [l3.id]);
-  assert.ok(odd.save.levels[l3.id].solutions[0].broken, 'another floor\'s machine doesn\'t clear this one');
+  assert.ok(odd.save.levels[l3.id].solutions[0].broken, 'a machine that doesn\'t clear the floor is marked broken');
   assert.ok(!odd.save.levels[l3.id].solved);
 
   for (const bad of ['', 'nope', '[]', '{"levels":[]}', JSON.stringify({ format: 'other', levels: {} })]) {

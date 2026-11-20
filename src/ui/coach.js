@@ -8,14 +8,14 @@
 // done:
 //   'next'                 the player presses Next
 //   'ran'                  a test has been run (a round or more)
-//   'cleared'              the floor is cleared
+//   'cleared'              the floor is cleared (since the editor opened)
 //   { cell: { at, fn, out? } }   a croupier `fn` at `at`, with these ports
-//                          pointed so (only the ports named)
+//                          pointed so (only the ports named; '*': anywhere)
 // Steps only go forward: once one is done the next shows, even if the
 // machine later changes (the player may well build it some other way), and
 // a player who is ahead (a later step already done) skips the ones between.
 // Finishing or skipping the tutorial is remembered in this browser; the
-// floor panel offers it again.
+// floor's story page offers it again (forgetTutorial).
 import { h } from './dom.js';
 import { CHANNEL } from '../build.js';
 
@@ -23,7 +23,7 @@ const KEY = CHANNEL === 'beta' ? 'stacked-deck-beta-coach' : 'stacked-deck-coach
 
 // Parts of the editor a step can light up.
 const UI = {
-  play: '.transport .tp.main',
+  play: '.transport .tp.main, .insp-tp .tp.main', // whichever is showing
   tests: '.panel.tests',
   ports: '.inspector .port-row.active', // the port the next edge points
   roster: '.inspector .roster-box',
@@ -42,6 +42,15 @@ function saveDone(done) {
   try { localStorage.setItem(KEY, JSON.stringify({ done })); } catch { /* storage full or blocked */ }
 }
 
+// Whether this browser has finished (or skipped) a floor's tutorial; and
+// forgetting that, so it shows again next time the floor opens.
+export const tutorialDone = (id) => !!loadDone()[id];
+export function forgetTutorial(id) {
+  const done = loadDone();
+  delete done[id];
+  saveDone(done);
+}
+
 const hexKey = ([q, r]) => `${q},${r}`;
 
 // Whether `state` ({ cells, round, cleared }) meets a step's `until`;
@@ -54,7 +63,7 @@ function met(until, state, acked) {
     const want = until.cell;
     const c = state.cells.find((x) => hexKey(x.at) === hexKey(want.at));
     if (!c || (want.fn && (c.fn ?? c.kind) !== want.fn)) return false;
-    return Object.entries(want.out ?? {}).every(([port, side]) => c.out?.[port] === side);
+    return Object.entries(want.out ?? {}).every(([port, side]) => (side === '*' ? c.out?.[port] !== undefined : c.out?.[port] === side));
   }
   return false;
 }
@@ -62,7 +71,7 @@ function met(until, state, acked) {
 // createCoach(level, { tapWord: () => 'tap' | 'click', root: () => element
 // the `ui` selectors are looked up in, changed: () => redraw the editor
 // (which calls update()) }) -> { el, update(state), mark() (the ring for the board, or
-// null), relight(), restart(), available, active() }.
+// null), relight(), available, active() }.
 export function createCoach(level, { tapWord, root, changed }) {
   const steps = level.tutorial ?? [];
   const el = h('div', { class: 'coach hidden', role: 'status', 'aria-live': 'polite' });
@@ -114,7 +123,7 @@ export function createCoach(level, { tapWord, root, changed }) {
   // redraws that part).
   function relight() {
     const sel = on && UI[steps[index]?.ui];
-    const now = sel ? root().querySelector(sel) : null;
+    const now = sel ? [...root().querySelectorAll(sel)].find((e) => e.getClientRects().length) ?? null : null;
     if (lit && lit !== now) lit.classList.remove('coach-glow');
     lit = now;
     lit?.classList.add('coach-glow');
@@ -136,16 +145,6 @@ export function createCoach(level, { tapWord, root, changed }) {
       advance();
       draw();
       return index !== before || on !== was;
-    },
-    restart() {
-      on = steps.length > 0;
-      index = 0;
-      acked = false;
-      const done = loadDone();
-      delete done[level.id];
-      saveDone(done);
-      advance();
-      changed();
     },
   };
 }
