@@ -1185,33 +1185,26 @@ export const SPECS = {
     ],
   },
   'in-between': {
-    // Two comparisons through the one War (top card, ties to the house):
-    // a against b (A's card as player: it must beat the low post), then c
-    // against a (C's card as player: the high post must beat it, so A's card,
-    // the dealer, is paid on dealer-lose). The greater card is the player
-    // both times, so a tie loses both times. Player and dealer travel as one
-    // stack, and one cut splits every stack, top two cards (or one) to the
-    // dealer's side and the rest to the player's: [b b a c 2] for the first
-    // pass, [a c 2] (the first pass's winner, as it leaves the War) for the
-    // second, so the War's two queues stay in step whichever deals are in
-    // flight. The cut stands on the War's win side, so a winner goes straight
-    // back in, and it looks there first (it faces the War after cutting), so
-    // a deal in the War always goes before a new one and the loop never
-    // backs up. The War's ports carry both passes: win the first pass's
-    // winners (on to the second) and the second's high posts [c 2], which
-    // go round once more and lose to their own c (a house 2 never beats a
-    // post); dealer-lose the first pass's low posts [b b] (a copy makes them
-    // a pair, so Kind(2) drops them) and the A's cards to pay. Lose and
-    // dealer-win only ever carry what is dropped. (A copy of C's card
-    // instead of the house 2, [b b a c c], is one croupier fewer: the second
-    // pass's [c c] ties itself next time round. 8 croupiers.)
+    // No War: the deal's three cards are gathered as [A, B, C] on a whole
+    // suit, 2 up to the ace (a shoe into Hand(13)), so each of their ranks
+    // is there twice. Set keeps those six cards in order: A, B, C, then the
+    // suit's cards of their three ranks, lowest first. A's card is between
+    // the posts exactly when its rank is the middle one, the 5th card, so
+    // Deal sends the 1st and 5th to Kind(2): a pair pays (Burn takes the
+    // suit's card off). A tie with a post makes that rank three of a kind,
+    // and then Set keeps only those three cards: no 5th card, no pair. (The
+    // suit is dealt afresh for every deal, 13 rounds; keeping one going
+    // round instead, a copy for each deal, is faster.)
     cells: [
-      c([0, -3], 'duplicate', { out: { a: E, b: E } }),
-      c([1, -3], 'gather', { under: NE, out: { out: SE } }),
-      c([2, -3], 'gather', { under: E, out: { out: SW } }), shoe([3, -3], '2S', { out: W }),
-      c([1, -2], 'gather', { under: NE, out: { out: SE } }),
-      c([1, -1], 'cut', { out: { top: W, bottom: SW } }), pass([0, -1], SW), pass([-1, 0], E),
-      c([1, 0], 'kind', { n: 2, out: { no: E } }),
+      pass([0, -3], E), c([1, -3], 'gather', { under: W, out: { out: SE } }),
+      pass([2, -3], SW), c([1, -2], 'gather', { under: NE, out: { out: SE } }),
+      shoe([3, -3], RANKS.slice(1).concat('A').map((r) => `${r}S`), { out: SW }), c([2, -2], 'hand', { n: 13, out: { out: SW } }),
+      c([1, -1], 'gather', { under: NE, out: { out: SE } }),
+      c([1, 0], 'set', { out: { set: W } }),
+      // places 1 and 5 to Kind; the rest onto the floor
+      c([0, 0], 'deal', { out: { to: [SE, W, W, W, SE, W] } }),
+      c([0, 1], 'kind', { n: 2, out: { yes: E } }),
+      c([1, 1], 'burn', { out: { rest: NE } }),
     ],
   },
   dumbwaiter: {
