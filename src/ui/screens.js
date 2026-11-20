@@ -8,6 +8,7 @@ import { devMode, devBar, channelBadge } from './dev.js';
 import { isUnlocked, isBonusOpen, unlockIds, specialCardsUnlocked } from './model.js';
 import { floorLabel, chapterInfo, floorBadge } from './floors.js';
 import { accountButton } from './account.js';
+import { tutorialDone, forgetTutorial } from './coach.js';
 import { saveFileDialog } from './savefile.js';
 import { scatterPlot, parMark } from './scatter.js';
 import { standing } from '../online.js';
@@ -748,7 +749,11 @@ export function storyScreen(root, ctx, level) {
       storyScore(ctx.save.levels[level.id], level.par),
       h('div', { class: 'story-actions' },
         h('button', { class: 'btn ghost', onclick: () => ctx.go('#/') }, '← All floors'),
-        h('button', { class: 'btn gold', onclick: go, autofocus: true }, 'Open the floor →')))));
+        h('div', { class: 'story-go' },
+          // A tutorial finished or skipped: it can be shown again.
+          level.tutorial?.length && tutorialDone(level.id)
+            ? h('button', { class: 'btn ghost coach-again', onclick: () => { forgetTutorial(level.id); go(); } }, 'Replay the tutorial') : null,
+          h('button', { class: 'btn gold', onclick: go, autofocus: true }, 'Open the floor →'))))));
   return () => document.removeEventListener('keydown', onKey);
 }
 
