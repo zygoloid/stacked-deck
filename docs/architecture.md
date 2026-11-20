@@ -18,6 +18,7 @@ src/layout.js              router for writing reference solutions (dev only)
 src/online.js              online features' logic without the Firebase SDK (docs/online.md)
 src/firebase-config.js     the Firebase project's public config
 src/ui/*.js                the game UI (cloud.js and account.js: the online features)
+src/ui/title.js            the title screen; title-machine.js, the machine it runs
 functions/                 Cloud Functions: scoring submitted solutions (docs/online.md)
 solutions/levels/<id>.js   a verified reference solution for every level
 test/*.js                  node tests (npm test); test/mutants/<chapter>.js
@@ -318,6 +319,30 @@ button that loads the par machine (an undo away), and one that measures
 the machine on the floor test by test (rounds, the most cards on the floor
 at once, and the longest stretch without progress, which `STALL_ROUNDS`
 limits).
+
+## Title screen (`src/ui/title.js`)
+
+When the game opens on the floors list it shows the title over it: the
+name, a Start button, and behind them a working machine
+(`src/ui/title-machine.js`: a floor of its own, two players feeding Cut,
+Gather, Suits, Sort, Pair, Duplicate, War, Flush and Burn croupiers, and a
+carousel, all ending at one chip desk), run by the real engine a round at a
+time and drawn by the editor's `Board`. Its players' hands come from
+`titleInputs` and never run out in practice (a new floor starts if they
+do). `test/title.js` checks that the editor could build the machine and
+that it keeps paying out, never jamming or flooding the floor.
+
+The title shows once a visit (a tab: sessionStorage `stacked-deck-title`),
+not when the game opens on a floor or an invite, and again from the floors
+list's name. The floors list is drawn under it all along, so Start only
+uncovers it: the camera zooms into the desk while the name, its suits and
+the tagline move to their places in the list's header; then the title goes
+behind the page (`body.title-deal`), the felt and the machine fade, and the
+desk deals the list's cards in view (Web Animations on the cards
+themselves), face down, the open floors turning over as they land. Any key
+or click skips to the end. With reduced motion the machine stands still
+and Start fades the title out. The smoke tests start every page past the
+title, but `tools/ui-smoke.js` checks the title itself.
 
 ## Save format (localStorage key `stacked-deck-v1`)
 

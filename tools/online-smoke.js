@@ -85,6 +85,13 @@ let failures = 0;
 const check = (cond, msg) => { console.log(`${cond ? 'ok  ' : 'FAIL'} ${msg}`); if (!cond) failures++; };
 
 const browser = await chromium.launch();
+// Every page starts past the title screen (src/ui/title.js; tools/ui-smoke.js checks it).
+const rawContext = browser.newContext.bind(browser);
+browser.newContext = async (opts) => {
+  const c = await rawContext(opts);
+  await c.addInitScript(() => { try { sessionStorage.setItem('stacked-deck-title', '1'); } catch { /* storage blocked */ } });
+  return c;
+};
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const sdkDir = join(repo, 'test/emulator/node_modules/firebase');

@@ -20,6 +20,9 @@
 // fixture floors of test/ui-levels.js to the bonus deck; those cover an
 // `expected` floor (expected-payouts list, clearing), an `ordered` floor
 // (a wrong card order is rejected) and bonus unlocking, saves and Next.
+// The title screen: its machine runs, Start deals the floors list (on a
+// phone too), it shows once a visit, the name opens it again, a key skips
+// it, and with reduced motion it stands still.
 // --all also solves every bonus floor that has a reference solution.
 import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -95,6 +98,14 @@ const check = (cond, msg) => {
 };
 
 const browser = await chromium.launch();
+// The title screen (src/ui/title.js) shows once a visit (a tab's
+// sessionStorage): every page here starts past it, but the ones that check
+// the title itself (rawContext).
+const titleSeen = () => { try { sessionStorage.setItem('stacked-deck-title', '1'); } catch { /* storage blocked */ } };
+const rawContext = browser.newContext.bind(browser);
+browser.newContext = async (opts) => { const c = await rawContext(opts); await c.addInitScript(titleSeen); return c; };
+const rawNewPage = browser.newPage.bind(browser);
+browser.newPage = async (opts) => { const p = await rawNewPage(opts); await p.addInitScript(titleSeen); return p; };
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
   const errors = [];
@@ -2150,6 +2161,87 @@ try {
       const par = lv.par ? ` (par ${lv.par.croupiers}/${lv.par.rounds})` : '';
       check(res === 'solved' && saved.solved && saved.solutions?.length === 1, `${lv.id}: reference solution ${res}, best ${JSON.stringify(saved.best)}${par}`);
     }
+  }
+
+  // The title screen: once a visit, when the game opens on the floors list.
+  {
+    const tctx = await rawContext({ viewport: { width: 1440, height: 860 } });
+    const tp = await tctx.newPage();
+    tp.on('pageerror', (e) => errors.push(e.message));
+    await tp.goto(base);
+    await tp.waitForSelector('.title-screen .title-start');
+    check(await tp.evaluate(() => document.activeElement?.classList.contains('title-start')), 'the title screen shows, with Start focused');
+    const paid = () => tp.evaluate(() => Number(document.querySelector('.title-board .paid-badge-t')?.textContent ?? 0));
+    const p0 = await paid();
+    await tp.waitForTimeout(1500);
+    check(await tp.locator('.title-board .scard').count() > 10 && await paid() > p0, 'its machine runs, paying out at its desk');
+    if (shots) await tp.screenshot({ path: join(shots, 'title.png') });
+    await tp.mouse.wheel(0, 600);
+    check(await tp.evaluate(() => window.scrollY) === 0, 'the page under it doesn\'t scroll');
+    await tp.click('.title-start');
+    await tp.waitForSelector('body.title-deal', { timeout: 3000 });
+    if (shots) { await tp.waitForTimeout(250); await tp.screenshot({ path: join(shots, 'title-deal.png') }); }
+    await tp.waitForSelector('.title-screen', { state: 'detached', timeout: 6000 });
+    const after = await tp.evaluate(() => ({
+      body: document.body.className,
+      backs: document.querySelectorAll('.deal-back').length,
+      moving: [...document.querySelectorAll('.deck .tiles > *')].filter((k) => k.getAnimations().length).length,
+      logo: (() => { const r = document.querySelector('.marquee .logo-btn').getBoundingClientRect(); return r.top >= 0 && r.width > 0; })(),
+    }));
+    check(!after.body.includes('title') && !after.backs && !after.moving && after.logo, `Start deals the floors list's cards and leaves it as it is ${JSON.stringify(after)}`);
+    await tp.click('a.tile[data-level="opening-night"]');
+    check(await tp.waitForSelector('.story-card').then(() => true, () => false), 'and its cards can be opened');
+    await tp.reload();
+    await tp.waitForSelector('.story-card');
+    await tp.goto(`${base}?again#/`); // (a new page, in the same tab)
+    await tp.waitForSelector('.tile');
+    await tp.waitForTimeout(200);
+    check(await tp.locator('.title-screen').count() === 0, 'not again in the same visit');
+    await tp.click('.marquee .logo-btn');
+    await tp.waitForSelector('.title-screen .title-start');
+    await tp.keyboard.press('Enter');
+    await tp.waitForTimeout(200);
+    await tp.keyboard.press('x');
+    await tp.waitForSelector('.title-screen', { state: 'detached', timeout: 500 }).catch(() => {});
+    check(await tp.locator('.title-screen').count() === 0 && await tp.locator('.deal-back').count() === 0,
+      'the name opens it again; Enter starts, and a key skips the animation');
+    await tctx.close();
+
+    // Opened on a floor: no title. On a phone: Start under the machine, in view.
+    const lctx = await rawContext({ viewport: { width: 1440, height: 860 } });
+    const lp = await lctx.newPage();
+    await lp.goto(`${base}#/level/opening-night/story`);
+    await lp.waitForSelector('.story-card');
+    check(await lp.locator('.title-screen').count() === 0, 'opened on a floor, the game doesn\'t show the title');
+    await lctx.close();
+    const pctx = await rawContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const pp = await pctx.newPage();
+    pp.on('pageerror', (e) => errors.push(e.message));
+    await pp.goto(base);
+    await pp.waitForSelector('.title-start');
+    const fits = await pp.evaluate(() => {
+      const b = document.querySelector('.title-start').getBoundingClientRect(), l = document.querySelector('.title-logo span').getBoundingClientRect();
+      return b.bottom <= innerHeight && b.top > l.bottom && l.left >= 0 && l.right <= innerWidth;
+    });
+    check(fits, 'on a phone, the name and Start fit the screen');
+    if (shots) await pp.screenshot({ path: join(shots, 'title-phone.png') });
+    await pp.tap('.title-start');
+    await pp.waitForSelector('.title-screen', { state: 'detached', timeout: 6000 });
+    check(await pp.locator('a.tile[data-level="opening-night"]').isVisible(), 'and Start deals the floors list');
+    await pctx.close();
+    // With reduced motion the machine stands still and Start just fades the title.
+    const rctx = await rawContext({ viewport: { width: 1440, height: 860 }, reducedMotion: 'reduce' });
+    const rp = await rctx.newPage();
+    rp.on('pageerror', (e) => errors.push(e.message));
+    await rp.goto(base);
+    await rp.waitForSelector('.title-start');
+    const r0 = await rp.evaluate(() => document.querySelector('.title-board .paid-badge-t')?.textContent);
+    await rp.waitForTimeout(1200);
+    const still = r0 === await rp.evaluate(() => document.querySelector('.title-board .paid-badge-t')?.textContent);
+    await rp.click('.title-start');
+    await rp.waitForSelector('.title-screen', { state: 'detached', timeout: 1000 }).catch(() => {});
+    check(still && await rp.locator('.title-screen').count() === 0, 'with reduced motion, the machine stands still and Start is quick');
+    await rctx.close();
   }
 
   // The privacy notice, a page of its own (no scripts; checked for CSP
