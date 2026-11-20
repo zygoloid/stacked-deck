@@ -1,7 +1,7 @@
 // Test-only bonus floors for tools/ui-smoke.js. The UI appends these to the
 // bonus deck only when the page URL has `?testlevels` (src/ui/catalog.js), so
 // the smoke test can cover `expected` / `ordered` floors, croupiers bolted
-// to the floor, `letters` and bonus unlocking whatever the real content is. Not part of the game; ids start with `test-`.
+// to the floor, `letters`, `sealed` and bonus unlocking whatever the real content is. Not part of the game; ids start with `test-`.
 import { newDeckIndex } from '../src/cards.js';
 import { makeTests } from '../src/levels/shared.js';
 import { LEVELS } from '../src/levels.js';
@@ -32,6 +32,7 @@ export const BONUS = [
     croupiers: ['pass', 'duplicate'],
     expected: (inputs) => inputs.flatMap((hand) => [hand, hand]),
     letters: true,
+    sealed: true,
     tests: tests(['AS 5H', 'KD 2C', '9S 9H'], ['QH JD', '3C 4S']),
   },
   {
