@@ -126,8 +126,13 @@ export const LEVELS = [
       { say: 'Welcome to the floor. The players at the tables on the left lay down cards; the chip desks on the right pay out whatever reaches them. Croupiers carry the cards in between, and you place them on the empty hexes.', until: 'next' },
       { say: '{Click} the ringed hex and pick Pass, the one croupier on this floor.', at: [-1, -1], until: { cell: { at: [-1, -1], fn: 'pass' } } },
       { say: 'A Pass hands each card on through its port (the arrow). With it selected, {click} the ringed edge of its hex to point the port east, at the next hex.', at: [-1, -1], side: E, until: { cell: { at: [-1, -1], fn: 'pass', out: { out: E } } } },
-      { say: 'Another Pass on the next hex. A new croupier points the way the last one did, so this one faces east already.', at: [0, -1], side: E, until: { cell: { at: [0, -1], fn: 'pass', out: { out: E } } } },
-      { say: 'And a third, into the chip desk.', at: [1, -1], side: E, until: { cell: { at: [1, -1], fn: 'pass', out: { out: E } } } },
+      // Placing one points it at the edge {click}ed near, or (in the middle
+      // of the hex) the way the last one pointed. A step to point it east
+      // follows each, passed over if it already is.
+      { say: 'Another Pass on the next hex. If you {click} in the middle of a hex, the new croupier faces the same way as the last one.', at: [0, -1], until: { cell: { at: [0, -1], fn: 'pass' } } },
+      { say: 'Point this one east too: with it selected, {click} the ringed edge of its hex.', at: [0, -1], side: E, until: { cell: { at: [0, -1], fn: 'pass', out: { out: E } } } },
+      { say: 'And a third Pass, on the hex next to the chip desk.', at: [1, -1], until: { cell: { at: [1, -1], fn: 'pass' } } },
+      { say: 'Point it east, into the chip desk: with it selected, {click} the ringed edge.', at: [1, -1], side: E, until: { cell: { at: [1, -1], fn: 'pass', out: { out: E } } } },
       { say: 'That\'s a machine for the top table. Press play to watch a test: the cards move a round at a time, and the panel lists each test\'s hands.', ui: 'play', until: 'ran' },
       { say: 'The other table\'s cards still fall on the carpet. Your turn: get them to a desk too. The floor is cleared when every test passes, and fewer croupiers and fewer rounds score better.', until: 'cleared' },
     ],
@@ -160,7 +165,7 @@ export const LEVELS = [
           any: [{ cell: { at: [-1, 0], fn: 'suits', out: { S: ANY, H: ANY, D: ANY, C: ANY } } }, { cell: { at: [-1, 0], fn: 'suits', out: { misc: ANY } } }],
         },
       },
-      { say: 'Made a mistake? Undo takes back any change, a croupier can be dragged to another hex, and the 🗑 on a selected croupier\'s bar (or the Delete key) takes it away.', ui: 'undo', until: 'next' },
+      { say: 'Made a mistake? Undo takes back any change, a croupier can be dragged to another hex, and the 🗑 on a selected croupier\'s bar{kbd: (or the Delete key)} takes it away.', ui: 'undo', until: 'next' },
       { say: 'Your turn: get every card to its desk. Once a machine passes the tests, it is also tried on a few random deals, so it has to follow the rule, not just the tests.', until: 'cleared' },
     ],
     handSize: 1,
@@ -263,7 +268,7 @@ export const LEVELS = [
     brief: 'One card at a time, suits in turn (spade, heart, club, diamond). Pay out all the black cards since the last payout, as one hand, as soon as there are at least two and they make a run.',
     // A word on moving on (a one-step tutorial: a note, src/ui/coach.js).
     tutorial: [
-      { say: 'Some floors are more of a challenge than others. This one is worth the effort, but it can also wait: floors open up to three past the furthest one you\'ve cleared, so you can play on and come back to it.', until: 'next' },
+      { say: 'Some floors are more of a challenge than others. You can skip any floor and come back to it later, but the Owner says skipping three in a row would be too many.', until: 'next' },
     ],
     handSize: 1,
     floor: floorOf(hexRange(2), F6),

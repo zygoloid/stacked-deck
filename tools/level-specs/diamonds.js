@@ -5,21 +5,24 @@ import { E, SE, SW, W, NW, NE, c, pass, war, shoe } from './shared.js';
 export const SPECS = {
   'high-card': { cells: [shoe([-1, -1], '9C', { out: SE }), war([-1, 0], { dealer: NW, out: { win: E } })] },
   'small-stakes': {
-    // Only an ace beats a king; the rest play a 4, and lose to it if they are
-    // 4 or lower (a 4 ties, and ties go to the house).
+    // Play a 4: 2 to 4 lose to it (a 4 ties, and ties go to the house).
+    // The rest play a king, which only an ace beats. (The king first is a
+    // round faster, 4/87.)
     cells: [
-      shoe([-1, -1], 'KC', { out: SE }), war([-1, 0], { dealer: NW, out: { win: NE, lose: E } }),
-      shoe([0, 1], '4C', { out: NW }), war([0, 0], { dealer: SE, out: { lose: NW } }),
+      shoe([-1, -1], '4C', { out: SE }), war([-1, 0], { dealer: NW, out: { lose: NE, win: E } }),
+      shoe([0, 1], 'KC', { out: NW }), war([0, 0], { dealer: SE, out: { win: NW } }),
     ],
   },
   'face-off': {
     // Gather the twins' cards; a pair is a tie and drops. Otherwise cut them
     // apart again and play them against each other: the winner, whichever
-    // side it played, goes to the desk.
+    // side it played, goes to the desk. (Smaller and faster: A plays B, a
+    // win is paid; B, the winner or a tie, then plays A, which comes round
+    // by a pass, and a win is paid: 3/63.)
     cells: [
-      c([-1, 0], 'gather', { out: { out: E } }), c([0, 0], 'kind', { n: 2, out: { no: E } }),
-      c([1, 0], 'cut', { out: { top: E, bottom: SE } }), pass([1, 1], NE),
-      war([2, 0], { dealer: SW, out: { win: E, dwin: E } }),
+      c([-1, 0], 'gather', { out: { out: SE } }), c([-1, 1], 'kind', { n: 2, out: { no: E } }),
+      c([0, 1], 'cut', { out: { top: NE, bottom: E } }), pass([1, 1], NW),
+      war([1, 0], { dealer: SE, out: { win: W, dwin: W } }),
     ],
   },
   'red-flush': {
