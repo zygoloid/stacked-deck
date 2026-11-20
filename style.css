@@ -520,7 +520,8 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
 .story-count .ts-over { color: #b45a14; }
 .story-par { color: #8b8676; font-size: 0.78125rem; }
 .story-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: space-between; margin-top: 1.375rem; }
-.story-go { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; margin-left: auto; }
+.story-back { display: flex; gap: 0.25rem; }
+.story-actions > .btn.gold { margin-left: auto; }
 .story-actions .btn.ghost { color: #5a5446; }
 .story-actions .btn.ghost:hover:not(:disabled) { color: #2a1d02; background: rgba(138, 100, 32, 0.12); border-color: #8a6420; }
 

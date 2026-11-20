@@ -3,15 +3,15 @@
 // only the player's own cells (shoes and croupiers), not the level's fixed cells.
 // 5 croupiers, 83 rounds.
 //
-//      in\    .     .     .     .
-//   in>   G>    K2    Cut>  Wh    $$
-//       .     .     .    P'     .
+//      in\    .     .     .
+//   in>   G\    $$    Wh
+//       .    K2    Cut'  P`
 export default {
   cells: [
-    {"at":[-1,0],"kind":"croupier","fn":"gather","out":{"out":0}},
-    {"at":[0,0],"kind":"croupier","fn":"kind","n":2,"out":{"no":0}},
-    {"at":[1,0],"kind":"croupier","fn":"cut","out":{"top":0,"bottom":1}},
-    {"at":[1,1],"kind":"croupier","fn":"pass","out":{"out":5}},
-    {"at":[2,0],"kind":"croupier","fn":"war","rule":"high","dealer":2,"out":{"win":0,"dwin":0}},
+    {"at":[-1,0],"kind":"croupier","fn":"gather","out":{"out":1}},
+    {"at":[-1,1],"kind":"croupier","fn":"kind","n":2,"out":{"no":0}},
+    {"at":[0,1],"kind":"croupier","fn":"cut","out":{"top":5,"bottom":0}},
+    {"at":[1,1],"kind":"croupier","fn":"pass","out":{"out":4}},
+    {"at":[1,0],"kind":"croupier","fn":"war","rule":"high","dealer":1,"out":{"win":3,"dwin":3}},
   ],
 };

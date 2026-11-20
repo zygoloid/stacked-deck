@@ -224,7 +224,7 @@ whenever a rule changes; the level select shows it.
 **Tutorial.** A level may have `tutorial`, a list of steps that
 `src/ui/coach.js` shows in a strip above the board: `{ say, at?, side?, ui?,
 until }`. `say` is the text ({Click}/{click} read "Tap"/"tap" on a touch-only
-screen); `at` and `side` ring a hex and one of its edges; `ui` lights up part
+screen, and {kbd:text} shows only where there is a keyboard); `at` and `side` ring a hex and one of its edges; `ui` lights up part
 of the editor (`play`, `tests`, `ports`, `roster`, `undo`, `brief`,
 `stats`); `until` is `'next'` (the player presses Next), `'ran'` (a test has
 run), `'cleared'` (since the editor opened), `{ cell: { at, fn, out? } }`
@@ -237,8 +237,9 @@ page offers it again (Replay the tutorial, on an empty floor). A tutorial of
 one step is a note (no count, no Skip, and no replay). `test/levels.js`
 checks the steps, and that every croupier a step asks for is in the floor's
 reference solution. The first two floors carry a tutorial, which explains
-the controls, never the floor's solution; 6♥, the first big step up, has a
-note that floors can be left for later.
+the controls, never the floor's solution. Notes: 6♥, the first big step up,
+says floors can be left for later; 4♦ says clearing some floors opens bonus
+floors.
 
 **Payouts.** A `pays` level pays out a subset of the input hands unchanged. An
 `expected` level lists the hands the chip desk should receive for a test's
