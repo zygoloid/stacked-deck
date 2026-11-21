@@ -2014,9 +2014,9 @@ export const LEVELS = [
     difficulty: 8,
     story: [
       'Blackjack has arrived at the Stacked Deck, rewritten in the house style: there is no dealer to beat. Each player takes two to five cards, and the house pays out every hand that doesn\'t go over twenty-one.',
-      'Number cards count their face value and jacks, queens and kings ten. An ace counts one or eleven, whichever the player likes, so a hand only goes over if it is over with every ace counted as one. Sal Vellani asked for five aces; the Owner pointed out that the house deck has four.',
+      'Number cards count their face value and jacks, queens and kings ten. An ace counts one or eleven, whichever the player likes. Sal Vellani asked for five aces; the Owner pointed out that the house deck has four.',
     ],
-    brief: 'Hands of 2 to 5 cards. Pay out every hand whose total is 21 or less: number cards count their face value, jacks, queens and kings 10, and an ace 1 or 11 as the player likes (so a hand goes over only if it is over 21 with every ace counted as 1).',
+    brief: 'Hands of 2 to 5 cards. Pay out every hand whose total is 21 or less: number cards count their face value, jacks, queens and kings 10, and an ace 1 or 11 as the player likes.',
     handSize: [2, 5],
     floor: floorOf(hexRect(-4, 4, -8, 8), HIT),
     fixed: HIT,
