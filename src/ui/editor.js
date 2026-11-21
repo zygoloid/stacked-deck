@@ -1908,12 +1908,16 @@ export function openEditor(root, ctx, level) {
   }
   // A touch on these acts when the finger lifts off the button: a browser
   // can drop the click of the first tap after a long-press drag (the box).
+  // The tap's click that follows is ignored, on whichever of the buttons it
+  // lands: the touch can swap one bar for the other (⧉ on a selected
+  // croupier picks up a group), and the click then goes to the button that
+  // is now under the finger, often the other bar's same button.
+  let touched = -Infinity; // (performance.now() starts at 0 when the page loads)
   const barButton = (attrs, label, fn) => {
     const b = h('button', attrs, label);
     // A click leaves the focus where it was, so Enter or Space after it is
     // a key for the floor, not another press of the button.
     b.addEventListener('mousedown', (e) => e.preventDefault());
-    let touched = -Infinity; // (performance.now() starts at 0 when the page loads)
     b.addEventListener('pointerup', (e) => {
       if (e.pointerType === 'mouse' || b.disabled) return;
       touched = performance.now();
