@@ -86,13 +86,14 @@ export function showTitle(host, { progress = null, onClose = () => {} } = {}) {
     const n = floor.justPaid.length;
     return n ? { hand: floor.justPaid[n - 1], hex: floor.paidHex[floor.paidHex.length - 1] } : null;
   };
-  function draw() {
+  // `runOnly`: only the run has moved on since the last draw (Board.render).
+  function draw(runOnly = false) {
     const t = anim ? Math.min(1, (performance.now() - anim.start) / anim.dur) : 1;
     const p = paidNow();
     board.render({
       cells: TITLE_CELLS, live: floor, paidNow: p?.hand ?? null, paidNowHex: p?.hex ?? null,
       anim: anim && t < 1 ? Object.assign(anim, { t }) : null,
-    });
+    }, { runOnly });
     if (t >= 1) anim = null;
   }
   function step() {
@@ -106,7 +107,7 @@ export function showTitle(host, { progress = null, onClose = () => {} } = {}) {
     last = now;
     if (running && acc >= 1) { acc = Math.min(acc - 1, 1); step(); }
     if (zoom) zoomFrame(now);
-    draw();
+    draw(true);
     raf = requestAnimationFrame(tick);
   }
 

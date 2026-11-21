@@ -818,7 +818,8 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .cell.selected .hex.table { fill: #0e4129; }
 .cell.bolted .hex.table { fill: #1d2a24; stroke: #9aa59f; stroke-width: 2.2; }
 .cell.bolted .bolt { fill: #6b756f; stroke: #c9d1cc; stroke-width: 0.8; }
-.chip { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
+/* (Chips' and cards' shadows are drawn: see CARD_SHADOW in src/ui/board.js.) */
+.chip-shadow, .card-shadow { pointer-events: none; }
 .chip-ring { fill: none; stroke: rgba(255, 255, 255, 0.9); stroke-width: 3.2; stroke-dasharray: 4.2 3.6; }
 .chip-face { fill: rgba(0, 0, 0, 0.2); stroke: rgba(255, 255, 255, 0.55); stroke-width: 0.8; }
 .chip-t { font-size: 7.6px; font-weight: 800; fill: #fff; letter-spacing: 0.02em; }
@@ -876,7 +877,8 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 
 .l-cards { pointer-events: none; }
 .l-cards .peekable { pointer-events: auto; } /* a hand: hover or tap to see it all, in bigger cards */
-.scard rect { fill: var(--card); stroke: rgba(0, 0, 0, 0.55); stroke-width: 0.6; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
+.scard rect { fill: var(--card); stroke: rgba(0, 0, 0, 0.55); stroke-width: 0.6; }
+.card-shadow { fill: rgba(0, 0, 0, 0.32); stroke: rgba(0, 0, 0, 0.17); stroke-width: 1; }
 .scard text { font-family: var(--serif); font-weight: 700; }
 .scard .rank { font-size: 8.4px; }
 .scard .suit { font-size: 8.4px; }
@@ -884,21 +886,21 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .scard.black text { fill: #16181d; }
 .scard.house rect { fill: #efe2bd; stroke: #8a6420; stroke-dasharray: 2 1.4; }
 /* special cards on the board */
-.scard.spc > rect:not(:first-child), .hand.held .scard.spc > rect:not(:first-child) { stroke: none; filter: none; }
+.scard.spc > rect:not(:first-of-type), .hand.held .scard.spc > rect:not(:first-of-type) { stroke: none; }
 .scard.spc .face { font: 800 10.5px var(--sans); }
 .scard.spc .face.two { font-size: 8.6px; letter-spacing: -0.4px; }
 .scard.spc .pip { font: 700 5.4px var(--sans); }
-.scard.spc.joker.mono > rect:first-child { fill: #fff; }
+.scard.spc.joker.mono > rect:first-of-type { fill: #fff; }
 .scard.spc.joker.mono .sp-stripe, .scard.spc.joker.mono text { fill: #16181d; }
-.scard.spc.joker.colour > rect:first-child { fill: #fffaf0; }
+.scard.spc.joker.colour > rect:first-of-type { fill: #fffaf0; }
 .scard.spc.joker.colour .pip { fill: #e9a100; }
-.scard.spc.ad.front > rect:first-child { fill: #dcf1d3; }
+.scard.spc.ad.front > rect:first-of-type { fill: #dcf1d3; }
 .scard.spc.ad.front text { fill: #1d6b3a; }
-.scard.spc.ad.back > rect:first-child { fill: #dcf1d3; }
+.scard.spc.ad.back > rect:first-of-type { fill: #dcf1d3; }
 .scard.spc.ad.back .sp-band { fill: #1d5a36; stroke: none; }
 .scard.spc.ad.back text { fill: #f2c14e; }
-.scard.spc.house > rect:first-child { stroke: #16181d; stroke-width: 0.7; }
-.scard.spc.ad.house > rect:first-child { stroke: #1d6b3a; }
+.scard.spc.house > rect:first-of-type { stroke: #16181d; stroke-width: 0.7; }
+.scard.spc.ad.house > rect:first-of-type { stroke: #1d6b3a; }
 .scard.more rect { fill: #31584a; stroke: #fdf8ec; }
 .scard.more text { fill: #fff; font: 800 7.5px var(--sans); }
 /* Hands on the board: waiting to be placed (gold, dashed), waiting at an
