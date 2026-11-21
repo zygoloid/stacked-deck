@@ -975,6 +975,34 @@ try {
         `phone: ⧉ on a selected croupier picks up one copy, putting nothing down (${await count() - n0} put down)`);
       await btn('delete');
     }
+    // A tap on a croupier where its bar comes up selects it, and does
+    // nothing else (the tap's click lands on the bar's ⟳, not there when the
+    // finger pressed).
+    {
+      await tap(await hexAt(free[0]));
+      const r = await phone.locator('.sel-bar [data-act="cw"]').boundingBox();
+      const cw = [r.x + r.width / 2, r.y + r.height / 2];
+      await phone.tap('.sel-bar [data-act="done"]');
+      const pan = async (from, to) => {
+        await touch('touchStart', [from]);
+        for (let i = 1; i <= 8; i++) await touch('touchMove', [[from[0] + (to[0] - from[0]) * i / 8, from[1] + (to[1] - from[1]) * i / 8]]);
+        await touch('touchEnd', []);
+      };
+      // (Panned from the floor's bottom-left corner, bare, and back from
+      // where that corner went.)
+      const b = await phone.locator('svg.board').boundingBox();
+      const p = await hexAt(free[0]), corner = [b.x + 3, b.y + b.height - 3];
+      const moved = [corner[0] + cw[0] - p[0], corner[1] + cw[1] - p[1]];
+      await pan(corner, moved);
+      const q = await hexAt(free[0]);
+      const was = await passCell();
+      await tap(q);
+      await phone.waitForTimeout(400);
+      check(Math.hypot(q[0] - cw[0], q[1] - cw[1]) < 8 && await phone.locator('.cell.selected').count() === 1 && JSON.stringify(await passCell()) === JSON.stringify(was),
+        `phone: a tap on a croupier under where its bar comes up only selects it (${q.map(Math.round)} vs ⟳ at ${cw.map(Math.round)}; out ${was.out.out} -> ${(await passCell()).out.out})`);
+      await phone.tap('.sel-bar [data-act="done"]');
+      await pan(moved, corner);
+    }
     // A long press on a croupier picks it up; held and dragged, a box grows
     // from it (so croupiers packed together can be picked up).
     const btnX = async () => { const r = await phone.locator('.lift-bar [data-act="place"]').boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
