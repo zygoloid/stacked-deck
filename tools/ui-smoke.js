@@ -962,6 +962,19 @@ try {
       `phone: ⟳ then ✓ turns it, ports and all, facing left alone (out ${before.out.out} -> ${turnedPass.out.out}, facing ${turnedPass.facing})`);
     await tap(await (async () => { const u = await phone.locator('.history button[aria-label="Undo"]').boundingBox(); return [u.x + u.width / 2, u.y + u.height / 2]; })());
     check(JSON.stringify(await passCell()) === JSON.stringify(before), 'phone: one undo puts the group back as it was');
+    // ⧉ on a selected croupier picks up one copy. (The tap's click, which
+    // lands on the group's bar now in its place, mustn't copy again.)
+    {
+      const count = () => phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells.length);
+      const n0 = await count();
+      await tap(await hexAt(free[0]));
+      const c = await phone.locator('.sel-bar [data-act="copy"]').boundingBox();
+      await tap([c.x + c.width / 2, c.y + c.height / 2]);
+      await phone.waitForTimeout(400);
+      check(/^1 croupier/.test(await phone.textContent('.lift-bar').catch(() => '')) && await count() === n0,
+        `phone: ⧉ on a selected croupier picks up one copy, putting nothing down (${await count() - n0} put down)`);
+      await btn('delete');
+    }
     // A long press on a croupier picks it up; held and dragged, a box grows
     // from it (so croupiers packed together can be picked up).
     const btnX = async () => { const r = await phone.locator('.lift-bar [data-act="place"]').boundingBox(); await tap([r.x + r.width / 2, r.y + r.height / 2]); };
