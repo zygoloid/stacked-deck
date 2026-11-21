@@ -352,7 +352,7 @@ export function openEditor(root, ctx, level) {
   // While playing, tick() draws the frames; otherwise this does.
   function animate() {
     cancelAnimationFrame(animRaf);
-    const frame = () => { if (anim && !playing) { renderBoard(); if (anim) animRaf = requestAnimationFrame(frame); } };
+    const frame = () => { if (anim && !playing) { renderBoard({ runOnly: true }); if (anim) animRaf = requestAnimationFrame(frame); } };
     if (anim && !playing) animRaf = requestAnimationFrame(frame);
   }
   // Play mode: watching a test. Playing, stepping or stepping back enters it,
@@ -443,8 +443,9 @@ export function openEditor(root, ctx, level) {
     const stepped = sim.round !== r0;
     if (stepped) startAnim(sim.round - r0 === 1 ? from : null, animDuration(rate));
     if (sim.finished) { afterStep(); return; }
-    // Redraw the board for a step or while cards move; the panels only for a step.
-    if (stepped || anim) renderBoard();
+    // Redraw the board for a step or while cards move (only what the run
+    // changes); the panels only for a step.
+    if (stepped || anim) renderBoard({ runOnly: true });
     if (stepped) { renderTests(); renderTransport(); }
     raf = requestAnimationFrame(tick);
   }
@@ -730,7 +731,9 @@ export function openEditor(root, ctx, level) {
     renderPalette(); renderBoard(); if (!keepInspector) renderInspector(); renderTests(); renderTransport();
   }
 
-  function renderBoard() {
+  // `runOnly`: only the run has moved on since the last draw (a step while
+  // playing, or the cards' animation): see Board.render.
+  function renderBoard({ runOnly = false } = {}) {
     const live = sim && sim.round > 0 ? sim.floor : null;
     const t = anim ? Math.min(1, (performance.now() - anim.start) / anim.dur) : 1;
     const lifted = lift ? lift.items.map((i) => i.cell) : [];
@@ -742,7 +745,7 @@ export function openEditor(root, ctx, level) {
       // The desk to flag on a wrong payout: the one it was paid at.
       alert: sim?.status.kind === 'wrong' ? sim.status.at ?? null : null,
       anim: anim && t < 1 ? Object.assign(anim, { t }) : null,
-    });
+    }, { runOnly });
     if (t >= 1) anim = null;
     svg.classList.toggle('placing', !!tool);
     renderLiftBar();
@@ -1109,6 +1112,12 @@ export function openEditor(root, ctx, level) {
   const chipsEl = h('div', { class: 'test-chips' });
   const testsBody = h('div', { class: 'tests-body' });
   testsPanel.append(testsHead, chipsEl, testsBody);
+  // The rest of the panel is drawn again only when it changes (a hand dealt
+  // or paid, the run's status), not every round: its lists can be long, and
+  // building them each round slowed playing down. The status line is kept
+  // and updated in place.
+  const statusEl = h('div', { class: 'sim-status' });
+  let bodyKey = null, bodyInputs = null, bodySim = null;
   function renderTests() {
     const tests = allTests();
     const nChecks = level.tests.deal ? CHECK_DEALS : 0;
@@ -1144,15 +1153,26 @@ export function openEditor(root, ctx, level) {
       else if (st.kind === 'running' || st.kind === 'paused') status = `Round ${sim.round}. ${pos}/${nHands} hands dealt, ${f.paid.length} paid.`;
       else { status = st.msg; sCls = st.kind === 'passed' ? 'good' : 'bad'; }
     }
-    parts.push(h('div', { class: `sim-status ${sCls}` }, status));
+    statusEl.className = `sim-status ${sCls}`;
+    statusEl.textContent = status;
+    // Everything below the status line shows what has been dealt and paid,
+    // and why the run stopped.
+    const paidRows = t ? t.paid : [];
+    const seats = level.fixed.filter((c) => c.kind === 'source' && c.seat !== undefined).length;
+    const dealt = (i) => (f ? f.dealt(i) : false);
+    const shown = JSON.stringify([testIndex, st?.kind, st?.kind === 'wrong' ? [st.hand, st.desk] : null, st?.missing?.length,
+      inputs.map((_, i) => (dealt(i) ? 1 : 0)).join(''), pos, paidRows.map((p) => (p.ok ? 1 : 0)).join(''), t?.matched, t?.missing.length, playing]);
+    if (shown === bodyKey && inputs === bodyInputs && sim === bodySim) return;
+    bodyKey = shown;
+    bodyInputs = inputs;
+    bodySim = sim;
+    parts.push(statusEl);
     if (st && (st.kind === 'wrong')) parts.push(h('div', { class: 'sim-detail bad' }, 'Paid: ', handEl(st.hand), deskTag(st.desk)));
     if (st && st.missing?.length) {
       parts.push(h('div', { class: 'sim-detail' }, 'Never paid: ', st.missing.slice(0, 6).map((m) => payoutEl(m)), st.missing.length > 6 ? ` +${st.missing.length - 6}` : ''));
     }
     // queue
     // Seated floors: hand i belongs to player A, B, ... (i % seats), each dealing their own.
-    const seats = level.fixed.filter((c) => c.kind === 'source' && c.seat !== undefined).length;
-    const dealt = (i) => (f ? f.dealt(i) : false);
     const nextIdx = seats ? -1 : pos;
     parts.push(h('div', { class: 'sub-title' }, seats ? 'Players\' hands' : 'Player\'s hands', h('span', { class: 'muted' }, ` ${Math.max(0, nHands - pos)} to come`)));
     const winIdx = new Set();
@@ -1161,7 +1181,6 @@ export function openEditor(root, ctx, level) {
       class: `q-item${dealt(i) ? ' dealt' : ''}${i === nextIdx || (seats && !dealt(i) && (i < seats || dealt(i - seats))) ? ' next' : ''}${winIdx.has(i) ? ' win' : ''}`,
       title: [seats ? `Player ${'ABCDEF'[i % seats]}` : null, listed ? null : winIdx.has(i) ? 'Should be paid' : 'Should be dropped'].filter(Boolean).join(': ') || null,
     }, h('span', { class: 'q-n' }, seats ? `${Math.floor(i / seats) + 1}${'ABCDEF'[i % seats]}` : String(i + 1)), handEl(hand), listed ? null : h('span', { class: 'q-mark' }, winIdx.has(i) ? '$' : '')))));
-    const paidRows = t ? t.paid : [];
     if (listed) {
       // The hands the chip desk should receive, ticked off as they are paid;
       // payouts that match none of them are listed after, flagged.

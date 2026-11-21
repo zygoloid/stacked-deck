@@ -73,13 +73,31 @@ const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 const JOKER_COLOURS = ['#d62f4b', '#e9a100', '#1f9d55', '#2f6fd6'];
 
+// Shadows are drawn, not CSS filters: a filter on each card and chip made
+// every frame slow to paint (more so on a phone), and more so with more
+// cards on the floor. A card's: its outline 1 down, with a soft edge (what
+// drop-shadow(0 1px 1px rgba(0,0,0,.45)) drew). A chip's: a disc 2 down,
+// shaded by a gradient falling off as a blur of 2 does (#chip-shadow, after
+// drop-shadow(0 2px 2px rgba(0,0,0,.5))).
+const CARD_SHADOW = (() => {
+  const r = 2.2, w = CARD_W, h = CARD_H, y = 1;
+  return `M${r},${y}H${w - r}A${r},${r} 0 0 1 ${w},${y + r}V${y + h - r}A${r},${r} 0 0 1 ${w - r},${y + h}`
+    + `H${r}A${r},${r} 0 0 1 0,${y + h - r}V${y + r}A${r},${r} 0 0 1 ${r},${y}Z`;
+})();
+const cardShadow = () => s('path', { class: 'card-shadow', d: CARD_SHADOW });
+const CHIP_SHADOW_R = CHIP + 3;
+const chipShadowGradient = () => s('radialGradient', { id: 'chip-shadow' },
+  ...[[CHIP - 3, 0.5], [CHIP - 2, 0.49], [CHIP - 1, 0.42], [CHIP - 0.5, 0.346], [CHIP, 0.25], [CHIP + 0.5, 0.154],
+    [CHIP + 1, 0.079], [CHIP + 2, 0.011], [CHIP_SHADOW_R, 0]]
+    .map(([r, a]) => s('stop', { offset: (r / CHIP_SHADOW_R).toFixed(3), 'stop-color': '#000', 'stop-opacity': a })));
+
 // One little card at (x, y). Special cards get a centred face and their own
 // colours (style.css: .scard.sp.joker.mono / .joker.colour / .ad.front / .ad.back).
 function cardSvg(c, x, house, y = 0, opacity = 1) {
   const g = s('g', {
     class: `scard ${cardClass(c)}${house ? ' house' : ''}`, transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`,
     opacity: opacity < 1 ? opacity.toFixed(2) : undefined,
-  }, s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }));
+  }, cardShadow(), s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }));
   if (isSpecialCard(c)) {
     const f = SPECIAL_FACE[c];
     if (c === '$$') g.append(s('rect', { class: 'sp-band', x: 1.5, y: 1.5, width: CARD_W - 3, height: CARD_H - 3, rx: 1.4 }));
@@ -199,34 +217,37 @@ export class Board {
   // After a step back, `back` is what Sim.back returned ({ copiedFrom }: the
   // copies Duplicate made in the round undone), and live may be none (back
   // at the start).
-  render(state) {
+  //
+  // With `runOnly`, the caller says that since the last render only the run
+  // has moved on (a step, or the cards' animation): the floor, the
+  // croupiers' tables and their arrows stay as they are, and only what the
+  // run changes is drawn again (the cards, and a cell whose facing or count
+  // changed). That saves building it all every frame, and lets the browser
+  // repaint just what changed. (If the state's other parts have changed
+  // after all, it draws everything.)
+  render(state, { runOnly = false } = {}) {
     const { cells, live } = state;
-    this.paidNow = state.paidNow;
-    this.paidNowHex = state.paidNowHex;
-    this.paidWrong = state.paidWrong;
-    this.anim = live || state.anim?.back ? state.anim : null;
-    // New copies come from the card they copy (not when going back: the
-    // cards that are there now were there before the round undone).
-    this.copiedFrom = this.anim?.back ? null : live?.copiedFrom;
-    if (this.anim && !this.anim.vanished) {
-      // Cards that left the floor in the step without reaching the chip desk
-      // (dropped, or paid but not shown), or that a step back unmade: they
-      // fade out where they were, except that copies unmade go back into
-      // the cards they copy.
-      const present = new Set(state.paidNow);
-      if (live) for (const lc of live.cells.values()) for (const hand of liveHands(lc)) hand.forEach((x) => present.add(x));
-      this.anim.vanished = [...this.anim.from].filter(([x]) => !present.has(x));
+    if (runOnly && this.drawn && this.sameScene(state)) {
+      this.peeks.length = this.staticPeeks;
+      this.bodies.forEach((b) => {
+        const key = this.bodyKey(b.cell, state);
+        if (key === b.key) return;
+        const el = this.cellBody(b.cell, state);
+        b.el.replaceWith(el);
+        Object.assign(b, { el, key });
+      });
+      this.staticPeeks = this.peeks.length;
+      this.renderCards(state);
+      return;
     }
-    // Card object -> where it is drawn (for the next step's animation), and
-    // what a collapsed stack or label holds ([data-peek] indexes this);
-    // card object -> where it is going (where the animation ends).
-    this.positions = new Map();
-    this.landing = new Map();
+    this.drawn = state;
+    // What a collapsed stack or label holds ([data-peek] indexes this): the
+    // labels' entries first, then the stacks' (redrawn with the cards).
     this.peeks = [];
     const svg = this.svg;
     svg.replaceChildren(s('defs', {}, s('filter', {
       id: 'desaturate', filterUnits: 'userSpaceOnUse', x: -2 * R, y: -2 * R, width: 4 * R, height: 4 * R,
-    }, s('feColorMatrix', { type: 'saturate', values: '0' }))));
+    }, s('feColorMatrix', { type: 'saturate', values: '0' })), chipShadowGradient()));
     this.nextGone = new Map();
     this.nextBack = new Map();
     const gFloor = s('g', { class: 'l-floor' }), gBody = s('g', { class: 'l-body' });
@@ -243,18 +264,17 @@ export class Board {
     }
 
     const all = [...this.level.fixed, ...cells];
-    const liveCells = live ? live.cells : null;
+    // The live cells' hexes, in drawing order, for renderCards; each cell's
+    // table as drawn, and what it showed (bodyKey), for a runOnly render.
+    this.cardCells = [];
+    this.bodies = [];
     for (const cell of all) {
       const k = hexKey(cell.at);
       const [x, y] = center(cell.at);
       const t = `translate(${x.toFixed(2)},${y.toFixed(2)})`;
       const selected = state.selected === k;
-      const body = this.bodySvg(cell, t, selected, state.alert === k, live);
-      // The alert (the desk after a wrong payout): a red ring over the hex
-      // whose opacity pulses. (Animating the hex's own stroke width made the
-      // page lay itself out again every frame, which on a phone made a long
-      // page, the payout lists of 21-card hands, lag for seconds.)
-      if (state.alert === k) body.append(s('polygon', { class: 'alert-ring', points: HEX }));
+      const body = this.cellBody(cell, state);
+      this.bodies.push({ cell, el: body, key: this.bodyKey(cell, state) });
       // A picked-up group floats over the floor, red where it can't go and
       // marked where it would replace a croupier; that croupier's ports are
       // hidden (they would only show round the edges).
@@ -271,20 +291,9 @@ export class Board {
         gBody.append(body);
         if (state.lifted?.covers.get(k) !== cell) gArrow.append(arrows);
       }
-      if (liveCells) {
-        const lc = liveCells.get(k);
-        if (lc) gCards.append(this.liveSvg(lc, t, [x, y]));
-      }
+      this.cardCells.push([k, t, [x, y]]);
     }
-    // Dropped cards fade out where they were; unmade copies slide into their originals.
-    if (this.anim && this.anim.t < 1) {
-      const e = ease(this.anim.t), copied = this.anim.back?.copiedFrom;
-      for (const [card, p] of this.anim.vanished) {
-        const to = copied && this.landing.get(copied.get(card));
-        if (to) gCards.append(cardSvg(p.c, p.x + (to.x - p.x) * e, p.house, p.y + (to.y - p.y) * e));
-        else gCards.append(cardSvg(p.c, p.x, p.house, p.y, 1 - e));
-      }
-    }
+    this.gCards = gCards;
 
     // The empty hex the croupier picker is open for, and the edge its first port will point at.
     if (state.pick) {
@@ -339,6 +348,105 @@ export class Board {
     }
     this.fadeGone = this.nextGone;
     this.fadeBack = this.nextBack;
+    this.staticPeeks = this.peeks.length;
+    this.renderCards(state);
+  }
+
+  // Whether `state` would draw the floor, the croupiers' tables and their
+  // arrows as the last full render did, but for what the run changes: the
+  // same objects. (Previews and ghosts are made afresh for each render, so
+  // any is a change.)
+  sameScene(state) {
+    const d = this.drawn;
+    const keys = ['cells', 'selected', 'activePort', 'hover', 'tool', 'drag', 'pick', 'preview', 'ghost', 'lifted'];
+    return keys.every((k) => (state[k] ?? null) === (d[k] ?? null)) && !state.preview && !state.ghost && !state.lifted;
+  }
+
+  // A cell's table, chip and labels (bodySvg), with the alert ring.
+  cellBody(cell, state) {
+    const k = hexKey(cell.at);
+    const [x, y] = center(cell.at);
+    const body = this.bodySvg(cell, `translate(${x.toFixed(2)},${y.toFixed(2)})`, state.selected === k, state.alert === k, state.live);
+    // The alert (the desk after a wrong payout): a red ring over the hex
+    // whose opacity pulses. (Animating the hex's own stroke width made the
+    // page lay itself out again every frame, which on a phone made a long
+    // page, the payout lists of 21-card hands, lag for seconds.)
+    if (state.alert === k) body.append(s('polygon', { class: 'alert-ring', points: HEX }));
+    return body;
+  }
+
+  // What of a cell's body the run changes (a runOnly render draws the body
+  // again when this changes): the alert, a croupier's facing, the hands a
+  // player has still to deal, the hands paid at a desk.
+  bodyKey(cell, { live, alert }) {
+    const k = hexKey(cell.at);
+    const what = cell.kind === 'croupier' ? this.facing(cell, live)
+      : cell.kind === 'source' ? this.handsLeft(cell, live)
+        : cell.kind === 'payout' ? this.paidHere(cell, live) : null;
+    return `${alert === k}|${what}`;
+  }
+
+  facing(cell, live) {
+    return (live ? live.cells.get(hexKey(cell.at))?.facing : cell.facing) ?? 0;
+  }
+
+  // Hands still to come from a player (a lone player's, or a seated
+  // player's own), or null when not shown.
+  handsLeft(cell, live) {
+    const seated = cell.seat !== undefined;
+    if (!live || !(seated || this.level.fixed.filter((c) => c.kind === 'source').length === 1)) return null;
+    const st = live.cells.get(hexKey(cell.at));
+    const mine = seated ? live.inputs.filter((x, i) => x && i % live.seats === cell.seat).length : live.total;
+    return mine - (seated ? st.pos : live.inputPos) + st.pending.length;
+  }
+
+  // Hands paid at a chip desk.
+  paidHere(cell, live) {
+    const here = hexKey(cell.at);
+    return live ? live.paidHex.filter((k) => k === here).length : 0;
+  }
+
+  // The live cards, drawn afresh into their layer.
+  renderCards(state) {
+    const { live } = state;
+    this.paidNow = state.paidNow;
+    this.paidNowHex = state.paidNowHex;
+    this.paidWrong = state.paidWrong;
+    this.anim = live || state.anim?.back ? state.anim : null;
+    // New copies come from the card they copy (not when going back: the
+    // cards that are there now were there before the round undone).
+    this.copiedFrom = this.anim?.back ? null : live?.copiedFrom;
+    if (this.anim && !this.anim.vanished) {
+      // Cards that left the floor in the step without reaching the chip desk
+      // (dropped, or paid but not shown), or that a step back unmade: they
+      // fade out where they were, except that copies unmade go back into
+      // the cards they copy.
+      const present = new Set(state.paidNow);
+      if (live) for (const lc of live.cells.values()) for (const hand of liveHands(lc)) hand.forEach((x) => present.add(x));
+      this.anim.vanished = [...this.anim.from].filter(([x]) => !present.has(x));
+    }
+    // Card object -> where it is drawn (for the next step's animation);
+    // card object -> where it is going (where the animation ends).
+    this.positions = new Map();
+    this.landing = new Map();
+    this.peeks.length = this.staticPeeks;
+    const items = [];
+    if (live) {
+      for (const [k, t, xy] of this.cardCells) {
+        const lc = live.cells.get(k);
+        if (lc) items.push(this.liveSvg(lc, t, xy));
+      }
+    }
+    // Dropped cards fade out where they were; unmade copies slide into their originals.
+    if (this.anim && this.anim.t < 1) {
+      const e = ease(this.anim.t), copied = this.anim.back?.copiedFrom;
+      for (const [card, p] of this.anim.vanished) {
+        const to = copied && this.landing.get(copied.get(card));
+        if (to) items.push(cardSvg(p.c, p.x + (to.x - p.x) * e, p.house, p.y + (to.y - p.y) * e));
+        else items.push(cardSvg(p.c, p.x, p.house, p.y, 1 - e));
+      }
+    }
+    this.gCards.replaceChildren(...items);
   }
 
   bodySvg(cell, t, selected, alert, live) {
@@ -350,12 +458,8 @@ export class Board {
         s('text', { class: 'fixed-label', y: 22, 'text-anchor': 'middle' }, cell.seat === undefined ? 'PLAYER' : `PLAYER ${'ABCDEF'[cell.seat]}`));
       // Hands still to come: a lone player's, or a seated player's own.
       const seated = cell.seat !== undefined;
-      if (live && (seated || this.level.fixed.filter((c) => c.kind === 'source').length === 1)) {
-        const st = live.cells.get(hexKey(cell.at));
-        const mine = seated ? live.inputs.filter((x, i) => x && i % live.seats === cell.seat).length : live.total;
-        const left = mine - (seated ? st.pos : live.inputPos) + st.pending.length;
-        g.append(s('text', { class: 'src-count', y: -3, 'text-anchor': 'middle' }, String(left)));
-      }
+      const left = this.handsLeft(cell, live);
+      if (left !== null) g.append(s('text', { class: 'src-count', y: -3, 'text-anchor': 'middle' }, String(left)));
       g.append(s('title', {}, seated ? `Player ${'ABCDEF'[cell.seat]}: hands out their own test hands (marked ${'ABCDEF'[cell.seat]} in the list)` : 'Card player: hands out the test hands'));
       return g;
     }
@@ -367,8 +471,7 @@ export class Board {
       g.append(s('text', { class: 'desk-sign', y: -14, 'text-anchor': 'middle' }, '$'),
         s('text', { class: 'fixed-label dark', y: 26, 'text-anchor': 'middle' }, cell.desk === undefined ? 'CHIP DESK' : `DESK ${DESK_NAMES[cell.desk]}`));
       // Hands paid at this desk.
-      const here = hexKey(cell.at);
-      const paid = live ? live.paidHex.filter((k) => k === here).length : 0;
+      const paid = this.paidHere(cell, live);
       if (paid) {
         g.append(s('circle', { class: 'paid-badge', cx: 24, cy: -22, r: 10 }),
           s('text', { class: 'paid-badge-t', x: 24, y: -18.5, 'text-anchor': 'middle' }, String(paid)));
@@ -393,6 +496,7 @@ export class Board {
         face.append(s('circle', { class: 'bolt', cx: ((R - 9) * Math.cos(a)).toFixed(2), cy: ((R - 9) * Math.sin(a)).toFixed(2), r: 2.2 }));
       }
     }
+    face.append(s('circle', { class: 'chip-shadow', cy: 2, r: CHIP_SHADOW_R, fill: 'url(#chip-shadow)' }));
     const chip = s('g', { class: 'chip' },
       s('circle', { r: CHIP, fill: info.family }),
       s('circle', { class: 'chip-ring', r: CHIP - 2.5 }),
@@ -403,7 +507,7 @@ export class Board {
     if (cell.kind === 'croupier') {
       // Placeholder until the croupier art exists: a small chevron showing
       // which side the croupier faces (it looks there first, then clockwise).
-      const d = (live ? live.cells.get(hexKey(cell.at))?.facing : cell.facing) ?? 0;
+      const d = this.facing(cell, live);
       g.append(s('polyline', {
         class: 'facing', points: `${CHIP + 2},-4 ${CHIP + 6},0 ${CHIP + 2},4`, transform: `rotate(${d * 60})`,
       }, s('title', {}, 'Facing: looks for cards on this side first, then clockwise')));
@@ -637,7 +741,7 @@ export class Board {
       // The hidden cards travel with the "+n" card.
       const [dx, dy, op] = place(shown, cards.length - shown, shown * CARD_STEP);
       g.append(s('g', { class: 'scard more', transform: `translate(${(shown * CARD_STEP + dx).toFixed(1)},${dy.toFixed(1)})`, opacity: op < 1 ? op.toFixed(2) : undefined },
-        s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }),
+        cardShadow(), s('rect', { width: CARD_W, height: CARD_H, rx: 2.2 }),
         s('text', { x: CARD_W / 2, y: 13, 'text-anchor': 'middle' }, `+${cards.length - shown}`)));
     }
     return g;
