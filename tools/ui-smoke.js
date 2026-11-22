@@ -2204,6 +2204,21 @@ try {
     check(total === first.par.rounds && await dp.locator('.dev-measure tbody tr').count() === first.tests.length,
       `measuring the par machine gives each test and par's rounds (${total})`);
     if (shots) await dp.screenshot({ path: join(shots, '16-dev-mode.png') });
+    // The frame meter: opened, it records a step and a step back; a switch
+    // leaves a part of the drawing out (and turned off again, puts it back).
+    await dp.click('.perf-meter > summary');
+    await dp.click('.tp[title^="Step ("]');
+    await dp.waitForTimeout(600);
+    await dp.click('.tp[title^="Step back"]');
+    await dp.waitForFunction(() => document.querySelectorAll('.perf-row').length === 2, null, { timeout: 5000 }).catch(() => {});
+    const rows = await dp.locator('.perf-row').allInnerTexts();
+    check(rows.length === 2 && /^1→0: \d+ frames/.test(rows[0]) && /^0→1: \d+ frames/.test(rows[1]), `the frame meter records a step and a step back (${JSON.stringify(rows)})`);
+    const shadow = dp.locator('.perf-switch', { hasText: 'No chip shadows' }).locator('input');
+    await shadow.check();
+    const hidden = await dp.locator('svg.board .chip-shadow').first().evaluate((e) => getComputedStyle(e).display === 'none');
+    await shadow.uncheck();
+    check(hidden && await dp.locator('svg.board .chip-shadow').first().evaluate((e) => getComputedStyle(e).display !== 'none'), 'a frame meter switch leaves the chip shadows out, and back in');
+    await dp.click('.perf-meter > summary');
     // Outside the live site, a solution scored on a floor that has changed
     // since (here: one saved with no record of its floor) is re-scored on
     // load; dev mode's button re-scores every one.
