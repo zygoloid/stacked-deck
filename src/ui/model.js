@@ -121,11 +121,12 @@ export function isBonusOpen(save, level) {
 }
 
 // Whether any floor (campaign, bonus or the floor) is open. The floor's
-// levels open like bonus floors, after their `unlockAfter` floors.
+// levels are always open (the floors list shows only those already played).
 export function isOpen(save, level) {
   const i = campaignIndex(level);
   if (i >= 0) return isUnlocked(save, i);
-  return (BONUS.includes(level) || FLOOR.includes(level)) && isBonusOpen(save, level);
+  if (FLOOR.includes(level)) return true;
+  return BONUS.includes(level) && isBonusOpen(save, level);
 }
 
 // Special cards the player has reached in the campaign (allowed on some open

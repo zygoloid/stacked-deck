@@ -102,12 +102,11 @@ export const BONUS = [
 ];
 
 // Test-only floors for the floor tab (catalog.js FLOOR, with ?testlevels):
-// one opens with the first campaign floor, one with the second.
+// always open, like the real ones (shown only once played).
 export const FLOOR = [
   {
     id: 'test-dropped',
     card: 'AH',
-    unlockAfter: FIRST,
     title: 'Swept Up',
     story: ['Test floor: a card dropped from the campaign.'],
     brief: 'Pay out every card.',
@@ -120,9 +119,8 @@ export const FLOOR = [
   {
     id: 'test-dropped-later',
     card: '7D',
-    unlockAfter: SECOND,
     title: 'Under the Table',
-    story: ['Test floor: a card dropped from the campaign, opened by the second floor.'],
+    story: ['Test floor: another card dropped from the campaign.'],
     brief: 'Pay out every card.',
     handSize: 1,
     floor, fixed: FIXED,

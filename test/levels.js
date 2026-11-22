@@ -17,8 +17,7 @@
 //    available by the latest campaign floor it needs;
 //  * the floor's levels (src/levels/floor.js, floors that left the
 //    campaign): ids unique; no chapter; a playing card each (any, repeats
-//    allowed); each opens after campaign or bonus floors whose palette, War
-//    rules and special cards cover it;
+//    allowed); no unlockAfter (always open);
 //  * a level has either `pays(hand, earlierHands)` or `expected(inputs)`;
 //  * its reference solution only uses the level's floor, palette, War rules
 //    and special cards, places only shoes and croupiers, and doesn't overlap
@@ -176,24 +175,16 @@ BONUS.forEach((level, i) => {
   }
 });
 // The floor: floors that left the campaign. Each keeps a playing card (any,
-// repeats allowed: the floor can hold two A♥s) and opens like a bonus floor,
-// after campaign or bonus floors that cover its palette.
+// repeats allowed: the floor can hold two A♥s) and is always open (the
+// floors list shows only those the player has played), so it has no
+// `unlockAfter`. Its palette, War rules and special cards are its own, as
+// they were in the campaign.
 FLOOR.forEach((level) => {
   const where = `${level.id} (floor):`;
   check(!ids.has(level.id), `${where} id is unique across the campaign, the bonus deck and the floor`); ids.add(level.id);
   check(level.chapter === undefined, `${where} has no chapter`);
   check(CARDS.has(level.card), `${where} card ${level.card} is a playing card`);
-  const roots = rootsOf(level);
-  check(unlockIds(level).length && roots?.length, `${where} unlockAfter ${unlockIds(level)} names campaign floors, or bonus floors whose chains end at campaign floors`);
-  if (!roots?.length) return;
-  const root = roots.reduce((a, b) => (availableBy.get(b).index > availableBy.get(a).index ? b : a));
-  const after = availableBy.get(root);
-  const lost = level.croupiers.filter((c) => !after.palette.includes(c));
-  check(!lost.length, `${where} palette is available by ${root} (not yet: ${lost})`);
-  const rules = level.warRules ?? ['high'];
-  check(rules.every((r) => after.rules.includes(r)), `${where} War rules ${rules} are available by ${root}`);
-  const specials = level.specialCards ?? [];
-  check(specials.every((c) => after.specials.includes(c)), `${where} special cards ${specials} are available by ${root}`);
+  check(level.unlockAfter === undefined, `${where} has no unlockAfter (always open)`);
 });
 // Difficulty: every floor rates 1 to 10, as the Diff column of its row in
 // docs/campaign.md says. The bonus deck is in difficulty order, then par
@@ -246,7 +237,7 @@ for (const level of [...LEVELS, ...BONUS, ...FLOOR]) {
   if (!selected(level)) continue;
   checked++;
   const isBonus = BONUS.includes(level), onFloor = FLOOR.includes(level);
-  console.log(`== ${level.card} ${level.id} (${isBonus ? `bonus, after ${level.unlockAfter}` : onFloor ? `floor, after ${level.unlockAfter}` : `chapter ${level.chapter}`}): ${level.title}`);
+  console.log(`== ${level.card} ${level.id} (${isBonus ? `bonus, after ${level.unlockAfter}` : onFloor ? 'floor' : `chapter ${level.chapter}`}): ${level.title}`);
 
   // --- Level shape ---
   check(/^[a-z0-9-]+$/.test(level.id), 'id is lowercase-kebab');

@@ -179,7 +179,7 @@ export function levelSelect(root, ctx, focus = null) {
     const floors = [...floorShown].sort((a, b) => hash(a.id) - hash(b.id) || (a.id < b.id ? -1 : 1));
     const tiles = h('div', { class: 'tiles scatter' }, floors.map((lv) => {
       const k = hash(`${lv.id}:tilt`);
-      const card = bonusTile(lv);
+      const card = tile(lv, -1, floorLabel(lv));
       card.style.setProperty('--tilt', `${((k % 21) - 10) * 0.8}deg`);
       card.style.setProperty('--nudge-x', `${(((k >>> 5) % 13) - 6) / 16}rem`);
       card.style.setProperty('--nudge-y', `${(((k >>> 9) % 13) - 6) / 16}rem`);
@@ -187,7 +187,7 @@ export function levelSelect(root, ctx, focus = null) {
     }));
     const done = floors.filter((lv) => save.levels[lv.id]?.solved).length;
     return h('div', { class: 'deck floor' },
-      h('p', { class: 'bonus-note' }, 'Floors that used to be in the campaign, swept off the table but still playable. Each one opens when you clear the floors named on its back.'),
+      h('p', { class: 'bonus-note' }, 'Floors that used to be in the campaign, swept off the table but still playable.'),
       h('section', { class: 'chapter floor', 'data-suit': 'floor' },
         h('h2', {}, h('span', { class: 'ch-toggle static' }, h('span', { class: 'ch-suit' }, '✦'), 'The floor',
           h('span', { class: 'ch-rule', 'aria-hidden': 'true' }),
@@ -480,7 +480,6 @@ export function levelSelect(root, ctx, focus = null) {
       const needs = unlockIds(lv).map((id) => findLevel(id) ?? id);
       const isBonus = (x) => typeof x !== 'string' && BONUS.includes(x);
       const isCampaign = (x) => typeof x !== 'string' && LEVELS.includes(x);
-      // (A floor's level opens after campaign floors, named by their cards.)
       const done = (x) => typeof x !== 'string' && !!save.levels[x.id]?.solved;
       const chip = (x) => {
         if (typeof x === 'string') return h('span', { class: 'req' }, x);
@@ -493,7 +492,7 @@ export function levelSelect(root, ctx, focus = null) {
       const title = needs.length
         ? `Clear ${list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list[0]} to open` : 'Locked';
       return devEnter(lv, h('div', {
-        class: `tile locked${FLOOR.includes(lv) ? ' dropped' : ' bonus'}`, 'data-bonus': lv.id, 'data-card': f.card ?? f.text, title,
+        class: 'tile locked bonus', 'data-bonus': lv.id, 'data-card': f.card ?? f.text, title,
       },
       h('div', { class: 'tile-back' }, h('span', { class: 'lock' },
         needs.length ? ['After ', needs.map((x, i) => [i ? ' + ' : '', chip(x)])] : 'Locked')),
