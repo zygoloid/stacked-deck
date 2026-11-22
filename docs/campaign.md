@@ -413,30 +413,29 @@ that have left the campaign, replaced when the introduction was rebuilt
 players). The bonus deck stays a curated set of good floors, so these go
 here instead. Their ids, floors, palettes (`paletteOf`), saves and scores
 are unchanged; each keeps the card it had in the campaign (so the floor holds
-a second A♥, 2♥, ...), has no `chapter`, and opens like a bonus floor once its
-`unlockAfter` floor is solved (the earliest campaign floor whose palette
-covers it, or the one that replaced it). The level select shows them on a
-tab of their own, scattered in no order (each card's place and tilt come from
-its id), and only to players who have played them: a floor here with nothing
-saved on it isn't shown, and the tab appears only when it has a floor.
+a second A♥, 2♥, ...), has no `chapter`, and has no `unlockAfter`: it is always open. The
+level select shows them on a tab of their own, scattered in no order (each
+card's place and tilt come from its id), and only to players who have played
+them: a floor here with nothing saved on it isn't shown, and the tab appears
+only when it has a floor.
 
-| Card | id | Title | After | Hand | Puzzle | Reference (par) | Diff | Origin |
-|---|---|---|---|---|---|---|---|---|
-| A♥ | opening-night | Opening Night | A♥ first-night | 1 | pay every card | 3 passes in a line (3/33) | 1 | chapter 1 |
-| 2♥ | around-the-bar | Around the Bar | A♥ first-night | 1 | a ring floor around the bar | either side of the ring (7/45) | 1 | chapter 1 |
-| 3♥ | two-tables | Two Tables | A♥ first-night | 1 | two sources, one desk, 16 hands | merge early 4/57, or a line per table 6/~33: the first real trade-off | 2 | chapter 1 |
-| 4♥ | hearts-only | Hearts Only | 2♥ red-and-black | 1 | hearts only; unassigned ports drop | one splitter (3/55) | 2 | chapter 1 |
-| 5♥ | seeing-red | Seeing Red | 2♥ red-and-black | 1 | red cards; a wheel in the way | H and D to one side (4/69) | 2 | chapter 1 |
-| 6♥ | standing-room | Standing Room | 2♥ red-and-black | 1 | hearts and spades from three tables, palms on the floor | merge all then one splitter 10/107, or a splitter per table ~18/~56 | 3 | chapter 1 |
-| 7♥ | black-tie | Black Tie | 2♥ red-and-black | 1 | black cards, two tables, cramped | 7/74 | 4 | chapter 1 |
-| 8♥ | back-to-back | Back to Back | 3♥ two-at-a-time | 2 | runs from two tables by the door | merge then one straight 9/83, or a straight per table 10/~60 | 3 | chapter 1 |
-| 9♥ | next-door | Next Door | 8♥ neighbours | 1 | 6s and 8s; corridor | [X, 7] straight, cut off the 7 (7/75) | 4 | chapter 1 |
-| 2♦ | either-or | Either Or | 4♦ red-flush | 2 | suited or a run, not both | flush yes → straight no; flush no → straight yes; merge (5/84) | 3 | chapter 2 |
-| 3♦ | pair-night | Pair Night | 4♦ red-flush | 5 | largest set is a pair | K2 yes → K3 no (3/60) | 3 | chapter 2 |
-| 4♦ | inside-seven | Inside Seven | 4♦ red-flush | 2 | the two cards make a 3-card run with a 7 | gather the 7 *on top*, straight, cut's bottom half is the hand (5/82) | 4 | chapter 2 |
-| 7♦ | beat-the-dealer | Beat the Dealer | 4♦ red-flush | 1 | beats a 9 | War vs a 9 shoe (4/69) | 4 | chapter 2 |
-| 8♦ | ace-in-the-hole | Ace in the Hole | 7♦ natural | 5 | holds an ace | War vs a king (4/52) | 3 | chapter 2 |
-| 9♦ | inside-bet | Inside Bet | 8♦ low-kicker | 5 | high card 9–Q | beat an 8, then lose to a Q (5/60); or the hand as dealer against a K | 4 | chapter 2 |
+| Card | id | Title | Hand | Puzzle | Reference (par) | Diff | Origin |
+|---|---|---|---|---|---|---|---|
+| A♥ | opening-night | Opening Night | 1 | pay every card | 3 passes in a line (3/33) | 1 | chapter 1 |
+| 2♥ | around-the-bar | Around the Bar | 1 | a ring floor around the bar | either side of the ring (7/45) | 1 | chapter 1 |
+| 3♥ | two-tables | Two Tables | 1 | two sources, one desk, 16 hands | merge early 4/57, or a line per table 6/~33: the first real trade-off | 2 | chapter 1 |
+| 4♥ | hearts-only | Hearts Only | 1 | hearts only; unassigned ports drop | one splitter (3/55) | 2 | chapter 1 |
+| 5♥ | seeing-red | Seeing Red | 1 | red cards; a wheel in the way | H and D to one side (4/69) | 2 | chapter 1 |
+| 6♥ | standing-room | Standing Room | 1 | hearts and spades from three tables, palms on the floor | merge all then one splitter 10/107, or a splitter per table ~18/~56 | 3 | chapter 1 |
+| 7♥ | black-tie | Black Tie | 1 | black cards, two tables, cramped | 7/74 | 4 | chapter 1 |
+| 8♥ | back-to-back | Back to Back | 2 | runs from two tables by the door | merge then one straight 9/83, or a straight per table 10/~60 | 3 | chapter 1 |
+| 9♥ | next-door | Next Door | 1 | 6s and 8s; corridor | [X, 7] straight, cut off the 7 (7/75) | 4 | chapter 1 |
+| 2♦ | either-or | Either Or | 2 | suited or a run, not both | flush yes → straight no; flush no → straight yes; merge (5/84) | 3 | chapter 2 |
+| 3♦ | pair-night | Pair Night | 5 | largest set is a pair | K2 yes → K3 no (3/60) | 3 | chapter 2 |
+| 4♦ | inside-seven | Inside Seven | 2 | the two cards make a 3-card run with a 7 | gather the 7 *on top*, straight, cut's bottom half is the hand (5/82) | 4 | chapter 2 |
+| 7♦ | beat-the-dealer | Beat the Dealer | 1 | beats a 9 | War vs a 9 shoe (4/69) | 4 | chapter 2 |
+| 8♦ | ace-in-the-hole | Ace in the Hole | 5 | holds an ace | War vs a king (4/52) | 3 | chapter 2 |
+| 9♦ | inside-bet | Inside Bet | 5 | high card 9–Q | beat an 8, then lose to a Q (5/60); or the hand as dealer against a K | 4 | chapter 2 |
 
 ## Conventions for chapter builders
 

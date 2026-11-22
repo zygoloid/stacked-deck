@@ -335,8 +335,8 @@ by id.
 recipes in `tools/level-specs/floor.js`, mutants in `test/mutants/floor.js`):
 floors that have left the campaign, kept so their ids, saves, solutions and
 scores carry on. Each keeps the playing card it had (so the floor can hold
-two A♥s), has no `chapter`, and opens like a bonus floor once its
-`unlockAfter` floors are solved. The level select shows them on their own
+two A♥s), has no `chapter`, and is always open (no `unlockAfter`). The
+level select shows them on their own
 tab ("The floor"), scattered in no particular order (each card's place and
 tilt come from its id), but only those the player has played (cleared, or
 with a machine or solution saved): the tab is there only when it has a floor

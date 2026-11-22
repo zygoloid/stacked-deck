@@ -17,8 +17,8 @@
 // Bonus floors have no `chapter`.
 //
 // FLOOR (src/levels/floor.js) is the floor: floors that left the campaign,
-// kept with their ids, saves and scores. Each keeps its old `card` and opens
-// like a bonus floor (`unlockAfter`); they have no `chapter`.
+// kept with their ids, saves and scores. Each keeps its old `card`; they
+// have no `chapter` and no `unlockAfter` (always open).
 import { LEVELS as HEARTS } from './levels/hearts.js';
 import { LEVELS as DIAMONDS } from './levels/diamonds.js';
 import { LEVELS as CLUBS } from './levels/clubs.js';

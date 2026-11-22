@@ -39,7 +39,7 @@ const BONUS_LEVELS = Array.isArray(L.BONUS) ? L.BONUS : [];
 const FLOOR_LEVELS = Array.isArray(L.FLOOR) ? L.FLOOR : [];
 // The first two campaign floors (the campaign flow: solving, unlocking),
 // and a roomy line-of-passes floor for the editor checks that need space
-// (Opening Night as it was, now on the floor tab: opened with ?unlockall).
+// (Opening Night as it was, now on the floor tab).
 const FIRST = LEVELS[0].id, SECOND = LEVELS[1].id;
 const ROOMY = FLOOR_LEVELS.find((l) => l.id === 'opening-night') ?? LEVELS[0];
 const repo = fileURLToPath(new URL('..', import.meta.url));
@@ -2062,19 +2062,20 @@ try {
     await page.reload();
     await showDeck(page, 'bonus');
     check(await page.locator('a.tile[data-level="test-two-keys"]').count() === 1, 'and opens once both are cleared');
-    // The floor: dropped campaign cards, opened like bonus floors, keeping their card.
+    // The floor: dropped campaign cards, keeping their card, always open.
     {
       const { FLOOR: TF } = await import(join(repo, 'test/ui-levels.js'));
       // Only floors the player has played are on it (a machine saved counts).
       const played = { cells: SOLUTIONS['test-pay-twice'] };
-      await setSave({ [LEVELS[0].id]: { solved: true }, 'test-dropped': played, 'test-dropped-later': played });
+      await setSave({ 'test-dropped': played, 'test-dropped-later': played });
       await page.reload();
       await showDeck(page, 'floor');
       check(await page.locator('.deck-tab.floor.on').count() === 1 &&
         (await page.textContent('.deck-tab.floor .deck-count')) === `0 / ${TF.length} cleared` &&
         await page.locator('.deck.floor .tile').count() === TF.length, 'the floor has its own tab, showing and counting only the floors played on it');
       check(await page.locator('.deck.floor a.tile[data-level="test-dropped"]').count() === 1 &&
-        await page.locator('.deck.floor .tile.locked.dropped[data-bonus="test-dropped-later"]').count() === 1, 'a floor card opens after its unlockAfter floor; the other is locked');
+        await page.locator('.deck.floor a.tile[data-level="test-dropped-later"]').count() === 1 &&
+        await page.locator('.deck.floor .tile.locked').count() === 0, 'floor cards are open with no campaign floor cleared');
       check((await page.textContent('a.tile[data-level="test-dropped"] .tile-corner.tl')) === 'A♥', 'a floor card keeps its campaign card');
       check(await page.locator('.deck.floor .tiles.scatter').count() === 1, 'the floor\'s cards lie scattered');
       if (shots) await page.locator('.deck.floor').screenshot({ path: join(shots, '12c-the-floor.png') });
