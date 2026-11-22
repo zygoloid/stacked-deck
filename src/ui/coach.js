@@ -3,7 +3,8 @@
 // A step is
 //   { say: 'text', at?: [q, r], side?: 0-5, ui?: name, until }
 // `say` may use {Click} / {click}, which read "Tap" / "tap" on a touch-only
-// screen, and {kbd:text}, shown only where there is a keyboard (not on a
+// screen, {hold}, which reads "long press" there and "Ctrl-click" with a
+// mouse, and {kbd:text}, shown only where there is a keyboard (not on a
 // touch-only screen). `at` (and `side`) ring a hex (and one of its edges) on the board;
 // `ui` lights up part of the editor (UI below). `until` is when the step is
 // done:
@@ -85,6 +86,7 @@ export function createCoach(level, { tapWord, root, changed }) {
   const words = (text) => {
     const t = tapWord();
     return text.replaceAll('{Click}', t[0].toUpperCase() + t.slice(1)).replaceAll('{click}', t)
+      .replaceAll('{hold}', t === 'tap' ? 'long press' : 'Ctrl-click')
       .replace(/\{kbd:([^}]*)\}/g, (m, keys) => (t === 'tap' ? '' : keys));
   };
   // Done with the tutorial (finished, or skipped: `byPlayer`, so the

@@ -762,13 +762,14 @@ export function storyScreen(root, ctx, level) {
         h('div', { class: 'story-back' },
           h('button', { class: 'btn ghost', onclick: () => ctx.go('#/') }, '← All floors'),
           // A tutorial finished or skipped can be shown again, on an empty
-          // floor (the tutorial floors are small). (Not a one-step note.)
-          level.tutorial?.length > 1 && tutorialDone(level.id) ? h('button', {
+          // floor (the tutorial floors are small). A one-step note just
+          // shows again, over the machine as it is.
+          level.tutorial?.length && tutorialDone(level.id) ? h('button', {
             class: 'btn ghost coach-again',
             onclick: () => {
               forgetTutorial(level.id);
               const ls = ctx.save.levels[level.id];
-              if (ls?.cells?.length) {
+              if (level.tutorial.length > 1 && ls?.cells?.length) {
                 ls.cells = [];
                 ctx.persist();
                 ctx.cloud?.levelChanged(level.id, { work: true });
@@ -842,13 +843,13 @@ export function helpPanel(close, save) {
       h('div', { class: 'keys-grid' },
         [['Tap an empty hex', 'pick a croupier to place there', 'touch'], ['Long-press a croupier in the picker', 'read about it', 'touch'],
           ['Click an empty hex', 'pick a croupier to place there', 'kbd'], ['Point at a croupier in the picker', 'read about it', 'kbd'],
-          ['Long-press an edge', 'pick which port points there'], ['Long-press a port in that menu', 'point it and keep the menu open'], ['Shift-click a port in that menu', 'point it and keep the menu open', 'kbd'], ['Long-press', 'pick up croupiers (drag for more)', 'touch'],
+          ['Long-press an edge', 'pick which port points there', 'touch'], ['Ctrl-click an edge', 'pick which port points there', 'kbd'], ['Long-press a port in that menu', 'point it and keep the menu open', 'touch'], ['Shift-click a port in that menu', 'point it and keep the menu open', 'kbd'], ['Long-press', 'pick up croupiers (drag for more)', 'touch'],
           ['Pinch / drag', 'zoom / pan the floor', 'touch'],
           ['Space', 'play / pause', 'kbd'], ['.', 'step', 'kbd'], [',', 'step back', 'kbd'], ['R', 'reset the run', 'kbd'], ['F', 'next speed', 'kbd'],
           ['1–9', 'place a croupier at the pointer', 'kbd'], ['Del', 'remove selected', 'kbd'],
           ['[ ] M Shift+M', 'turn / mirror (left to right, top to bottom) the selected croupier or group', 'kbd'], ['Shift-drag', 'pick up croupiers in a box', 'kbd'], ['Shift-click', 'pick up one more croupier', 'kbd'], ['Enter / Esc', 'put a group down', 'kbd'],
           ['Q E A D Z C', 'point the active port NW NE W E SW SE, then the next', 'kbd'],
-          ['X', 'active port to floor', 'kbd'], ['Tab', 'next port', 'kbd'], ['Ctrl+Z', 'undo', 'kbd'], ['Wheel / drag', 'zoom / pan the floor', 'kbd'], ['+ − 0', 'zoom in, out, fit', 'kbd'],
+          ['X', 'active port to floor', 'kbd'], ['Tab / Ctrl+wheel', 'next port (Shift+Tab, wheel up: the one before)', 'kbd'], ['Ctrl+Z', 'undo', 'kbd'], ['Wheel / drag', 'zoom / pan the floor', 'kbd'], ['+ − 0', 'zoom in, out, fit', 'kbd'],
           ['Esc', 'cancel / deselect', 'kbd'], ['Right-click', 'remove a croupier', 'kbd']]
           .map(([k, v, only]) => h('div', { class: only ? `${only === 'kbd' ? 'kbd' : 'touch'}-only` : null }, h('kbd', {}, k), ' ', v)))));
 }
