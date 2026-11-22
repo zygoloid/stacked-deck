@@ -417,7 +417,8 @@ a second A♥, 2♥, ...), has no `chapter`, and opens like a bonus floor once i
 `unlockAfter` floor is solved (the earliest campaign floor whose palette
 covers it, or the one that replaced it). The level select shows them on a
 tab of their own, scattered in no order (each card's place and tilt come from
-its id).
+its id), and only to players who have played them: a floor here with nothing
+saved on it isn't shown, and the tab appears only when it has a floor.
 
 | Card | id | Title | After | Hand | Puzzle | Reference (par) | Diff | Origin |
 |---|---|---|---|---|---|---|---|---|

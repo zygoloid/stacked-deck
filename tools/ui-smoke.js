@@ -2016,7 +2016,14 @@ try {
     await page.goto(T);
     await setSave({});
     await page.reload();
+    await page.waitForSelector('.deck.campaign');
+    check(await page.locator('.decks').count() === 0 && await page.locator('.marquee .meta-count').count() === 1,
+      'with no bonus floor open and nothing played on the floor, there are no deck tabs (the count is in the header)');
+    // test-locked opens after the second floor; test-pay-twice needs the first.
+    await setSave({ [SECOND]: { solved: true } });
+    await page.reload();
     await showDeck(page, 'bonus');
+    check(await page.locator('.deck-tab.floor').count() === 0, 'the bonus deck\'s tab shows once one of its floors is open; the floor\'s doesn\'t');
     check(await page.locator('.tile.locked.bonus[data-bonus="test-pay-twice"]').count() === 1 &&
       await page.locator('a.tile[data-level="test-pay-twice"]').count() === 0, 'bonus floor is locked before its unlockAfter floor is solved');
     const lockText = await page.textContent('.tile.locked.bonus[data-bonus="test-pay-twice"]');
@@ -2042,8 +2049,10 @@ try {
     const keys = '.tile.locked.bonus[data-bonus="test-two-keys"]';
     check(await page.locator(`${keys} .req`).count() === 2 &&
       (await page.textContent(`${keys} .req:not(.bonus)`)) === floorLabel(1).text &&
+      (await page.textContent(`${keys} .req.campaign`)) === floorLabel(1).text &&
+      await page.locator(`${keys} .req.campaign`).evaluate((e) => getComputedStyle(e).backgroundColor) === 'rgb(140, 37, 53)' &&
       (await page.textContent(`${keys} .req.bonus`)) === '★A♠' &&
-      await page.locator(`${keys} .req.done`).count() === 0, 'a bonus floor needing two floors names both, the bonus one starred');
+      await page.locator(`${keys} .req.done`).count() === 0, 'a bonus floor needing two floors names both, the campaign one on a red chip, the bonus one starred');
     await setSave({ [FIRST]: { solved: true }, [SECOND]: { solved: true } });
     await page.reload();
     await showDeck(page, 'bonus');
@@ -2056,11 +2065,14 @@ try {
     // The floor: dropped campaign cards, opened like bonus floors, keeping their card.
     {
       const { FLOOR: TF } = await import(join(repo, 'test/ui-levels.js'));
-      await setSave({ [LEVELS[0].id]: { solved: true } });
+      // Only floors the player has played are on it (a machine saved counts).
+      const played = { cells: SOLUTIONS['test-pay-twice'] };
+      await setSave({ [LEVELS[0].id]: { solved: true }, 'test-dropped': played, 'test-dropped-later': played });
       await page.reload();
       await showDeck(page, 'floor');
       check(await page.locator('.deck-tab.floor.on').count() === 1 &&
-        (await page.textContent('.deck-tab.floor .deck-count')).endsWith(`/ ${FLOOR_LEVELS.length + TF.length} cleared`), 'the floor has its own tab, counting its floors');
+        (await page.textContent('.deck-tab.floor .deck-count')) === `0 / ${TF.length} cleared` &&
+        await page.locator('.deck.floor .tile').count() === TF.length, 'the floor has its own tab, showing and counting only the floors played on it');
       check(await page.locator('.deck.floor a.tile[data-level="test-dropped"]').count() === 1 &&
         await page.locator('.deck.floor .tile.locked.dropped[data-bonus="test-dropped-later"]').count() === 1, 'a floor card opens after its unlockAfter floor; the other is locked');
       check((await page.textContent('a.tile[data-level="test-dropped"] .tile-corner.tl')) === 'A♥', 'a floor card keeps its campaign card');
@@ -2187,6 +2199,12 @@ try {
     const dp = await devCtx.newPage();
     dp.on('pageerror', (e) => errors.push(e.message));
     await dp.goto(`${base}?dev`);
+    await dp.waitForSelector('.deck.campaign');
+    check(await dp.locator('.decks').count() === 0, 'dev mode: a new save shows only the campaign');
+    await dp.click('.dev-toggle input');
+    await dp.waitForSelector('.deck-tab.floor');
+    await showDeck(dp, 'floor');
+    check(await dp.locator('.deck.floor .tile').count() === FLOOR_LEVELS.length, 'dev mode\'s "Show all levels" shows every deck and every floor on the floor');
     await showDeck(dp, 'bonus');
     check(await dp.locator('.dev-bar').count() === 1 && await dp.locator('.deck.bonus .tile.locked.dev-enter').count() === BONUS_LEVELS.length,
       'dev mode: the dev bar shows and every locked bonus floor can be entered');

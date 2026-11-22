@@ -493,10 +493,12 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
 .floor-badge.bonus.plain { color: #1f3b70; }
 .bonus-star { color: #b38b22; }
 .lock { background: rgba(0, 0, 0, 0.45); padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; font-size: 0.6875rem; }
-/* what opens a locked bonus floor: campaign floors plain, bonus floors on a navy chip with a star */
+/* what opens a locked bonus floor: campaign floors on a red chip, bonus floors on a navy chip with a star
+   (on the floor's cards, campaign floors are plain) */
 .tile.locked.bonus .lock { max-width: calc(100% - 1.25rem); text-align: center; line-height: 1.9; }
 .req { white-space: nowrap; }
-.req.bonus { background: #1f3b70; color: #fdf8ec; padding: 1px 0.375rem; border-radius: 999px; box-shadow: inset 0 0 0 1px #f2c14e; }
+.req.bonus, .tile.locked.bonus .req.campaign { background: #1f3b70; color: #fdf8ec; padding: 1px 0.375rem; border-radius: 999px; box-shadow: inset 0 0 0 1px #f2c14e; }
+.tile.locked.bonus .req.campaign { background: #8c2535; }
 .req-star { color: #f2c14e; margin-right: 0.125rem; }
 .req.done { opacity: 0.55; text-decoration: line-through; }
 .tile.locked .tile-no { position: absolute; top: 0.875rem; left: 1rem; font: 700 0.9375rem var(--serif); color: #fdf8ec; padding: 1px 0.375rem; border-radius: 0.25rem; background: rgba(0, 0, 0, 0.35); }
@@ -1309,6 +1311,8 @@ svg.board { -webkit-touch-callout: none; }
   border: 1px dashed #6fb7ff; border-radius: 0.5rem; color: var(--ink-2); font-size: 0.78125rem;
 }
 .dev-bar b { color: #6fb7ff; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.6875rem; }
+.dev-toggle { display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer; white-space: nowrap; }
+.dev-toggle input { accent-color: #6fb7ff; margin: 0; }
 .tile.dev-enter { cursor: pointer; outline: 1px dashed #6fb7ff; outline-offset: 0.125rem; }
 .tile-dev { position: absolute; left: 0.375rem; bottom: 0.25rem; font: 700 0.59375rem/1 var(--sans); color: #6fb7ff; letter-spacing: 0.04em; }
 .dev-panel { margin: 0.625rem 0; padding: 0.375rem 0.625rem; border: 1px dashed #6fb7ff; border-radius: 0.5rem; font-size: 0.78125rem; }

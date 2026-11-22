@@ -338,7 +338,11 @@ scores carry on. Each keeps the playing card it had (so the floor can hold
 two A♥s), has no `chapter`, and opens like a bonus floor once its
 `unlockAfter` floors are solved. The level select shows them on their own
 tab ("The floor"), scattered in no particular order (each card's place and
-tilt come from its id). `ALL_LEVELS` is the campaign, the bonus deck and the
+tilt come from its id), but only those the player has played (cleared, or
+with a machine or solution saved): the tab is there only when it has a floor
+to show. The bonus deck's tab likewise appears once one of its floors is
+open, and with only the campaign to show there are no tabs at all.
+`ALL_LEVELS` is the campaign, the bonus deck and the
 floor together.
 
 A level is solved when `runTest` passes on every test and then on the
@@ -373,7 +377,9 @@ carries `solutions/levels/`. `test/build.js` builds both.
 **Dev mode** (`src/ui/dev.js`): `?dev` turns it on and `?dev=0` off, and
 the choice is remembered in the browser (`stacked-deck-dev`); never on the
 live site. In dev mode a locked floor's card can be clicked to enter it,
-cards show each floor's `difficulty`, and the editor's floor panel has a
+cards show each floor's `difficulty`, the dev bar's "Show all levels" switch
+(remembered, `stacked-deck-dev-all`) shows every deck and every floor on the
+floor whatever the save, and the editor's floor panel has a
 Dev box: difficulty and par, what opens the floor and what it opens, a
 button that loads the par machine (an undo away), and one that measures
 the machine on the floor test by test (rounds, the most cards on the floor
