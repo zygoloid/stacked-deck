@@ -3,6 +3,9 @@
 //
 //   node tools/copy-game.js          (from the repository: the engine it scores with)
 //   node functions/tools/rescore.js --dry-run   what it would do; writes nothing
+//   node functions/tools/rescore.js --dry-run --all   judge every solution,
+//                                    whatever its tag: what this checkout's
+//                                    floors would make of the scores stored now
 //   node functions/tools/rescore.js             re-score (needs config/rulesVersion = RULES_VERSION)
 //   node functions/tools/rescore.js --check     compare scores, stats and best with the solutions
 // Options: --instance <name> (default this game's instance). Credentials are
@@ -48,22 +51,25 @@ async function pool(items, fn) {
   }));
 }
 
-// Re-score (or with dryRun, only judge) every solution that needs it.
-// Returns { version, items: [{ uid, level, hash, was, now, change }], counts }
+// Re-score (or with dryRun, only judge) every solution that needs it; with
+// `all` (dry runs only), judge every solution that isn't a tombstone, its
+// stored score (under any version) the one compared: a floor changed
+// without a rules version change shows up here. Returns { version, items: [{ uid, level, hash, was, now, change }], counts }
 // where `change` is one of: same, rounds, croupiers and rounds, newly broken,
 // fixed, scored (was unscored), still broken, invalid, deleted.
-export async function rescore(db, { dryRun = false, log = () => {} } = {}) {
+export async function rescore(db, { dryRun = false, all = false, log = () => {} } = {}) {
   const version = RULES_VERSION;
+  if (all && !dryRun) throw new Error('all: only for a dry run');
   if (!dryRun) {
     const server = (await db.ref('config/rulesVersion').get()).val();
     if (server !== version) throw new Error(`config/rulesVersion is ${JSON.stringify(server)}, not ${version}: set it first (docs/online.md, "Rules versions")`);
     if ((await db.ref('config/scoringPaused').get()).val()) throw new Error('config/scoringPaused is set: nothing would be scored');
   }
   const todo = (await allSolutions(db)).filter(({ sol }) => sol && typeof sol === 'object' && !sol.invalid &&
-    Number.isInteger(sol.rules) && (sol.rules < version || (sol.rules === version && !sol.score)));
+    Number.isInteger(sol.rules) && (all || sol.rules < version || (sol.rules === version && !sol.score)));
   const items = [];
   await pool(todo, async ({ uid, level, hash, sol }) => {
-    const was = sol.rules < version ? sol.score ?? null : null;
+    const was = all || sol.rules < version ? sol.score ?? null : null;
     let now;
     if (dryRun) {
       const res = await judgeSolution(level, hash, sol);
@@ -162,9 +168,10 @@ async function main() {
       console.log(`${where}: ${diffs.length ? `${diffs.length} differences` : `scores, stats and best for v${RULES_VERSION} agree with the solutions`}`);
       process.exitCode = diffs.length ? 1 : 0;
     } else {
-      const dryRun = args.includes('--dry-run');
-      console.log(`${dryRun ? 'Dry run: judging' : 'Re-scoring'} solutions in ${where} under rules version ${RULES_VERSION}`);
-      const { items, counts } = await rescore(db, { dryRun, log: (l) => console.log(`  ${l}`) });
+      const dryRun = args.includes('--dry-run'), all = args.includes('--all');
+      if (all && !dryRun) throw new Error('--all needs --dry-run');
+      console.log(`${dryRun ? `Dry run: judging${all ? ' every one of the' : ''}` : 'Re-scoring'} solutions in ${where} under rules version ${RULES_VERSION}`);
+      const { items, counts } = await rescore(db, { dryRun, all, log: (l) => console.log(`  ${l}`) });
       console.log(`${items.length} solutions: ${Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ') || 'nothing to do'}`);
     }
   } finally {
