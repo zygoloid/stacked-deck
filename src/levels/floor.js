@@ -1,8 +1,9 @@
 // The floor: floors that have left the campaign (cut or replaced), kept so
 // their ids, saves, solutions and scores carry on. They keep the card they
 // had in the campaign (so the floor can hold two A♥s), and lie on the floor
-// tab in no particular order. Each opens like a bonus floor, once its
-// `unlockAfter` floors are solved (see docs/campaign.md, "The floor").
+// tab in no particular order. They have no `unlockAfter`: the floors list
+// shows only those the player has played, and those are always open (see
+// docs/campaign.md, "The floor").
 // Their palettes are exactly what they had in the campaign (paletteOf), so
 // no saved machine loses a croupier.
 import {
@@ -37,7 +38,6 @@ const D9 = [source([-3, 0], E), desk([1, 0])];
 export const LEVELS = [
   {
     id: 'opening-night',
-    unlockAfter: 'first-night',
     card: 'AH',
     title: 'Opening Night',
     difficulty: 1,
@@ -55,7 +55,6 @@ export const LEVELS = [
   },
   {
     id: 'around-the-bar',
-    unlockAfter: 'first-night',
     card: '2H',
     title: 'Around the Bar',
     difficulty: 1,
@@ -73,7 +72,6 @@ export const LEVELS = [
   },
   {
     id: 'two-tables',
-    unlockAfter: 'first-night',
     card: '3H',
     title: 'Two Tables',
     difficulty: 2,
@@ -91,7 +89,6 @@ export const LEVELS = [
   },
   {
     id: 'hearts-only',
-    unlockAfter: 'red-and-black',
     card: '4H',
     title: 'Hearts Only',
     difficulty: 2,
@@ -113,7 +110,6 @@ export const LEVELS = [
   },
   {
     id: 'seeing-red',
-    unlockAfter: 'red-and-black',
     card: '5H',
     title: 'Seeing Red',
     difficulty: 2,
@@ -135,7 +131,6 @@ export const LEVELS = [
   },
   {
     id: 'standing-room',
-    unlockAfter: 'red-and-black',
     card: '6H',
     title: 'Standing Room',
     difficulty: 3,
@@ -157,7 +152,6 @@ export const LEVELS = [
   },
   {
     id: 'black-tie',
-    unlockAfter: 'red-and-black',
     card: '7H',
     title: 'Black Tie',
     difficulty: 4,
@@ -179,7 +173,6 @@ export const LEVELS = [
   },
   {
     id: 'back-to-back',
-    unlockAfter: 'two-at-a-time',
     card: '8H',
     title: 'Back to Back',
     difficulty: 3,
@@ -201,7 +194,6 @@ export const LEVELS = [
   },
   {
     id: 'next-door',
-    unlockAfter: 'neighbours',
     card: '9H',
     title: 'Next Door',
     difficulty: 4,
@@ -224,7 +216,6 @@ export const LEVELS = [
   },
   {
     id: 'either-or',
-    unlockAfter: 'red-flush',
     card: '2D',
     title: 'Either Or',
     difficulty: 3,
@@ -246,7 +237,6 @@ export const LEVELS = [
   },
   {
     id: 'pair-night',
-    unlockAfter: 'red-flush',
     card: '3D',
     title: 'Pair Night',
     difficulty: 3,
@@ -269,7 +259,6 @@ export const LEVELS = [
   },
   {
     id: 'inside-seven',
-    unlockAfter: 'red-flush',
     card: '4D',
     title: 'Inside Seven',
     difficulty: 4,
@@ -291,7 +280,6 @@ export const LEVELS = [
   },
   {
     id: 'beat-the-dealer',
-    unlockAfter: 'red-flush',
     card: '7D',
     title: 'Beat the Dealer',
     difficulty: 4,
@@ -313,7 +301,6 @@ export const LEVELS = [
   },
   {
     id: 'ace-in-the-hole',
-    unlockAfter: 'natural',
     card: '8D',
     title: 'Ace in the Hole',
     difficulty: 3,
@@ -335,7 +322,6 @@ export const LEVELS = [
   },
   {
     id: 'inside-bet',
-    unlockAfter: 'low-kicker',
     card: '9D',
     title: 'Inside Bet',
     difficulty: 4,
