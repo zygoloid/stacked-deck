@@ -369,7 +369,10 @@ export class Board {
   sameScene(state) {
     const d = this.drawn;
     const keys = ['cells', 'selected', 'activePort', 'hover', 'tool', 'drag', 'pick', 'preview', 'ghost', 'lifted'];
-    return keys.every((k) => (state[k] ?? null) === (d[k] ?? null)) && !state.preview && !state.ghost && !state.lifted;
+    return keys.every((k) => (state[k] ?? null) === (d[k] ?? null)) && !state.preview && !state.ghost && !state.lifted
+      // (The tutorial's ring is made afresh for each render too, but is shown
+      // while playing: compared by where it is.)
+      && JSON.stringify(state.coach ?? null) === JSON.stringify(d.coach ?? null);
   }
 
   // A cell's table, chip and labels (bodySvg), with the alert ring.
