@@ -5,6 +5,8 @@
 // which also carry the reference solutions it loads. In dev mode:
 //  * any floor can be entered from the floors list, open or not;
 //  * the floors list shows each floor's difficulty;
+//  * the dev bar's "Show all levels" switch shows every deck and every floor
+//    on the floor, even those a player wouldn't see yet (remembered too);
 //  * the editor's floor panel shows the floor's difficulty, par and what
 //    opens it (and what it opens), loads the par machine, and measures the
 //    machine on the floor test by test: rounds, the most cards on the floor
@@ -38,6 +40,18 @@ export function setDevMode(v) {
   try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* storage blocked */ }
 }
 
+// "Show all levels" (only in dev mode): the floors list shows the bonus deck
+// before any of it opens and every floor on the floor, not only those the
+// player has played.
+const ALL_KEY = `${KEY}-all`;
+let all = false;
+try { all = devAvailable && typeof localStorage !== 'undefined' && localStorage.getItem(ALL_KEY) === '1'; } catch { /* storage blocked */ }
+export const devShowAll = () => on && all;
+function setDevShowAll(v) {
+  all = !!v;
+  try { localStorage.setItem(ALL_KEY, all ? '1' : '0'); } catch { /* storage blocked */ }
+}
+
 // The build's badge, for the headers (only the beta has one).
 export const channelBadge = () => (CHANNEL === 'beta'
   ? h('span', { class: 'channel-badge', title: 'The beta: new floors being tried out. Its progress is kept apart from the main game\'s (use Save file to move it), and it has no online features.' }, 'Beta')
@@ -64,6 +78,8 @@ export function devBar(redraw, rescoreAll) {
   return h('div', { class: 'dev-bar' },
     h('b', {}, 'Dev mode'),
     h('span', {}, 'Locked floors open on a click; each floor shows its difficulty.'),
+    h('label', { class: 'dev-toggle', title: 'Show every deck and every floor on the floor, even those this save wouldn\'t show yet' },
+      h('input', { type: 'checkbox', checked: all, onchange: (e) => { setDevShowAll(e.target.checked); redraw(); } }), 'Show all levels'),
     btn, note,
     h('button', { class: 'btn ghost small', onclick: () => { setDevMode(false); redraw(); } }, 'Turn off'));
 }

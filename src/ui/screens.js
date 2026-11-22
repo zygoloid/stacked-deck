@@ -4,7 +4,7 @@ import { CROUPIERS, PORT_STYLE, chipLabel, sampleCell } from './croupiers.js';
 import { CAMPAIGN as LEVELS, BONUS, FLOOR, ALL_LEVELS, findLevel } from './catalog.js';
 import { RULES_VERSION } from '../engine.js';
 import { CHANNEL } from '../build.js';
-import { devMode, devBar, channelBadge } from './dev.js';
+import { devMode, devShowAll, devBar, channelBadge } from './dev.js';
 import { isUnlocked, isBonusOpen, unlockIds, specialCardsUnlocked } from './model.js';
 import { floorLabel, chapterInfo, floorBadge } from './floors.js';
 import { accountButton } from './account.js';
@@ -41,14 +41,24 @@ const BONUS_GROUPS = [
 ];
 const bonusGroupOf = (f) => (f.suit ?? (f.special ? 'special' : 'other'));
 
+// Whether the player has played a floor: cleared it, or has a machine on it
+// (being built, or a saved solution).
+const played = (st) => !!(st && (st.solved || st.cells?.length || st.solutions?.length));
+
 // `focus`: the floor just left (its deck is shown, and main.js scrolls to it).
 export function levelSelect(root, ctx, focus = null) {
   const { save, cloud } = ctx;
   const signedIn = cloud?.state() === 'signed-in';
   const ui = loadUi();
+  // The decks this player sees: the bonus deck once any of it is open; the
+  // floor only with the floors on it that they have played (it's not worth
+  // offering to everyone). Dev mode's "Show all levels" shows everything.
+  const showAll = devShowAll();
+  const floorShown = showAll ? FLOOR : FLOOR.filter((l) => played(save.levels[l.id]));
+  const bonusShown = BONUS.length > 0 && (showAll || BONUS.some((l) => isBonusOpen(save, l)));
+  const decks = ['campaign', bonusShown ? 'bonus' : null, floorShown.length ? 'floor' : null].filter(Boolean);
   if (focus) ui.deck = BONUS.some((l) => l.id === focus) ? 'bonus' : FLOOR.some((l) => l.id === focus) ? 'floor' : 'campaign';
-  if (ui.deck === 'bonus' && !BONUS.length) ui.deck = 'campaign';
-  if (ui.deck === 'floor' && !FLOOR.length) ui.deck = 'campaign';
+  if (!decks.includes(ui.deck)) ui.deck = 'campaign';
   const chapters = new Map();
   LEVELS.forEach((lv, i) => {
     const ch = lv.chapter ?? 1;
@@ -57,7 +67,7 @@ export function levelSelect(root, ctx, focus = null) {
   });
   const solvedCount = LEVELS.filter((l) => save.levels[l.id]?.solved).length;
   const bonusSolved = BONUS.filter((l) => save.levels[l.id]?.solved).length;
-  const floorSolved = FLOOR.filter((l) => save.levels[l.id]?.solved).length;
+  const floorSolved = floorShown.filter((l) => save.levels[l.id]?.solved).length;
 
   // Everyone's and friends' scores on a floor, as last read (signed in only),
   // and how the player's best compares with them and with par.
@@ -85,7 +95,7 @@ export function levelSelect(root, ctx, focus = null) {
         h('h1', {}, h('button', { class: 'logo-btn', title: 'Back to the title screen', onclick: () => ctx.title?.() }, 'Stacked Deck')),
         h('p', { class: 'tagline' }, 'An esoteric casino. Build machines of croupiers that pay out exactly the right hands.'),
         h('div', { class: 'marquee-meta' },
-          BONUS.length ? null : h('span', { class: 'meta-count' }, `${solvedCount} / ${LEVELS.length} floors cleared`),
+          decks.length > 1 ? null : h('span', { class: 'meta-count' }, `${solvedCount} / ${LEVELS.length} floors cleared`),
           h('button', { class: 'btn ghost small', onclick: () => ctx.help() }, '? How to play'),
           cloud ? accountButton(cloud) : null,
           h('button', { class: 'btn ghost small', title: 'Download your progress, or load a save file', onclick: () => saveFileDialog(ctx, ALL_LEVELS) }, 'Save file'),
@@ -93,7 +103,7 @@ export function levelSelect(root, ctx, focus = null) {
           channelBadge()),
         solvedCount + bonusSolved + floorSolved ? legend() : null,
         devBar(() => (ctx.rerender ?? draw)(), () => ctx.rescoreAll())),
-      BONUS.length || FLOOR.length ? deckTabs() : null,
+      decks.length > 1 ? deckTabs() : null,
       ui.deck === 'bonus' ? bonusDeck() : ui.deck === 'floor' ? floorDeck() : campaignDeck(),
       pop].flat().filter(Boolean));
     layHands();
@@ -116,7 +126,7 @@ export function levelSelect(root, ctx, focus = null) {
 
   // The decks, as card boxes: the campaign (red backs), the bonus deck (blue
   // backs) and the floor (cards dropped from the campaign), each with how much
-  // of it is cleared.
+  // of it is cleared. Only drawn when there is more than one deck to show.
   function deckTabs() {
     const tab = (deck, title, sub, done, total) => h('button', {
       class: `deck-tab ${deck}${ui.deck === deck ? ' on' : ''}`, role: 'tab', 'aria-selected': String(ui.deck === deck), 'data-deck': deck,
@@ -137,8 +147,8 @@ export function levelSelect(root, ctx, focus = null) {
       h('span', { class: 'deck-bar', 'aria-hidden': 'true' }, h('i', { style: { width: `${total ? (100 * done) / total : 0}%` } }))));
     return h('nav', { class: 'decks', role: 'tablist', 'aria-label': 'Decks' },
       tab('campaign', 'Campaign', 'Red deck · the story', solvedCount, LEVELS.length),
-      BONUS.length ? tab('bonus', 'Bonus deck', 'Blue deck · off the books', bonusSolved, BONUS.length) : null,
-      FLOOR.length ? tab('floor', 'The floor', 'Dropped cards · old floors', floorSolved, FLOOR.length) : null);
+      decks.includes('bonus') ? tab('bonus', 'Bonus deck', 'Blue deck · off the books', bonusSolved, BONUS.length) : null,
+      decks.includes('floor') ? tab('floor', 'The floor', 'Dropped cards · old floors', floorSolved, floorShown.length) : null);
   }
 
   function campaignDeck() {
@@ -161,11 +171,12 @@ export function levelSelect(root, ctx, focus = null) {
   }
 
   // The floor: floors that have left the campaign, lying where they were
-  // dropped. No suits and no order: each card's place and tilt come from its
-  // id, so they stay put from one visit to the next.
+  // dropped (only those the player has played). No suits and no order: each
+  // card's place and tilt come from its id, so they stay put from one visit
+  // to the next.
   function floorDeck() {
     const hash = (id) => [...id].reduce((a, c) => (Math.imul(a, 31) + c.charCodeAt(0)) >>> 0, 2166136261);
-    const floors = [...FLOOR].sort((a, b) => hash(a.id) - hash(b.id) || (a.id < b.id ? -1 : 1));
+    const floors = [...floorShown].sort((a, b) => hash(a.id) - hash(b.id) || (a.id < b.id ? -1 : 1));
     const tiles = h('div', { class: 'tiles scatter' }, floors.map((lv) => {
       const k = hash(`${lv.id}:tilt`);
       const card = bonusTile(lv);
@@ -463,16 +474,17 @@ export function levelSelect(root, ctx, focus = null) {
   function bonusTile(lv) {
     const f = floorLabel(lv);
     if (!isBonusOpen(save, lv)) {
-      // What opens it: campaign floors by their card; bonus floors by theirs,
-      // marked as bonus floors (a star on a bonus-deck chip). Floors already
-      // cleared are struck through.
+      // What opens it: campaign floors by their card (on a red chip, in the
+      // bonus deck); bonus floors by theirs, marked as bonus floors (a star
+      // on a blue chip). Floors already cleared are struck through.
       const needs = unlockIds(lv).map((id) => findLevel(id) ?? id);
       const isBonus = (x) => typeof x !== 'string' && BONUS.includes(x);
+      const isCampaign = (x) => typeof x !== 'string' && LEVELS.includes(x);
       // (A floor's level opens after campaign floors, named by their cards.)
       const done = (x) => typeof x !== 'string' && !!save.levels[x.id]?.solved;
       const chip = (x) => {
         if (typeof x === 'string') return h('span', { class: 'req' }, x);
-        return h('span', { class: `req${isBonus(x) ? ' bonus' : ''}${done(x) ? ' done' : ''}` },
+        return h('span', { class: `req${isBonus(x) ? ' bonus' : isCampaign(x) ? ' campaign' : ''}${done(x) ? ' done' : ''}` },
           isBonus(x) ? h('span', { class: 'req-star' }, '★') : null, floorLabel(x).text);
       };
       const named = (x) => (typeof x === 'string' ? x
