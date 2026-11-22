@@ -501,7 +501,9 @@ export class Board {
         else items.push(cardSvg(p.c, p.x, p.house, p.y, 1 - e));
       }
     }
-    morphChildren(this.gCards, s('g', {}, items));
+    // (rebuildCards: the dev frame meter's switch, for comparing.)
+    if (this.rebuildCards) this.gCards.replaceChildren(...items);
+    else morphChildren(this.gCards, s('g', {}, items));
   }
 
   bodySvg(cell, t, selected, alert, live) {

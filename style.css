@@ -1332,7 +1332,7 @@ svg.board { -webkit-touch-callout: none; }
 .perf-row { padding: 1px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
 .perf-switches { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.125rem 0.75rem; }
 .perf-switch { display: flex; align-items: center; gap: 0.25rem; cursor: pointer; }
-.perf-own-layer svg.board { will-change: transform; }
+.perf-shared-layer .board-wrap { will-change: auto; }
 .perf-no-fade svg.board [opacity] { opacity: 1 !important; }
 .perf-no-card-shadow .card-shadow, .perf-no-chip-shadow .chip-shadow { display: none; }
 .perf-no-dash svg.board * { stroke-dasharray: none !important; }
