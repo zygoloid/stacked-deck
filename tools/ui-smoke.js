@@ -641,6 +641,10 @@ try {
         await page.locator('.coach .coach-skip, .coach .coach-count').count() === 0, `${lv.id}: its note shows, with only Got it`);
       await page.click('.coach .coach-next');
       check(await page.locator('.coach.hidden').count() === 1, `${lv.id}: Got it puts the note away`);
+      await page.goto(`${base}?unlockall#/level/${lv.id}/story`);
+      await page.click('.story-actions .coach-again');
+      await page.waitForSelector('svg.board');
+      check(await page.isVisible('.coach .coach-next'), `${lv.id}: the story page's Replay tutorial shows the note again`);
       await page.evaluate(() => localStorage.removeItem('stacked-deck-coach'));
     }
   }
@@ -1224,7 +1228,8 @@ try {
   // Pointing ports: only required ports start with a side (and have no
   // floor option); selecting starts at the first port; each direction key
   // points the active port and moves on; Ctrl+Z goes back a port; a long
-  // press on an edge opens a menu of the ports.
+  // press (or a Ctrl-click) on an edge opens a menu of the ports; Ctrl+wheel
+  // moves the active port.
   {
     const lv = LEVELS.find((l) => ['straight', 'war', 'pass'].every((t) => l.croupiers.includes(t)));
     const free = lv.floor.filter((x) => !lv.fixed.some((c) => c.at.join() === x.join()));
@@ -1288,6 +1293,28 @@ try {
     await page.mouse.up();
     cs = await cellsNow();
     check(cs.find(at(free[1])).out.yes === 2, 'or hold, slide onto a port and let go');
+    // A Ctrl-click on an edge opens the menu at once; Ctrl+wheel moves the
+    // active port along (and a wheel without Ctrl still zooms).
+    await page.keyboard.down('Control');
+    await page.mouse.click(ex, ey);
+    const ctrlMenu = await page.isVisible('.radial-hub');
+    await page.keyboard.up('Control');
+    cs = await cellsNow();
+    check(ctrlMenu && cs.find(at(free[1])).out.yes === 2, 'a Ctrl-click on an edge opens the port menu, pointing nothing');
+    await page.keyboard.press('Escape');
+    const activeTag = () => page.textContent('.inspector .port-row.active .port-tag');
+    const [hx, hy] = await hexPoint(free[1], 0, 0.3);
+    await page.mouse.move(hx, hy);
+    const before = await activeTag();
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, 100);
+    await page.waitForTimeout(50);
+    const after = await activeTag();
+    await page.mouse.wheel(0, -100);
+    await page.waitForTimeout(50);
+    const back = await activeTag();
+    await page.keyboard.up('Control');
+    check(before !== after && back === before, `Ctrl+wheel moves the active port along and back (${before}, ${after}, ${back})`);
     // With a mouse the edge zones stop at the hex: just outside its east
     // edge (in the empty hex next to it) a long press opens no menu, and
     // letting go opens the picker there, leaving the ports alone.

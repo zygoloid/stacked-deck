@@ -1072,7 +1072,7 @@ export function openEditor(root, ctx, level) {
           h('div', { class: 'port-list' }, ports.map(portTag)));
       }
     } else if (ports.length) {
-      parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ` ${tap()} an edge of the hex; long-press to choose a port`)));
+      parts.push(h('div', { class: 'ports-title' }, 'Ports', h('span', { class: 'muted' }, ` ${tap()} an edge of the hex; ${hasMouse() ? 'Ctrl-click' : 'long-press'} to choose a port`)));
       for (const p of ports) {
         const st = PORT_STYLE[p];
         if (p === 'to') {
@@ -1373,6 +1373,17 @@ export function openEditor(root, ctx, level) {
     if (!loc) return;
     const key = hexKey(loc.at);
     const c = cellAt(key);
+    // Ctrl-click (or ⌘-click) on an edge of the selected croupier opens the
+    // port menu at once, as a long press does. (On a Mac a Ctrl-click can
+    // come as a right click.)
+    if ((e.ctrlKey || e.metaKey) && (e.button === 0 || e.button === 2) && !lift) {
+      const side = selectedEdge(e.clientX, e.clientY);
+      if (side !== null) {
+        drag = { kind: 'pan', ...base, active: false, radial: true };
+        openRadial(side, e.clientX, e.clientY);
+        return;
+      }
+    }
     if (e.button === 2) {
       if (lift) { placeLift(); return; }
       if (tool) { setTool(null); return; }
@@ -1435,9 +1446,21 @@ export function openEditor(root, ctx, level) {
     if (reachSide !== null) holdFor(reachSide); else holdBox();
   });
   svg.addEventListener('auxclick', (e) => e.preventDefault());
+  // Ctrl+scroll with a croupier selected moves its active port along, one
+  // port a notch (a trackpad's scroll adds up to notches). Only with the
+  // Ctrl key really down: a trackpad pinch also comes as a Ctrl+wheel, and
+  // zooms.
+  let wheelPorts = 0;
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
     if (pick) { closePicker(); renderBoard(); }
+    if (e.ctrlKey && ctrlDown && selCell() && !lift) {
+      const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 800 : 1);
+      if (Math.sign(dy) !== Math.sign(wheelPorts)) wheelPorts = 0;
+      wheelPorts += dy;
+      if (Math.abs(wheelPorts) >= 50) { cyclePort(Math.sign(wheelPorts)); wheelPorts = 0; }
+      return;
+    }
     board.zoomAt(e.clientX, e.clientY, Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 100) * 0.0022));
     updatePeek();
   }, { passive: false });
@@ -1603,8 +1626,8 @@ export function openEditor(root, ctx, level) {
   document.addEventListener('pointercancel', onUp);
 
   // ---------- port menu ----------
-  // A long press on an edge of a croupier opens a ring of its ports around
-  // the press: pick one (tap it, or slide onto it and let go) to point it at
+  // A long press (or a Ctrl-click) on an edge of a croupier opens a ring of
+  // its ports around the press: pick one (tap it, or slide onto it and let go) to point it at
   // that side. Ports already pointing there are marked; picking one of those
   // sends it to the floor (unless it must point somewhere). Deal's entry adds
   // the side to its list. A Shift-click or a long press on a port does the
@@ -2065,6 +2088,22 @@ export function openEditor(root, ctx, level) {
   }
 
   // ---------- keyboard ----------
+  // The selected croupier's active port: the next one (dir 1) or the one
+  // before (-1).
+  function cyclePort(dir) {
+    const c = selCell(), ports = c ? portsOf(c) : [];
+    if (!ports.length) return;
+    const i = ports.indexOf(activePort);
+    activePort = ports[(i + ports.length + dir) % ports.length];
+    renderBoard(); renderInspector();
+  }
+  // Whether the Ctrl key is down (for Ctrl+scroll: see the board's wheel).
+  let ctrlDown = false;
+  function onCtrl(e) { if (e.key === 'Control') ctrlDown = e.type === 'keydown'; }
+  function ctrlUp() { ctrlDown = false; }
+  document.addEventListener('keydown', onCtrl, true);
+  document.addEventListener('keyup', onCtrl, true);
+  window.addEventListener('blur', ctrlUp);
   function onKey(e) {
     if (e.target.closest?.('input, textarea, select') || dialogOpen()) return;
     if (modal.firstChild) {
@@ -2126,14 +2165,7 @@ export function openEditor(root, ctx, level) {
     // mirrors it left to right, Shift+M top to bottom.
     if (k === '[' || k === ']') { commit(() => rotateCell(c, k === ']' ? 1 : -1)); return; }
     if (lower === 'm') { commit(() => (e.shiftKey ? flipCell : mirrorCell)(c)); return; }
-    if (k === 'Tab') {
-      e.preventDefault();
-      const ports = portsOf(c);
-      const i = ports.indexOf(activePort);
-      activePort = ports[(i + (e.shiftKey ? ports.length - 1 : 1)) % ports.length];
-      renderBoard(); renderInspector();
-      return;
-    }
+    if (k === 'Tab') { e.preventDefault(); cyclePort(e.shiftKey ? -1 : 1); return; }
     if (lower in SIDE_KEYS) { assign(SIDE_KEYS[lower]); return; }
     if (lower === 'x' && activePort) {
       if (activePort === 'to') { if (listUi?.key === hexKey(c.at)) listUi.field.setText(''); else commit(() => { c.out.to = []; }); }
@@ -2158,6 +2190,9 @@ export function openEditor(root, ctx, level) {
     document.removeEventListener('pointerdown', onDocDown, true);
     cancelAnimationFrame(animRaf);
     document.removeEventListener('keydown', onKey);
+    document.removeEventListener('keydown', onCtrl, true);
+    document.removeEventListener('keyup', onCtrl, true);
+    window.removeEventListener('blur', ctrlUp);
   };
 }
 
