@@ -91,6 +91,48 @@ const chipShadowGradient = () => s('radialGradient', { id: 'chip-shadow' },
     [CHIP + 1, 0.079], [CHIP + 2, 0.011], [CHIP_SHADOW_R, 0]]
     .map(([r, a]) => s('stop', { offset: (r / CHIP_SHADOW_R).toFixed(3), 'stop-color': '#000', 'stop-opacity': a })));
 
+// Make the children of `old` (an element on the page) match those of
+// `fresh` (one just built), changing only what differs: an element that is
+// the same as before is left alone, so the browser doesn't paint it again.
+// (Building the cards afresh each frame made every card count as removed
+// and added, so the whole area under them, arrows and all, was painted
+// again every frame.) Children are matched by data-k where they have one,
+// else in order by tag; `fresh` is emptied.
+function morphChildren(old, fresh) {
+  const olds = [...old.childNodes], news = [...fresh.childNodes];
+  const keyOf = (n) => (n.nodeType === 1 ? n.getAttribute('data-k') : null);
+  const byKey = new Map();
+  for (const n of olds) if (keyOf(n) !== null) byKey.set(keyOf(n), n);
+  const used = new Set(), match = new Map();
+  let i = 0;
+  for (const f of news) {
+    const k = keyOf(f);
+    let m = null;
+    if (k !== null) m = byKey.get(k) ?? null;
+    else {
+      for (let j = i; j < olds.length; j++) {
+        const o = olds[j];
+        if (!used.has(o) && keyOf(o) === null && o.nodeName === f.nodeName) { m = o; i = j + 1; break; }
+      }
+    }
+    if (m && m.nodeName === f.nodeName && !used.has(m)) { used.add(m); match.set(f, m); }
+  }
+  for (const o of olds) if (!used.has(o)) o.remove();
+  let ref = old.firstChild;
+  for (const f of news) {
+    const m = match.get(f);
+    if (!m) { old.insertBefore(f, ref); continue; }
+    if (m.nodeType === 3) { if (m.data !== f.data) m.data = f.data; } else morph(m, f);
+    if (m === ref) ref = ref.nextSibling;
+    else old.insertBefore(m, ref);
+  }
+}
+function morph(old, fresh) {
+  for (const a of [...old.attributes]) if (!fresh.hasAttribute(a.name)) old.removeAttribute(a.name);
+  for (const a of fresh.attributes) if (old.getAttribute(a.name) !== a.value) old.setAttribute(a.name, a.value);
+  morphChildren(old, fresh);
+}
+
 // One little card at (x, y). Special cards get a centred face and their own
 // colours (style.css: .scard.sp.joker.mono / .joker.colour / .ad.front / .ad.back).
 function cardSvg(c, x, house, y = 0, opacity = 1) {
@@ -446,7 +488,7 @@ export class Board {
         else items.push(cardSvg(p.c, p.x, p.house, p.y, 1 - e));
       }
     }
-    this.gCards.replaceChildren(...items);
+    morphChildren(this.gCards, s('g', {}, items));
   }
 
   bodySvg(cell, t, selected, alert, live) {
@@ -747,12 +789,17 @@ export class Board {
     return g;
   }
 
+  // (Keyed with data-k, so that each frame's cards match the last's: morph.)
   liveSvg(lc, t, origin) {
-    const g = s('g', { transform: t, class: 'live' });
-    const hand = (cards, x, y, cls) => this.handSvg(cards, x, y, cls, origin);
+    const g = s('g', { transform: t, class: 'live', 'data-k': `${lc.q},${lc.r}` });
+    const hand = (cards, x, y, cls, key) => {
+      const el = this.handSvg(cards, x, y, cls, origin);
+      el.setAttribute('data-k', key);
+      return el;
+    };
     if (lc.kind === 'payout') {
       // (Only at the desk it was paid at.)
-      if (this.paidNow && this.paidNowHex === `${lc.q},${lc.r}`) g.append(hand(this.paidNow, 0, -2, `paid-now${this.paidWrong ? ' wrong' : ''}`));
+      if (this.paidNow && this.paidNowHex === `${lc.q},${lc.r}`) g.append(hand(this.paidNow, 0, -2, `paid-now${this.paidWrong ? ' wrong' : ''}`, 'paid'));
       return g;
     }
     // Hands waiting at an input: on a tray, with a notch pointing at the
@@ -766,12 +813,12 @@ export class Board {
       // Where the tray's edge meets the line to the centre, and a notch from there.
       // (A long hand reaching over the middle has no notch.)
       const k = Math.min((w / 2 + 2.5) / (Math.abs(ux) || 1e-9), (CARD_H / 2 + 2.5) / (Math.abs(uy) || 1e-9));
-      const tray = hand(cards, x, y, 'slot');
+      const tray = hand(cards, x, y, 'slot', `s${d}`);
       if (Math.hypot(x, y) - k >= 6) {
         const bx = x - ux * k, by = y - uy * k;
         const px = -uy * 3.2, py = ux * 3.2;
         g.append(s('polygon', {
-          class: 'tray-notch', opacity: this.arriving < 1 ? this.arriving.toFixed(2) : undefined,
+          class: 'tray-notch', 'data-k': `n${d}`, opacity: this.arriving < 1 ? this.arriving.toFixed(2) : undefined,
           points: `${(bx + px).toFixed(1)},${(by + py).toFixed(1)} ${(bx - ux * 4).toFixed(1)},${(by - uy * 4).toFixed(1)} ${(bx - px).toFixed(1)},${(by - py).toFixed(1)}`,
         }));
       }
@@ -780,14 +827,14 @@ export class Board {
     for (const [side, cards] of lc.pending) {
       if (!cards.length) continue;
       const [x, y] = sidePos(side, lc.kind === 'shoe' ? 1 : cards.length, 0.62);
-      g.append(hand(cards, x, y, 'pending'));
+      g.append(hand(cards, x, y, 'pending', `p${side}`));
     }
     // Hands a croupier holds while it waits for more: on a plate in the
     // middle, with a badge saying what it is waiting with.
     const held = (cards, cls, tag) => {
-      g.append(hand(cards, 0, 4, `held ${cls}`));
+      g.append(hand(cards, 0, 4, `held ${cls}`, `h${tag}`));
       const w = tag.length * 4.6 + 8;
-      g.append(s('g', { class: 'held-badge', transform: 'translate(0,-10)', opacity: this.arriving < 1 ? this.arriving.toFixed(2) : undefined },
+      g.append(s('g', { class: 'held-badge', 'data-k': `b${tag}`, transform: 'translate(0,-10)', opacity: this.arriving < 1 ? this.arriving.toFixed(2) : undefined },
         s('rect', { x: -w / 2, y: -4.5, width: w, height: 9, rx: 4.5 }),
         s('text', { class: 'held-tag', y: 2.1, 'text-anchor': 'middle' }, tag)));
     };
