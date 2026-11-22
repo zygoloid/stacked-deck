@@ -890,6 +890,9 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .fixed-label { font-size: 7px; font-weight: 800; letter-spacing: 0.14em; fill: var(--ink); }
 .fixed-label.dark { fill: #3a2a05; }
 .hex.desk { fill: #d9b44a; stroke: #fff1b8; stroke-width: 1.6; }
+/* Where a moved player or chip desk came from (it can go back there). */
+.hex.dock { fill: rgba(255, 255, 255, 0.02); stroke: rgba(212, 175, 55, 0.45); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.cell.source.bolted .bolt, .cell.payout.bolted .bolt { fill: #6b756f; stroke: #e8e0c8; stroke-width: 0.7; }
 .deskchip { fill: #b3243a; stroke: #fff; stroke-width: 1.2; stroke-dasharray: 3 2.5; }
 .desk-sign { font: 800 13px var(--serif); fill: #3a2a05; }
 .paid-badge { fill: #1f7a45; stroke: #fff; stroke-width: 1.2; }

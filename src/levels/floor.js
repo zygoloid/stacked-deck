@@ -41,6 +41,8 @@ export const LEVELS = [
     card: 'AH',
     title: 'Opening Night',
     difficulty: 1,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'Congratulations on your new job as floor manager of The Stacked Deck. The pay is good, the carpet is loud, and every croupier on staff knows exactly one move.',
       'Tonight\'s game is generous: every card a player lays down wins. Have your croupiers carry each card from the player to the cashier\'s desk.',
@@ -58,6 +60,8 @@ export const LEVELS = [
     card: '2H',
     title: 'Around the Bar',
     difficulty: 1,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'The Owner, whom nobody has met, had a bar installed overnight. It sits squarely between the card table and the cashier.',
       'A note under the cash tray reads: "Do not move the bar." It is signed with a single ace of spades.',
@@ -75,6 +79,8 @@ export const LEVELS = [
     card: '3H',
     title: 'Two Tables',
     difficulty: 2,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'The Marchetti twins insist on sitting at separate tables and insist even harder on being paid at the same desk.',
       'Cards can merge: any croupier takes cards from any side. But a croupier handles only one card a round, and the twins do not like to wait.',
@@ -113,6 +119,8 @@ export const LEVELS = [
     card: '5H',
     title: 'Seeing Red',
     difficulty: 2,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'The Vellani family runs the diamond trade across the river. Their nephew Sal is here to "see how the place works" and wants red cards paid: hearts and diamonds both.',
       'Suits that share a side leave the splitter together. Mind the roulette wheel in the middle of the floor; the Owner says it stays.',
@@ -134,6 +142,8 @@ export const LEVELS = [
     card: '6H',
     title: 'Standing Room',
     difficulty: 3,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'Word has got around. Old Thursday has talked the Marchetti twins into a third table, and all three want paying in hearts and spades: hearts for luck, spades to be polite to the house.',
       'The Owner has had potted palms put on the floor. They are not to be moved.',
@@ -155,6 +165,8 @@ export const LEVELS = [
     card: '7H',
     title: 'Black Tie',
     difficulty: 4,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'Not to be outdone, the Kessler crew from the coal yards books both tables for a black-tie evening. Spades and clubs only, please; the red cards can stay on the carpet.',
       'The floor is cramped tonight: the Owner has rented half of it to a string quartet.',
@@ -176,6 +188,8 @@ export const LEVELS = [
     card: '8H',
     title: 'Back to Back',
     difficulty: 3,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'Business is good, so the house now deals two cards at a time, and the Marchetti twins have taken the two tables by the door. A two-card hand wins if its ranks are next to each other, like 7 and 8.',
       'Aces play high or low (A-2 and K-A both count), but a run does not wrap around the corner: K-2 is no good. A pair is not a run either.',
@@ -197,6 +211,8 @@ export const LEVELS = [
     card: '9H',
     title: 'Next Door',
     difficulty: 4,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'The Owner\'s next note: "The house lucky number is 7. Pay the neighbours." Back to single cards: a 6 or an 8 wins.',
       'Your new croupiers: a shoe deals the same stacked card over and over; a gatherer stacks two hands into one; a cutter splits a hand into its top half and the rest.',

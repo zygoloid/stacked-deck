@@ -259,6 +259,8 @@ export const LEVELS = [
     card: '9D',
     title: 'Crossed Wires',
     difficulty: 4,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'The Owner has had the floor rewired: three card tables down one wall, three cash desks down the other, and a note under the tray. Every player is to be paid at the desk diametrically opposite their seat, so that the money is seen to cross the room.',
       'Player A, at the top, is paid at desk Z, at the bottom; player B, in the middle, at desk Y; player C, at the bottom, at desk X. The Marchetti twins have brought a cousin, and all three are already arguing about the view.',

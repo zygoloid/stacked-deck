@@ -253,6 +253,7 @@ for (const level of [...LEVELS, ...BONUS, ...FLOOR]) {
   'ordered is a boolean, or a list of card places (0 for the top card) within the hand size');
   check(!level.ordered || hasExpected, 'ordered only on an expected level');
   check(level.inOrder === undefined || (typeof level.inOrder === 'boolean' && hasExpected), 'inOrder is a boolean, only on an expected level');
+  check(level.boltDesks === undefined || level.boltDesks === true, 'boltDesks is true or absent (the players and desks can\'t be moved: docs/campaign.md)');
   check(level.croupiers.every((c) => PALETTE.has(c)), `palette names ${level.croupiers}`);
   const warRules = level.warRules ?? ['high'];
   check(warRules.length && warRules.every((r) => r === 'high' || r === 'top'), 'warRules');

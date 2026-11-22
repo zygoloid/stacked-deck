@@ -115,7 +115,21 @@ export const CROUPIERS = {
 
 export const SIDE_NAMES = ['E', 'SE', 'SW', 'W', 'NW', 'NE'];
 
-export const infoFor = (cell) => (cell.kind === 'shoe' ? CROUPIERS.shoe : CROUPIERS[cell.fn]);
+// The card player and the chip desk, on a floor where they can be moved
+// (src/score.js: `desksMove`): selected and dragged like croupiers, and the
+// player turned. Not croupiers, so not in the palette or the help's list.
+export const FIXED_INFO = {
+  source: {
+    name: 'Player', abbr: 'PLAYER', family: '#4a5568', ports: ['out'], required: ['out'],
+    desc: 'Hands out the test hands. Drag it to move it; it can go anywhere on the floor.',
+  },
+  payout: {
+    name: 'Chip desk', abbr: 'DESK', family: '#8a6420', ports: [],
+    desc: 'Pays out the hands that reach it, from any side. Drag it to move it; it can go anywhere on the floor.',
+  },
+};
+
+export const infoFor = (cell) => (cell.kind === 'shoe' ? CROUPIERS.shoe : FIXED_INFO[cell.kind] ?? CROUPIERS[cell.fn]);
 // A cell for showing a palette entry or help row: every param at its default.
 export function sampleCell(tool) {
   if (tool === 'shoe') return { kind: 'shoe' };
@@ -129,6 +143,7 @@ export const toolOf = (cell) => (cell.kind === 'shoe' ? 'shoe' : cell.fn);
 // Short label drawn on the chip.
 export function chipLabel(cell) {
   if (cell.kind === 'shoe') return 'SHOE';
+  if (FIXED_INFO[cell.kind]) return FIXED_INFO[cell.kind].abbr;
   if (cell.fn === 'kind') return `K${cell.n ?? 2}`;
   if (cell.fn === 'hand') return `HND${cell.n ?? 5}`;
   if (cell.fn === 'war') return cell.rule === 'top' ? 'WAR·T' : cell.rule === 'high' ? 'WAR·H' : 'WAR';
@@ -168,7 +183,7 @@ export function getPort(cell, port) {
 // Set (or with side undefined, clear) a port. For deal, toggles nothing:
 // use addDealSide / the inspector list.
 export function setPort(cell, port, side) {
-  if (cell.kind === 'shoe') {
+  if (cell.kind === 'shoe' || cell.kind === 'source') {
     if (side === undefined) delete cell.out; else cell.out = side;
     return;
   }
@@ -203,7 +218,8 @@ export function arrowsOf(cell) {
 // machine can behave differently, as built anew that way would.
 function mapSides(cell, map) {
   const m = (s) => (typeof s === 'number' ? map(s) : s);
-  if (cell.kind === 'shoe') { cell.out = m(cell.out); return; }
+  if (cell.kind === 'shoe' || cell.kind === 'source') { cell.out = m(cell.out); return; }
+  if (cell.kind === 'payout') return;
   for (const p of Object.keys(cell.out ?? {})) cell.out[p] = p === 'to' ? cell.out.to.map(m) : m(cell.out[p]);
   for (const p of ['dealer', 'under']) if (cell[p] !== undefined) cell[p] = m(cell[p]);
 }

@@ -182,3 +182,52 @@ console.log('solution hashes ok');
   assert((await scoreMachine(base, cells)).ok);
 }
 console.log('check deals ok');
+
+// Moving the player and the chip desk (src/score.js: desksMove, movers).
+{
+  const { desksMove, sanitizeCells, withMovers, fixedOf } = await import('../src/score.js');
+  // Floors with one player and one desk move them unless bolted down; floors
+  // with more never (yet).
+  for (const level of ALL) {
+    const one = level.fixed.filter((c) => c.kind === 'source').length === 1 && level.fixed.filter((c) => c.kind === 'payout').length === 1;
+    assert.strictEqual(desksMove(level), one && !level.boltDesks, level.id);
+  }
+  // Upper Hand's reference ends Wheel → Pass → desk: the desk can stand on
+  // the Pass's hex instead.
+  const level = byId.get('upper-hand');
+  const ref = await reference(level);
+  const desk = level.fixed.find((c) => c.kind === 'payout'), player = level.fixed.find((c) => c.kind === 'source');
+  const pass = ref.find((c) => c.fn === 'pass' && c.at.join() === '1,0');
+  assert(pass, 'the reference has a pass by the desk');
+  const moved = [...ref.filter((c) => c !== pass), { at: pass.at, kind: 'payout' }];
+  assert.deepStrictEqual(validateCells(level, moved).cells, moved, 'a moved desk is valid');
+  const res = await scoreMachine(level, moved);
+  assert(res.ok && res.croupiers === ref.length - 1, 'and clears the floor with one croupier fewer');
+  assert.strictEqual(fixedOf(level, moved).find((c) => c.kind === 'payout'), moved.at(-1));
+  // A mover where the level puts it isn't part of the machine: the editor
+  // leaves it out, the validator refuses it, and machines from before are
+  // unchanged (same canonical form, so same hash and check deals).
+  assert.deepStrictEqual(sanitizeCells(level, [...ref, { ...desk }, { ...player }]), sanitizeCells(level, ref));
+  assert.strictEqual(canonicalCells(sanitizeCells(level, withMovers(level, ref))), canonicalCells(ref));
+  assert.match(validateCells(level, [...ref, { ...desk }]).error, /not moved/);
+  // A player turned in place is moved.
+  assert(!validateCells(level, [...ref, { ...player, out: 1 }]).error);
+  // Refused: twice, onto a croupier, off the floor, onto the player who
+  // stays put, unknown fields, and anything on a floor that bolts them.
+  const ok = (cells) => !validateCells(level, cells).error;
+  assert(!ok([...moved, { at: [0, 1], kind: 'payout' }]), 'moved twice');
+  assert(!ok([...ref, { at: ref[0].at, kind: 'payout' }]), 'onto a croupier');
+  assert(!ok([...ref, { at: [9, 9], kind: 'payout' }]), 'off the floor');
+  assert(!ok([...ref, { at: player.at, kind: 'payout' }]), 'onto the player');
+  assert(ok([...ref.filter((c) => c !== pass), { at: pass.at, kind: 'payout' }, { at: [0, 1], kind: 'source', out: 0 }]), 'both moved');
+  assert(!ok([...moved.slice(0, -1), { at: pass.at, kind: 'payout', facing: 2 }]), 'unknown field');
+  const bolted = byId.get('opening-night');
+  assert(bolted.boltDesks && !desksMove(bolted));
+  assert.match(validateCells(bolted, [{ at: [0, 0], kind: 'payout' }]).error, /bolted/);
+  assert.deepStrictEqual(sanitizeCells(bolted, [{ at: [0, 0], kind: 'payout' }]), []);
+  // sanitizeCells keeps a croupier off a moved desk's hex.
+  assert.deepStrictEqual(sanitizeCells(level, [{ at: pass.at, kind: 'payout' }, pass]), [{ at: pass.at, kind: 'payout' }]);
+  // On a bolted floor movers in a machine are ignored by the engine.
+  assert.deepStrictEqual(toSpec(bolted, [{ at: [0, 0], kind: 'payout' }]).cells, bolted.fixed);
+}
+console.log('moving players and desks ok');

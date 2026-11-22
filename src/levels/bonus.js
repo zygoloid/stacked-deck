@@ -1067,6 +1067,8 @@ export const LEVELS = [
     unlockAfter: ['crossed-wires', 'deja-vu'],
     title: 'Uneven Tables',
     difficulty: 5,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'The wiring stays, and so does the rule: every player is paid at the desk diametrically opposite their seat. But the cousins have stopped playing in step. Tonight each of the three plays as many hands as they like, from none at all to six.',
       'Each player still plays their own hands in their own order. The cousin at table B says he is only here for the view.',
@@ -1154,6 +1156,8 @@ export const LEVELS = [
     unlockAfter: ['one-deck', 'deja-vu'],
     title: 'Dumbwaiter',
     difficulty: 6,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'The auditors have taken over the main floor. The card tables have moved upstairs and the cash desk downstairs, and the two rooms have nothing in common but the old dumbwaiter, which the auditors have bolted into the wall.',
       'It takes cards from any side and sends them down one card at a time, and it will not be adjusted. The Owner\'s note says every hand is still to be paid exactly as it was played, card for card, top card first.',

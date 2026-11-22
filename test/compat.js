@@ -1,7 +1,9 @@
 // Saved solutions must keep working: once a floor ships, its fixed cells
 // (players and chip desks, and any shoes and croupiers bolted to the floor)
 // must not move or change and its buildable area may only
-// grow. test/compat.json records every shipped floor; new floors are added
+// grow. Where the player may move the players and desks (`moves`: src/score.js,
+// desksMove), they must stay movable: saved machines may have moved them.
+// test/compat.json records every shipped floor; new floors are added
 // automatically with --update.
 //
 //   node test/compat.js            check
@@ -9,6 +11,7 @@
 //                                  accept changes to existing ones)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { ALL_LEVELS } from '../src/levels.js';
+import { desksMove } from '../src/score.js';
 
 const file = new URL('./compat.json', import.meta.url);
 const update = process.argv.includes('--update');
@@ -23,27 +26,30 @@ const levels = ALL_LEVELS;
 const ids = new Set(levels.map((l) => l.id));
 
 const problems = [];
-let added = 0;
+let added = 0, newlyMoving = 0;
 for (const l of levels) {
   const s = snap[l.id];
-  const now = { fixed: fixedOf(l), floor: l.floor.map(key).sort() };
+  const now = { fixed: fixedOf(l), floor: l.floor.map(key).sort(), ...(desksMove(l) ? { moves: true } : {}) };
   if (!s) { snap[l.id] = now; added++; continue; }
+  if (s.moves && !now.moves) problems.push(`${l.id}: players and desks bolted down (saved machines may have moved them)`);
+  if (!s.moves && now.moves) newlyMoving++;
   if (JSON.stringify(s.fixed) !== JSON.stringify(now.fixed)) {
     problems.push(`${l.id}: players/desks moved ${JSON.stringify(s.fixed)} -> ${JSON.stringify(now.fixed)}`);
   }
   const floor = new Set(now.floor);
   const lost = s.floor.filter((h) => !floor.has(h));
   if (lost.length) problems.push(`${l.id}: floor lost hexes ${lost.join(' ')}`);
-  if (update) snap[l.id] = { fixed: now.fixed, floor: [...new Set([...s.floor, ...now.floor])].sort() };
+  if (update) snap[l.id] = { fixed: now.fixed, floor: [...new Set([...s.floor, ...now.floor])].sort(), ...(s.moves || now.moves ? { moves: true } : {}) };
 }
 for (const id of Object.keys(snap)) if (!ids.has(id)) problems.push(`${id}: floor removed (saves for it are orphaned)`);
 
 if (update) {
   writeFileSync(file, JSON.stringify(snap, null, 1) + '\n');
   console.log(`compat: recorded ${added} new floor(s)${problems.length ? `, accepted ${problems.length} change(s)` : ''}`);
-} else if (problems.length || added) {
+} else if (problems.length || added || newlyMoving) {
   for (const p of problems) console.log('FAIL', p);
   if (added) console.log(`FAIL ${added} floor(s) not recorded yet: run node test/compat.js --update`);
+  if (newlyMoving) console.log(`FAIL ${newlyMoving} floor(s) whose players and desks now move not recorded yet: run node test/compat.js --update`);
   process.exit(1);
 } else {
   console.log(`compat ok (${levels.length} floors keep their players, desks and floor)`);

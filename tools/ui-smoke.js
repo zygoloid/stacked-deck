@@ -2493,6 +2493,68 @@ try {
     await rctx.close();
   }
 
+  // Moving the chip desk (src/score.js: desksMove): on Upper Hand the par
+  // machine's last Pass can go, the desk dragged onto its hex. The move is
+  // saved as a desk cell in the machine, survives a reload, can't be undone by
+  // deleting the desk, keeps croupiers off its hex, and clears the floor with
+  // a croupier fewer; Put it back returns it. A bolted floor's desk doesn't move.
+  {
+    const mctx = await browser.newContext({ viewport: { width: 1440, height: 860 } });
+    const mp = await mctx.newPage();
+    mp.on('pageerror', (e) => errors.push(e.message));
+    mp.on('dialog', (d) => d.accept());
+    const open = async (id) => {
+      await mp.goto(`${base}?dev#/level/${id}`);
+      await mp.waitForSelector('.story-actions .btn.gold, svg.board');
+      if (await mp.locator('.story-actions .btn.gold').count()) await mp.click('.story-actions .btn.gold');
+      await mp.waitForSelector('svg.board');
+    };
+    const at = (q, r) => mp.evaluate(([q, r]) => {
+      const R = 50, svg = document.querySelector('svg.board');
+      const p = new DOMPoint(R * Math.sqrt(3) * (q + r / 2), R * 1.5 * r).matrixTransform(svg.getScreenCTM());
+      return [p.x, p.y];
+    }, [q, r]);
+    const dragHex = async (from, to) => {
+      const [x0, y0] = await at(...from), [x1, y1] = await at(...to);
+      await mp.mouse.move(x0, y0); await mp.mouse.down(); await mp.mouse.move(x1, y1, { steps: 8 }); await mp.mouse.up();
+    };
+    const work = (id) => mp.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id], id);
+    await open('upper-hand');
+    await mp.click('.dev-panel button:has-text("Load par")');
+    await mp.waitForFunction(() => document.querySelector('.stats .stat-v')?.textContent.trim() === '4');
+    const [px, py] = await at(1, 0);
+    await mp.mouse.click(px, py, { button: 'right' }); // remove the Pass by the desk
+    await dragHex([2, 0], [1, 0]);
+    let w = await work('upper-hand');
+    check(JSON.stringify(w.cells.filter((c) => c.kind === 'payout')) === '[{"at":[1,0],"kind":"payout"}]' && await mp.locator('.hex.dock[data-at="2,0"]').count() === 1,
+      'moving the chip desk: saved as a desk cell in the machine, an outline where it was');
+    await mp.mouse.click(px, py, { button: 'right' });
+    await mp.keyboard.press('Delete');
+    await mp.mouse.move(px, py);
+    await mp.keyboard.press('Escape');
+    await mp.keyboard.press('1'); // a Pass at the pointer: not on the desk
+    w = await work('upper-hand');
+    check(w.cells.filter((c) => c.at.join() === '1,0').map((c) => c.kind).join() === 'payout', 'the desk can\'t be deleted, nor a croupier put on it');
+    await mp.click('.transport button:has-text("Max")');
+    await mp.waitForSelector('.modal .btn.gold, .modal .btn', { timeout: 20000 });
+    w = await work('upper-hand');
+    check(w.solved && w.best?.croupiers === 3 && w.solutions?.[0]?.cells.some((c) => c.kind === 'payout'), `with the desk moved the floor clears with 3 croupiers (${JSON.stringify(w.best)})`);
+    await mp.keyboard.press('Escape');
+    await mp.reload();
+    await mp.waitForSelector('svg.board');
+    check(await mp.locator('.cell.payout[data-at="1,0"]').count() === 1, 'the moved desk is still there after a reload');
+    await mp.mouse.click(px, py);
+    await mp.click('.inspector [data-act="home"]');
+    w = await work('upper-hand');
+    check(await mp.locator('.cell.payout[data-at="2,0"]').count() === 1 && !w.cells.some((c) => c.kind === 'payout'), 'Put it back returns the desk, and the machine no longer moves it');
+    await open('opening-night');
+    const [ox, oy] = await at(2, 0);
+    await dragHex([2, 0], [1, 0]);
+    check(await mp.locator('.cell.payout.bolted[data-at="2,0"]').count() === 1 && !(await work('opening-night'))?.cells?.length && ox > 0 && oy > 0,
+      'a bolted floor\'s desk is drawn bolted and doesn\'t move');
+    await mctx.close();
+  }
+
   // The privacy notice, a page of its own (no scripts; checked for CSP
   // errors and requests below).
   await page.goto(`${base}privacy.html`);
