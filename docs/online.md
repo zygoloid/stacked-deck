@@ -390,6 +390,12 @@ first: it scores with the engine in `functions/game/`. Modes:
   refuses unless `config/rulesVersion` is the code's `RULES_VERSION`;
 * `--dry-run`: judge the same solutions (`judgeSolution`, the checks
   `processSolution` makes) and report what would change, writing nothing;
+* `--dry-run --all`: judge every solution but the tombstones, whatever its
+  tag, against its stored score: what this checkout's floors would make of
+  the scores stored now. Before releasing floor changes without a rules
+  version change (a palette that lost a croupier, new tests), this says
+  whether any uploaded machine is affected (anything but `same` and
+  `still broken`);
 * `--check`: compare `scores`, `stats` and `best` for the current version
   with the solutions scored under it (zero counts in `stats` are ignored),
   and print any differences.
