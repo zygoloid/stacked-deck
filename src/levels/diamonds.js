@@ -147,7 +147,7 @@ export const LEVELS = [
     brief: 'Three-card hands. Pay out every flush in hearts or diamonds.',
     // A note (a one-step tutorial, src/ui/coach.js): its first bonus floor.
     tutorial: [
-      { say: 'Clearing some floors also opens floors in the Bonus deck, off the books. This is one of them.', until: 'next' },
+      { say: 'Clearing some floors also opens floors in the Bonus deck, off the books.', until: 'next' },
     ],
     handSize: 3,
     floor: floorOf(hexRange(4), F4),
