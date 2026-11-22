@@ -112,6 +112,17 @@ Conventions:
   arrays, some empty, which the database would drop or turn into objects. A
   string also lets the rules cap its size: 10,000 characters, about 4× the
   largest reference solution. The client doesn't submit larger machines.
+* **Moved players and desks.** A machine may hold a player or chip desk it
+  moved (a `source` or `payout` cell: docs/architecture.md, "Moving players
+  and desks"); the rules need nothing new, as `cells` is a string, and the
+  functions check it with the game's own `validateCells`. Functions from
+  before players and desks could move would tombstone such a machine, so they
+  must be deployed before the site that lets players move them (the deploy
+  workflow deploys the functions first). Machines that move nothing are as
+  before. A client still running older code ignores a cloud machine that
+  moves one (its `validateCells` refuses it), and drops the moved cell from a
+  local save it loads (its `sanitizeCells`), as it would any cell it can't
+  build.
 * **`$hash`** is the first 32 hex digits of the SHA-256 of `canonicalCells` of
   the *validated* machine (`crypto.subtle` in both the browser and Node).
 * **Score keys** are `"<croupiers>_<rounds>"`, e.g. `"12_31"`, and rules

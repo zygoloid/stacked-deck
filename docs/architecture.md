@@ -77,6 +77,27 @@ coordinates: `0 E [1,0]`, `1 SE [0,1]`, `2 SW [-1,1]`, `3 W [-1,0]`,
 | `shoe` (croupier dealing a stacked deck) | `at, out, deck: ['AS', ...], once?` |
 | `croupier` | `at, fn, out: {port: side}, facing?, ...params` |
 
+**Moving players and desks.** On a floor with one player and one chip desk
+the player may move both (and turn the player), unless the level has
+`boltDesks: true` (floors whose puzzle is where they stand: docs/campaign.md,
+"Moving the players and desks"); with more than one of either they are bolted
+down for now (`desksMove` in `src/score.js`). A machine that moves one holds a
+**mover** among its cells: a copy of the level's cell (`{ at, kind:
+'source', out }` or `{ at, kind: 'payout' }`, with its `seat` or `desk` if it
+has one) at its new place and, for a player, facing its new side. A mover may
+stand on any buildable hex, or on the home of a player or desk that has moved
+away (an outline is drawn there); no croupier may share its hex. One left
+where the level puts it is never in the machine: `sanitizeCells` drops it and
+`validateCells` refuses it, so every machine from before players and desks
+could move keeps its canonical form, hash and check deals. `fixedOf(level,
+cells)` is the level's fixed cells with the machine's movers in place;
+`toSpec` uses it, and ignores movers on a floor where nothing moves. The
+editor works on `withMovers(level, cells)`, the machine plus a mover for
+every one still at home, so they are selected and dragged like croupiers (but
+never removed, copied or picked up in a group); what it saves and scores is
+`sanitizeCells` of that. A floor where they don't move draws its players and
+desks with bolts in the corners.
+
 A level's fixed cells are its players and chip desks, and may also include
 shoes and croupiers **bolted to the floor**: cells of the two kinds above
 that the level places, which the player can't move, change or remove, and
@@ -201,6 +222,8 @@ whenever a rule changes; the level select shows it.
   floor: [[q, r], ...],         // hexes where the player may place croupiers
   fixed: [cells],               // sources and payouts, and any shoes and croupiers
                                 //   bolted to the floor (not editable)
+  boltDesks: true,              // the player can't move the players and desks (see Cells:
+                                //   only floors with one of each move them anyway)
   croupiers: ['pass', 'shoe', ...],  // palette: fn names plus 'shoe'
   warRules: ['high', 'top'],    // War rules allowed (when 'war' is in the palette)
   card: 'AS',                   // the floor's playing card: 'AS'…'KS' (suit floors), '?' '??' '$' '$$' (finale);
@@ -328,7 +351,9 @@ function or the level object.
 
 **Don't break saved solutions.** Once a floor has shipped, its fixed cells
 (players and chip desks: position and direction) must not move, its buildable
-floor may only grow, and its id must stay. `test/compat.js` checks this
+floor may only grow, its id must stay, and if its players and desks can be
+moved they must stay movable (saved machines may have moved them; a bolted
+floor may become movable). `test/compat.js` checks this
 against `test/compat.json`; new floors are recorded with
 `node test/compat.js --update`, which is also the (deliberate) way to accept a
 breaking change.
@@ -448,7 +473,8 @@ title, but `tools/ui-smoke.js` checks the title itself.
 ```
 
 `cells` (both the working machine and each solution's) holds only the
-player's own cells (shoes and croupiers), in the cell format above.
+player's own cells (shoes and croupiers, and any player or desk they moved:
+see "Moving players and desks"), in the cell format above.
 
 `solutions` grows each time every test passes with a machine not already in
 the list; `at` is `Date.now()` when it was first found. Two machines are the

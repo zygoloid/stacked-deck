@@ -4,6 +4,7 @@ import {
   PORT_STYLE, infoFor, chipLabel, arrowsOf, SIDE_NAMES,
 } from './croupiers.js';
 import { hexKey } from './model.js';
+import { fixedOf, isMover, desksMove, dockHexes } from '../score.js';
 import { DESK_NAMES } from './sim.js';
 
 export const R = 50;                       // hex circumradius
@@ -211,6 +212,10 @@ export class Board {
     this.alertKey = null;
     this.alertT0 = 0;
     for (const f of level.fixed) this.floorKeys.delete(hexKey(f.at));
+    // Where a moved player or desk may stand (src/score.js), and whether
+    // they move here at all (if not, they are drawn bolted down).
+    this.dockKeys = dockHexes(level);
+    this.moves = desksMove(level);
   }
 
   applyView() {
@@ -257,6 +262,18 @@ export class Board {
   }
 
   isBuildable(at) { return this.floorKeys.has(hexKey(at)); }
+  // Where a player or desk that moves may stand.
+  isDock(at) { return this.dockKeys.has(hexKey(at)); }
+
+  // Whether `cell` (one of `cells`) could be dropped on `at`: a croupier on
+  // a buildable hex (in place of a croupier there, not of a player or desk);
+  // a player or desk where one may stand, on no other cell.
+  canDrop(cell, at, cells) {
+    const k = hexKey(at);
+    const under = cells.find((c) => c !== cell && hexKey(c.at) === k);
+    if (cell && isMover(cell)) return this.isDock(at) && !under && !fixedOf(this.level, cells).some((f) => !isMover(f) && hexKey(f.at) === k);
+    return this.isBuildable(at) && !(under && isMover(under));
+  }
 
   // state: { cells, selected (key), activePort, hover {at, side, edge}, live (Floor), alert (key), ghost {at, tool}, pickHint {at, side},
   //   anim {from, t, back} }
@@ -312,8 +329,18 @@ export class Board {
       const [x, y] = center(at);
       gFloor.append(s('polygon', { class: 'hex floor', points: HEX, transform: `translate(${x},${y})`, 'data-at': hexKey(at) }));
     }
+    // The players and desks where this machine has them (a moved one is
+    // the machine's own cell), and an outline where a moved one came from
+    // (it can go back there).
+    const fixed = fixedOf(this.level, cells);
+    const standing = new Set([...fixed, ...cells].map((c) => hexKey(c.at)));
+    for (const f of this.level.fixed) {
+      if (!isMover(f) || fixed.includes(f) || standing.has(hexKey(f.at))) continue;
+      const [x, y] = center(f.at);
+      gFloor.append(s('polygon', { class: `hex dock ${f.kind}`, points: HEX, transform: `translate(${x},${y})`, 'data-at': hexKey(f.at) }));
+    }
 
-    const all = [...this.level.fixed, ...cells];
+    const all = [...fixed, ...cells.filter((c) => !isMover(c))];
     // The live cells' hexes, in drawing order, for renderCards; each cell's
     // table as drawn, and what it showed (bodyKey), for a runOnly render.
     this.cardCells = [];
@@ -395,7 +422,8 @@ export class Board {
         const g = s('g', { transform: `translate(${x},${y})`, class: 'sel' });
         g.append(s('polygon', { class: 'sel-ring', points: corners(R - 2) }));
         const st = PORT_STYLE[state.activePort] ?? PORT_STYLE.out;
-        for (let d = 0; d < 6; d++) {
+        // (A chip desk has no ports: no edges to point.)
+        for (let d = 0; d < (cell.kind === 'payout' ? 0 : 6); d++) {
           const [[x1, y1], [x2, y2]] = edge(d, R - 3, 0.7);
           // (Lit on the edge the pointer is on when a click there changes
           // nothing: the arrows show what one that does change something will do.)
@@ -426,7 +454,8 @@ export class Board {
       const [x, y] = center(state.drag.over);
       const k = hexKey(state.drag.over);
       const under = k === state.drag.key ? null : cells.find((c) => hexKey(c.at) === k);
-      const cls = !this.isBuildable(state.drag.over) ? 'bad' : under ? 'covers' : 'ok';
+      const dragged = state.drag.key ? cells.find((c) => hexKey(c.at) === state.drag.key) : null;
+      const cls = !this.canDrop(dragged, state.drag.over, cells) && k !== state.drag.key ? 'bad' : under ? 'covers' : 'ok';
       const t = `translate(${x},${y})`;
       gOver.append(s('polygon', { class: `hex drop ${cls}`, points: HEX_IN, transform: t }));
       if (cls === 'covers') gOver.append(this.coverTag(under, t));
@@ -553,7 +582,9 @@ export class Board {
       const seated = cell.seat !== undefined;
       const left = this.handsLeft(cell, live);
       if (left !== null) g.append(s('text', { class: 'src-count', y: -3, 'text-anchor': 'middle' }, String(left)));
-      g.append(s('title', {}, seated ? `Player ${'ABCDEF'[cell.seat]}: hands out their own test hands (marked ${'ABCDEF'[cell.seat]} in the list)` : 'Card player: hands out the test hands'));
+      this.fixedBolts(g);
+      g.append(s('title', {}, (seated ? `Player ${'ABCDEF'[cell.seat]}: hands out their own test hands (marked ${'ABCDEF'[cell.seat]} in the list)` : 'Card player: hands out the test hands')
+        + (this.moves ? '. Drag to move it.' : '. Bolted to the floor here: it can\'t be moved.')));
       return g;
     }
     if (cell.kind === 'payout') {
@@ -569,8 +600,10 @@ export class Board {
         g.append(s('circle', { class: 'paid-badge', cx: 24, cy: -22, r: 10 }),
           s('text', { class: 'paid-badge-t', x: 24, y: -18.5, 'text-anchor': 'middle' }, String(paid)));
       }
-      g.append(s('title', {}, cell.desk === undefined ? 'Chip desk: hands that reach it are paid out'
-        : `Chip desk ${DESK_NAMES[cell.desk]}: hands that reach it are paid out here (marked → ${DESK_NAMES[cell.desk]} in the expected payouts)`));
+      this.fixedBolts(g);
+      g.append(s('title', {}, (cell.desk === undefined ? 'Chip desk: hands that reach it are paid out'
+        : `Chip desk ${DESK_NAMES[cell.desk]}: hands that reach it are paid out here (marked → ${DESK_NAMES[cell.desk]} in the expected payouts)`)
+        + (this.moves ? '. Drag to move it.' : '. Bolted to the floor here: it can\'t be moved.')));
       return g;
     }
     const info = infoFor(cell) ?? { family: '#555', name: cell.fn };
@@ -622,6 +655,17 @@ export class Board {
     // deck under it.
     if (bolted) face.append(s('title', {}, `Bolted to the floor (part of the floor: it can't be moved or changed, and doesn't count as one of your croupiers). ${info.name}: ${info.desc}`));
     return g;
+  }
+
+  // On a floor whose players and desks can't be moved: a bolt in each
+  // corner of their hexes, as on a bolted croupier's table.
+  fixedBolts(g) {
+    if (this.moves) return;
+    g.classList.add('bolted');
+    for (let i = 0; i < 6; i++) {
+      const a = rad(i) - Math.PI / 6;
+      g.append(s('circle', { class: 'bolt', cx: ((R - 7) * Math.cos(a)).toFixed(2), cy: ((R - 7) * Math.sin(a)).toFixed(2), r: 2 }));
+    }
   }
 
   // An arrow, pill or input mark `el` that a click would take away (`gone`)

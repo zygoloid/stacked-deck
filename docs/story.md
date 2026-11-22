@@ -270,3 +270,7 @@ regulation; Ace Count does).
   ties go to the house, two pair versus trips, the ace-to-five straight)
   belong in the story or the brief whenever a player could reasonably guess
   wrong.
+* Floors whose players and chip desks are bolted down (`boltDesks`,
+  docs/campaign.md) need not say so: the board draws the bolts and the help
+  explains them. A story that does mention it says only that they are bolted
+  down, never why where they stand matters.

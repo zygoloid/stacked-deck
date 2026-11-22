@@ -115,6 +115,8 @@ export const LEVELS = [
     card: 'AH',
     title: 'Opening Night',
     difficulty: 1,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'Congratulations on your new job as floor manager of The Stacked Deck. The pay is good, the carpet is loud, and every croupier on staff knows exactly one move.',
       'The Owner, whom nobody has met, had a bar put in overnight, right across the room. A note under the cash tray says "Do not move the bar." It is signed with a single ace of spades. Tonight\'s game is generous: every card a player lays down wins, at either cashier\'s desk.',
@@ -151,6 +153,8 @@ export const LEVELS = [
     card: '2H',
     title: 'Red and Black',
     difficulty: 1,
+    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    boltDesks: true,
     story: [
       'The Vellani family runs the diamond trade across the river. Their nephew Sal wants the red cards, hearts and diamonds, paid at desk X. The Kessler crew from the coal yards have booked desk Y, and they want the black ones: spades and clubs.',
       'Your new croupier splits cards by suit. A suit you don\'t give a direction drops on the carpet, and cards on the carpet are gone for good.',

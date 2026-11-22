@@ -101,6 +101,7 @@ async function checkOneLevel(level, bonusSpecialsMap) {
   'ordered is a boolean, or a list of card places (0 for the top card) within the hand size');
   checkL(!level.ordered || hasExpected, 'ordered only on an expected level');
   checkL(level.inOrder === undefined || (typeof level.inOrder === 'boolean' && hasExpected), 'inOrder is a boolean, only on an expected level');
+  checkL(level.boltDesks === undefined || level.boltDesks === true, 'boltDesks is true or absent (the players and desks can\'t be moved: docs/campaign.md)');
   checkL(level.croupiers.every((c) => PALETTE.has(c)), `palette names ${level.croupiers}`);
   const warRules = level.warRules ?? ['high'];
   checkL(warRules.length && warRules.every((r) => r === 'high' || r === 'top'), 'warRules');

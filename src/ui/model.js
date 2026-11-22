@@ -3,7 +3,7 @@
 import { RULES_VERSION } from '../engine.js';
 import { CAMPAIGN as LEVELS, BONUS, FLOOR, ALL_LEVELS, campaignIndex } from './catalog.js';
 import { SPECIALS } from '../cards.js';
-import { specialCardsOf, canonicalCells, scoreMachine } from '../score.js';
+import { specialCardsOf, canonicalCells, scoreMachine, desksMove } from '../score.js';
 import { CHANNEL } from '../build.js';
 
 export {
@@ -177,6 +177,8 @@ export function floorPrint(level) {
       RULES_VERSION, level.id, level.floor, level.fixed, level.croupiers, level.warRules ?? null, level.specialCards ?? null,
       level.decks ?? 1, level.ordered ?? false, level.inOrder ?? false, level.handSize, level.tests,
       String(level.pays ?? level.expected), String(level.tests?.deal ?? ''),
+      // (Only where the players and desks move, so other floors keep their prints.)
+      ...(desksMove(level) ? ['desks move'] : []),
     ]);
     let h1 = 0x811c9dc5, h2 = 0x01000193; // FNV-1a, twice over (64 bits)
     for (let i = 0; i < text.length; i++) {

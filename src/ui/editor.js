@@ -16,7 +16,7 @@ import {
   hexKey, sanitizeCells, toSpec, countCroupiers, levelSave, warRules, specialCardsFor,
   solutionsOf, recordSolution, deleteSolution, findSolution,
 } from './model.js';
-import { checkDeals, CHECK_DEALS, totalRounds } from '../score.js';
+import { checkDeals, CHECK_DEALS, totalRounds, withMovers, isMover, desksMove } from '../score.js';
 import { signInDialog, dialogOpen } from './account.js';
 import { Sim, DESK_NAMES, placesText } from './sim.js';
 import { devMode, devPanel, parMachine, measureTest, channelBadge } from './dev.js';
@@ -37,7 +37,12 @@ const SPEEDS = [
 export function openEditor(root, ctx, level) {
   const { save } = ctx;
   const ls = levelSave(save, level.id);
-  let cells = sanitizeCells(level, ls.cells);
+  // The working machine. On a floor whose player and desk can be moved, it
+  // holds them too, wherever they are (src/score.js: withMovers), so they
+  // are picked up and dragged like croupiers; `machine()` is the machine as
+  // saved and scored (with only those moved).
+  const working = (list) => withMovers(level, sanitizeCells(level, list));
+  let cells = working(ls.cells);
   let selected = null;            // hex key of the selected player cell
   let lastSelected = null;        // hex key of the most recently selected cell
   let activePort = null;
@@ -68,6 +73,9 @@ export function openEditor(root, ctx, level) {
   let listMode = 'cards';         // its view: cards or text
 
   const cellAt = (key) => cells.find((c) => hexKey(c.at) === key);
+  const machine = () => sanitizeCells(level, cells);
+  // Hexes with a player or desk on them (no croupier can go there).
+  const moverAt = (at) => cells.some((c) => isMover(c) && hexKey(c.at) === hexKey(at));
   const selCell = () => (selected ? cellAt(selected) : null);
 
   // ---------- DOM skeleton ----------
@@ -174,7 +182,7 @@ export function openEditor(root, ctx, level) {
   function changed({ keepInspector = false } = {}) {
     if (!radialKeep) closeRadial();
     devMeasured = null;
-    ls.cells = cells;
+    ls.cells = machine();
     ctx.persist();
     ctx.cloud?.levelChanged(level.id, { work: true });
     leavePlay();
@@ -226,7 +234,7 @@ export function openEditor(root, ctx, level) {
   // - Break ties as near to opposite `lastSide` as possible.
   function warDealerSide(at) {
     const key = hexKey(at), oppLast = (lastSide + 3) % 6;
-    const all = [...cells, ...level.fixed].filter((x) => hexKey(x.at) !== key);
+    const all = [...cells, ...(desksMove(level) ? [] : level.fixed)].filter((x) => hexKey(x.at) !== key);
     const byKey = new Map(all.map((x) => [hexKey(x.at), x]));
     const pointsAt = (x, side) => {
       if (x.kind === 'source' || x.kind === 'shoe') return x.out === side;
@@ -257,7 +265,7 @@ export function openEditor(root, ctx, level) {
   // one's place, as a croupier moved there does.
   function place(toolName, at, side) {
     placeLift();
-    if (!board.isBuildable(at)) return;
+    if (!board.canDrop(null, at, cells)) return;
     const under = cellAt(hexKey(at));
     commit(() => {
       if (under) cells = cells.filter((x) => x !== under);
@@ -304,18 +312,20 @@ export function openEditor(root, ctx, level) {
   }
   // Moved onto another croupier, it takes that one's place (as a group
   // put down does).
+  // A player or desk goes only where nothing else is.
   function move(key, at) {
     const c = cellAt(key);
-    if (!c || !board.isBuildable(at) || hexKey(at) === key) return;
-    const under = cellAt(hexKey(at));
+    if (!c || hexKey(at) === key || !board.canDrop(c, at, cells)) return;
+    const under = isMover(c) ? null : cellAt(hexKey(at));
     commit(() => {
       if (under) cells = cells.filter((x) => x !== under);
       c.at = [...at];
       selected = lastSelected = hexKey(at);
     });
   }
+  // (A player or desk can't be removed, only moved.)
   function remove(key) {
-    if (!cellAt(key)) return;
+    if (!cellAt(key) || isMover(cellAt(key))) return;
     commit(() => {
       cells = cells.filter((c) => hexKey(c.at) !== key);
       if (selected === key) selected = null;
@@ -523,7 +533,7 @@ export function openEditor(root, ctx, level) {
   async function checkAll() {
     if (running) return;
     const watched = testIndex;
-    const checked = structuredClone(cells); // the machine being checked
+    const checked = machine(); // the machine being checked
     const results = [];
     running = true;
     runResults = results;
@@ -640,7 +650,7 @@ export function openEditor(root, ctx, level) {
               ? `${ls.solutions.length === 1 ? 'Your first solution' : `Solution ${ls.solutions.length} saved`}. Click a point to load it.`
               : 'You had already saved this machine. Click a point to load it.')),
           comparePlot({
-            solutions: ls.solutions, par, current: findSolution(ls, cells), fresh: found, freshIsNew: isNew,
+            solutions: ls.solutions, par, current: findSolution(ls, machine()), fresh: found, freshIsNew: isNew,
             onPick: (i) => { close(); loadSolution(i); }, height: 250,
           })),
         h('div', { class: 'modal-actions' },
@@ -659,7 +669,7 @@ export function openEditor(root, ctx, level) {
     const par = await parMachine(level);
     if (!par) { showToast('There is no reference solution for this floor here.', 'bad'); return; }
     commit(() => {
-      cells = sanitizeCells(level, par);
+      cells = working(par);
       selected = lastSelected = null;
       activePort = null;
       dropDrafts();
@@ -670,11 +680,11 @@ export function openEditor(root, ctx, level) {
     const results = [];
     devMeasured = results;
     renderAll();
-    const machine = structuredClone(cells);
+    const measured = machine();
     const next = (i) => {
       if (devMeasured !== results) return; // edited meanwhile
       if (i >= level.tests.length) { results.done = true; renderAll(); return; }
-      results.push(measureTest(level, machine, level.tests[i]));
+      results.push(measureTest(level, measured, level.tests[i]));
       renderAll();
       setTimeout(() => next(i + 1), 0);
     };
@@ -686,7 +696,7 @@ export function openEditor(root, ctx, level) {
     const sol = ls.solutions?.[i];
     if (!sol || running) return;
     commit(() => {
-      cells = sanitizeCells(level, sol.cells);
+      cells = working(sol.cells);
       selected = lastSelected = null;
       activePort = null;
       dropDrafts();
@@ -698,7 +708,7 @@ export function openEditor(root, ctx, level) {
     const draw = () => {
       const list = solutionsOf(ls);
       if (!list.length) { close(); renderAll(); return; }
-      const current = findSolution(ls, cells);
+      const current = findSolution(ls, machine());
       const pick = (i) => { close(); loadSolution(i); };
       const del = (i) => {
         if (!confirm(`Delete your ${scoreText(list[i])} solution? This can't be undone.`)) return;
@@ -919,8 +929,8 @@ export function openEditor(root, ctx, level) {
       h('div', { class: 'pal-head' }, h('div', { class: 'pal-title' }, 'Croupiers'),
         h('div', { class: 'pal-tools' },
           h('button', {
-            class: 'btn small danger', disabled: !cells.length, title: 'Remove every croupier',
-            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = lastSelected = null; lift = null; }); },
+            class: 'btn small danger', disabled: !countCroupiers(cells), title: 'Remove every croupier',
+            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = cells.filter(isMover); selected = lastSelected = null; lift = null; }); },
           }, 'Clear floor'))),
       h('div', { class: 'pal-grid' }, level.croupiers.map((name, i) => {
         const info = CROUPIERS[name];
@@ -1058,13 +1068,14 @@ export function openEditor(root, ctx, level) {
         h('div', { class: 'floor-head' }, h('h3', {}, 'The floor'),
           // On a phone the palette (and its Clear floor) is hidden.
           h('button', {
-            class: 'btn small danger phone-only', disabled: !cells.length, title: 'Remove every croupier',
-            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = lastSelected = null; lift = null; }); },
+            class: 'btn small danger phone-only', disabled: !countCroupiers(cells), title: 'Remove every croupier',
+            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = cells.filter(isMover); selected = lastSelected = null; lift = null; }); },
           }, 'Clear floor')),
         h('p', { class: 'brief-big' }, level.brief ?? ''),
         h('ul', { class: 'howto' },
           h('li', {}, `${Tap()} an empty hex to place a croupier there.`),
           h('li', {}, `Select a croupier, then ${tap()} the edges of its hex to point its ports.`),
+          desksMove(level) ? h('li', {}, `Drag the player or the chip desk to move it. Select the player, then ${tap()} an edge of its hex to turn it.`) : null,
           h('li', { class: 'touch-only' }, 'Long-press to pick up croupiers.'),
           h('li', { class: 'kbd-only' }, 'Shift-click or Shift-drag to pick up croupiers.'),
           h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
@@ -1093,6 +1104,19 @@ export function openEditor(root, ctx, level) {
             h('button', { class: 'tp', title: 'Step (.)', 'aria-label': 'Step', onmousedown: keepFocus, disabled: running || !!sim?.finished, onclick: stepOnce }, icon('step')))),
       h('p', { class: 'insp-desc' }, info.desc),
     ];
+    // A player or desk moved: it can go back where the floor had it.
+    if (!template && isMover(c)) {
+      const home = level.fixed.find((f) => f.kind === c.kind && f.seat === c.seat && f.desk === c.desk);
+      const moved = home && (hexKey(home.at) !== hexKey(c.at) || home.out !== c.out);
+      const free = home && !cells.some((x) => x !== c && hexKey(x.at) === hexKey(home.at));
+      if (moved) {
+        parts.push(h('div', { class: 'param' }, h('button', {
+          class: 'btn small', 'data-act': 'home', disabled: !free,
+          title: free ? 'Put it back where the floor had it' : 'Something is standing where it was',
+          onclick: () => commit(() => { c.at = [...home.at]; if (c.kind === 'source') c.out = home.out; selected = hexKey(home.at); }),
+        }, 'Put it back')));
+      }
+    }
     // params
     if (c.fn === 'kind' || c.fn === 'hand') {
       const p = CROUPIERS[c.fn].params.n;
@@ -1626,12 +1650,14 @@ export function openEditor(root, ctx, level) {
     drag.overSide = overBoard && loc && loc.dist > 0.45 ? loc.side : undefined;
     drag.overPalette = overPalette;
     const name = drag.kind === 'new' ? drag.tool : (cellAt(drag.key)?.kind === 'shoe' ? 'shoe' : cellAt(drag.key)?.fn);
-    const info = CROUPIERS[name];
-    ghost.className = `drag-ghost${overPalette && drag.kind === 'move' ? ' trash' : ''}`;
+    const info = drag.kind === 'new' ? CROUPIERS[name] : infoFor(cellAt(drag.key) ?? {});
+    // (A player or desk dropped on the palette isn't removed.)
+    const trash = overPalette && drag.kind === 'move' && !isMover(cellAt(drag.key));
+    ghost.className = `drag-ghost${trash ? ' trash' : ''}`;
     ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
     ghost.replaceChildren(h('span', { class: 'pal-chip', style: { background: info?.family } },
       h('span', {}, drag.kind === 'new' ? chipLabel(paletteSample(name)) : chipLabel(cellAt(drag.key)))),
-    ...(overPalette && drag.kind === 'move' ? [h('span', { class: 'ghost-t' }, 'remove')] : []));
+    ...(trash ? [h('span', { class: 'ghost-t' }, 'remove')] : []));
     renderBoard();
   }
   function onUp(e) {
@@ -1964,10 +1990,11 @@ export function openEditor(root, ctx, level) {
   }
   const liftHexes = () => new Set(lift.items.map((i) => hexKey(i.cell.at)));
   // Picked-up croupiers' hexes that are off the floor: they are deleted when put down.
-  const liftOff = () => new Set(lift.items.map((i) => i.cell.at).filter((at) => !board.isBuildable(at)).map(hexKey));
+  // (So are any on a player or desk: they go only where nothing else is.)
+  const liftOff = () => new Set(lift.items.map((i) => i.cell.at).filter((at) => !board.isBuildable(at) || moverAt(at)).map(hexKey));
   // The croupiers the group would replace if put down: hex key -> croupier.
   function liftCovers() {
-    const stay = new Map(staying().map((c) => [hexKey(c.at), c]));
+    const stay = new Map(staying().filter((c) => !isMover(c)).map((c) => [hexKey(c.at), c]));
     return new Map(lift.items.map((i) => hexKey(i.cell.at)).filter((k) => stay.has(k)).map((k) => [k, stay.get(k)]));
   }
   // Pick up these croupiers (hex keys; any missing are skipped), adding them
@@ -1978,7 +2005,8 @@ export function openEditor(root, ctx, level) {
     const covered = lift ? liftHexes() : new Set();
     for (const k of keys) {
       const src = k && cellAt(k);
-      if (!src || have.has(src) || covered.has(k)) continue;
+      // (Players and desks are moved one at a time.)
+      if (!src || isMover(src) || have.has(src) || covered.has(k)) continue;
       have.add(src);
       items.push({ src, cell: structuredClone(src) });
     }
@@ -2001,8 +2029,8 @@ export function openEditor(root, ctx, level) {
     const rest = lift.items.filter((i) => !items.includes(i));
     for (const i of rest) if (i.src && hexes.has(hexKey(i.src.at))) i.src = null;
     const next = [
-      ...cells.filter((c) => !going.has(c) && !hexes.has(hexKey(c.at))),
-      ...items.map((i) => i.cell).filter((c) => board.isBuildable(c.at)),
+      ...cells.filter((c) => isMover(c) || (!going.has(c) && !hexes.has(hexKey(c.at)))),
+      ...items.map((i) => i.cell).filter((c) => board.isBuildable(c.at) && !moverAt(c.at)),
     ];
     lift = rest.length ? { items: rest } : null;
     if (!sameCells(next, cells)) commit(() => { cells = next; });
@@ -2050,7 +2078,7 @@ export function openEditor(root, ctx, level) {
   }
   function copySel() {
     const c = selCell();
-    if (!c) return;
+    if (!c || isMover(c)) return;
     select(null);
     liftCopies([structuredClone(c)]);
   }
@@ -2117,6 +2145,9 @@ export function openEditor(root, ctx, level) {
     const c = lift ? null : selCell();
     selBar.classList.toggle('hidden', !c);
     if (c) selBar.querySelector('.lift-n').textContent = infoFor(c).name;
+    // A player or desk can't be copied or removed; a desk has no sides to turn.
+    for (const act of ['copy', 'delete']) selBar.querySelector(`[data-act="${act}"]`).classList.toggle('hidden', !!c && isMover(c));
+    for (const act of ['ccw', 'cw', 'mirror', 'flip']) selBar.querySelector(`[data-act="${act}"]`).classList.toggle('hidden', c?.kind === 'payout');
     liftBar.classList.toggle('hidden', !lift);
     if (!lift) return;
     const n = lift.items.length, covers = liftCovers().size;
@@ -2139,7 +2170,7 @@ export function openEditor(root, ctx, level) {
     const [x0, x1] = [Math.min(d.x0, d.x), Math.max(d.x0, d.x)], [y0, y1] = [Math.min(d.y0, d.y), Math.max(d.y0, d.y)];
     // (Not those under the group: they are hidden.)
     const covered = lift ? liftHexes() : new Set();
-    const inBox = staying().filter((c) => {
+    const inBox = staying().filter((c) => !isMover(c)).filter((c) => {
       const p = new DOMPoint(...center(c.at)).matrixTransform(m);
       return p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && !covered.has(hexKey(c.at));
     }).map((c) => hexKey(c.at));

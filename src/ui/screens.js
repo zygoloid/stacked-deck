@@ -936,6 +936,7 @@ export function helpPanel(close, save) {
       h('h2', {}, 'How the house works'),
       h('ul', { class: 'rules' },
         h('li', {}, 'The ', h('b', {}, 'card player'), ' hands out the test hands one at a time. Hands that should win must reach the ', h('b', {}, 'chip desk'), '; every other card must end up on the floor.'),
+        h('li', {}, 'On most floors the player and the chip desk can be moved: drag them anywhere on the floor, and turn the player as you would point a port. Where they stand matters on some floors, and there they are ', h('b', {}, 'bolted to the floor'), ' (drawn with bolts in the corners).'),
         h('li', {}, 'Each croupier has named ', h('b', {}, 'output ports'), '. Point each port at a side of its hex. A port left on ', h('b', {}, '✕ floor'), ', or pointing at a hex with no table, drops its cards.'),
         h('li', {}, 'Croupiers accept hands from any side. Every round, each croupier takes a hand if it can, acts, and hands its results on; a croupier whose way is blocked waits.'),
         h('li', {}, 'A hand\'s top card is drawn first (leftmost). House cards from shoes are drawn dashed.'),
