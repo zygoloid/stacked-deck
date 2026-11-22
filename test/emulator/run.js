@@ -456,6 +456,17 @@ console.log('friends ok');
   assert.strictEqual(change(dry, 'r1', LEVEL, HASH), 'same');
   assert.strictEqual(change(dry, 'r6', LEVEL, 'f'.repeat(32)), 'invalid');
   assert.deepStrictEqual(dry.counts, { same: 2, 'newly broken': 1, scored: 2, 'still broken': 1, invalid: 1 }, JSON.stringify(dry.counts));
+  // With all, it judges every solution, whatever its tag, against its stored
+  // score: r4 (tagged V) too. Only as a dry run.
+  const dryAll = await rescore(db, { dryRun: true, all: true });
+  assert.strictEqual(await tree(), before, 'a dry run with all writes nothing');
+  assert.deepStrictEqual(dryAll.counts, { same: 2, 'newly broken': 1, scored: 2, 'still broken': 1, invalid: 1 }, JSON.stringify(dryAll.counts));
+  await db.ref(at('r4', LEVEL, HASH)).update({ score: { croupiers: PAR.croupiers, rounds: PAR.rounds + 1 } });
+  assert.strictEqual(change(await rescore(db, { dryRun: true, all: true }), 'r4', LEVEL, HASH), 'rounds', 'with all, a solution scored under this version is judged too');
+  assert.strictEqual(change(await rescore(db, { dryRun: true }), 'r4', LEVEL, HASH), undefined, 'without it, not');
+  await db.ref(`${at('r4', LEVEL, HASH)}/score`).remove();
+  assert.strictEqual(await tree(), before);
+  await assert.rejects(rescore(db, { all: true }), /only for a dry run/);
 
   // For real, only once the server is on the new version.
   await assert.rejects(rescore(db), /config\/rulesVersion is \d+, not/);
