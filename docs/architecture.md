@@ -378,7 +378,14 @@ Dev box: difficulty and par, what opens the floor and what it opens, a
 button that loads the par machine (an undo away), and one that measures
 the machine on the floor test by test (rounds, the most cards on the floor
 at once, and the longest stretch without progress, which `STALL_ROUNDS`
-limits). The floors list's dev bar re-scores every saved solution
+limits). The editor also has a frame meter under the transport
+(`src/ui/perf.js`): for each step, the frames its animation got, the
+longest gap between them, the step's own work, the board's drawing per
+frame and the longest main-thread frame (Long Animation Frames), with
+switches that leave parts of the drawing out one at a time (fading,
+shadows, dashes, card text, layers, the felt, the tests panel), to find
+what is slow on a particular device; Copy puts the readout on the
+clipboard. The floors list's dev bar re-scores every saved solution
 ("Floor changes", below).
 
 ## Title screen (`src/ui/title.js`)

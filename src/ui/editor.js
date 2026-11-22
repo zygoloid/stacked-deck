@@ -19,6 +19,7 @@ import { checkDeals, CHECK_DEALS, totalRounds } from '../score.js';
 import { signInDialog, dialogOpen } from './account.js';
 import { Sim, DESK_NAMES, placesText } from './sim.js';
 import { devMode, devPanel, parMachine, measureTest, channelBadge } from './dev.js';
+import { perfMeter } from './perf.js';
 import { scatterPlot, solutionList, scoreText, parMark } from './scatter.js';
 import { createCoach } from './coach.js';
 
@@ -105,6 +106,8 @@ export function openEditor(root, ctx, level) {
   // `expected` levels list the exact payouts (which may repeat, regroup or
   // reorder cards); `pays` levels pay out some of the input hands.
   const listed = typeof level.expected === 'function';
+  // Dev mode's frame meter (src/ui/perf.js), under the transport.
+  const perf = devMode() ? perfMeter({ redraw: () => renderBoard() }) : null;
   const editorEl = h('div', { class: 'editor' },
     h('header', { class: 'topbar' },
       h('button', { class: 'btn ghost', onclick: () => ctx.go('#/'), title: 'Level select' }, '← Floors'),
@@ -125,13 +128,14 @@ export function openEditor(root, ctx, level) {
       h('div', { class: 'zoom' },
         h('button', { title: 'Zoom in (+)', onclick: () => zoomCenter(1 / 1.25) }, '+'),
         h('button', { title: 'Zoom out (-)', onclick: () => zoomCenter(1.25) }, '−'),
-        h('button', { title: 'Fit the floor (0)', onclick: () => board.fit() }, '⤢'))), transport),
+        h('button', { title: 'Fit the floor (0)', onclick: () => board.fit() }, '⤢'))), transport, perf?.el),
     // The palette sits right above the inspector it switches (beside the
     // board on a wide screen, under it on a phone); in play mode both are
     // hidden, leaving the tests.
     side,
     modal);
   root.replaceChildren(editorEl);
+  perf?.attach(editorEl);
 
   // ---------- editing ----------
   // Undo and redo restore the selection and its active port too, so undoing
@@ -390,10 +394,12 @@ export function openEditor(root, ctx, level) {
     enterPlay();
     if (!sim && !makeSim()) return;
     if (sim.finished) { stop(); return; }
+    const t0 = perf?.begin(), r0 = sim.round;
     const from = board.positions;
     sim.step();
     startAnim(from, animDuration(2));
     afterStep();
+    perf?.end(t0, `${r0}→${sim.round}`, anim?.dur ?? 0);
   }
   function afterStep() {
     if (sim.finished) {
@@ -410,11 +416,13 @@ export function openEditor(root, ctx, level) {
     enterPlay();
     if (!sim) return; // putting a picked-up group down resets the run
     stop();
+    const t0 = perf?.begin(), r0 = sim.round;
     const from = board.positions;
     const undone = sim.back();
     if (undone) startAnim(from, animDuration(2), undone);
     hideToast();
     renderBoard(); renderTests(); renderTransport();
+    if (undone) perf?.end(t0, `${r0}→${sim.round}`, anim?.dur ?? 0);
   }
   function play() {
     if (running) return;
@@ -438,6 +446,7 @@ export function openEditor(root, ctx, level) {
     const rate = SPEEDS[speed].rate;
     const dt = Math.min(0.25, (t - lastT) / 1000);
     lastT = t;
+    const t0 = perf?.begin();
     const from = board.positions;
     const r0 = sim.round;
     if (rate === Infinity) {
@@ -454,6 +463,7 @@ export function openEditor(root, ctx, level) {
     // changes); the panels only for a step.
     if (stepped || anim) renderBoard({ runOnly: true });
     if (stepped) { renderTests(); renderTransport(); }
+    if (stepped) perf?.end(t0, `${r0}→${sim.round}`, anim?.dur ?? 0);
     raf = requestAnimationFrame(tick);
   }
   function setTest(i) {
@@ -746,6 +756,7 @@ export function openEditor(root, ctx, level) {
     const live = sim && sim.round > 0 ? sim.floor : null;
     const t = anim ? Math.min(1, (performance.now() - anim.start) / anim.dur) : 1;
     const lifted = lift ? lift.items.map((i) => i.cell) : [];
+    const b0 = performance.now();
     board.render({
       cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftOff(), covers: liftCovers() } : null, pick,
       coach: coach.mark(), selected, activePort, hover, live, tool, drag: drag?.active && drag.kind !== 'box' && drag.kind !== 'group' ? drag : null,
@@ -754,7 +765,9 @@ export function openEditor(root, ctx, level) {
       // The desk to flag on a wrong payout: the one it was paid at.
       alert: sim?.status.kind === 'wrong' ? sim.status.at ?? null : null,
       anim: anim && t < 1 ? Object.assign(anim, { t }) : null,
-    }, { runOnly });
+    }, { runOnly: runOnly && !perf?.fullRedraw });
+    // (Only frames count: a runOnly draw is an animation frame or a step while playing.)
+    if (runOnly) perf?.frame(performance.now() - b0);
     if (t >= 1) anim = null;
     svg.classList.toggle('placing', !!tool);
     renderLiftBar();

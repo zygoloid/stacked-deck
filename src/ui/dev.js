@@ -10,6 +10,8 @@
 //    machine on the floor test by test: rounds, the most cards on the floor
 //    at once, and the longest stretch with nothing dealt or paid (the
 //    engine's STALL_ROUNDS limit is on that).
+//  * the editor has a frame meter under the transport (src/ui/perf.js),
+//    for finding what makes the step animation slow on a device.
 import { CHANNEL } from '../build.js';
 import { Run, STALL_ROUNDS } from '../engine.js';
 import { toSpec } from '../score.js';
