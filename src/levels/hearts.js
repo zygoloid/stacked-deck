@@ -160,7 +160,7 @@ export const LEVELS = [
       { say: 'Two desks tonight, and each card must reach the right one, X or Y: the brief at the top says which.', ui: 'brief', until: 'next' },
       { say: 'Place a Pass on the ringed hex, pointing east.', at: [-2, 0], side: E, until: { cell: { at: [-2, 0], fn: 'pass', out: { out: E } } } },
       { say: 'Now the new croupier, Suits, on the ringed hex. The floor panel\'s list of croupiers says what each one does.', at: [-1, 0], until: { cell: { at: [-1, 0], fn: 'suits' } } },
-      { say: 'Suits has a port for each suit, and one (misc) for any card without an assigned direction. With it selected, each {click} on an edge points the highlighted port there and moves on to the next; the panel lists its ports, with buttons for the six sides. A port pointing nowhere drops its cards on the carpet.', ui: 'ports', until: {
+      { say: 'Suits has a port for each suit, and one (misc) for any card without an assigned direction. With it selected, each {click} on an edge points the highlighted port there and moves on to the next, and a long press on an edge opens a menu to pick which port points there. The panel lists its ports, with buttons for the six sides. A port pointing nowhere drops its cards on the carpet.', ui: 'ports', until: {
           // Every suit pointed, or misc (which takes the rest).
           any: [{ cell: { at: [-1, 0], fn: 'suits', out: { S: ANY, H: ANY, D: ANY, C: ANY } } }, { cell: { at: [-1, 0], fn: 'suits', out: { misc: ANY } } }],
         },
