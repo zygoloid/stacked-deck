@@ -757,6 +757,7 @@ export function openEditor(root, ctx, level) {
     const t = anim ? Math.min(1, (performance.now() - anim.start) / anim.dur) : 1;
     const lifted = lift ? lift.items.map((i) => i.cell) : [];
     const b0 = performance.now();
+    board.rebuildCards = !!perf?.rebuildCards;
     board.render({
       cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftOff(), covers: liftCovers() } : null, pick,
       coach: coach.mark(), selected, activePort, hover, live, tool, drag: drag?.active && drag.kind !== 'box' && drag.kind !== 'group' ? drag : null,

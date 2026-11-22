@@ -383,8 +383,9 @@ limits). The editor also has a frame meter under the transport
 longest gap between them, the step's own work, the board's drawing per
 frame and the longest main-thread frame (Long Animation Frames), with
 switches that leave parts of the drawing out one at a time (fading,
-shadows, dashes, card text, layers, the felt, the tests panel), to find
-what is slow on a particular device; Copy puts the readout on the
+shadows, dashes, card text, layers, the felt, the tests panel) or put back
+what was slow before (the board area sharing a layer with the page, the
+cards rebuilt every frame), to find what is slow on a particular device; Copy puts the readout on the
 clipboard. The floors list's dev bar re-scores every saved solution
 ("Floor changes", below).
 

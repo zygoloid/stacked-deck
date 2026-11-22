@@ -14,11 +14,12 @@ const KEY = 'stacked-deck-perf';
 const KEEP = 14;     // steps listed
 const SLACK = 120;   // ms after a step's animation that its frames still count
 
-// [key, label, class on the editor (style.css), title]. fullRedraw is read
-// by the editor instead.
+// [key, label, class on the editor (style.css), title]. fullRedraw and
+// rebuildCards are read by the editor instead.
 const SWITCHES = [
   ['fullRedraw', 'Redraw everything each frame', null, 'As before the playback speed-up: the whole floor is built again every frame'],
-  ['ownLayer', 'Board on its own layer', 'perf-own-layer', 'will-change: transform on the board, so it is painted apart from the felt behind it'],
+  ['rebuildCards', 'Rebuild the cards each frame', null, 'As before: every card drawn anew each frame, not only those that changed'],
+  ['sharedLayer', 'Board area not on its own layer', 'perf-shared-layer', 'As before: no will-change on the board area, so the browser puts it in whatever layer the page\'s layout leads to'],
   ['noFade', 'No fading', 'perf-no-fade', 'Cards, trays and badges that fade in or out are drawn solid'],
   ['noCardShadow', 'No card shadows', 'perf-no-card-shadow', null],
   ['noChipShadow', 'No chip shadows', 'perf-no-chip-shadow', null],
@@ -128,6 +129,7 @@ export function perfMeter({ redraw }) {
     el: details,
     attach(el) { root = el; apply(); },
     get fullRedraw() { return !!on.fullRedraw; },
+    get rebuildCards() { return !!on.rebuildCards; },
     // A step is starting: returns its start time, for end().
     begin: () => performance.now(),
     // The step that began at t0 has done its work (taking the run from one
