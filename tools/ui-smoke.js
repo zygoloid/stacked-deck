@@ -2392,7 +2392,7 @@ try {
       logo: (() => { const r = document.querySelector('.marquee .logo-btn').getBoundingClientRect(); return r.top >= 0 && r.width > 0; })(),
     }));
     check(!after.body.includes('title') && !after.backs && !after.moving && after.logo, `Start deals the floors list's cards and leaves it as it is ${JSON.stringify(after)}`);
-    await tp.click('a.tile[data-level="opening-night"]');
+    await tp.click(`a.tile[data-level="${LEVELS[0].id}"]`);
     check(await tp.waitForSelector('.story-card').then(() => true, () => false), 'and its cards can be opened');
     await tp.reload();
     await tp.waitForSelector('.story-card');
@@ -2413,7 +2413,7 @@ try {
     // Opened on a floor: no title. On a phone: Start under the machine, in view.
     const lctx = await rawContext({ viewport: { width: 1440, height: 860 } });
     const lp = await lctx.newPage();
-    await lp.goto(`${base}#/level/opening-night/story`);
+    await lp.goto(`${base}#/level/${LEVELS[0].id}/story`);
     await lp.waitForSelector('.story-card');
     check(await lp.locator('.title-screen').count() === 0, 'opened on a floor, the game doesn\'t show the title');
     await lctx.close();
@@ -2430,7 +2430,7 @@ try {
     if (shots) await pp.screenshot({ path: join(shots, 'title-phone.png') });
     await pp.tap('.title-start');
     await pp.waitForSelector('.title-screen', { state: 'detached', timeout: 6000 });
-    check(await pp.locator('a.tile[data-level="opening-night"]').isVisible(), 'and Start deals the floors list');
+    check(await pp.locator(`a.tile[data-level="${LEVELS[0].id}"]`).isVisible(), 'and Start deals the floors list');
     await pctx.close();
     // With reduced motion the machine stands still and Start just fades the title.
     const rctx = await rawContext({ viewport: { width: 1440, height: 860 }, reducedMotion: 'reduce' });
