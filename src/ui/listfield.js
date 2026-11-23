@@ -16,10 +16,10 @@
 //
 // Under the field, a pad: a shoe's cards (a drag along a suit adds a run) or a
 // Deal's sides. A pad tap adds at the caret; the same entry again makes it x2.
-import { h, cardEl, cardName, uiScale, SUIT_GLYPH } from './dom.js';
+import { h, cardEl, cardName, uiScale, SUIT_GLYPH, arrowEl } from './dom.js';
 import {
   readList, lexList, setCount, removeRange, ungroup, wrapGroup, tapEntry, tidyText, matching,
-  gapOffset, gapAt, balance, tapAt, insertAt, moveTokens, SIDE_TEXT, SIDE_ARROWS, MAX_COUNT,
+  gapOffset, gapAt, balance, tapAt, insertAt, moveTokens, SIDE_TEXT, MAX_COUNT,
 } from './listtext.js';
 import { stepper } from './stepper.js';
 
@@ -72,7 +72,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
 
   // ---------- drawing ----------
   function face(t) {
-    if (deal) return h('span', { class: 'lf-side', style: `--c: ${SIDE_COLOURS[t.val]}` }, SIDE_ARROWS[t.val], SIDE_TEXT[t.val]);
+    if (deal) return h('span', { class: 'lf-side', style: `--c: ${SIDE_COLOURS[t.val]}` }, arrowEl(t.val), SIDE_TEXT[t.val]);
     const v = t.val;
     if (v.t === 'card') return cardEl(v.c);
     if (v.t === 'deck') return h('span', { class: 'lf-deck' }, 'DECK');
@@ -771,7 +771,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     const side = (d) => h('button', {
       class: 'lf-pad-side', style: `--c: ${SIDE_COLOURS[d]}`, title: `Deal to ${SIDE_TEXT[d]}`, 'aria-label': `Deal to ${SIDE_TEXT[d]}`, 'data-side': d,
       onpointerdown: noFocus, onclick: () => tap(SIDE_TEXT[d]),
-    }, SIDE_ARROWS[d], SIDE_TEXT[d]);
+    }, arrowEl(d), SIDE_TEXT[d]);
     pad = h('div', { class: 'lf-pad deal' },
       h('div', { class: 'lf-hex' }, h('span'), side(4), side(5), h('span'), side(3), h('span', { class: 'lf-hub', 'aria-hidden': 'true' }, '⬡'), side(0), h('span'), side(2), side(1)));
   } else {

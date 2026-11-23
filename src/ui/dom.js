@@ -28,6 +28,15 @@ export const s = (tag, attrs, ...children) => apply(document.createElementNS(SVG
 export const uiScale = () => (typeof document === 'undefined' ? 1
   : parseFloat(getComputedStyle(document.documentElement).fontSize) / 16 || 1);
 
+// An arrow towards side d (0 E, then clockwise: SE SW W NW NE), drawn the
+// same in every direction (the arrow characters aren't, in some fonts: E
+// and W can be thin dashes). As big as the text around it; currentColor.
+export function arrowEl(d, cls = '') {
+  return s('svg', { class: `arrow ${cls}`.trim(), viewBox: '-8 -8 16 16', 'aria-hidden': 'true' },
+    s('g', { transform: `rotate(${d * 60})` },
+      s('path', { d: 'M-5.5 0H4.5M0.5-4.5L5 0L0.5 4.5' })));
+}
+
 export const SUIT_GLYPH = { S: '♠', H: '♥', D: '♦', C: '♣' };
 export const SUIT_NAME = { S: 'Spades', H: 'Hearts', D: 'Diamonds', C: 'Clubs' };
 
