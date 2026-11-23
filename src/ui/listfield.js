@@ -19,8 +19,9 @@
 import { h, cardEl, cardName, uiScale, SUIT_GLYPH } from './dom.js';
 import {
   readList, lexList, setCount, removeRange, ungroup, wrapGroup, tapEntry, tidyText, matching,
-  gapOffset, gapAt, balance, tapAt, insertAt, moveTokens, SIDE_TEXT, SIDE_ARROWS,
+  gapOffset, gapAt, balance, tapAt, insertAt, moveTokens, SIDE_TEXT, SIDE_ARROWS, MAX_COUNT,
 } from './listtext.js';
+import { stepper } from './stepper.js';
 
 // One colour per side, E round to NE (Deal lists and their pad).
 export const SIDE_COLOURS = ['#f2c14e', '#f08a5d', '#e8709f', '#a99af4', '#62b6ea', '#5fd3a0'];
@@ -286,10 +287,8 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       h('button', { class: mode === 'text' ? 'on' : '', 'data-view': 'text', onpointerdown: noFocus, onclick: () => setMode('text') }, 'Text'));
     renderCtx();
   }
-  const stepper = (n, set, { title } = {}) => h('span', { class: 'lf-step', title },
-    h('button', { 'aria-label': 'One fewer', title: 'One fewer', onpointerdown: noFocus, disabled: n <= 1, onclick: () => set(n - 1) }, '−'),
-    h('span', {}, `×${n}`),
-    h('button', { 'aria-label': 'One more', title: 'One more', onpointerdown: noFocus, onclick: () => set(n + 1) }, '+'));
+  // A count: ×1 to ×999 (its number can be typed).
+  const counter = (n, onSet, title = 'How many times') => stepper(n, { min: 1, max: MAX_COUNT, prefix: '×', onSet, title, cls: 'lf-step' });
   const delBtn = (what) => h('button', { class: 'lf-del', title: `Remove ${what}`, 'aria-label': `Remove ${what}`, onpointerdown: noFocus, onclick: removeSel }, '✕');
   function renderCtx() {
     if (mode === 'text') {
@@ -305,24 +304,27 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     const g = selGroup();
     if (sel && sel.b - sel.a === 1 && toks[sel.a].kind === 'item' && toks[sel.a].val != null) {
       const t = toks[sel.a];
-      bar(h('span', { class: 'lf-ctx-chip' }, face(t)), stepper(t.n, (k) => edit(setCount(text, toks[sel.a], k), { sel: { ...sel } })), delBtn('it'));
+      bar(h('span', { class: 'lf-ctx-chip' }, face(t)), counter(t.n, (k) => edit(setCount(text, toks[sel.a], k), { sel: { ...sel } })), delBtn('it'));
     } else if (g >= 0) {
       // A group's count; down to 1, the group goes (its entries stay selected).
       const c = toks[sel.b - 1], e = entriesIn(g + 1, sel.b - 1);
       bar(
         h('span', { class: 'lf-ctx-n' }, `A group of ${e} entr${e === 1 ? 'y' : 'ies'}, ${cardsIn(g, sel.b)} cards in all`),
-        stepper(c.n, (k) => {
+        counter(c.n, (k) => {
           if (k > 1) { edit(setCount(text, toks[sel.b - 1], k), { sel: { ...sel } }); return; }
           const { a, b } = sel;
           edit(ungroup(text, toks, a), b - 2 > a ? { sel: { a, b: b - 2 } } : { caret: a });
-        }, { title: 'How many times the group is repeated (1: not a group)' }),
+        }, 'How many times the group is repeated (1: not a group)'),
         delBtn('the group'));
     } else if (sel) {
       // Several entries: 1, as they are; more, repeated as a group.
       const e = entriesIn(sel.a, sel.b);
       bar(
         h('span', { class: 'lf-ctx-n' }, `${e} entr${e === 1 ? 'y' : 'ies'}, ${cardsIn(sel.a, sel.b)} cards`),
-        stepper(1, (k) => { if (k > 1) group(); }, { title: 'Repeat these as a group' }),
+        counter(1, (k) => {
+          if (k < 2 || !group()) return;
+          if (k > 2) edit(setCount(text, toks[sel.b - 1], k), { sel: { ...sel } });
+        }, 'Repeat these as a group'),
         delBtn('them'));
     } else ctx.replaceChildren(hint);
   }
@@ -358,7 +360,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     else if (toks[caret - 1]?.kind === 'close' && matching(toks, caret - 1) >= 0) [a, b] = [matching(toks, caret - 1), caret];
     else return;
     const r = wrapGroup(text, toks, toks[a].s, toks[b - 1].e);
-    if (r) edit(r, { sel: { a, b: b + 2 } });
+    return !!r && edit(r, { sel: { a, b: b + 2 } });
   }
   // A tap on the pad (or from outside: the Deal's side keys, the port menu).
   function tap(entry) {

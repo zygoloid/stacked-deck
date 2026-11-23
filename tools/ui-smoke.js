@@ -1976,15 +1976,22 @@ try {
     let cells = await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, lv.id);
     const hc = cells.find((c) => c.fn === 'hand');
     check(hc?.n === 4 && (await page.textContent(`.cell[data-at="${key(spot.b)}"] .chip-t`)) === 'HND4', `Hand placed with n = 4 (${JSON.stringify(hc)})`);
-    // Any n up to 52 in the field; out of range is refused; a button goes back.
-    await page.fill('.inspector [data-param="n-any"]', '28');
-    await page.press('.inspector [data-param="n-any"]', 'Enter');
+    // Any n up to 52, typed into the stepper's number; out of range is
+    // refused; + adds one; a button goes back.
+    const typeN = async (v) => {
+      await page.click('.inspector [data-param="n-any"] .stepper-n');
+      await page.fill('.inspector [data-param="n-any"] .stepper-in', v);
+      await page.press('.inspector [data-param="n-any"] .stepper-in', 'Enter');
+    };
+    await typeN('28');
     const hn = async () => (await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, lv.id)).find((c) => c.fn === 'hand')?.n;
     check(await hn() === 28 && await page.locator('.inspector [data-param="n"] button.on').count() === 0 &&
       await page.locator('.inspector .n-in.on').count() === 1, 'Hand: n = 28 from the field');
-    await page.fill('.inspector [data-param="n-any"]', '53');
-    await page.press('.inspector [data-param="n-any"]', 'Enter');
-    check(await hn() === 28 && await page.inputValue('.inspector [data-param="n-any"]') === '28', 'Hand: n = 53 is refused');
+    await typeN('53');
+    check(await hn() === 28 && (await page.textContent('.inspector [data-param="n-any"] .stepper-n')) === '28', 'Hand: n = 53 is refused');
+    await page.click('.inspector [data-param="n-any"] [aria-label="One more"]');
+    check(await hn() === 29, 'Hand: + makes it 29');
+    if (shots) await page.locator('.inspector .param.col').first().screenshot({ path: join(shots, '9c-hand-n.png') });
     await page.click('.inspector [data-param="n"] button:nth-child(4)');
     check(await hn() === 4, 'Hand: back to n = 4 with a button');
     // Burn croupier: two ports.

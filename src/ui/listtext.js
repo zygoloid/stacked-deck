@@ -14,7 +14,7 @@ export const SIDE_TEXT = ['E', 'SE', 'SW', 'W', 'NW', 'NE'];
 export const SIDE_ARROWS = ['→', '↘', '↙', '←', '↖', '↗'];
 const RANKS = 'A23456789TJQK'.split('');
 const SUITS = ['S', 'D', 'C', 'H'];
-const MAX_COUNT = 999;
+export const MAX_COUNT = 999; // (the most an entry or group can be repeated)
 
 // The cards from rank a to rank b of suit s, up or down.
 export function suitRun(s, a, b) {

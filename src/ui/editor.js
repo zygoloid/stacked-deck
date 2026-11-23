@@ -4,6 +4,7 @@ import {
 } from '../engine.js';
 import { h, s, handEl, cardEl, fmtCards, uiScale, handLetters } from './dom.js';
 import { listField } from './listfield.js';
+import { stepper } from './stepper.js';
 import { formatList, SIDE_TEXT } from './listtext.js';
 import { Board, R, center, axialRound } from './board.js';
 import {
@@ -1016,17 +1017,11 @@ export function openEditor(root, ctx, level) {
         h('div', { class: `seg${opts.length > 8 ? ' wide' : ''}`, 'data-param': 'n' }, opts.map((n) => h('button', {
           class: (c.n ?? p.default) === n ? 'on' : '', onclick: () => edit(() => { c.n = n; }),
         }, String(n)))),
-        // Hand: any size up to p.max in a field (it shows n when it is bigger
-        // than the buttons go).
-        p.max ? h('label', { class: 'param-more' }, `Or any number up to ${p.max}: `, h('input', {
-          class: `n-in${(c.n ?? p.default) > opts[opts.length - 1] ? ' on' : ''}`, type: 'number', min: 1, max: p.max, step: 1,
-          value: String(c.n ?? p.default), 'data-param': 'n-any',
-          onkeydown: (e) => { if (e.key === 'Enter') e.target.blur(); e.stopPropagation(); },
-          onchange: (e) => {
-            const n = Math.round(Number(e.target.value));
-            if (Number.isInteger(n) && n >= 1 && n <= p.max) edit(() => { c.n = n; });
-            else e.target.value = String(c.n ?? p.default);
-          },
+        // Hand: any size up to p.max, by − and + or typed (lit up when it is
+        // bigger than the buttons go).
+        p.max ? h('div', { class: 'param-more' }, `Or any number up to ${p.max}: `, stepper(c.n ?? p.default, {
+          min: 1, max: p.max, title: 'Cards per hand', onSet: (n) => edit(() => { c.n = n; }),
+          cls: (c.n ?? p.default) > opts[opts.length - 1] ? 'n-in on' : 'n-in', attrs: { 'data-param': 'n-any' },
         })) : null));
     }
     if (c.fn === 'war') {
