@@ -12,7 +12,7 @@ export function label(c) {
   if (c.label) return c.label;
   if (c.kind === 'source') return `in${ARROWS[c.out]}`;
   if (c.kind === 'payout') return '$$';
-  if (c.kind === 'shoe') return `${/^[?$]/.test(c.deck[0]) ? c.deck[0] : c.deck[0][0]}${ARROWS[c.out]}`;
+  if (c.kind === 'shoe') return `${!c.deck.length ? '∅' : /^[?$]/.test(c.deck[0]) ? c.deck[0] : c.deck[0][0]}${ARROWS[c.out]}`;
   if (c.fn === 'war') return `W${c.rule === 'top' ? 't' : 'h'}`;
   if (c.fn === 'kind') return `K${c.n}`;
   if (c.fn === 'hand') return `H${c.n ?? 5}`;

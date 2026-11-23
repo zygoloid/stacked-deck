@@ -40,7 +40,6 @@ export function sanitizeCells(level, cells) {
       // Only real cards, and special cards only where the level allows them.
       const allowed = specialCardsOf(level);
       cell.deck = (Array.isArray(cell.deck) ? cell.deck : []).filter((x) => isCard(x) && (!isSpecial(x) || allowed.includes(x)));
-      if (!cell.deck.length) cell.deck = ['AS'];
     }
     if (cell.fn === 'hand' && !(Number.isInteger(cell.n) && cell.n >= 1 && cell.n <= MAX_HAND)) cell.n = 5;
     if (cell.kind === 'croupier') cell.out ??= {};
@@ -99,7 +98,7 @@ export function cellError(level, c) {
     if (!isSide(c.out)) return 'bad side';
     if (c.once !== undefined && typeof c.once !== 'boolean') return 'bad once';
     const allowed = specialCardsOf(level);
-    if (!Array.isArray(c.deck) || !c.deck.length || c.deck.length > MAX_DECK) return 'bad deck';
+    if (!Array.isArray(c.deck) || c.deck.length > MAX_DECK) return 'bad deck'; // (empty: deals nothing)
     if (!c.deck.every((x) => typeof x === 'string' && isCard(x) && (!isSpecial(x) || allowed.includes(x)))) return 'bad card';
     return null;
   }

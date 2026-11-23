@@ -571,7 +571,7 @@ export class Board {
     }
     if (cell.kind === 'shoe') {
       const deck = cell.deck ?? [];
-      const prev = deck.slice(0, 3).map(cardText).join(' ') + (deck.length > 3 ? ' …' : '');
+      const prev = deck.length ? deck.slice(0, 3).map(cardText).join(' ') + (deck.length > 3 ? ' …' : '') : 'empty';
       const label = s('text', { class: 'shoe-deck', y: CHIP + 11, 'text-anchor': 'middle' }, prev + (cell.once ? ' ¹' : ''));
       if (deck.length) {
         // The whole deck on hover or tap (an invisible hit area: text ignores the pointer).

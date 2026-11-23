@@ -450,7 +450,7 @@ export class Floor {
 
 // How far a cell has dealt, as far as its future goes (a repeating shoe
 // starts its deck again).
-const shoePos = (c) => (c.kind === 'shoe' && !c.once ? c.pos % c.deck.length : c.pos);
+const shoePos = (c) => (c.kind === 'shoe' && !c.once && c.deck.length ? c.pos % c.deck.length : c.pos);
 // Hands (arrays of {c, src}) with the same cards in the same order, or both
 // none; and croupiers' held hands (see heldHands), likewise.
 const sameHand = (a, b) => a === b || (!!a && !!b && a.length === b.length && a.every((x, i) => x.c === b[i].c));
@@ -461,8 +461,9 @@ const sameHeld = (a, b) => {
   return ka.length === kb.length && ka.every((k) => sameHand(a[k], b[k]));
 };
 
-// Whether a shoe will deal another card (a shoe dealing `once` runs out).
-const shoeDeals = (cell) => typeof cell.out === 'number' && (!cell.once || cell.pos < cell.deck.length);
+// Whether a shoe will deal another card (a shoe dealing `once` runs out;
+// an empty one deals nothing).
+const shoeDeals = (cell) => typeof cell.out === 'number' && cell.deck.length > 0 && (!cell.once || cell.pos < cell.deck.length);
 
 // What the chip desk should receive for one test. `rule` is either a
 // `pays(hand, earlierHands)` function (pay out a subset of the input hands)

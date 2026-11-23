@@ -59,6 +59,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   const ghost = h('span', { class: 'lf-ghost', 'aria-hidden': 'true' });
   const drop = h('span', { class: 'lf-drop', 'aria-hidden': 'true' });
   const area = h('textarea', { class: 'lf-textarea', spellcheck: 'false', autocomplete: 'off', autocapitalize: 'characters', autocorrect: 'off', rows: 3, 'aria-label': deal ? 'Deal to, as text' : 'Deck, as text' });
+  const selLayer = h('span', { class: 'lf-sel-layer', 'aria-hidden': 'true' });
   const wrap = h('div', { class: 'lf-text' }, box, inp, drop, area);
   const status = h('span', { class: 'lf-status' });
   const views = h('span', { class: 'seg lf-views', role: 'group', 'aria-label': 'Show the list as' });
@@ -103,11 +104,14 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       } else if (t.kind === 'close' && stack.length > 1) {
         const g = stack.pop();
         els[i] = h('span', { class: `lf-n lf-gn${t.counted ? '' : ' one'}${t.err ? ' bad' : ''}`, 'data-i': i, title: t.err ?? 'Repeats the group' }, `×${t.n}`);
-        // The count stays on the line of the group's last entry.
-        const kids = [...g.children];
-        let k = kids.length;
-        while (k > 1 && !kids[k - 1].matches('.lf-e, .lf-group')) k--;
-        g.append(h('span', { class: 'lf-end' }, ...(k > 1 ? kids.slice(k - 1) : []), els[i]));
+        // The group's opening stays on the line of its first entry, and its
+        // count on the line of its last (a line never ends on an empty frame).
+        const [open, ...kids] = g.children;
+        if (kids.length <= 1) g.replaceChildren(h('span', { class: 'lf-end' }, open, ...kids, els[i]));
+        else {
+          g.replaceChildren(h('span', { class: 'lf-start' }, open, kids[0]), ...kids.slice(1, -1),
+            h('span', { class: 'lf-end' }, kids.at(-1), els[i]));
+        }
       } else {
         els[i] = chip(t, i);
         add(els[i]);
@@ -123,9 +127,35 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       }
     }
     box.classList.toggle('empty', !toks.length);
-    if (!toks.length) box.append(h('span', { class: 'lf-empty' }, deal ? 'No sides yet' : 'No cards yet'));
+    if (!toks.length) box.append(h('span', { class: 'lf-empty' }, deal ? 'No sides yet' : 'No cards: the shoe deals nothing'));
+    box.prepend(selLayer);
     placeBox();
     renderBar();
+  }
+  // The selection: one frame a line round the entries it holds.
+  function drawSel() {
+    selLayer.replaceChildren();
+    if (!sel || mode !== 'cards') return;
+    const rects = [];
+    for (let i = sel.a; i < sel.b; i++) {
+      const x = toks[i].kind === 'open' ? groupOf(i) : toks[i].kind === 'close' ? null : els[i];
+      if (toks[i].kind === 'open') i = Math.max(i, matching(toks, i));
+      if (x) rects.push(...x.getClientRects());
+    }
+    const lines = [];
+    for (const r of [...rects].sort((p, q) => p.top - q.top)) {
+      const mid = (r.top + r.bottom) / 2;
+      const l = lines.find((n) => mid > n.top && mid < n.bottom);
+      if (l) Object.assign(l, { left: Math.min(l.left, r.left), right: Math.max(l.right, r.right), top: Math.min(l.top, r.top), bottom: Math.max(l.bottom, r.bottom) });
+      else lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+    }
+    const b = box.getBoundingClientRect(), pad = 2 * uiScale();
+    for (const l of lines) {
+      selLayer.append(h('span', { class: 'lf-selbox', style: {
+        left: `${l.left - b.left - box.clientLeft - pad}px`, top: `${l.top - b.top - box.clientTop - pad}px`,
+        width: `${l.right - l.left + 2 * pad}px`, height: `${l.bottom - l.top + 2 * pad}px`,
+      } }));
+    }
   }
   // Puts `node` in gap g among the entries.
   function putAt(node, g) {
@@ -144,17 +174,26 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     inp.classList.toggle('on', !!shown);
     inp.classList.toggle('filled', !!text);
     slot.remove(); ghost.remove();
+    drawSel();
     if (!shown) { inp.style.left = inp.style.top = ''; return; }
     inp.style.width = text ? `calc(${text.length + 1}ch + 0.875rem)` : '';
     putAt(slot, caret);
-    const prev = ghostFor(text);
-    if (prev) { ghost.replaceChildren(...prev); slot.after(ghost); }
     slot.style.width = `${inp.offsetWidth}px`;
     const r = slot.getBoundingClientRect(), w = wrap.getBoundingClientRect();
-    inp.style.left = `${r.left - w.left}px`;
-    inp.style.top = `${r.top - w.top + (r.height - inp.offsetHeight) / 2}px`;
+    const left = r.left - w.left, top = r.top - w.top + (r.height - inp.offsetHeight) / 2;
+    inp.style.left = `${left}px`;
+    inp.style.top = `${top}px`;
+    // What it will add, over it (beside it, it would look added already).
+    const prev = ghostFor(text);
+    if (prev) {
+      ghost.replaceChildren(...prev);
+      wrap.append(ghost);
+      const gw = ghost.offsetWidth;
+      ghost.style.left = `${Math.max(0, Math.min(wrap.clientWidth - gw, left + inp.offsetWidth / 2 - gw / 2))}px`;
+      ghost.style.top = `${top - ghost.offsetHeight - 3 * uiScale()}px`;
+    }
   }
-  // What the typing box's text will add, drawn faintly after it.
+  // What the typing box's text will add, drawn over it.
   function ghostFor(t) {
     const s = t.trim();
     if (!s || COUNT_ONLY.test(s)) return null;
@@ -179,7 +218,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     const shownError = flash ?? (mode === 'text' ? (draft !== null ? read(draft).error : null) : boxShownError()) ?? error;
     status.className = `lf-status${shownError ? ' bad' : ''}`;
     const n = (mode === 'text' && draft !== null ? read(draft).list : list)?.length ?? 0;
-    status.textContent = shownError ?? (deal ? (n ? `${n} card${n === 1 ? '' : 's'}, then again` : 'No sides: drops every card') : `${n} card${n === 1 ? '' : 's'}`);
+    status.textContent = shownError ?? (deal ? (n ? `${n} card${n === 1 ? '' : 's'}, then again` : 'No sides: drops every card') : n ? `${n} card${n === 1 ? '' : 's'}` : 'Empty: deals nothing');
     const textBad = mode === 'text' && draft !== null && !!read(draft).error;
     views.replaceChildren(
       h('button', {
@@ -222,7 +261,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     } else {
       ctx.replaceChildren(h('span', { class: 'lf-hint' }, deal
         ? 'Tap a side to add it; tap it again to deal there twice in a row.'
-        : 'Tap a card to add it; tap it again for two. Drag along a suit for a run.'));
+        : 'Tap a card to add it; tap it again for two. Drag along a suit for a run, or corner to corner for a new deck.'));
     }
   }
 
@@ -301,7 +340,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       return { error: 'A count goes straight after an entry (NEx3, or (E W)x3)' };
     }
     const own = read(s);
-    if (own.error && !/at least one card/.test(own.error)) return { error: own.error };
+    if (own.error) return { error: own.error };
     const next = insertAt(text, gapOffset(text, toks, caret), tidyText(kind, s, 0).text);
     const all = read(next.text);
     return all.error ? { error: all.error } : { next };
@@ -475,9 +514,14 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   // The tokens a press on an element stands for: an entry, or a whole group
   // (by its count). A group's frame is like the field's background: a tap
   // there puts the caret in the group.
-  function unitAt(target) {
+  function unitAt(target, x) {
     const el = target.closest?.('[data-i]');
     if (!el || !box.contains(el) || el.classList.contains('lf-open')) return null;
+    // Near an entry's sides is the gap beside it (the caret is easier to place).
+    if (el.classList.contains('lf-e')) {
+      const r = el.getBoundingClientRect(), edge = Math.min(5 * uiScale(), r.width / 5);
+      if (x < r.left + edge || x > r.right - edge) return null;
+    }
     const i = +el.dataset.i, j = toks[i].kind === 'close' ? matching(toks, i) : -1;
     return j >= 0 ? { a: j, b: i + 1 } : { a: i, b: i + 1 };
   }
@@ -502,7 +546,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     for (let i = a; i < b; i++) {
       if (toks[i].kind === 'open' && groupOf(i)) { parts.push(groupOf(i).cloneNode(true)); i = matching(toks, i); } else if (els[i]) parts.push(els[i].cloneNode(true));
     }
-    const f = h('div', { class: 'lf-float' }, parts);
+    const f = h('div', { class: 'lf-float' }, parts, h('span', { class: 'lf-float-x', 'aria-hidden': 'true' }, '✕'));
     f.querySelectorAll('.sel').forEach((x) => x.classList.remove('sel'));
     document.body.append(f);
     return f;
@@ -513,7 +557,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     box.setPointerCapture?.(e.pointerId);
     // (What is under the point itself: a touch's target can be moved onto an
     // entry beside a gap.)
-    press = { id: e.pointerId, x0: e.clientX, y0: e.clientY, unit: unitAt(document.elementFromPoint(e.clientX, e.clientY) ?? e.target), gap: gapNear(e.clientX, e.clientY), moved: false, shift: e.shiftKey, touch: e.pointerType !== 'mouse' };
+    press = { id: e.pointerId, x0: e.clientX, y0: e.clientY, unit: unitAt(document.elementFromPoint(e.clientX, e.clientY) ?? e.target, e.clientX), gap: gapNear(e.clientX, e.clientY), moved: false, shift: e.shiftKey, touch: e.pointerType !== 'mouse' };
   });
   box.addEventListener('pointermove', (e) => {
     if (!press || e.pointerId !== press.id) return;
@@ -533,8 +577,12 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     if (press.range) {
       float.style.left = `${e.clientX + 8}px`;
       float.style.top = `${e.clientY - 28 * uiScale()}px`;
-      const g = gapNear(e.clientX, e.clientY, press.range);
-      press.to = g >= press.range.a && g <= press.range.b ? null : g;
+      // Outside the field, a drop takes them out.
+      const b = box.getBoundingClientRect(), m = 4 * uiScale();
+      press.out = e.clientX < b.left - m || e.clientX > b.right + m || e.clientY < b.top - m || e.clientY > b.bottom + m;
+      float.classList.toggle('out', press.out);
+      const g = press.out ? null : gapNear(e.clientX, e.clientY, press.range);
+      press.to = g === null || (g >= press.range.a && g <= press.range.b) ? null : g;
       showDrop(press.to);
     } else {
       selectGaps(press.gap, gapNear(e.clientX, e.clientY));
@@ -548,6 +596,10 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     showDrop(null);
     if (!p) return;
     if (p.range) {
+      if (!cancel && p.out) {
+        edit(removeRange(text, toks[p.range.a].s, toks[p.range.b - 1].e), { caret: p.range.a });
+        return;
+      }
       if (!cancel && p.to != null) {
         const r = moveTokens(kind, text, p.range.a, p.range.b, p.to);
         if (r && edit({ text: r.text }, { sel: { a: r.a, b: r.b } })) { box.focus({ preventScroll: true }); return; }
@@ -587,7 +639,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   function applyDraft() {
     if (draft === null) return true;
     if (read(draft).error) return false;
-    const t = tidyText(kind, draft, 0).text;
+    const t = tidyText(kind, draft.replace(/\r\n?/g, '\n'), 0).text;
     draft = null;
     if (t !== text) edit({ text: t }, { caret: lexList(kind, t).length });
     area.value = text;
@@ -638,8 +690,11 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
         grid.append(keys[c]);
       }
     }
-    let run = null; // { s, from, to, id }
+    let run = null; // { s, from, to, id, deck }
+    // The pad's corners: a drag from one to the one opposite is a new deck.
+    const OPPOSITE = { AS: 'KH', KH: 'AS', KS: 'AH', AH: 'KS' };
     const runKeys = () => {
+      if (run.deck) return Object.values(keys);
       const [i, j] = [RANKS.indexOf(run.from), RANKS.indexOf(run.to)];
       return RANKS.slice(Math.min(i, j), Math.max(i, j) + 1).map((r) => keys[r + run.s]);
     };
@@ -648,7 +703,8 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       if (!run) { tip.textContent = ''; return; }
       for (const k of runKeys()) k.classList.add('lf-run');
       const n = runKeys().length;
-      tip.textContent = n > 1 ? `${rankText(run.from)}${SUIT_GLYPH[run.s]} to ${rankText(run.to)}${SUIT_GLYPH[run.s]}: ${n} cards` : '';
+      tip.textContent = run.deck ? 'A new deck: 52 cards'
+        : n > 1 ? `${rankText(run.from)}${SUIT_GLYPH[run.s]} to ${rankText(run.to)}${SUIT_GLYPH[run.s]}: ${n} cards` : '';
     };
     grid.addEventListener('pointerdown', (e) => {
       const k = e.target.closest?.('.lf-key');
@@ -661,6 +717,13 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     });
     grid.addEventListener('pointermove', (e) => {
       if (!run || e.pointerId !== run.id) return;
+      const corner = OPPOSITE[run.from + run.s];
+      if (corner) {
+        const b = keys[corner].getBoundingClientRect();
+        const deck = e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
+        if (deck !== !!run.deck) { run.deck = deck; markRun(); }
+        if (deck) return;
+      }
       // The key in the run's own row under the pointer's x (clamped to the row).
       let to = run.to;
       for (const r of RANKS) {
@@ -674,7 +737,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       run = null;
       markRun();
       if (!r || cancel) return;
-      tap(r.from === r.to ? r.from + r.s : `${r.from}${r.s}-${r.to}${r.s}`);
+      tap(r.deck ? 'deck' : r.from === r.to ? r.from + r.s : `${r.from}${r.s}-${r.to}${r.s}`);
     };
     grid.addEventListener('pointerup', (e) => { if (run && e.pointerId === run.id) endRun(false); });
     grid.addEventListener('pointercancel', () => endRun(true));
