@@ -106,7 +106,7 @@ console.log(`reference solutions valid and scored as par (${ALL.length})`);
   assert(ok({ at: free, kind: 'shoe', deck: ['AS'] }).error, 'a shoe without a side');
   assert(ok({ at: free, kind: 'shoe', out: 0, deck: ['AS', '?'] }).error, 'special card not allowed here');
   assert(ok({ at: free, kind: 'shoe', out: 0, deck: ['1S'] }).error, 'not a card');
-  assert(ok({ at: free, kind: 'shoe', out: 0, deck: [] }).error, 'empty deck');
+  assert(ok({ at: free, kind: 'shoe', out: 0, deck: [] }).cells, 'an empty deck (it deals nothing)');
   assert(ok({ at: free, kind: 'shoe', out: 0, deck: Array(MAX_DECK + 1).fill('AS') }).error, 'deck too long');
   assert(ok({ at: free, kind: 'shoe', out: 0, deck: ['AS'], facing: 1 }).error, 'facing on a shoe');
   const rule = (level.warRules ?? ['high'])[0];

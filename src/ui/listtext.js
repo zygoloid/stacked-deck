@@ -142,7 +142,6 @@ export function readList(kind, text, { specials = [] } = {}) {
   const bad = toks.find((t) => t.err);
   let error = bad?.err ?? null;
   if (!error && tooMany) error = kind === 'deal' ? `A Deal takes at most ${MAX_DEAL_SIDES} sides` : `A shoe holds at most ${MAX_DECK} cards`;
-  if (!error && kind === 'shoe' && !stack[0].list.length) error = 'A shoe needs at least one card';
   return { toks, list: error ? null : stack[0].list, error };
 }
 function notACard(text, specials) {

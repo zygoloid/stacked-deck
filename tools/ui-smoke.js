@@ -28,7 +28,7 @@ import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as L from '../src/levels.js';
 import { DIRS } from '../src/engine.js';
 import { floorLabel } from '../src/ui/floors.js';
@@ -523,7 +523,7 @@ try {
 
   // An old save (no solutions list) still loads; best is kept when solving.
   {
-    const sol = (await import(join(repo, 'solutions/levels/opening-night.js'))).default;
+    const sol = (await import(pathToFileURL(join(repo, 'solutions/levels/opening-night.js')).href)).default;
     await page.goto(base);
     await page.evaluate((cells) => {
       localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: { 'opening-night': { cells, solved: true, best: { croupiers: 2, rounds: 9 } } } }));
@@ -544,7 +544,7 @@ try {
   // so it passes test 4 (no 9s) and pays a 9 wrongly in test 1.
   {
     const lv = L.ALL_LEVELS.find((l) => l.id === 'beat-the-dealer');
-    const sol = (await import(join(repo, 'solutions/levels/beat-the-dealer.js'))).default;
+    const sol = (await import(pathToFileURL(join(repo, 'solutions/levels/beat-the-dealer.js')).href)).default;
     const cells = sol.cells.map((c) => (c.kind === 'shoe' ? { ...c, deck: ['8S'] } : c));
     await page.goto(base);
     await page.evaluate(([id, cells]) => {
@@ -571,7 +571,7 @@ try {
   // best follows. Re-clearing a saved machine also refreshes its score.
   {
     const lv = L.ALL_LEVELS.find((l) => l.id === 'beat-the-dealer');
-    const sol = (await import(join(repo, 'solutions/levels/beat-the-dealer.js'))).default;
+    const sol = (await import(pathToFileURL(join(repo, 'solutions/levels/beat-the-dealer.js')).href)).default;
     const broken = sol.cells.map((c) => (c.kind === 'shoe' ? { ...c, deck: ['8S'] } : c));
     await page.goto(base);
     await page.evaluate(([id, good, bad]) => {
@@ -690,7 +690,7 @@ try {
     phone.on('pageerror', (e) => errors.push(e.message));
     await phone.goto(`${base}?unlockall#/level/even-money`);
     await phone.waitForSelector('svg.board');
-    const sol = (await import(join(repo, 'solutions/levels/even-money.js'))).default;
+    const sol = (await import(pathToFileURL(join(repo, 'solutions/levels/even-money.js')).href)).default;
     await phone.evaluate((cells) => {
       const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
       s.levels['even-money'] = { cells };
@@ -1923,6 +1923,24 @@ try {
     await page.keyboard.press('Control+z');
     check((await listText()).endsWith('QSx2') && (await savedDeck())?.length === 86 && !(await page.$('.lf-status.bad')), 'Esc drops it; Ctrl+Z takes back the last entry');
     await page.keyboard.press('Escape'); // out of the field
+    // A drag from one corner of the pad to the opposite one adds a new deck;
+    // an entry dragged out of the field is taken out.
+    await page.mouse.move(...await keyAt('KS'));
+    await page.mouse.down();
+    await page.mouse.move(...await keyAt('AH'), { steps: 8 });
+    check(await page.locator('.lf-key.lf-run').count() === 52, 'dragging corner to corner on the pad marks the whole deck');
+    await page.mouse.up();
+    check((await listText()).endsWith('QSx2 deck') && (await savedDeck())?.length === 86 + 52, `corner to corner adds a new deck ("${await listText()}")`);
+    const lastChip = await page.locator('.lf-chips .lf-e').last().boundingBox();
+    const chipsBox = await page.locator('.lf-chips').boundingBox();
+    await page.mouse.move(lastChip.x + lastChip.width / 2, lastChip.y + lastChip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(chipsBox.x + chipsBox.width / 2, chipsBox.y + chipsBox.height + 80, { steps: 8 });
+    check(await page.locator('.lf-float.out').count() === 1, 'an entry dragged out of the field shows it will be taken out');
+    await page.mouse.up();
+    check((await listText()).endsWith('QSx2') && (await savedDeck())?.length === 86, `dropped there, it is taken out ("${await listText()}")`);
+    await setDeck('');
+    check(JSON.stringify(await savedDeck()) === '[]' && !(await page.$('.lf-status.bad')), 'a shoe can be left empty');
     await setDeck('? AS');
     let err = await page.textContent('.lf-status.bad').catch(() => '');
     check(/"\?" is not a card/.test(err) && !/joker|special/i.test(err), `${lv.id}: deck rejects "?" where no special cards are allowed ("${err}")`);
@@ -2043,7 +2061,7 @@ try {
 
   // Test-only floors (?testlevels adds test/ui-levels.js to the bonus deck).
   {
-    const { BONUS: TB, SOLUTIONS } = await import(join(repo, 'test/ui-levels.js'));
+    const { BONUS: TB, SOLUTIONS } = await import(pathToFileURL(join(repo, 'test/ui-levels.js')).href);
     const T = `${base}?testlevels`;
     const nBonus = BONUS_LEVELS.length + TB.length;
     const setSave = (levels) => page.evaluate((l) => localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: l })), levels);
@@ -2101,7 +2119,7 @@ try {
     check(await page.locator('a.tile[data-level="test-two-keys"]').count() === 1, 'and opens once both are cleared');
     // The floor: dropped campaign cards, keeping their card, always open.
     {
-      const { FLOOR: TF } = await import(join(repo, 'test/ui-levels.js'));
+      const { FLOOR: TF } = await import(pathToFileURL(join(repo, 'test/ui-levels.js')).href);
       // Only floors the player has played are on it (a machine saved counts).
       const played = { cells: SOLUTIONS['test-pay-twice'] };
       await setSave({ 'test-dropped': played, 'test-dropped-later': played });
@@ -2278,7 +2296,7 @@ try {
     // Outside the live site, a solution scored on a floor that has changed
     // since (here: one saved with no record of its floor) is re-scored on
     // load; dev mode's button re-scores every one.
-    const parCells = (await import(join(repo, 'solutions/levels', `${first.id}.js`))).default.cells;
+    const parCells = (await import(pathToFileURL(join(repo, 'solutions/levels', `${first.id}.js`)).href)).default.cells;
     await dp.evaluate(([id, cells, par]) => localStorage.setItem('stacked-deck-v1', JSON.stringify({ levels: { [id]: {
       solved: true, solutions: [{ cells, croupiers: par.croupiers, rounds: 1, at: 1, rules: 0 }],
     } } })), [first.id, parCells, first.par]);
@@ -2303,7 +2321,7 @@ try {
   // save says so and offers the file instead.
   {
     const [l0, l1] = LEVELS;
-    const ref = async (lv) => (await import(join(repo, 'solutions/levels', `${lv.id}.js`))).default.cells;
+    const ref = async (lv) => (await import(pathToFileURL(join(repo, 'solutions/levels', `${lv.id}.js`)).href)).default.cells;
     const KEY = 'stacked-deck-v1';
     const stored = (pg) => pg.evaluate((k) => JSON.parse(localStorage.getItem(k)).levels, KEY);
     const shared = await browser.newContext({ viewport: { width: 1440, height: 860 } });
@@ -2402,7 +2420,7 @@ try {
     const have = new Set(readdirSync(join(repo, 'solutions/levels')).map((f) => f.replace(/\.js$/, '')));
     for (const lv of [...LEVELS, ...BONUS_LEVELS]) {
       if (!have.has(lv.id)) { console.log(`skip ${lv.id}: no reference solution`); continue; }
-      const sol = (await import(join(repo, 'solutions/levels', `${lv.id}.js`))).default;
+      const sol = (await import(pathToFileURL(join(repo, 'solutions/levels', `${lv.id}.js`)).href)).default;
       await page.goto(base);
       await page.evaluate(([id, cells]) => {
         const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');

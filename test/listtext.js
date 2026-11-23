@@ -66,7 +66,7 @@ assert.match(err('deal', 'NE)x2'), /no "\("/);
 assert.match(err('deal', `NEx${MAX_DEAL_SIDES + 1}`), /at most 60 sides/);
 assert.strictEqual(err('deal', `NEx${MAX_DEAL_SIDES}`), null);
 assert.match(err('shoe', 'AS-KH'), /stays in one suit/);
-assert.match(err('shoe', ''), /at least one card/);
+assert.strictEqual(err('shoe', ''), null); // an empty shoe deals nothing
 assert.match(err('shoe', '(deck)x9x9'), /"x9" is not a card/);
 assert.match(err('shoe', `(deck)x${Math.ceil(MAX_DECK / 52) + 1}`), /at most 1000 cards/);
 assert.match(err('shoe', '((deck)x999)x999'), /at most 1000 cards/); // stops expanding at the limit

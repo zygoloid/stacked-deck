@@ -718,24 +718,28 @@ svg.board.placing { cursor: copy; }
 .list-field { display: grid; gap: 0.4375rem; min-width: 0; }
 .lf-text { position: relative; }
 .lf-chips {
-  position: relative; border: 1px solid var(--gold-soft); border-radius: 0.5rem; background: rgba(0, 0, 0, 0.35);
-  padding: 0.3125rem 0.4375rem; min-height: 3rem; line-height: 2.25rem; cursor: text; outline: none;
+  /* (No font of its own: every entry is centred on the line's baseline, in
+     a group or not, and a group's frame is its padding, centred on it too.) */
+  position: relative; isolation: isolate; border: 1px solid var(--gold-soft); border-radius: 0.5rem; background: rgba(0, 0, 0, 0.35);
+  padding: 0.3125rem 0.4375rem; min-height: 3rem; font-size: 0; line-height: 2.5rem; cursor: text; outline: none;
   user-select: none; -webkit-user-select: none; touch-action: pan-y;
 }
 .lf-text:focus-within .lf-chips { border-color: var(--gold); }
-.lf-empty { color: var(--muted); font-size: 0.75rem; margin-left: 0.25rem; }
+.lf-empty { color: var(--muted); font-size: 0.75rem; margin-left: 0.25rem; vertical-align: middle; }
 .lf-text:focus-within .lf-empty { display: none; }
 .lf-e {
-  display: inline-flex; align-items: center; gap: 0.125rem; vertical-align: middle; margin: 0.1875rem 0.0625rem;
+  display: inline-flex; align-items: center; gap: 0.125rem; vertical-align: middle; margin: 0 0.125rem;
   padding: 0.1875rem; border-radius: 0.375rem; line-height: 1; cursor: grab; touch-action: none;
 }
 .lf-e:hover { background: rgba(255, 255, 255, 0.07); }
-.lf-e.sel { background: rgba(242, 193, 78, 0.16); box-shadow: 0 0 0 0.125rem var(--gold-2); }
+/* the selection: a frame a line, behind the entries */
+.lf-sel-layer { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.lf-selbox { position: absolute; border-radius: 0.5rem; background: rgba(242, 193, 78, 0.16); box-shadow: 0 0 0 0.125rem var(--gold-2); }
 .lf-e.bad { color: #ffb3b3; font: 600 0.8125rem/1.5rem ui-monospace, 'SF Mono', Menlo, Consolas, monospace; text-decoration: underline wavy var(--bad); text-decoration-skip-ink: none; }
 .lf-e.bad:has(.card, .lf-side, .lf-deck) { text-decoration: none; box-shadow: 0 0 0 0.125rem var(--bad); }
 .lf-e .card, .lf-ghost .card, .lf-ctx-chip .card, .lf-float .card { width: 1.625rem; height: 1.5rem; line-height: 1.5rem; font-size: 0.8125rem; }
 .lf-e .card i, .lf-ghost .card i, .lf-ctx-chip .card i, .lf-float .card i { font-size: 0.8125rem; }
-.lf-dash { color: var(--gold-2); font-weight: 800; margin: 0 0.0625rem; }
+.lf-dash { color: var(--gold-2); font-size: 0.875rem; font-weight: 800; margin: 0 0.0625rem; }
 .lf-n {
   font: 800 0.71875rem/1 var(--sans); color: var(--gold-2); background: rgba(242, 193, 78, 0.14);
   border: 1px solid rgba(242, 193, 78, 0.4); border-radius: 0.3125rem; padding: 0.1875rem 0.25rem; margin-left: 0.0625rem;
@@ -753,17 +757,16 @@ svg.board.placing { cursor: copy; }
 }
 /* a group: an inline box, so it wraps across lines with its ends drawn on each */
 .lf-group {
-  display: inline; padding: 0.375rem 0.1875rem; margin: 0 0.125rem; border: 1px solid rgba(242, 193, 78, 0.55);
+  display: inline; padding: 1.0625rem 0.1875rem; margin: 0 0.125rem; border: 1px solid rgba(242, 193, 78, 0.55);
   border-radius: 0.625rem; background: rgba(242, 193, 78, 0.07);
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
-.lf-group.sel { background: rgba(242, 193, 78, 0.18); box-shadow: 0 0 0 1px var(--gold-2); }
 .lf-group.bad { border-color: var(--bad); border-right-style: dashed; }
 .lf-open { display: inline-block; width: 0.25rem; height: 1.5rem; vertical-align: middle; touch-action: none; }
-.lf-end { white-space: nowrap; }
+.lf-start, .lf-end { white-space: nowrap; }
+.lf-start .lf-group, .lf-end .lf-group { white-space: normal; }
 .lf-gn { display: inline-block; vertical-align: middle; margin: 0 0.125rem 0 0.1875rem; cursor: pointer; touch-action: none; }
 .lf-gn.one { opacity: 0.6; }
-.lf-gn.sel { background: var(--gold-2); color: #2a1d02; }
 .lf-gn.bad { border-color: var(--bad); color: #ffb3b3; }
 .lf-lifted { opacity: 0.3; }
 /* the typing box, over its slot among the entries */
@@ -776,7 +779,12 @@ svg.board.placing { cursor: copy; }
 .lf-type.on { opacity: 1; pointer-events: auto; width: 0.5rem; }
 .lf-type.filled { padding: 0 0.375rem; border: 1px dashed var(--gold); border-radius: 0.375rem; background: rgba(0, 0, 0, 0.45); }
 .lf-type.bad { border-color: var(--bad); color: #ffb3b3; text-decoration: underline wavy var(--bad); text-decoration-skip-ink: none; }
-.lf-ghost { display: inline-flex; align-items: center; gap: 0.125rem; vertical-align: middle; margin: 0 0.25rem 0 0.125rem; opacity: 0.5; pointer-events: none; }
+/* what the typing box will add, over it */
+.lf-ghost {
+  position: absolute; z-index: 2; display: inline-flex; align-items: center; gap: 0.125rem; line-height: 1; pointer-events: none;
+  padding: 0.1875rem; border: 1px dashed var(--gold-soft); border-radius: 0.375rem; background: rgba(6, 30, 18, 0.92);
+}
+.lf-ghost > * { opacity: 0.8; }
 .lf-ghost .lf-side { height: 1.25rem; font-size: 0.75rem; }
 .lf-ghost-n { font: 700 0.75rem var(--sans); color: var(--gold-2); }
 .lf-drop {
@@ -785,10 +793,16 @@ svg.board.placing { cursor: copy; }
 }
 .lf-drop.on { display: block; }
 .lf-float {
-  position: fixed; z-index: 50; pointer-events: none; display: flex; align-items: center; gap: 0.125rem; line-height: 2.25rem;
+  position: fixed; z-index: 50; pointer-events: none; display: flex; align-items: center; gap: 0.125rem; font-size: 0; line-height: 2.25rem;
   padding: 0.125rem 0.25rem; border-radius: 0.5rem; background: rgba(20, 40, 28, 0.92); transform: rotate(-3deg);
   filter: drop-shadow(0 0.375rem 0.5rem rgba(0, 0, 0, 0.6));
 }
+.lf-float .lf-group { padding-block: 0.5rem; }
+/* outside the field: dropping it takes it out */
+.lf-float.out { background: rgba(110, 20, 30, 0.92); box-shadow: 0 0 0 0.125rem var(--bad); }
+.lf-float.out > :not(.lf-float-x) { opacity: 0.55; }
+.lf-float-x { display: none; font: 800 0.875rem/1 var(--sans); color: #fff; margin-left: 0.25rem; }
+.lf-float.out .lf-float-x { display: block; }
 /* the Text view */
 .lf-textarea {
   display: none; width: 100%; min-height: 3rem; resize: none; overflow: hidden; border: 1px solid var(--gold-soft); border-radius: 0.5rem;
