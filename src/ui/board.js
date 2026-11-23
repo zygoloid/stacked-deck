@@ -252,7 +252,7 @@ export class Board {
 
   isBuildable(at) { return this.floorKeys.has(hexKey(at)); }
 
-  // state: { cells, selected (key), activePort, hover {at, side, edge}, live (Floor), alert (key), ghost {at, tool},
+  // state: { cells, selected (key), activePort, hover {at, side, edge}, live (Floor), alert (key), ghost {at, tool}, pickHint {at, side},
   //   anim {from, t, back} }
   // anim moves the live cards from where they were drawn before the last step
   // (`from`: this.positions then) toward where they are now, t from 0 to 1.
@@ -354,6 +354,12 @@ export class Board {
       if (state.pick.side !== undefined) g.append(this.arrowsSvg({ kind: 'shoe', out: state.pick.side }, undefined, null, { ghost: true }));
       gOver.append(g);
     }
+    // With the pointer by an edge of an empty hex: the first port a click
+    // there would point (opening the picker), see-through.
+    if (state.pickHint) {
+      const t = `translate(${center(state.pickHint.at).join(',')})`;
+      gOver.append(this.arrowsSvg({ kind: 'shoe', out: state.pickHint.side }, t, null, { ghost: true }));
+    }
     // Selection overlay and edge hints.
     if (state.selected) {
       const cell = cells.find((c) => hexKey(c.at) === state.selected);
@@ -410,8 +416,8 @@ export class Board {
   // any is a change.)
   sameScene(state) {
     const d = this.drawn;
-    const keys = ['cells', 'selected', 'activePort', 'hover', 'tool', 'drag', 'pick', 'preview', 'ghost', 'lifted'];
-    return keys.every((k) => (state[k] ?? null) === (d[k] ?? null)) && !state.preview && !state.ghost && !state.lifted
+    const keys = ['cells', 'selected', 'activePort', 'hover', 'tool', 'drag', 'pick', 'pickHint', 'preview', 'ghost', 'lifted'];
+    return keys.every((k) => (state[k] ?? null) === (d[k] ?? null)) && !state.preview && !state.ghost && !state.pickHint && !state.lifted
       // (The tutorial's ring is made afresh for each render too, but is shown
       // while playing: compared by where it is.)
       && JSON.stringify(state.coach ?? null) === JSON.stringify(d.coach ?? null);
@@ -665,7 +671,8 @@ export class Board {
       const [ux, uy] = unit(side);
       const r0 = isFixed ? 16 : CHIP + 1, r1 = AP + 1;
       const a = s('g', { class: mark === 'new' ? 'new' : '' });
-      g.append(mark === 'new' ? a : fade(a, side, mark === 'gone'));
+      // (Faded once it is all drawn: fade copies it.)
+      const done = () => g.append(mark === 'new' ? a : fade(a, side, mark === 'gone'));
       const line = { x1: ux * r0, y1: uy * r0, x2: ux * (r1 - 6), y2: uy * (r1 - 6) };
       // arrowhead straddling the edge
       const bx = ux * (r1 - 7), by = uy * (r1 - 7), tx = ux * (r1 + 6), ty = uy * (r1 + 6);
@@ -673,7 +680,7 @@ export class Board {
       const head = `${bx + px},${by + py} ${tx},${ty} ${bx - px},${by - py}`;
       a.append(s('line', { class: 'port-line', ...line, stroke: st.color }),
         s('polygon', { class: 'port-head', fill: st.color, points: head }));
-      if (isFixed || (ports.length === 1 && ports[0][0] === 'out')) continue;
+      if (isFixed || (ports.length === 1 && ports[0][0] === 'out')) { done(); continue; }
       // One pill per port (deal: one pill listing the deal positions,
       // collapsed to fit the hex), laid side by side along the edge.
       const horizontal = Math.abs(uy) > 0.1; // tangent mostly horizontal for the slanted sides
@@ -703,6 +710,7 @@ export class Board {
         // (A port leaving an arrow that stays: its pill alone turns grey.)
         a.append(pm === 'new' || !pk || mark ? pill : fade(pill, pk, pm === 'gone'));
       });
+      done();
     }
     return g;
   }
