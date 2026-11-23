@@ -721,7 +721,7 @@ svg.board.placing { cursor: copy; }
   /* (No font of its own: every entry is centred on the line's baseline, in
      a group or not, and a group's frame is its padding, centred on it too.) */
   position: relative; isolation: isolate; border: 1px solid var(--gold-soft); border-radius: 0.5rem; background: rgba(0, 0, 0, 0.35);
-  padding: 0.3125rem 0.4375rem; min-height: 3rem; font-size: 0; line-height: 2.5rem; cursor: text; outline: none;
+  padding: 0.3125rem 0.4375rem; min-height: calc(2.5rem + 0.625rem + 2px); /* one line, empty or not */ font-size: 0; line-height: 2.5rem; cursor: text; outline: none;
   user-select: none; -webkit-user-select: none; touch-action: pan-y;
 }
 .lf-text:focus-within .lf-chips { border-color: var(--gold); }
