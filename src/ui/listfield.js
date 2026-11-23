@@ -1,335 +1,722 @@
-// The inspector's editor for a Deal's side list and a shoe's deck: a
-// multi-line text field (src/ui/listtext.js has the grammar) that paints its
-// own text, plus a pad of taps for the same entries and tools to erase and
-// move them.
+// The inspector's editor for a Deal's side list and a shoe's deck.
 //
-// The textarea's own text is invisible; a copy of it underneath is painted
-// entry by entry (sides in their colours, cards as little cards, counts in
-// gold, mistakes underlined). The copy must lay out exactly as the textarea
-// does, so it may only change what keeps every character the same width:
-// colours, backgrounds, upper case in a monospace font, and glyph swaps in a
-// 1ch box (H→♥, x→×). Those boxes would add line breaks the textarea doesn't
-// have, so a painted entry never breaks inside.
+// The list is kept as text (src/ui/listtext.js has the grammar) and shown as
+// a row of entries: cards as card faces, runs as their two ends, a new deck
+// as a card back, Deal sides as their coloured badges, counts as gold tags,
+// and groups as frames (inline boxes, so a group wraps across lines). The
+// caret is a gap between entries (inside a group's brackets too); typing
+// opens a small box there, which adds its entry on Space, Enter or a comma.
+// Entries are selected by a tap, a Shift-click, Shift+arrows or a drag across
+// the field's background, and moved by dragging them.
 //
-// Every pad tap writes the text a player would type (a second tap on the same
-// entry makes it NEx2), so the shorthand is learned by watching the field.
-// Leaving the field tidies each entry into the same form (listtext.js tidyText).
-import { h, cardEl, SPECIAL_FACE } from './dom.js';
+// Every change made here reads as a list (text that doesn't stays in the
+// typing box), so each one is a single edit of the croupier. The Text view
+// shows the same list in its shorthand, in a plain text box, and is applied
+// when it is left.
+//
+// Under the field, a pad: a shoe's cards (a drag along a suit adds a run) or a
+// Deal's sides. A pad tap adds at the caret; the same entry again makes it x2.
+import { h, cardEl, cardName, uiScale, SUIT_GLYPH } from './dom.js';
 import {
-  readList, tokenAt, setCount, removeRange, moveToken, ungroup, wrapGroup, tapEntry, tidyText, padSpecials, isLoneSpecial, isPadded, SIDE_TEXT, SIDE_ARROWS,
+  readList, lexList, setCount, removeRange, ungroup, wrapGroup, tapEntry, tidyText, matching,
+  gapOffset, gapAt, balance, tapAt, insertAt, moveTokens, SIDE_TEXT, SIDE_ARROWS,
 } from './listtext.js';
 
-// One colour per side, E round to NE (the painted Deal list and its pad).
+// One colour per side, E round to NE (Deal lists and their pad).
 export const SIDE_COLOURS = ['#f2c14e', '#f08a5d', '#e8709f', '#a99af4', '#62b6ea', '#5fd3a0'];
-const SUIT_GLYPH = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const RANKS = 'A23456789TJQK'.split('');
 const SUITS = ['S', 'D', 'C', 'H'];
+const rankText = (r) => (r === 'T' ? '10' : r);
+const COUNT_ONLY = /^[xX×*]\s*(\d+)$/;
 
-// kind: 'deal' or 'shoe'. text/caret: what to show. specials: the special
-// cards the floor allows. mode: 'type' | 'erase' | 'move'.
-// onEdit({ text, caret, list, typed }) after every change (list is null while
-// the text has a mistake; typed: it came from typing, not a tap or a tool).
+// kind: 'deal' or 'shoe'. text: the list's text. specials: the special cards
+// the floor allows. mode: 'cards' | 'text'. keep: what the field it replaces
+// was showing ({ caret, sel, box, draft }, from state()).
+// onEdit({ text, list }) after every change of the list (or of its text).
 // onUndo/onRedo: Ctrl+Z and Ctrl+Shift+Z / Ctrl+Y in the field. onMode(mode).
-export function listField({ kind, text = '', caret = text.length, specials = [], mode = 'type', onEdit, onUndo, onRedo, onMode }) {
+export function listField({ kind, text = '', specials = [], mode = 'cards', keep = {}, onEdit, onUndo, onRedo, onMode }) {
   const deal = kind === 'deal';
-  const back = h('div', { class: 'lf-back', 'aria-hidden': 'true' });
-  const ta = h('textarea', {
-    class: 'lf-in', rows: 1, spellcheck: 'false', autocomplete: 'off', autocapitalize: 'characters', autocorrect: 'off',
-    'aria-label': deal ? 'Deal to: sides in order' : 'Deck, top first',
-  });
-  ta.value = text;
-  const box = h('div', { class: 'lf-text' }, back, ta);
-  const status = h('span', { class: 'lf-status' });
-  const tools = h('div', { class: 'seg lf-tools', role: 'group', 'aria-label': 'Tool' });
-  const ctx = h('div', { class: 'lf-ctx' });
+  const read = (t) => readList(kind, t, { specials });
   let toks = [], list = null, error = null;
-  // Keeps focus where it is (so a phone's keyboard doesn't come up for a tap).
+  let caret = Math.min(keep.caret ?? Infinity, lexList(kind, text).length); // a gap
+  let sel = keep.sel ?? null;   // selected tokens { a, b } (b exclusive), or null
+  let anchor = null;            // where a Shift selection started (a gap)
+  let flash = null;             // a mistake to show until the next change
+  let draft = keep.draft ?? null; // the Text view's text while it differs from the list
+  let els = [];                 // token -> its element (a chip, a group's opening mark, its count tag)
+
+  // Keeps the focus where it is (so a phone's keyboard doesn't come up for a tap).
   const noFocus = (e) => e.preventDefault();
 
-  // ---------- painting ----------
-  const glyph = (ch) => h('span', { class: 'g' }, ch);
-  function countPart(t) {
-    if (!t.counted) return null;
-    const m = /^(\s*)([xX×*])(.*)$/s.exec(t.text.slice(t.be - t.s));
-    return h('span', { class: 'lf-n' }, m[1], glyph('×'), m[3]);
-  }
-  // A rank: T is drawn as a small 10 in one character's width.
-  const rankPart = (r) => (/^t$/i.test(r) ? h('span', { class: 'g ten' }, h('i', {}, '1'), h('i', {}, '0')) : r);
-  // A card: "KH", "10h", "K♥", "$$", or a bare rank (the "A" of "A-KH");
-  // `lead`: the space in front of a one-character card, drawn as part of it.
-  function cardPart(str, lead = '') {
-    if (SPECIAL_FACE[str]) return h('span', { class: `lf-card ${str[0] === '$' ? 'ad' : 'joker'}` }, lead + str);
-    if (/^(10|[A2-9TJQK])$/i.test(str)) return h('span', { class: 'lf-card' }, rankPart(str));
-    const suit = str.at(-1);
-    const s = { '♠': 'S', '♥': 'H', '♦': 'D', '♣': 'C' }[suit] ?? suit.toUpperCase();
-    return h('span', { class: `lf-card${s === 'H' || s === 'D' ? ' red' : ''}` }, rankPart(str.slice(0, -1)), glyph(SUIT_GLYPH[s]));
-  }
-  function tokenEl(t, i, lead) {
-    const entry = t.text.slice(0, t.be - t.s);
-    let body;
-    if (t.kind === 'bad' || t.val === null) body = h('span', { class: 'lf-bad' }, t.text);
-    else if (t.kind !== 'item') body = [h('span', { class: `lf-par${t.err ? ' lf-bad' : ''}` }, entry), countPart(t)];
-    else if (deal) body = [h('span', { class: 'lf-side', style: `--c: ${SIDE_COLOURS[t.val]}` }, entry), countPart(t)];
-    else if (t.val.t === 'deck') body = [h('span', { class: 'lf-deck' }, entry), countPart(t)];
-    else if (t.val.t === 'run' && entry.includes('-')) {
-      const k = entry.indexOf('-');
-      body = [cardPart(entry.slice(0, k)), h('span', { class: 'lf-dash' }, glyph('–')), cardPart(entry.slice(k + 1)), countPart(t)];
-    } else if (t.val.t === 'run') {
-      body = [h('span', { class: `lf-card${t.val.s === 'H' || t.val.s === 'D' ? ' red' : ''}` }, glyph(SUIT_GLYPH[t.val.s])), countPart(t)];
-    } else body = [cardPart(entry, lead), countPart(t)];
-    const el = h('span', { class: `lf-tok${t.err ? ' err' : ''}`, 'data-t': i, title: t.err ?? undefined }, body);
-    return el;
-  }
-  function paint() {
-    const text = ta.value;
-    ({ toks, list, error } = readList(kind, text, { specials }));
-    const out = [];
-    let pos = 0;
-    toks.forEach((t, i) => {
-      // A padded one-character card takes its space into its face.
-      const lead = !deal && isLoneSpecial(t) && isPadded(text, t.s) ? ' ' : '';
-      if (t.s - lead.length > pos) out.push(text.slice(pos, t.s - lead.length));
-      out.push(tokenEl(t, i, lead));
-      pos = t.e;
-    });
-    out.push(text.slice(pos));
-    // A last empty line still takes a line's height in the textarea.
-    if (!text || text.endsWith('\n')) out.push('​');
-    back.replaceChildren(...out);
-    fit();
-  }
-  function fit() {
-    ta.style.height = 'auto';
-    ta.style.height = `${ta.scrollHeight}px`;
-  }
+  // ---------- the parts ----------
+  const box = h('div', { class: 'lf-chips', tabindex: '-1', role: 'group', 'aria-label': deal ? 'Deal to: sides in order' : 'Deck, top first' });
+  const inp = h('input', {
+    class: 'lf-type', type: 'text', spellcheck: 'false', autocomplete: 'off', autocapitalize: 'characters', autocorrect: 'off', enterkeyhint: 'done',
+    'aria-label': deal ? 'Add a side' : 'Add a card',
+  });
+  inp.value = keep.box ?? '';
+  const slot = h('span', { class: 'lf-slot' });   // keeps the typing box's room among the entries
+  const ghost = h('span', { class: 'lf-ghost', 'aria-hidden': 'true' });
+  const drop = h('span', { class: 'lf-drop', 'aria-hidden': 'true' });
+  const area = h('textarea', { class: 'lf-textarea', spellcheck: 'false', autocomplete: 'off', autocapitalize: 'characters', autocorrect: 'off', rows: 3, 'aria-label': deal ? 'Deal to, as text' : 'Deck, as text' });
+  const wrap = h('div', { class: 'lf-text' }, box, inp, drop, area);
+  const status = h('span', { class: 'lf-status' });
+  const views = h('span', { class: 'seg lf-views', role: 'group', 'aria-label': 'Show the list as' });
+  const ctx = h('div', { class: 'lf-ctx' });
 
-  // ---------- the status line and the entry at the caret ----------
-  let at = Math.min(caret, text.length); // the caret, remembered while the field isn't focused
-  // While the field has the focus, the caret is read from it: a tap on a
-  // phone can place it after every event that says so has gone by.
-  function sync() {
-    if (document.activeElement !== ta || ta.selectionEnd === at) return false;
-    at = ta.selectionEnd;
-    return true;
-  }
-  const currentIndex = () => tokenAt(toks, at);
-  function chip(t) {
-    if (deal) {
-      return h('span', { class: 'lf-chip-side', style: `--c: ${SIDE_COLOURS[t.val]}` }, SIDE_ARROWS[t.val], SIDE_TEXT[t.val]);
-    }
+  // ---------- drawing ----------
+  function face(t) {
+    if (deal) return h('span', { class: 'lf-side', style: `--c: ${SIDE_COLOURS[t.val]}` }, SIDE_ARROWS[t.val], SIDE_TEXT[t.val]);
     const v = t.val;
     if (v.t === 'card') return cardEl(v.c);
-    if (v.t === 'deck') return h('span', { class: 'lf-chip-deck' }, 'new deck');
-    return h('span', { class: 'lf-chip-run' }, cardEl(v.a + v.s), '–', cardEl(v.b + v.s));
+    if (v.t === 'deck') return h('span', { class: 'lf-deck' }, 'DECK');
+    return [cardEl(v.a + v.s), h('span', { class: 'lf-dash' }, '–'), cardEl(v.b + v.s)];
   }
-  function renderStatus() {
-    status.className = `lf-status${error ? ' bad' : ''}`;
-    const n = list?.length ?? 0;
-    status.textContent = error ?? (deal ? (n ? `${n} card${n === 1 ? '' : 's'}, then again` : 'No sides: drops every card') : `${n} card${n === 1 ? '' : 's'}`);
-    tools.replaceChildren(...[['type', 'Type'], ['erase', 'Erase'], ['move', 'Move']].map(([m, label]) => h('button', {
-      class: mode === m ? 'on' : '', 'data-mode': m, onpointerdown: noFocus, onclick: () => setMode(m),
-    }, label)));
-    if (mode !== 'type') {
-      ctx.replaceChildren(h('span', { class: 'lf-hint' }, mode === 'erase'
-        ? 'Tap an entry to erase it, or drag across several.' : 'Drag an entry to move it.'));
+  function title(t) {
+    if (t.err) return t.err;
+    if (deal) return `Deal to ${SIDE_TEXT[t.val]}`;
+    const v = t.val;
+    if (v.t === 'card') return cardName(v.c);
+    if (v.t === 'deck') return 'A new deck: A–K♠, A–K♦, K–A♣, K–A♥';
+    const n = Math.abs(RANKS.indexOf(v.a) - RANKS.indexOf(v.b)) + 1;
+    return `${rankText(v.a)}${SUIT_GLYPH[v.s]} to ${rankText(v.b)}${SUIT_GLYPH[v.s]} (${n} cards)`;
+  }
+  const countTag = (t) => (t.counted ? h('span', { class: 'lf-n' }, `×${t.n}`) : null);
+  function chip(t, i) {
+    if (t.kind === 'bad' || t.val == null) return h('span', { class: 'lf-e bad', 'data-i': i, title: t.err ?? '' }, t.text);
+    return h('span', { class: `lf-e${t.err ? ' bad' : ''}`, 'data-i': i, title: title(t) }, face(t), countTag(t));
+  }
+  const groupOf = (i) => els[i]?.closest('.lf-group');
+  function render() {
+    ({ toks, list, error } = read(text));
+    caret = Math.min(caret, toks.length);
+    els = [];
+    const out = [];
+    const stack = [out];
+    const add = (node) => (Array.isArray(stack.at(-1)) ? stack.at(-1).push(node) : stack.at(-1).append(node));
+    toks.forEach((t, i) => {
+      if (t.kind === 'open') {
+        els[i] = h('span', { class: 'lf-open', 'data-i': i, title: 'A repeated group' });
+        const g = h('span', { class: 'lf-group' }, els[i]);
+        add(g);
+        stack.push(g);
+      } else if (t.kind === 'close' && stack.length > 1) {
+        const g = stack.pop();
+        els[i] = h('span', { class: `lf-n lf-gn${t.counted ? '' : ' one'}${t.err ? ' bad' : ''}`, 'data-i': i, title: t.err ?? 'Repeats the group' }, `×${t.n}`);
+        // The count stays on the line of the group's last entry.
+        const kids = [...g.children];
+        let k = kids.length;
+        while (k > 1 && !kids[k - 1].matches('.lf-e, .lf-group')) k--;
+        g.append(h('span', { class: 'lf-end' }, ...(k > 1 ? kids.slice(k - 1) : []), els[i]));
+      } else {
+        els[i] = chip(t, i);
+        add(els[i]);
+      }
+    });
+    while (stack.length > 1) stack.pop().classList.add('bad'); // never closed
+    box.replaceChildren(...out);
+    el.dataset.text = text; // (for tests)
+    if (sel) {
+      for (let i = sel.a; i < sel.b; i++) {
+        if (toks[i].kind === 'open') groupOf(i)?.classList.add('sel');
+        else els[i]?.classList.add('sel');
+      }
+    }
+    box.classList.toggle('empty', !toks.length);
+    if (!toks.length) box.append(h('span', { class: 'lf-empty' }, deal ? 'No sides yet' : 'No cards yet'));
+    placeBox();
+    renderBar();
+  }
+  // Puts `node` in gap g among the entries.
+  function putAt(node, g) {
+    if (g === 0) { box.prepend(node); return; }
+    const t = toks[g - 1], el = els[g - 1];
+    if (t.kind === 'close' && groupOf(g - 1)) groupOf(g - 1).after(node);
+    else el.after(node);
+  }
+  // The typing box: drawn over a slot among the entries while the field has
+  // the focus, or while it holds text. (It stays where it is in the page: an
+  // input moved in the page loses the focus, and a phone its keyboard.)
+  const typing = () => document.activeElement === inp;
+  function placeBox() {
+    const text = inp.value;
+    const shown = mode === 'cards' && !sel && (typing() || text);
+    inp.classList.toggle('on', !!shown);
+    inp.classList.toggle('filled', !!text);
+    slot.remove(); ghost.remove();
+    if (!shown) { inp.style.left = inp.style.top = ''; return; }
+    inp.style.width = text ? `calc(${text.length + 1}ch + 0.875rem)` : '';
+    putAt(slot, caret);
+    const prev = ghostFor(text);
+    if (prev) { ghost.replaceChildren(...prev); slot.after(ghost); }
+    slot.style.width = `${inp.offsetWidth}px`;
+    const r = slot.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+    inp.style.left = `${r.left - w.left}px`;
+    inp.style.top = `${r.top - w.top + (r.height - inp.offsetHeight) / 2}px`;
+  }
+  // What the typing box's text will add, drawn faintly after it.
+  function ghostFor(t) {
+    const s = t.trim();
+    if (!s || COUNT_ONLY.test(s)) return null;
+    const r = read(s);
+    if (r.error) return null;
+    if (r.toks.length === 1 && r.toks[0].kind === 'item') return [face(r.toks[0]), countTag(r.toks[0])].flat().filter(Boolean);
+    return [h('span', { class: 'lf-ghost-n' }, `+${r.list.length}`)];
+  }
+
+  // ---------- the status line and the bar under it ----------
+  const cardsIn = (a, b) => read(text.slice(toks[a].s, toks[b - 1].e)).list?.length ?? 0;
+  const entriesIn = (a, b) => {
+    let n = 0;
+    for (let i = a; i < b; i++) {
+      if (toks[i].kind === 'open') { n++; i = Math.max(i, matching(toks, i)); } else if (toks[i].kind !== 'close') n++;
+    }
+    return n;
+  };
+  // The group whose brackets are tokens o and c, if sel is exactly that.
+  const selGroup = () => (sel && toks[sel.a]?.kind === 'open' && matching(toks, sel.a) === sel.b - 1 ? sel.a : -1);
+  function renderBar() {
+    const shownError = flash ?? (mode === 'text' ? (draft !== null ? read(draft).error : null) : boxShownError()) ?? error;
+    status.className = `lf-status${shownError ? ' bad' : ''}`;
+    const n = (mode === 'text' && draft !== null ? read(draft).list : list)?.length ?? 0;
+    status.textContent = shownError ?? (deal ? (n ? `${n} card${n === 1 ? '' : 's'}, then again` : 'No sides: drops every card') : `${n} card${n === 1 ? '' : 's'}`);
+    const textBad = mode === 'text' && draft !== null && !!read(draft).error;
+    views.replaceChildren(
+      h('button', {
+        class: mode === 'cards' ? 'on' : '', 'data-view': 'cards', onpointerdown: noFocus, disabled: textBad,
+        title: textBad ? 'Put the mistake right first (Esc in the text puts the list back)' : undefined, onclick: () => setMode('cards'),
+      }, deal ? 'Sides' : 'Cards'),
+      h('button', { class: mode === 'text' ? 'on' : '', 'data-view': 'text', onpointerdown: noFocus, onclick: () => setMode('text') }, 'Text'));
+    renderCtx();
+  }
+  const stepper = (n, set) => h('span', { class: 'lf-step' },
+    h('button', { 'aria-label': 'One fewer', title: 'One fewer', onpointerdown: noFocus, disabled: n <= 1, onclick: () => set(n - 1) }, '−'),
+    h('span', {}, n),
+    h('button', { 'aria-label': 'One more', title: 'One more', onpointerdown: noFocus, onclick: () => set(n + 1) }, '+'));
+  const delBtn = (what) => h('button', { class: 'lf-del', title: `Remove ${what}`, 'aria-label': `Remove ${what}`, onpointerdown: noFocus, onclick: removeSel }, '✕');
+  function renderCtx() {
+    if (mode === 'text') {
+      ctx.replaceChildren(h('span', { class: 'lf-hint' }, 'The list as text. Leaving the box puts it into the list; Esc puts the list back.'));
       return;
     }
-    const i = currentIndex();
-    const t = toks[i];
-    if (!t || t.err || (t.kind === 'item' && t.val == null)) {
+    const g = selGroup();
+    if (sel && sel.b - sel.a === 1 && toks[sel.a].kind === 'item' && toks[sel.a].val != null) {
+      const t = toks[sel.a];
+      ctx.replaceChildren(h('span', { class: 'lf-ctx-chip' }, face(t)), stepper(t.n, (k) => edit(setCount(text, toks[sel.a], k), { sel: { ...sel } })), delBtn('it'));
+    } else if (g >= 0) {
+      const c = toks[sel.b - 1];
+      ctx.replaceChildren(
+        h('span', { class: 'lf-ctx-n' }, `A group: ${entriesIn(g + 1, sel.b - 1)} entr${entriesIn(g + 1, sel.b - 1) === 1 ? 'y' : 'ies'}, ${cardsIn(g, sel.b)} cards in all`),
+        stepper(c.n, (k) => edit(setCount(text, toks[sel.b - 1], k), { sel: { ...sel } })),
+        h('button', { class: 'btn small', title: 'Take the brackets away, keeping what is in them', onpointerdown: noFocus, onclick: () => {
+          const r = ungroup(text, toks, sel.a);
+          edit(r, { caret: gapAt(lexList(kind, r.text), r.caret) });
+        } }, 'Ungroup'),
+        delBtn('the group'));
+    } else if (sel) {
+      const e = entriesIn(sel.a, sel.b);
+      ctx.replaceChildren(
+        h('span', { class: 'lf-ctx-n' }, `${e} entr${e === 1 ? 'y' : 'ies'}, ${cardsIn(sel.a, sel.b)} cards`),
+        h('button', { class: 'btn small', title: 'Repeat these as a group', onpointerdown: noFocus, onclick: group }, '( )×2'),
+        delBtn('them'));
+    } else {
       ctx.replaceChildren(h('span', { class: 'lf-hint' }, deal
         ? 'Tap a side to add it; tap it again to deal there twice in a row.'
-        : 'Tap a card to add it; tap it again for two. A suit adds all thirteen.'));
-      return;
+        : 'Tap a card to add it; tap it again for two. Drag along a suit for a run.'));
     }
-    const counted = t.kind !== 'open';
-    ctx.replaceChildren(
-      t.kind === 'item' ? chip(t) : h('span', { class: 'lf-chip-par' }, t.kind === 'open' ? '(' : ')'),
-      h('code', {}, t.text),
-      counted ? h('span', { class: 'lf-step' },
-        h('button', { 'aria-label': 'One fewer', title: 'One fewer', onpointerdown: noFocus, disabled: t.n <= 1, onclick: () => apply(() => setCount(ta.value, toks[i], t.n - 1)) }, '−'),
-        h('span', {}, t.n),
-        h('button', { 'aria-label': 'One more', title: 'One more', onpointerdown: noFocus, onclick: () => apply(() => setCount(ta.value, toks[i], t.n + 1)) }, '+')) : null,
-      h('button', {
-        class: 'lf-del', title: t.kind === 'item' ? 'Remove' : 'Remove the brackets (keep what is in them)', 'aria-label': 'Remove', onpointerdown: noFocus,
-        onclick: () => apply(() => (t.kind === 'item' ? removeRange(ta.value, t.s, t.e) : ungroup(ta.value, toks, i))),
-      }, '✕'));
   }
 
   // ---------- changes ----------
-  function setText(next, typed = false) {
-    ta.value = next.text;
-    at = Math.min(next.caret, next.text.length);
-    if (document.activeElement === ta) ta.setSelectionRange(at, at);
-    paint();
-    renderStatus();
-    onEdit?.({ text: ta.value, caret: at, list, typed });
+  // next: { text } from a listtext.js edit (or null: no change). The caret or
+  // selection afterwards: `sel`, else `caret` (a gap), else the edit's caret.
+  // A change that doesn't read as a list isn't made (it is shown instead).
+  function edit(next, after = {}) {
+    if (!next) return false;
+    const r = read(next.text);
+    if (r.error) { flash = r.error; renderBar(); return false; }
+    flash = null;
+    const before = text;
+    text = next.text;
+    sel = after.sel ?? null;
+    caret = after.caret ?? (next.caret !== undefined ? gapAt(r.toks, next.caret) : caret);
+    render();
+    if (text !== before) onEdit?.({ text, list: r.list });
+    return true;
   }
-  // An edit by the pad or a tool (typing is left as typed): one-character
-  // cards get their space, so they draw as wide as the rest.
-  function apply(fn) {
-    sync();
-    let next = fn();
-    if (next && !deal) next = padSpecials(next.text, next.caret);
-    if (next && (next.text !== ta.value || next.caret !== at)) setText(next);
+  const removeSel = () => {
+    if (!sel) return;
+    const a = sel.a;
+    // (The focus stays where it was: on a phone, the keyboard stays down.)
+    edit(removeRange(text, toks[sel.a].s, toks[sel.b - 1].e), { caret: a });
+  };
+  // ( )×2: the selection, or the entry (or group) just before the caret.
+  function group() {
+    let a, b;
+    if (sel) ({ a, b } = sel);
+    else if (toks[caret - 1]?.kind === 'item') [a, b] = [caret - 1, caret];
+    else if (toks[caret - 1]?.kind === 'close' && matching(toks, caret - 1) >= 0) [a, b] = [matching(toks, caret - 1), caret];
+    else return;
+    const r = wrapGroup(text, toks, toks[a].s, toks[b - 1].e);
+    if (r) edit(r, { sel: { a, b: b + 2 } });
   }
-  function setMode(m) {
-    mode = m;
-    el.classList.toggle('erasing', m === 'erase');
-    el.classList.toggle('moving', m === 'move');
-    ta.readOnly = m !== 'type';
-    if (m !== 'type') ta.blur();
-    renderStatus();
-    onMode?.(m);
+  // A tap on the pad (or from outside: the Deal's side keys, the port menu).
+  function tap(entry) {
+    if (mode === 'text') {
+      const at = document.activeElement === area ? area.selectionEnd : (draft ?? text).length;
+      const r = tapEntry(kind, draft ?? text, at, entry);
+      area.value = r.text;
+      draft = r.text;
+      if (document.activeElement === area) area.setSelectionRange(r.caret, r.caret);
+      else applyDraft();
+      fitArea();
+      renderBar();
+      return;
+    }
+    commitBox();
+    if (sel && sel.b - sel.a === 1 && toks[sel.a].kind === 'item') {
+      const add = lexList(kind, entry);
+      if (add.length === 1 && JSON.stringify(add[0].val) === JSON.stringify(toks[sel.a].val)) {
+        edit(setCount(text, toks[sel.a], toks[sel.a].n + 1), { sel: { ...sel } });
+        return;
+      }
+    }
+    if (sel) { caret = sel.b; sel = null; }
+    edit(tapAt(kind, text, caret, entry));
   }
-  const tap = (entry) => () => { if (mode !== 'type') setMode('type'); apply(() => tapEntry(kind, ta.value, at, entry)); };
-  const group = () => apply(() => {
-    const [a, b] = document.activeElement === ta ? [ta.selectionStart, ta.selectionEnd] : [at, at];
-    return wrapGroup(ta.value, toks, a, b);
+
+  // ---------- the typing box ----------
+  // Whether t is still being written: a group not yet closed.
+  const partial = (t) => (t.match(/\(/g)?.length ?? 0) > (t.match(/\)/g)?.length ?? 0);
+  // What adding the box's text would make of the list: { next, error }.
+  function boxResult() {
+    // (Upper case, as the pad writes it: in the list, and in a mistake.)
+    const s = inp.value.trim().toUpperCase();
+    if (!s) return null;
+    const m = COUNT_ONLY.exec(s);
+    if (m) {
+      const t = toks[caret - 1];
+      if (t && (t.kind === 'item' || (t.kind === 'close' && matching(toks, caret - 1) >= 0))) {
+        return { next: setCount(text, t, Number(m[1])) };
+      }
+      return { error: 'A count goes straight after an entry (NEx3, or (E W)x3)' };
+    }
+    const own = read(s);
+    if (own.error && !/at least one card/.test(own.error)) return { error: own.error };
+    const next = insertAt(text, gapOffset(text, toks, caret), tidyText(kind, s, 0).text);
+    const all = read(next.text);
+    return all.error ? { error: all.error } : { next };
+  }
+  const boxError = () => boxResult()?.error ?? null;
+  // (Shown once adding it has failed, not while it is being typed.)
+  const boxShownError = () => (inp.value.trim() && inp.classList.contains('bad') ? boxError() : null);
+  // Adds what is in the box; false (and it stays) when it isn't an entry.
+  function commitBox() {
+    const r = boxResult();
+    if (!r) { inp.value = ''; return true; }
+    if (r.error) { inp.classList.add('bad'); renderBar(); return false; }
+    inp.value = '';
+    edit(r.next);
+    return true;
+  }
+  inp.addEventListener('input', () => {
+    // A space or comma ends an entry (unless a group is still open), and so
+    // does a line break pasted in.
+    const v = inp.value;
+    if (/[\s,]$/.test(v) && !partial(v)) {
+      inp.value = v.replace(/[\s,]+$/, '');
+      if (inp.value) commitBox();
+    }
+    if (!/[\s,]$/.test(v) || partial(v)) inp.classList.remove('bad');
+    placeBox();
+    renderBar();
+  });
+  inp.addEventListener('paste', (e) => {
+    const t = e.clipboardData?.getData('text/plain');
+    if (t == null) return;
+    e.preventDefault();
+    const s = inp.selectionStart ?? inp.value.length, en = inp.selectionEnd ?? s;
+    inp.value = `${inp.value.slice(0, s)}${t.replace(/\s+/g, ' ').trim()}${inp.value.slice(en)}`;
+    if (!partial(inp.value)) commitBox();
+    placeBox();
+    renderBar();
+  });
+  inp.addEventListener('keydown', (e) => {
+    const k = e.key, empty = !inp.value;
+    if (undoKeys(e, empty)) return;
+    if (k === 'Enter') { e.preventDefault(); if (!empty) { commitBox(); placeBox(); renderBar(); } return; }
+    if (k === 'Escape') { e.preventDefault(); if (!empty) { inp.value = ''; placeBox(); renderBar(); } else inp.blur(); return; }
+    if (!empty) return;
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'a') { e.preventDefault(); if (toks.length) select(0, toks.length); return; }
+    if (k === 'Backspace' || k === 'Delete') {
+      e.preventDefault();
+      const i = k === 'Backspace' ? caret - 1 : caret;
+      const t = toks[i];
+      if (!t) return;
+      if (t.kind === 'item' || t.kind === 'bad' || matching(toks, i) < 0) edit(removeRange(text, t.s, t.e), { caret: i });
+      else { caret = k === 'Backspace' ? caret - 1 : caret + 1; placeBox(); } // into or out of a group
+      return;
+    }
+    if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home' || k === 'End') {
+      e.preventDefault();
+      const to = k === 'Home' ? 0 : k === 'End' ? toks.length : Math.max(0, Math.min(toks.length, caret + (k === 'ArrowLeft' ? -1 : 1)));
+      if (e.shiftKey && to !== caret) { anchor = caret; selectGaps(anchor, to); return; }
+      caret = to;
+      placeBox();
+    }
+  });
+  inp.addEventListener('focus', () => { sel = null; render(); });
+  inp.addEventListener('blur', () => {
+    if (!inp.isConnected) return;
+    commitBox();
+    placeBox();
+    renderBar();
+  });
+  // Ctrl+Z and Ctrl+Y (with nothing being typed: the box's own undo first).
+  function undoKeys(e, ours = true) {
+    const k = e.key.toLowerCase();
+    if (!(e.ctrlKey || e.metaKey) || (k !== 'z' && k !== 'y')) return false;
+    if (!ours) return true;
+    e.preventDefault();
+    if (k === 'y' || e.shiftKey) onRedo?.(); else onUndo?.();
+    return true;
+  }
+
+  // ---------- selection ----------
+  function select(a, b) {
+    [a, b] = balance(toks, a, b);
+    sel = { a, b };
+    render();
+    if (document.activeElement !== box) box.focus({ preventScroll: true });
+  }
+  // The entries between two gaps.
+  function selectGaps(g1, g2) {
+    const [a, b] = [Math.min(g1, g2), Math.max(g1, g2)];
+    if (a === b) { sel = null; caret = a; render(); return; }
+    select(a, b);
+  }
+  function collapse(to) {
+    sel = null;
+    caret = to;
+    render();
+    focusBox();
+  }
+  function focusBox() { inp.focus({ preventScroll: true }); placeBox(); }
+  box.addEventListener('keydown', (e) => {
+    if (e.target !== box) return;
+    const k = e.key;
+    if (undoKeys(e)) return;
+    if (!sel) {
+      // Nothing selected (one was just removed): over to the typing box.
+      if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); focusBox(); inp.value = k; inp.dispatchEvent(new Event('input')); } else if (/^(Arrow|Home|End|Backspace|Delete)/.test(k)) {
+        e.preventDefault();
+        focusBox();
+        inp.dispatchEvent(new KeyboardEvent('keydown', { key: k, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey }));
+      }
+      return;
+    }
+    if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); removeSel(); return; }
+    if (k === 'Escape') { e.preventDefault(); collapse(sel.b); return; }
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'a') { e.preventDefault(); select(0, toks.length); return; }
+    if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home' || k === 'End') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (anchor === null) anchor = sel.a;
+        const head = anchor === sel.a ? sel.b : sel.a;
+        const to = k === 'Home' ? 0 : k === 'End' ? toks.length : Math.max(0, Math.min(toks.length, head + (k === 'ArrowLeft' ? -1 : 1)));
+        selectGaps(anchor, to);
+        if (!sel) focusBox();
+        return;
+      }
+      collapse(k === 'ArrowLeft' || k === 'Home' ? (k === 'Home' ? 0 : sel.a) : (k === 'End' ? toks.length : sel.b));
+      return;
+    }
+    if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Typing goes after the selection.
+      e.preventDefault();
+      collapse(sel.b);
+      inp.value = k;
+      inp.dispatchEvent(new Event('input'));
+    }
+  });
+  // Copy, cut and paste the selection as text.
+  const selText = () => text.slice(toks[sel.a].s, toks[sel.b - 1].e).replace(/\s+/g, ' ');
+  box.addEventListener('copy', (e) => { if (!sel) return; e.preventDefault(); e.clipboardData.setData('text/plain', selText()); });
+  box.addEventListener('cut', (e) => { if (!sel) return; e.preventDefault(); e.clipboardData.setData('text/plain', selText()); removeSel(); });
+  box.addEventListener('paste', (e) => {
+    const t = e.clipboardData?.getData('text/plain');
+    if (!sel || t == null) return;
+    e.preventDefault();
+    const r = removeRange(text, toks[sel.a].s, toks[sel.b - 1].e);
+    const next = insertAt(r.text, r.caret, t.replace(/\s+/g, ' ').trim());
+    if (edit(next, { caret: gapAt(lexList(kind, next.text), next.caret) })) focusBox();
   });
 
-  ta.addEventListener('input', () => { at = ta.selectionEnd; paint(); renderStatus(); onEdit?.({ text: ta.value, caret: at, list, typed: true }); });
-  // The caret moved: the status line shows the entry it is at.
-  const track = () => { if (sync()) renderStatus(); };
-  for (const ev of ['selectionchange', 'keyup', 'pointerup', 'click', 'select', 'focus']) ta.addEventListener(ev, track);
-  ta.addEventListener('keydown', (e) => {
-    const k = e.key.toLowerCase();
-    if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) {
-      e.preventDefault();
-      if (k === 'y' || e.shiftKey) onRedo?.(); else onUndo?.();
-    } else if (e.key === 'Escape') ta.blur();
+  // ---------- pointing: caret, selection and moving ----------
+  // The entries' elements, for finding the gap nearest a point (`skip`: a
+  // range of tokens being moved).
+  function gapNear(x, y, skip = null) {
+    const near = [];
+    els.forEach((el, i) => {
+      if (!el || (skip && i >= skip.a && i < skip.b)) return;
+      const r = el.getBoundingClientRect();
+      near.push({ i, r, dy: y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0 });
+    });
+    if (!near.length) return 0;
+    // The row nearest the point, then the entry along it.
+    const dy = Math.min(...near.map((n) => n.dy));
+    let best = null, bd = Infinity;
+    for (const n of near) {
+      if (n.dy > dy + 2) continue;
+      const dx = x < n.r.left ? n.r.left - x : x > n.r.right ? x - n.r.right : 0;
+      if (dx < bd) { bd = dx; best = n; }
+    }
+    return best.i + (x > best.r.left + best.r.width / 2 ? 1 : 0);
+  }
+  // The tokens a press on an element stands for: an entry, or a whole group
+  // (by its count). A group's frame is like the field's background: a tap
+  // there puts the caret in the group.
+  function unitAt(target) {
+    const el = target.closest?.('[data-i]');
+    if (!el || !box.contains(el) || el.classList.contains('lf-open')) return null;
+    const i = +el.dataset.i, j = toks[i].kind === 'close' ? matching(toks, i) : -1;
+    return j >= 0 ? { a: j, b: i + 1 } : { a: i, b: i + 1 };
+  }
+  // Where gap g is drawn: the right edge of the entry before it, or the left
+  // edge of the one after.
+  function showDrop(g) {
+    if (g === null) { drop.classList.remove('on'); return; }
+    const w = wrap.getBoundingClientRect();
+    const before = g > 0 ? (toks[g - 1].kind === 'close' && groupOf(g - 1) ? groupOf(g - 1) : els[g - 1]) : null;
+    const after = g < toks.length ? (toks[g].kind === 'open' && groupOf(g) ? groupOf(g) : els[g]) : null;
+    const r = (before ?? after).getBoundingClientRect();
+    const rects = (before ?? after).getClientRects();
+    const rr = before ? rects[rects.length - 1] ?? r : rects[0] ?? r;
+    drop.style.left = `${(before ? rr.right + 1 : rr.left - 3) - w.left}px`;
+    drop.style.top = `${rr.top - w.top}px`;
+    drop.style.height = `${rr.height}px`;
+    drop.classList.add('on');
+  }
+  let press = null, float = null;
+  function floatOf(a, b) {
+    const parts = [];
+    for (let i = a; i < b; i++) {
+      if (toks[i].kind === 'open' && groupOf(i)) { parts.push(groupOf(i).cloneNode(true)); i = matching(toks, i); } else if (els[i]) parts.push(els[i].cloneNode(true));
+    }
+    const f = h('div', { class: 'lf-float' }, parts);
+    f.querySelectorAll('.sel').forEach((x) => x.classList.remove('sel'));
+    document.body.append(f);
+    return f;
+  }
+  box.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || mode !== 'cards') return;
+    e.preventDefault();
+    box.setPointerCapture?.(e.pointerId);
+    // (What is under the point itself: a touch's target can be moved onto an
+    // entry beside a gap.)
+    press = { id: e.pointerId, x0: e.clientX, y0: e.clientY, unit: unitAt(document.elementFromPoint(e.clientX, e.clientY) ?? e.target), gap: gapNear(e.clientX, e.clientY), moved: false, shift: e.shiftKey, touch: e.pointerType !== 'mouse' };
   });
-  // Leaving the field tidies what was typed (it reads as the same list, so
-  // this isn't an edit of the croupier). Not when the field is being taken
-  // away (the panel redrawn).
-  ta.addEventListener('blur', () => {
-    if (!ta.isConnected) return;
-    at = ta.selectionEnd; // where it was left (the focus has gone already)
-    apply(() => tidyText(kind, ta.value, at));
+  box.addEventListener('pointermove', (e) => {
+    if (!press || e.pointerId !== press.id) return;
+    const far = Math.hypot(e.clientX - press.x0, e.clientY - press.y0) > 6 * uiScale();
+    if (!press.moved && !far) return;
+    if (!press.moved) {
+      press.moved = true;
+      commitBox();
+      if (press.unit) {
+        // Moving: the selection, if this is part of it, else this entry.
+        const u = press.unit;
+        press.range = sel && u.a >= sel.a && u.b <= sel.b ? { ...sel } : u;
+        float = floatOf(press.range.a, press.range.b);
+        for (let i = press.range.a; i < press.range.b; i++) (toks[i].kind === 'open' ? groupOf(i) : els[i])?.classList.add('lf-lifted');
+      }
+    }
+    if (press.range) {
+      float.style.left = `${e.clientX + 8}px`;
+      float.style.top = `${e.clientY - 28 * uiScale()}px`;
+      const g = gapNear(e.clientX, e.clientY, press.range);
+      press.to = g >= press.range.a && g <= press.range.b ? null : g;
+      showDrop(press.to);
+    } else {
+      selectGaps(press.gap, gapNear(e.clientX, e.clientY));
+    }
   });
-  // The textarea may change width (a phone turned, the panel resized).
-  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(box);
+  function endPress(cancel) {
+    const p = press;
+    press = null;
+    float?.remove();
+    float = null;
+    showDrop(null);
+    if (!p) return;
+    if (p.range) {
+      if (!cancel && p.to != null) {
+        const r = moveTokens(kind, text, p.range.a, p.range.b, p.to);
+        if (r && edit({ text: r.text }, { sel: { a: r.a, b: r.b } })) { box.focus({ preventScroll: true }); return; }
+      }
+      render();
+      return;
+    }
+    if (cancel) return;
+    if (p.moved) { if (sel) box.focus({ preventScroll: true }); else focusBox(); return; }
+    commitBox();
+    anchor = null;
+    if (p.unit) {
+      if (p.shift && (sel || typing())) {
+        const from = sel ? sel.a : caret;
+        selectGaps(Math.min(from, p.unit.a), Math.max(sel ? sel.b : caret, p.unit.b));
+      } else if (sel && sel.a === p.unit.a && sel.b === p.unit.b) {
+        // A second tap: back to the caret, after it.
+        sel = null; caret = p.unit.b; render();
+        if (!p.touch) focusBox(); else box.focus({ preventScroll: true });
+      } else select(p.unit.a, p.unit.b);
+      return;
+    }
+    collapse(p.gap);
+  }
+  box.addEventListener('pointerup', (e) => { if (press && e.pointerId === press.id) endPress(false); });
+  box.addEventListener('pointercancel', () => endPress(true));
+  box.addEventListener('lostpointercapture', () => { if (press) endPress(false); });
+
+  // ---------- the Text view ----------
+  function fitArea() {
+    area.style.height = 'auto';
+    area.style.height = `${area.scrollHeight + 2}px`;
+  }
+  // The Text view's text into the list, when it reads as one (tidied). Not
+  // when the field is being taken away (the panel redrawn): the draft goes
+  // to the new field instead.
+  function applyDraft() {
+    if (draft === null) return true;
+    if (read(draft).error) return false;
+    const t = tidyText(kind, draft, 0).text;
+    draft = null;
+    if (t !== text) edit({ text: t }, { caret: lexList(kind, t).length });
+    area.value = text;
+    return true;
+  }
+  area.addEventListener('input', () => { draft = area.value === text ? null : area.value; fitArea(); renderBar(); });
+  area.addEventListener('blur', () => { if (area.isConnected && applyDraft()) { area.value = text; fitArea(); renderBar(); } });
+  area.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); draft = null; area.value = text; setMode('cards'); }
+  });
+
+  function setMode(m) {
+    if (m === mode) return;
+    if (mode === 'text' && !applyDraft()) { renderBar(); return; }
+    if (mode === 'cards') { commitBox(); inp.value = ''; }
+    mode = m;
+    sel = null;
+    el.classList.toggle('as-text', m === 'text');
+    if (m === 'text') { area.value = draft ?? text; requestAnimationFrame(fitArea); fitArea(); }
+    render();
+    onMode?.(m);
+  }
 
   // ---------- the pad ----------
   let pad;
-  const groupBtn = h('button', { class: 'btn small lf-group', title: 'Repeat the selected entries (or the one at the caret) as a group', onpointerdown: noFocus, onclick: group }, '( )×2');
+  const groupBtn = h('button', { class: 'btn small lf-group-btn', title: 'Repeat the selected entries (or the one before the caret) as a group', onpointerdown: noFocus, onclick: () => (mode === 'text' ? null : group()) }, '( )×2');
   if (deal) {
     const side = (d) => h('button', {
       class: 'lf-pad-side', style: `--c: ${SIDE_COLOURS[d]}`, title: `Deal to ${SIDE_TEXT[d]}`, 'aria-label': `Deal to ${SIDE_TEXT[d]}`, 'data-side': d,
-      onpointerdown: noFocus, onclick: tap(SIDE_TEXT[d]),
+      onpointerdown: noFocus, onclick: () => tap(SIDE_TEXT[d]),
     }, SIDE_ARROWS[d], SIDE_TEXT[d]);
     pad = h('div', { class: 'lf-pad deal' },
       h('div', { class: 'lf-hex' }, h('span'), side(4), side(5), h('span'), side(3), h('span', { class: 'lf-hub', 'aria-hidden': 'true' }, '⬡'), side(0), h('span'), side(2), side(1)),
       groupBtn);
   } else {
-    let up = true; // a suit button's order: A to K, or K to A
-    const order = h('span', { class: 'seg lf-order', title: 'Which way a suit button runs' });
-    const renderOrder = () => order.replaceChildren(
-      h('button', { class: up ? 'on' : '', onpointerdown: noFocus, onclick: () => { up = true; renderOrder(); } }, 'A→K'),
-      h('button', { class: up ? '' : 'on', onpointerdown: noFocus, onclick: () => { up = false; renderOrder(); } }, 'K→A'));
-    renderOrder();
-    const grid = [];
+    // A card a tap adds; a drag along its suit adds the run to where it ends
+    // (either way up). Keys work by keyboard too (Enter or Space: one card).
+    const keys = {};
+    const tip = h('span', { class: 'lf-pad-tip', 'aria-live': 'polite' });
+    const grid = h('div', { class: 'lf-grid' });
     for (const s of SUITS) {
-      grid.push(h('button', {
-        class: `lf-suit${s === 'H' || s === 'D' ? ' red' : ''}`, title: `Every ${SUIT_GLYPH[s]}`, 'aria-label': `Every ${SUIT_GLYPH[s]}`, 'data-suit': s,
-        onpointerdown: noFocus, onclick: () => tap(up ? `A${s}-K${s}` : `K${s}-A${s}`)(),
-      }, SUIT_GLYPH[s]));
       for (const r of RANKS) {
-        const face = cardEl(r + s, 'lf-key');
-        grid.push(h('button', { class: face.className, title: `${r === 'T' ? '10' : r}${SUIT_GLYPH[s]}`, 'data-card': r + s, onpointerdown: noFocus, onclick: tap(r + s) }, ...face.childNodes));
+        const c = r + s;
+        keys[c] = h('button', {
+          class: `lf-key${s === 'H' || s === 'D' ? ' red' : ''}`, title: `${rankText(r)}${SUIT_GLYPH[s]}`, 'data-card': c,
+          onclick: (e) => { if (e.detail === 0) tap(c); },
+        }, h('b', {}, rankText(r)), h('i', {}, SUIT_GLYPH[s]));
+        grid.append(keys[c]);
       }
     }
+    let run = null; // { s, from, to, id }
+    const runKeys = () => {
+      const [i, j] = [RANKS.indexOf(run.from), RANKS.indexOf(run.to)];
+      return RANKS.slice(Math.min(i, j), Math.max(i, j) + 1).map((r) => keys[r + run.s]);
+    };
+    const markRun = () => {
+      grid.querySelectorAll('.lf-run').forEach((k) => k.classList.remove('lf-run'));
+      if (!run) { tip.textContent = ''; return; }
+      for (const k of runKeys()) k.classList.add('lf-run');
+      const n = runKeys().length;
+      tip.textContent = n > 1 ? `${rankText(run.from)}${SUIT_GLYPH[run.s]} to ${rankText(run.to)}${SUIT_GLYPH[run.s]}: ${n} cards` : '';
+    };
+    grid.addEventListener('pointerdown', (e) => {
+      const k = e.target.closest?.('.lf-key');
+      if (!k || e.button !== 0) return;
+      e.preventDefault(); // (no focus: a phone's keyboard stays down)
+      grid.setPointerCapture?.(e.pointerId);
+      const c = k.dataset.card;
+      run = { s: c[1], from: c[0], to: c[0], id: e.pointerId };
+      markRun();
+    });
+    grid.addEventListener('pointermove', (e) => {
+      if (!run || e.pointerId !== run.id) return;
+      // The key in the run's own row under the pointer's x (clamped to the row).
+      let to = run.to;
+      for (const r of RANKS) {
+        const b = keys[r + run.s].getBoundingClientRect();
+        if (e.clientX >= b.left - 1 || r === 'A') to = r;
+      }
+      if (to !== run.to) { run.to = to; markRun(); }
+    });
+    const endRun = (cancel) => {
+      const r = run;
+      run = null;
+      markRun();
+      if (!r || cancel) return;
+      tap(r.from === r.to ? r.from + r.s : `${r.from}${r.s}-${r.to}${r.s}`);
+    };
+    grid.addEventListener('pointerup', (e) => { if (run && e.pointerId === run.id) endRun(false); });
+    grid.addEventListener('pointercancel', () => endRun(true));
+    const specialKeys = specials.map((c) => {
+      const f = cardEl(c, 'lf-key-sp');
+      return h('button', { class: f.className, title: cardName(c), 'data-card': c, onpointerdown: noFocus, onclick: () => tap(c) }, ...f.childNodes);
+    });
     pad = h('div', { class: 'lf-pad shoe' },
-      h('div', { class: 'lf-grid' }, grid),
+      grid,
       h('div', { class: 'lf-pad-row' },
-        specials.map((c) => {
-          const face = cardEl(c, 'lf-key');
-          return h('button', { class: face.className, title: SPECIAL_FACE[c].name, 'data-card': c, onpointerdown: noFocus, onclick: tap(c) }, ...face.childNodes);
-        }),
-        h('button', { class: 'btn small', title: 'A new deck: A–K♠, A–K♦, K–A♣, K–A♥', onpointerdown: noFocus, onclick: tap('deck') }, 'deck'),
-        groupBtn, order));
+        specialKeys,
+        h('button', { class: 'btn small', title: 'A new deck: A–K♠, A–K♦, K–A♣, K–A♥', 'data-card': 'deck', onpointerdown: noFocus, onclick: () => tap('deck') }, 'deck'),
+        groupBtn, tip));
   }
 
-  // ---------- erase and move ----------
-  let drag = null;
-  const tokEls = () => [...back.querySelectorAll('[data-t]')];
-  const unmark = () => tokEls().forEach((x) => x.classList.remove('lf-erasing', 'lf-moving', 'lf-drop-before', 'lf-drop-after'));
-  function nearest(x, y) {
-    let best = null, bd = Infinity;
-    for (const t of tokEls()) {
-      const r = t.getBoundingClientRect();
-      const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
-      const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
-      const d = dx * dx + 9 * dy * dy; // rows first, then along the row
-      if (d < bd) { bd = d; best = t; }
-    }
-    return best;
-  }
-  function mark() {
-    unmark();
-    const els = tokEls();
-    if (mode === 'erase') {
-      const [i, j] = [Math.min(drag.from, drag.to), Math.max(drag.from, drag.to)];
-      for (const t of els) if (+t.dataset.t >= i && +t.dataset.t <= j) t.classList.add('lf-erasing');
-    } else {
-      els[drag.from]?.classList.add('lf-moving');
-      if (drag.gap) els[drag.gap.i]?.classList.add(drag.gap.after ? 'lf-drop-after' : 'lf-drop-before');
-    }
-  }
-  back.addEventListener('pointerdown', (e) => {
-    const t = e.target.closest?.('[data-t]');
-    if (mode === 'type' || !t) return;
-    e.preventDefault();
-    back.setPointerCapture?.(e.pointerId);
-    drag = { from: +t.dataset.t, to: +t.dataset.t, gap: null };
-    mark();
-  });
-  back.addEventListener('pointermove', (e) => {
-    if (!drag) return;
-    if (mode === 'erase') {
-      const t = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('[data-t]');
-      if (t && back.contains(t)) drag.to = +t.dataset.t;
-    } else {
-      const t = nearest(e.clientX, e.clientY);
-      if (t) { const r = t.getBoundingClientRect(); drag.gap = { i: +t.dataset.t, after: e.clientX > r.left + r.width / 2 }; }
-    }
-    mark();
-  });
-  const endDrag = (cancel) => {
-    if (!drag) return;
-    const d = drag;
-    drag = null;
-    unmark();
-    if (cancel) return;
-    if (mode === 'erase') {
-      const [i, j] = [Math.min(d.from, d.to), Math.max(d.from, d.to)];
-      apply(() => removeRange(ta.value, toks[i].s, toks[j].e));
-    } else if (d.gap) {
-      const g = toks[d.gap.i];
-      apply(() => moveToken(ta.value, toks[d.from], d.gap.after ? g.e : g.s));
-    }
-  };
-  back.addEventListener('pointerup', () => endDrag(false));
-  back.addEventListener('pointercancel', () => endDrag(true));
-  back.addEventListener('lostpointercapture', () => endDrag(true));
-
-  const el = h('div', { class: `list-field ${kind}` },
-    box,
-    h('div', { class: 'lf-bar' }, tools, status),
+  const el = h('div', { class: `list-field ${kind}${mode === 'text' ? ' as-text' : ''}` },
+    wrap,
+    h('div', { class: 'lf-bar' }, status, views),
     ctx, pad);
-  ta.setSelectionRange(at, at); // so a focus by keyboard finds the caret where it was
-  paint();
-  setMode(mode);
+  if (draft !== null) area.value = draft;
+  else area.value = text;
+  render();
+  if (mode === 'text') requestAnimationFrame(fitArea);
+  // The field may change width (a phone turned, the panel resized).
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { placeBox(); if (mode === 'text') fitArea(); }).observe(wrap);
+
   return {
     el,
-    hasFocus: () => document.activeElement === ta,
-    // Focus the field with the caret at `c` (default: where it was).
-    // (The caret is set first: focusing reads it.)
-    focus(c = at) { at = Math.min(c, ta.value.length); ta.setSelectionRange(at, at); ta.focus({ preventScroll: true }); ta.setSelectionRange(at, at); renderStatus(); },
-    state: () => { sync(); return { text: ta.value, caret: at }; },
-    // A tap from outside the pad (the Deal's side keys, the board's port menu).
-    tap: (entry) => tap(entry)(),
-    // Replace the whole text (X: clear the Deal's list).
-    setText: (text) => apply(() => ({ text, caret: text.length })),
+    hasFocus: () => el.contains(document.activeElement) && document.activeElement !== el,
+    // Focus the field: the Text view's box, the selection or the caret.
+    focus() {
+      if (mode === 'text') area.focus({ preventScroll: true });
+      else if (sel) box.focus({ preventScroll: true });
+      else focusBox();
+    },
+    // What the field is showing, for the field that replaces it.
+    state: () => ({ text, caret, sel, box: inp.value, draft }),
+    tap,
+    // Replace the whole list (X: clear the Deal's list).
+    setText(t) {
+      if (mode === 'text') { draft = null; area.value = t; }
+      edit({ text: t }, { caret: lexList(kind, t).length });
+    },
   };
 }

@@ -712,76 +712,110 @@ svg.board.placing { cursor: copy; }
 .port-row.deal { flex-wrap: wrap; cursor: default; }
 .port-row.deal .list-field { flex: 1 1 100%; }
 
-/* A shoe's deck or a Deal's list as text (src/ui/listfield.js): a textarea
-   whose own text is invisible over a painted copy of it. The two must lay
-   out alike, so they share every metric, and the copy changes nothing that
-   would move a character: colours, backgrounds, upper case (monospace),
-   and glyphs swapped in a 1ch box, inside entries that never break. */
+/* A shoe's deck or a Deal's list (src/ui/listfield.js): its entries drawn
+   as cards, runs, decks and side badges, with counts as gold tags and
+   groups as frames; a typing box at the caret; a Text view; and a pad. */
 .list-field { display: grid; gap: 0.4375rem; min-width: 0; }
-.lf-text { position: relative; border: 1px solid var(--gold-soft); border-radius: 0.5rem; background: rgba(0, 0, 0, 0.35); }
-.lf-text:focus-within { border-color: var(--gold); }
-.lf-back, .lf-in {
-  margin: 0; border: 0; padding: 0.3125rem 0.5625rem; font: 600 0.84375rem/2 ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-  letter-spacing: 0; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; tab-size: 4;
+.lf-text { position: relative; }
+.lf-chips {
+  position: relative; border: 1px solid var(--gold-soft); border-radius: 0.5rem; background: rgba(0, 0, 0, 0.35);
+  padding: 0.3125rem 0.4375rem; min-height: 3rem; line-height: 2.25rem; cursor: text; outline: none;
+  user-select: none; -webkit-user-select: none; touch-action: pan-y;
 }
-.lf-back { position: absolute; inset: 0; overflow: hidden; color: var(--ink); pointer-events: none; }
-.lf-in {
-  position: relative; display: block; width: 100%; min-height: 3rem; resize: none; overflow: hidden; background: transparent; outline: none;
-  color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--gold-2);
+.lf-text:focus-within .lf-chips { border-color: var(--gold); }
+.lf-empty { color: var(--muted); font-size: 0.75rem; margin-left: 0.25rem; }
+.lf-text:focus-within .lf-empty { display: none; }
+.lf-e {
+  display: inline-flex; align-items: center; gap: 0.125rem; vertical-align: middle; margin: 0.1875rem 0.0625rem;
+  padding: 0.1875rem; border-radius: 0.375rem; line-height: 1; cursor: grab; touch-action: none;
 }
-.lf-in::selection { background: rgba(242, 193, 78, 0.35); }
-.lf-back .g { display: inline-block; width: 1ch; text-align: center; }
-.lf-tok { white-space: pre; position: relative; }
-.lf-side { background: var(--c); color: #10241a; box-shadow: 0 0 0 0.125rem var(--c); border-radius: 0.125rem; text-transform: uppercase; }
-.lf-card {
-  /* a halo above and below, and only 1px at the sides, so a count or a run's dash next to it stays clear */
-  --cb: var(--card); background: var(--cb); color: #16181d; border-radius: 0.125rem; text-transform: uppercase;
-  box-shadow: 0 0 0 1px var(--cb), 0 0.125rem 0 var(--cb), 0 -0.125rem 0 var(--cb);
+.lf-e:hover { background: rgba(255, 255, 255, 0.07); }
+.lf-e.sel { background: rgba(242, 193, 78, 0.16); box-shadow: 0 0 0 0.125rem var(--gold-2); }
+.lf-e.bad { color: #ffb3b3; font: 600 0.8125rem/1.5rem ui-monospace, 'SF Mono', Menlo, Consolas, monospace; text-decoration: underline wavy var(--bad); text-decoration-skip-ink: none; }
+.lf-e.bad:has(.card, .lf-side, .lf-deck) { text-decoration: none; box-shadow: 0 0 0 0.125rem var(--bad); }
+.lf-e .card, .lf-ghost .card, .lf-ctx-chip .card, .lf-float .card { width: 1.625rem; height: 1.5rem; line-height: 1.5rem; font-size: 0.8125rem; }
+.lf-e .card i, .lf-ghost .card i, .lf-ctx-chip .card i, .lf-float .card i { font-size: 0.8125rem; }
+.lf-dash { color: var(--gold-2); font-weight: 800; margin: 0 0.0625rem; }
+.lf-n {
+  font: 800 0.71875rem/1 var(--sans); color: var(--gold-2); background: rgba(242, 193, 78, 0.14);
+  border: 1px solid rgba(242, 193, 78, 0.4); border-radius: 0.3125rem; padding: 0.1875rem 0.25rem; margin-left: 0.0625rem;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.lf-card.red { color: var(--red); }
-.lf-card.ad { --cb: #dcf1d3; color: #1d6b3a; }
-.lf-card.joker { --cb: #fff; color: #c2185b; }
-/* A ten in one character: a small 1 up and to the left of a small 0. */
-.lf-back .g.ten { position: relative; line-height: 1; }
-.lf-back .g.ten::before { content: '0'; visibility: hidden; }
-.lf-back .g.ten i { position: absolute; font-style: normal; font-size: 0.74em; line-height: 1; }
-.lf-back .g.ten i:first-child { left: -0.08em; top: -0.12em; }
-.lf-back .g.ten i:last-child { right: -0.1em; top: 0.32em; }
-/* Gold on cream or felt: outlined so it reads against either. */
-.lf-n, .lf-par, .lf-dash { color: var(--gold-2); text-shadow: -1px 0 #10241a, 1px 0 #10241a, 0 -1px #10241a, 0 1px #10241a; }
-.lf-dash { font-weight: 800; }
-.lf-deck { color: var(--gold-2); text-decoration: underline dotted var(--gold-soft); text-underline-offset: 0.1875rem; }
-.lf-bad, .lf-tok.err > * { color: #ffb3b3; background: none; box-shadow: none; text-decoration: underline wavy var(--bad); text-decoration-skip-ink: none; }
-.list-field.erasing .lf-back, .list-field.moving .lf-back { pointer-events: auto; z-index: 1; touch-action: none; user-select: none; -webkit-user-select: none; }
-.list-field.erasing .lf-tok { cursor: pointer; }
-.list-field.moving .lf-tok { cursor: grab; }
-.list-field.erasing .lf-text, .list-field.moving .lf-text { border-style: dashed; }
-.lf-erasing { opacity: 0.45; outline: 0.125rem solid var(--bad); outline-offset: 0.125rem; border-radius: 0.1875rem; }
-.lf-moving { opacity: 0.35; }
-.lf-drop-before::before, .lf-drop-after::after {
-  content: ''; position: absolute; top: -0.25rem; bottom: -0.25rem; width: 0.1875rem; border-radius: 0.125rem; background: var(--gold-2);
+.lf-deck {
+  display: inline-grid; place-items: center; width: 2.5rem; height: 1.5rem; border-radius: 0.1875rem;
+  background: repeating-linear-gradient(45deg, #7b1e2b 0 0.1875rem, #8f2635 0.1875rem 0.375rem);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), inset 0 0 0 0.125rem var(--card), inset 0 0 0 0.1875rem #7b1e2b;
+  color: var(--card); font: 800 0.65625rem/1 var(--sans); letter-spacing: 0.04em; text-shadow: 0 1px 1px #000;
 }
-.lf-drop-before::before { left: -0.375rem; }
-.lf-drop-after::after { right: -0.375rem; }
-.lf-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.lf-tools button { padding: 0.1875rem 0.625rem; font-size: 0.75rem; }
+.lf-side {
+  display: inline-flex; align-items: center; gap: 0.1875rem; height: 1.5rem; padding: 0 0.5rem; border-radius: 0.375rem;
+  background: var(--c); color: #10241a; font: 800 0.8125rem/1 var(--sans);
+}
+/* a group: an inline box, so it wraps across lines with its ends drawn on each */
+.lf-group {
+  display: inline; padding: 0.375rem 0.1875rem; margin: 0 0.125rem; border: 1px solid rgba(242, 193, 78, 0.55);
+  border-radius: 0.625rem; background: rgba(242, 193, 78, 0.07);
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.lf-group.sel { background: rgba(242, 193, 78, 0.18); box-shadow: 0 0 0 1px var(--gold-2); }
+.lf-group.bad { border-color: var(--bad); border-right-style: dashed; }
+.lf-open { display: inline-block; width: 0.25rem; height: 1.5rem; vertical-align: middle; touch-action: none; }
+.lf-end { white-space: nowrap; }
+.lf-gn { display: inline-block; vertical-align: middle; margin: 0 0.125rem 0 0.1875rem; cursor: pointer; touch-action: none; }
+.lf-gn.one { opacity: 0.6; }
+.lf-gn.sel { background: var(--gold-2); color: #2a1d02; }
+.lf-gn.bad { border-color: var(--bad); color: #ffb3b3; }
+.lf-lifted { opacity: 0.3; }
+/* the typing box, over its slot among the entries */
+.lf-slot { display: inline-block; height: 1.75rem; vertical-align: middle; margin: 0 0.0625rem; }
+.lf-type {
+  position: absolute; left: 0; top: 0; width: 1px; height: 1.75rem; padding: 0; margin: 0; border: 0; opacity: 0; pointer-events: none;
+  background: none; color: var(--ink); caret-color: var(--gold-2); outline: none;
+  font: 600 0.84375rem/1 ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace; text-transform: uppercase;
+}
+.lf-type.on { opacity: 1; pointer-events: auto; width: 0.5rem; }
+.lf-type.filled { padding: 0 0.375rem; border: 1px dashed var(--gold); border-radius: 0.375rem; background: rgba(0, 0, 0, 0.45); }
+.lf-type.bad { border-color: var(--bad); color: #ffb3b3; text-decoration: underline wavy var(--bad); text-decoration-skip-ink: none; }
+.lf-ghost { display: inline-flex; align-items: center; gap: 0.125rem; vertical-align: middle; margin: 0 0.25rem 0 0.125rem; opacity: 0.5; pointer-events: none; }
+.lf-ghost .lf-side { height: 1.25rem; font-size: 0.75rem; }
+.lf-ghost-n { font: 700 0.75rem var(--sans); color: var(--gold-2); }
+.lf-drop {
+  position: absolute; width: 0.1875rem; border-radius: 0.125rem; background: var(--gold-2); box-shadow: 0 0 0.375rem var(--gold-2);
+  pointer-events: none; display: none;
+}
+.lf-drop.on { display: block; }
+.lf-float {
+  position: fixed; z-index: 50; pointer-events: none; display: flex; align-items: center; gap: 0.125rem; line-height: 2.25rem;
+  padding: 0.125rem 0.25rem; border-radius: 0.5rem; background: rgba(20, 40, 28, 0.92); transform: rotate(-3deg);
+  filter: drop-shadow(0 0.375rem 0.5rem rgba(0, 0, 0, 0.6));
+}
+/* the Text view */
+.lf-textarea {
+  display: none; width: 100%; min-height: 3rem; resize: none; overflow: hidden; border: 1px solid var(--gold-soft); border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.35); color: var(--ink); padding: 0.3125rem 0.5625rem; outline: none;
+  font: 600 0.84375rem/1.7 ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+}
+.lf-textarea:focus { border-color: var(--gold); }
+.list-field.as-text .lf-textarea { display: block; }
+.list-field.as-text .lf-chips, .list-field.as-text .lf-type { display: none; }
+.lf-bar { display: flex; align-items: center; gap: 0.5rem; }
+.lf-views button { padding: 0.1875rem 0.625rem; font-size: 0.75rem; }
+.lf-views button:disabled { opacity: 0.45; cursor: default; }
 .lf-status { flex: 1; text-align: right; font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.lf-status.bad { color: var(--bad); text-align: left; flex-basis: 100%; order: 2; }
+.lf-status.bad { color: var(--bad); text-align: left; }
 .lf-ctx { min-height: 2rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.75rem; }
 .lf-hint { color: var(--muted); }
-.lf-ctx code { font: 600 0.75rem ui-monospace, Menlo, Consolas, monospace; color: var(--ink-2); background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); border-radius: 0.25rem; padding: 0 0.25rem; }
-.lf-chip-side { display: inline-flex; align-items: center; gap: 0.1875rem; height: 1.375rem; padding: 0 0.4375rem; border-radius: 0.375rem; background: var(--c); color: #10241a; font: 800 0.75rem/1 var(--sans); }
-.lf-chip-run { display: inline-flex; align-items: center; gap: 0.125rem; color: var(--muted); }
-.lf-chip-deck { padding: 0.125rem 0.4375rem; border: 1px solid var(--gold-soft); border-radius: 0.3125rem; font-weight: 700; color: var(--ink); }
-.lf-chip-par { font: 700 1.125rem/1 var(--serif); color: var(--gold-2); }
+.lf-ctx-chip { display: inline-flex; align-items: center; gap: 0.125rem; }
+.lf-ctx-n { font-weight: 700; color: var(--ink-2); }
 .lf-step { display: inline-flex; align-items: center; margin-left: auto; border: 1px solid var(--line); border-radius: 0.4375rem; background: rgba(0, 0, 0, 0.3); }
 .lf-step button { border: 0; background: none; color: var(--ink-2); width: 1.625rem; height: 1.625rem; cursor: pointer; font-size: 0.9375rem; line-height: 1; }
 .lf-step button:hover:not(:disabled) { color: var(--gold-2); }
 .lf-step button:disabled { opacity: 0.35; cursor: default; }
 .lf-step span { min-width: 2em; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lf-ctx-n + .btn { margin-left: auto; }
 .lf-del { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 0.875rem; padding: 0.1875rem 0.375rem; border-radius: 0.375rem; }
-.lf-ctx code + .lf-del { margin-left: auto; }
 .lf-del:hover { color: var(--bad); background: rgba(255, 255, 255, 0.05); }
+/* the pad */
 .lf-pad.deal { display: flex; align-items: center; gap: 0.875rem; flex-wrap: wrap; }
 .lf-hex { display: grid; grid-template-columns: repeat(6, 2rem); grid-auto-rows: 1.875rem; gap: 0.1875rem 0.25rem; }
 .lf-pad-side {
@@ -792,17 +826,22 @@ svg.board.placing { cursor: copy; }
 .lf-pad-side:active { transform: translateY(1px); }
 .lf-hub { grid-column: span 2; display: grid; place-items: center; color: var(--muted); font-size: 1.375rem; }
 .lf-pad.shoe { display: grid; gap: 0.375rem; }
-.lf-grid { display: grid; grid-template-columns: 1.625rem repeat(13, minmax(0, 1fr)); gap: 0.125rem; }
-.lf-grid .card { width: 100%; height: 1.5rem; line-height: 1.5rem; font-size: 0.6875rem; cursor: pointer; border: 0; padding: 0; }
-.lf-grid .card i { display: none; } /* the row's suit says it */
+/* 13 keys a row, one suit a row: each a little card, its rank over its suit */
+.lf-grid { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 0.1875rem 0.125rem; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.lf-key {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.0625rem; min-width: 0; height: 2.25rem; padding: 0;
+  border: 0; border-radius: 0.25rem; background: var(--card); color: #16181d; cursor: pointer;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  font: 700 0.75rem/1 var(--serif);
+}
+.lf-key b { font-weight: 700; letter-spacing: -0.04em; }
+.lf-key i { font-style: normal; font-size: 0.75rem; }
+.lf-key.red { color: var(--red); }
 .lf-key:hover { box-shadow: 0 0 0 0.125rem var(--gold-2); }
-.lf-suit { border: 1px solid var(--gold-soft); background: rgba(0, 0, 0, 0.3); border-radius: 0.3125rem; cursor: pointer; font: 700 0.8125rem/1 var(--serif); color: var(--ink); padding: 0; }
-.lf-suit.red { color: #ff8095; }
-.lf-suit:hover { border-color: var(--gold); }
-.lf-pad-row { display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; }
+.lf-key:active, .lf-key.lf-run { background: #f6e3a6; box-shadow: 0 0 0 0.125rem var(--gold-2); }
+.lf-pad-row { display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; min-height: 1.75rem; }
 .lf-pad-row .card { cursor: pointer; border: 0; }
-.lf-order { margin-left: auto; }
-.lf-order button { padding: 0.1875rem 0.5rem; font-size: 0.71875rem; }
+.lf-pad-tip { margin-left: auto; font-size: 0.75rem; font-weight: 700; color: var(--gold-2); }
 
 /* tests panel */
 .tests { flex: 1; }

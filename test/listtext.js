@@ -8,7 +8,8 @@ import { readdirSync } from 'node:fs';
 import { ALL_LEVELS } from '../src/ui/catalog.js';
 import { MAX_DECK, MAX_DEAL_SIDES } from '../src/score.js';
 import {
-  readList, formatList, lexList, padSpecials, tidyText, tokenAt, insertAt, removeRange, setCount, moveToken, ungroup, wrapGroup, tapEntry, NEW_DECK,
+  readList, formatList, lexList, tidyText, tokenAt, insertAt, removeRange, setCount, ungroup, wrapGroup, tapEntry, NEW_DECK,
+  gapOffset, gapAt, balance, tapAt, moveTokens,
 } from '../src/ui/listtext.js';
 
 const ALL_SPECIALS = ['?', '??', '$', '$$'];
@@ -40,10 +41,9 @@ for (const list of [['AS'], NEW_DECK, ['TH', 'TH'], ['$', '?', '??', '$$'], ['KS
 assert.strictEqual(formatList('deal', [1, ...R(5, 25), 2, ...R(5, 11), 1, ...R(5, 13)]), 'SE NEx25 SW NEx11 SE NEx13');
 assert.strictEqual(formatList('deal', [1, 3, 1, 1, 3, 1, 1, 3, 1, 1, 3, 1, 1, 3, 1, 1]), '(SE W SE)x5 SE');
 assert.strictEqual(formatList('shoe', [...R('KH', 12), 'TC']), 'KHx12 TC');
-// Every card two characters wide: a lone ? or $ gets a space of its own.
-assert.strictEqual(formatList('shoe', ['$', 'AS', '?', '?', '??', '$$']), ' $ AS  ?x2 ?? $$');
+assert.strictEqual(formatList('shoe', ['$', 'AS', '?', '?', '??', '$$']), '$ AS ?x2 ?? $$');
 assert.strictEqual(formatList('shoe', NEW_DECK), 'deck');
-assert.strictEqual(formatList('shoe', ['S', 'D', 'C', 'H'].flatMap((s) => 'A23456789TJQK'.split('').map((r) => r + s)).concat('?')), 'AS-KS\nAD-KD\nAC-KC\nAH-KH\n ?');
+assert.strictEqual(formatList('shoe', ['S', 'D', 'C', 'H'].flatMap((s) => 'A23456789TJQK'.split('').map((r) => r + s)).concat('?')), 'AS-KS\nAD-KD\nAC-KC\nAH-KH\n?');
 
 // Reading the shorthand.
 const deal = (t) => read('deal', t).list;
@@ -79,7 +79,7 @@ assert.deepStrictEqual(read('deal', 'NE QQ SW (').toks.map((t) => !!t.err), [fal
 
 // Tidying: each entry as the pad writes it; spacing, lines, groups and mistakes kept.
 const tidy = (kind, text, caret = text.length) => tidyText(kind, text, caret);
-assert.deepStrictEqual(tidy('shoe', '10s x 2  k♦\n(2h-4H)x3 h $ ?? deck QX'), { text: 'TSx2  KD\n(2H-4H)x3 H  $ ?? deck QX', caret: 34 });
+assert.deepStrictEqual(tidy('shoe', '10s x 2  k♦\n(2h-4H)x3 h $ ?? deck QX'), { text: 'TSx2  KD\n(2H-4H)x3 H $ ?? deck QX', caret: 33 });
 assert.deepStrictEqual(tidy('shoe', 'as 10h', 2), { text: 'AS TH', caret: 2 });
 assert.deepStrictEqual(tidy('shoe', 'as 10h', 4), { text: 'AS TH', caret: 5 });
 assert.deepStrictEqual(tidy('deal', '→ ne*3 (sw w)X2', 0), { text: 'E NEx3 (SW W)x2', caret: 0 });
@@ -96,14 +96,9 @@ assert.deepStrictEqual(insertAt('NE SW', 2, 'E'), { text: 'NE E SW', caret: 4 })
 assert.deepStrictEqual(insertAt('(NE)', 1, 'E'), { text: '(E NE)', caret: 2 });
 assert.deepStrictEqual(removeRange('NE E SW', 3, 4), { text: 'NE SW', caret: 3 });
 assert.deepStrictEqual(removeRange('NE\nE SW', 3, 4), { text: 'NE\nSW', caret: 3 });
-assert.deepStrictEqual(removeRange('KH  $ QC', 4, 5), { text: 'KH QC', caret: 3 }); // and its padding
-assert.deepStrictEqual(padSpecials('$ KH $ (?) $$', 6), { text: ' $ KH  $ ( ?) $$', caret: 8 });
-assert.deepStrictEqual(padSpecials(' $ KH  $', 0), { text: ' $ KH  $', caret: 0 });
+assert.deepStrictEqual(removeRange('KH  $ QC', 4, 5), { text: 'KH QC', caret: 3 });
 assert.deepStrictEqual(setCount('NE SWx3', lex('NE SWx3')[1], 1), { text: 'NE SW', caret: 5 });
 assert.deepStrictEqual(setCount('NE SW', lex('NE SW')[0], 4), { text: 'NEx4 SW', caret: 4 });
-assert.strictEqual(moveToken('NE SW E', lex('NE SW E')[0], 7).text, 'SW E NE');
-assert.strictEqual(moveToken('NE SW E', lex('NE SW E')[2], 0).text, 'E NE SW');
-assert.strictEqual(moveToken('NE SW E', lex('NE SW E')[1], 2), null);
 assert.strictEqual(ungroup('E (NE SW)x3 W', lex('E (NE SW)x3 W'), 1).text, 'E NE SW W');
 assert.strictEqual(ungroup('E (NE SW)x3 W', lex('E (NE SW)x3 W'), 4).text, 'E NE SW W');
 assert.strictEqual(wrapGroup('E NE SW W', lex('E NE SW W'), 3, 6).text, 'E (NE SW)x2 W');
@@ -115,5 +110,33 @@ assert.deepStrictEqual(tapEntry('deal', 'E NE', 2, 'SW'), { text: 'E SW NE', car
 assert.deepStrictEqual(tapEntry('deal', '', 0, 'W'), { text: 'W', caret: 1 });
 assert.deepStrictEqual(tapEntry('shoe', 'AS kh', 5, 'KH'), { text: 'AS khx2', caret: 7 });
 assert.deepStrictEqual(tapEntry('shoe', 'AS 10H', 6, 'TH'), { text: 'AS 10Hx2', caret: 8 });
+
+// Gaps: the list field's caret sits between tokens, inside a group's brackets too.
+const G = 'E (NE SW)x3 W'; // tokens: E ( NE SW ) W
+assert.deepStrictEqual([0, 1, 2, 3, 4, 5, 6].map((g) => gapOffset(G, lex(G), g)), [0, 1, 3, 5, 8, 11, 13]);
+for (let g = 0; g <= 6; g++) assert.strictEqual(gapAt(lex(G), gapOffset(G, lex(G), g)), g);
+assert.strictEqual(gapOffset('', [], 0), 0);
+assert.deepStrictEqual(balance(lex(G), 2, 3), [2, 3]);
+assert.deepStrictEqual(balance(lex(G), 0, 2), [0, 5]);
+assert.deepStrictEqual(balance(lex(G), 4, 6), [1, 6]);
+assert.deepStrictEqual(balance(lex('(E (NE) W)'), 3, 4), [3, 4]);
+assert.deepStrictEqual(balance(lex('(E (NE) W)'), 4, 6), [2, 6]);
+assert.deepStrictEqual(balance(lex('(E (NE) W)'), 5, 7), [0, 7]);
+assert.deepStrictEqual(tapAt('deal', 'E NE', 2, 'NE'), { text: 'E NEx2', caret: 6 });
+assert.deepStrictEqual(tapAt('deal', 'E NE', 1, 'NE'), { text: 'E NE NE', caret: 4 });
+assert.deepStrictEqual(tapAt('deal', 'E NE', 0, 'SW'), { text: 'SW E NE', caret: 2 });
+assert.deepStrictEqual(tapAt('deal', '(E)', 1, 'W'), { text: '(W E)', caret: 2 });
+assert.deepStrictEqual(tapAt('deal', '(E)', 2, 'W'), { text: '(E W)', caret: 4 });
+assert.deepStrictEqual(tapAt('deal', '(E)x2', 3, 'W'), { text: '(E)x2 W', caret: 7 });
+assert.deepStrictEqual(tapAt('deal', '', 0, 'W'), { text: 'W', caret: 1 });
+assert.deepStrictEqual(tapAt('shoe', 'AS kh', 2, 'KH'), { text: 'AS khx2', caret: 7 });
+assert.deepStrictEqual(tapAt('shoe', 'AS KH', 2, 'AH-KH'), { text: 'AS KH AH-KH', caret: 11 });
+assert.deepStrictEqual(moveTokens('deal', 'NE SW E', 0, 1, 3), { text: 'SW E NE', a: 2, b: 3 });
+assert.deepStrictEqual(moveTokens('deal', 'NE SW E', 2, 3, 0), { text: 'E NE SW', a: 0, b: 1 });
+assert.strictEqual(moveTokens('deal', 'NE SW E', 1, 2, 2), null);
+assert.strictEqual(moveTokens('deal', 'NE SW E', 1, 2, 1), null);
+assert.deepStrictEqual(moveTokens('deal', 'E (NE SW)x3 W', 1, 5, 6), { text: 'E W (NE SW)x3', a: 2, b: 6 });
+assert.deepStrictEqual(moveTokens('deal', 'E (NE SW)x3 W', 5, 6, 2), { text: 'E (W NE SW)x3', a: 2, b: 3 });
+assert.deepStrictEqual(moveTokens('deal', 'E (NE SW)x3 W', 0, 1, 4), { text: '(NE SW E)x3 W', a: 3, b: 4 });
 
 console.log(`listtext: ${n} lists read back from their text; shorthand, mistakes and edits as expected`);
