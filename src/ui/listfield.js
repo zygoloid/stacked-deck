@@ -286,9 +286,9 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       h('button', { class: mode === 'text' ? 'on' : '', 'data-view': 'text', onpointerdown: noFocus, onclick: () => setMode('text') }, 'Text'));
     renderCtx();
   }
-  const stepper = (n, set) => h('span', { class: 'lf-step' },
+  const stepper = (n, set, { title } = {}) => h('span', { class: 'lf-step', title },
     h('button', { 'aria-label': 'One fewer', title: 'One fewer', onpointerdown: noFocus, disabled: n <= 1, onclick: () => set(n - 1) }, '−'),
-    h('span', {}, n),
+    h('span', {}, `×${n}`),
     h('button', { 'aria-label': 'One more', title: 'One more', onpointerdown: noFocus, onclick: () => set(n + 1) }, '+'));
   const delBtn = (what) => h('button', { class: 'lf-del', title: `Remove ${what}`, 'aria-label': `Remove ${what}`, onpointerdown: noFocus, onclick: removeSel }, '✕');
   function renderCtx() {
@@ -296,31 +296,35 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       ctx.replaceChildren(h('span', { class: 'lf-hint' }, 'The list as text. Leaving the box puts it into the list; Esc puts the list back.'));
       return;
     }
+    // The hint stays under a selection's bar, unseen, so the bar is as tall
+    // as the hint is.
+    const hint = h('span', { class: `lf-hint${sel ? ' under' : ''}` }, deal
+      ? `${ClickWord()} a side to add it; ${clickWord()} it again to deal there twice in a row.`
+      : `${ClickWord()} a card to add it; ${clickWord()} it again for two. Drag along a suit for a run, or corner to corner for a new deck.`);
+    const bar = (...xs) => ctx.replaceChildren(hint, h('div', { class: 'lf-ctx-bar' }, ...xs));
     const g = selGroup();
     if (sel && sel.b - sel.a === 1 && toks[sel.a].kind === 'item' && toks[sel.a].val != null) {
       const t = toks[sel.a];
-      ctx.replaceChildren(h('span', { class: 'lf-ctx-chip' }, face(t)), stepper(t.n, (k) => edit(setCount(text, toks[sel.a], k), { sel: { ...sel } })), delBtn('it'));
+      bar(h('span', { class: 'lf-ctx-chip' }, face(t)), stepper(t.n, (k) => edit(setCount(text, toks[sel.a], k), { sel: { ...sel } })), delBtn('it'));
     } else if (g >= 0) {
-      const c = toks[sel.b - 1];
-      ctx.replaceChildren(
-        h('span', { class: 'lf-ctx-n' }, `A group: ${entriesIn(g + 1, sel.b - 1)} entr${entriesIn(g + 1, sel.b - 1) === 1 ? 'y' : 'ies'}, ${cardsIn(g, sel.b)} cards in all`),
-        stepper(c.n, (k) => edit(setCount(text, toks[sel.b - 1], k), { sel: { ...sel } })),
-        h('button', { class: 'btn small', title: 'Take the brackets away, keeping what is in them', onpointerdown: noFocus, onclick: () => {
-          const r = ungroup(text, toks, sel.a);
-          edit(r, { caret: gapAt(lexList(kind, r.text), r.caret) });
-        } }, 'Ungroup'),
+      // A group's count; down to 1, the group goes (its entries stay selected).
+      const c = toks[sel.b - 1], e = entriesIn(g + 1, sel.b - 1);
+      bar(
+        h('span', { class: 'lf-ctx-n' }, `A group of ${e} entr${e === 1 ? 'y' : 'ies'}, ${cardsIn(g, sel.b)} cards in all`),
+        stepper(c.n, (k) => {
+          if (k > 1) { edit(setCount(text, toks[sel.b - 1], k), { sel: { ...sel } }); return; }
+          const { a, b } = sel;
+          edit(ungroup(text, toks, a), b - 2 > a ? { sel: { a, b: b - 2 } } : { caret: a });
+        }, { title: 'How many times the group is repeated (1: not a group)' }),
         delBtn('the group'));
     } else if (sel) {
+      // Several entries: 1, as they are; more, repeated as a group.
       const e = entriesIn(sel.a, sel.b);
-      ctx.replaceChildren(
+      bar(
         h('span', { class: 'lf-ctx-n' }, `${e} entr${e === 1 ? 'y' : 'ies'}, ${cardsIn(sel.a, sel.b)} cards`),
-        h('button', { class: 'btn small', title: 'Repeat these as a group', onpointerdown: noFocus, onclick: group }, '( )×2'),
+        stepper(1, (k) => { if (k > 1) group(); }, { title: 'Repeat these as a group' }),
         delBtn('them'));
-    } else {
-      ctx.replaceChildren(h('span', { class: 'lf-hint' }, deal
-        ? `${ClickWord()} a side to add it; ${clickWord()} it again to deal there twice in a row.`
-        : `${ClickWord()} a card to add it; ${clickWord()} it again for two. Drag along a suit for a run, or corner to corner for a new deck.`));
-    }
+    } else ctx.replaceChildren(hint);
   }
 
   // ---------- changes ----------
@@ -761,15 +765,13 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
 
   // ---------- the pad ----------
   let pad;
-  const groupBtn = h('button', { class: 'btn small lf-group-btn', title: 'Repeat the selected entries (or the one before the caret) as a group', onpointerdown: noFocus, onclick: () => (mode === 'text' ? null : group()) }, '( )×2');
   if (deal) {
     const side = (d) => h('button', {
       class: 'lf-pad-side', style: `--c: ${SIDE_COLOURS[d]}`, title: `Deal to ${SIDE_TEXT[d]}`, 'aria-label': `Deal to ${SIDE_TEXT[d]}`, 'data-side': d,
       onpointerdown: noFocus, onclick: () => tap(SIDE_TEXT[d]),
     }, SIDE_ARROWS[d], SIDE_TEXT[d]);
     pad = h('div', { class: 'lf-pad deal' },
-      h('div', { class: 'lf-hex' }, h('span'), side(4), side(5), h('span'), side(3), h('span', { class: 'lf-hub', 'aria-hidden': 'true' }, '⬡'), side(0), h('span'), side(2), side(1)),
-      groupBtn);
+      h('div', { class: 'lf-hex' }, h('span'), side(4), side(5), h('span'), side(3), h('span', { class: 'lf-hub', 'aria-hidden': 'true' }, '⬡'), side(0), h('span'), side(2), side(1)));
   } else {
     // A card a tap adds; a drag along its suit adds the run to where it ends
     // (either way up). Keys work by keyboard too (Enter or Space: one card).
@@ -846,7 +848,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       h('div', { class: 'lf-pad-row' },
         specialKeys,
         h('button', { class: 'btn small', title: 'A new deck: A–K♠, A–K♦, K–A♣, K–A♥', 'data-card': 'deck', onpointerdown: noFocus, onclick: () => tap('deck') }, 'deck'),
-        groupBtn, tip));
+        tip));
   }
 
   const el = h('div', { class: `list-field ${kind}${mode === 'text' ? ' as-text' : ''}` },
