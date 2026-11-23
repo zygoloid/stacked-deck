@@ -753,7 +753,7 @@ export function openEditor(root, ctx, level) {
     board.render({
       cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftOff(), covers: liftCovers() } : null, pick,
       coach: coach.mark(), selected, activePort, hover, live, tool, drag: drag?.active && drag.kind !== 'box' && drag.kind !== 'group' ? drag : null,
-      preview: clickPreview(), ghost: placePreview(),
+      preview: clickPreview(), ghost: placePreview(), pickHint: pickPreview(),
       paidNow: live ? sim.paidNow : null, paidNowHex: sim?.paidNowHex, paidWrong: sim?.paidWrong,
       // The desk to flag on a wrong payout: the one it was paid at.
       alert: sim?.status.kind === 'wrong' ? sim.status.at ?? null : null,
@@ -790,6 +790,15 @@ export function openEditor(root, ctx, level) {
     else return null;
     if (!board.isBuildable(at) || cellAt(hexKey(at))) return null;
     return placing(name, at, side).c;
+  }
+
+  // With no tool and a mouse by an edge of a free hex: the side a click
+  // there would open the picker with (its first port's), as { at, side }.
+  function pickPreview() {
+    if (tool || drag || running || lift || !hover?.mouse || !hover.edge) return null;
+    const k = hexKey(hover.at);
+    if (!board.isBuildable(hover.at) || cellAt(k) || (pick && hexKey(pick.at) === k)) return null;
+    return { at: hover.at, side: hover.side };
   }
 
   // ---------- peeking at stacks and labels ----------
