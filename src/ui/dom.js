@@ -30,13 +30,14 @@ export const uiScale = () => (typeof document === 'undefined' ? 1
 
 // An arrow towards side d (0 E, then clockwise: SE SW W NW NE), drawn the
 // same in every direction (the arrow characters aren't, in some fonts: E
-// and W can be thin dashes). As big as the text around it; currentColor.
+// and W can be thin dashes). The diagonals are drawn at 45°, not the hex's
+// true 60°: steeper, NE and NW read as a crooked north. As big as the text
+// around it; currentColor.
+const ARROW_ANGLE = [0, 45, 135, 180, 225, 315];
 export function arrowEl(d, cls = '') {
   return s('svg', { class: `arrow ${cls}`.trim(), viewBox: '-8 -8 16 16', 'aria-hidden': 'true' },
-    s('g', { transform: `rotate(${d * 60})` },
-      // (A head of 60°: turned to NE or NW, one side of it is upright, so
-      // the arrow doesn't read as a crooked north.)
-      s('path', { d: 'M-5.5 0H5M-0.2-3L5 0L-0.2 3' })));
+    s('g', { transform: `rotate(${ARROW_ANGLE[d]})` },
+      s('path', { d: 'M-5.5 0H4.5M0.5-4.5L5 0L0.5 4.5' })));
 }
 
 export const SUIT_GLYPH = { S: '♠', H: '♥', D: '♦', C: '♣' };
