@@ -1035,10 +1035,12 @@ export function openEditor(root, ctx, level) {
           : h('span', { class: 'fixed-rule', title: 'The only War rule on this floor' }, `${names[rules[0]] ?? rules[0]} (house rule)`)));
     }
     if (c.kind === 'shoe') {
-      parts.push(h('div', { class: 'param col' }, h('span', { class: 'param-k' }, 'Deck (top first)'), listFor(c, key, 'shoe', !!template),
-        h('label', { class: 'check' }, h('input', {
-          type: 'checkbox', checked: !!c.once, onchange: (e) => edit(() => { if (e.target.checked) c.once = true; else delete c.once; }),
-        }), ' Deal the deck only once')));
+      parts.push(h('div', { class: 'param col' },
+        h('div', { class: 'param-head' }, h('span', { class: 'param-k' }, 'Deck (top first)'),
+          h('label', { class: 'check' }, h('input', {
+            type: 'checkbox', checked: !!c.once, onchange: (e) => edit(() => { if (e.target.checked) c.once = true; else delete c.once; }),
+          }), ' Deal the deck only once')),
+        listFor(c, key, 'shoe', !!template)));
     }
     // ports
     const ports = portsOf(c);

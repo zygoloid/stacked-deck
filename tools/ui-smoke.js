@@ -1909,7 +1909,7 @@ try {
     await page.click('.lf-grid [data-card="QS"]');
     await page.click('.lf-grid [data-card="QS"]');
     check((await listText()).endsWith('deck AD-KD QSx2') && (await savedDeck())?.length === 6 + 13 + 52 + 13 + 2, `the shoe's pad adds AD-KD and QSx2 ("${await listText()}")`);
-    if (shots) await page.locator('.inspector .list-field').screenshot({ path: join(shots, '9b-shoe-list.png') });
+    if (shots) await page.locator('.inspector .param.col').screenshot({ path: join(shots, '9b-shoe-list.png') });
     // Typing: an entry is added on Space; a mistake stays in the typing box
     // and the deck keeps its cards; undo takes back whole entries.
     const field = await page.locator('.lf-chips').boundingBox();
