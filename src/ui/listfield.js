@@ -546,7 +546,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     }
     if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); removeSel(); return; }
     if (k === 'Escape') { e.preventDefault(); collapse(sel.b); return; }
-    if (k === '(') { e.preventDefault(); group(); return; }
+    if (k === '(' || k === ')') { e.preventDefault(); group(); return; }
     if (k === 'ArrowUp' || k === 'ArrowDown') {
       e.preventDefault();
       const dir = k === 'ArrowUp' ? -1 : 1;
