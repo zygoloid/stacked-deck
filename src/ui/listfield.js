@@ -93,6 +93,51 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   }
   // A group (by its opening or its count): its frame and its count.
   const groupOf = (i) => els[i]?.closest('.lf-gwrap');
+  const frameOf = (i) => groupOf(i)?.querySelector('.lf-group');
+  // The boxes a token's unit is drawn in: an entry's, or a group's frame
+  // (a box a line) and its count.
+  function unitRects(i) {
+    if ((toks[i].kind === 'open' || toks[i].kind === 'close') && frameOf(i)) {
+      const j = matching(toks, i);
+      const c = toks[i].kind === 'close' ? i : j;
+      return [...frameOf(i).getClientRects(), ...(c >= 0 && els[c] ? [els[c].getBoundingClientRect()] : [])];
+    }
+    return els[i] ? [els[i].getBoundingClientRect()] : [];
+  }
+  // Where gap g is: { x, top, bottom } (on screen).
+  function gapRect(g) {
+    const line = (r, x) => ({ x, top: r.top, bottom: r.bottom });
+    if (g > 0) {
+      const t = toks[g - 1];
+      if (t.kind === 'close' && frameOf(g - 1)) {
+        const f = [...frameOf(g - 1).getClientRects()].at(-1), c = els[g - 1].getBoundingClientRect();
+        return line(f, c.right);
+      }
+      if (t.kind === 'open' && frameOf(g - 1)) {
+        const f = frameOf(g - 1).getClientRects()[0];
+        return line(f, els[g - 1].getBoundingClientRect().right);
+      }
+      const r = els[g - 1].getBoundingClientRect();
+      return line(r, r.right);
+    }
+    if (toks.length) {
+      const r = toks[0].kind === 'open' && frameOf(0) ? frameOf(0).getClientRects()[0] : els[0].getBoundingClientRect();
+      return line(r, r.left);
+    }
+    const b = box.getBoundingClientRect();
+    return { x: b.left + 8, top: b.top, bottom: b.bottom };
+  }
+  // The gap on the line above (dir -1) or below (1) gap g, nearest across;
+  // off the top or the bottom, the start or the end.
+  function lineFrom(g, dir) {
+    const r = gapRect(g), lh = parseFloat(getComputedStyle(box).lineHeight) || 40;
+    const y = (r.top + r.bottom) / 2 + dir * lh;
+    const b = box.getBoundingClientRect();
+    if (y < b.top || y > b.bottom) return dir < 0 ? 0 : toks.length;
+    const to = gapNear(r.x, y);
+    const t = gapRect(to);
+    return Math.abs((t.top + t.bottom) / 2 - (r.top + r.bottom) / 2) < lh / 2 ? (dir < 0 ? 0 : toks.length) : to;
+  }
   function render() {
     ({ toks, list, error } = read(text));
     caret = Math.min(caret, toks.length);
@@ -142,9 +187,9 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     if (!sel || mode !== 'cards') return;
     const rects = [];
     for (let i = sel.a; i < sel.b; i++) {
-      const x = toks[i].kind === 'open' ? groupOf(i) : toks[i].kind === 'close' ? null : els[i];
+      if (toks[i].kind === 'close') continue;
+      rects.push(...unitRects(i));
       if (toks[i].kind === 'open') i = Math.max(i, matching(toks, i));
-      if (x) rects.push(...x.getClientRects());
     }
     const lines = [];
     for (const r of [...rects].sort((p, q) => p.top - q.top)) {
@@ -153,13 +198,21 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       if (l) Object.assign(l, { left: Math.min(l.left, r.left), right: Math.max(l.right, r.right), top: Math.min(l.top, r.top), bottom: Math.max(l.bottom, r.bottom) });
       else lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
     }
-    const b = box.getBoundingClientRect(), pad = 2 * uiScale();
-    for (const l of lines) {
-      selLayer.append(h('span', { class: 'lf-selbox', style: {
-        left: `${l.left - b.left - box.clientLeft - pad}px`, top: `${l.top - b.top - box.clientTop - pad}px`,
-        width: `${l.right - l.left + 2 * pad}px`, height: `${l.bottom - l.top + 2 * pad}px`,
+    // A selection over several lines runs on to the field's edge, open
+    // there, as one frame broken across the lines.
+    const b = box.getBoundingClientRect(), pad = 4 * uiScale();
+    const lh = parseFloat(getComputedStyle(box).lineHeight) || 40;
+    const inL = b.left + box.clientLeft + 2, inR = b.left + box.clientLeft + box.clientWidth - 2;
+    const vpad = (l) => Math.max(0, Math.min(pad, (lh - (l.bottom - l.top)) / 2 - 1));
+    lines.forEach((l, j) => {
+      const openL = j > 0, openR = j < lines.length - 1;
+      const left = openL ? inL : l.left - pad, right = openR ? inR : l.right + pad;
+      selLayer.append(h('span', { class: `lf-selbox${openL ? ' open-l' : ''}${openR ? ' open-r' : ''}`, style: {
+        // (Above and below, no further than keeps it off the next line's.)
+        left: `${left - b.left - box.clientLeft}px`, top: `${l.top - b.top - box.clientTop - vpad(l)}px`,
+        width: `${right - left}px`, height: `${l.bottom - l.top + 2 * vpad(l)}px`,
       } }));
-    }
+    });
   }
   // Puts `node` in gap g among the entries.
   function putAt(node, g) {
@@ -393,6 +446,14 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     // caret before it, off the left end).
     const atEnd = inp.selectionStart === inp.selectionEnd && inp.selectionEnd === inp.value.length;
     const atStart = inp.selectionStart === 0 && inp.selectionEnd === 0;
+    if (!empty && !partial(inp.value) && (k === 'ArrowUp' || k === 'ArrowDown')) {
+      e.preventDefault();
+      if (!commitBox()) return;
+      caret = lineFrom(caret, k === 'ArrowUp' ? -1 : 1);
+      placeBox();
+      renderBar();
+      return;
+    }
     if (!empty && !e.shiftKey && !partial(inp.value) && ((k === 'ArrowRight' && atEnd) || (k === 'ArrowLeft' && atStart))) {
       e.preventDefault();
       const g = caret;
@@ -408,15 +469,18 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       const i = k === 'Backspace' ? caret - 1 : caret;
       const t = toks[i];
       if (!t) return;
-      // Backspace after a count (an entry's or a group's) takes just the count.
-      if (k === 'Backspace' && t.counted && t.n >= 1 && (t.kind === 'item' || matching(toks, i) >= 0)) edit(setCount(text, t, 1), { caret: caret });
+      // Backspace after an entry's count takes just the count; after a
+      // group's, the group's brackets (its entries stay).
+      if (k === 'Backspace' && t.counted && t.kind === 'item') edit(setCount(text, t, 1), { caret });
+      else if (k === 'Backspace' && t.counted && t.kind === 'close' && matching(toks, i) >= 0) edit(ungroup(text, toks, i));
       else if (t.kind === 'item' || t.kind === 'bad' || matching(toks, i) < 0) edit(removeRange(text, t.s, t.e), { caret: i });
       else { caret = k === 'Backspace' ? caret - 1 : caret + 1; placeBox(); } // into or out of a group
       return;
     }
-    if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home' || k === 'End') {
+    if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home' || k === 'End' || k === 'ArrowUp' || k === 'ArrowDown') {
       e.preventDefault();
-      const to = k === 'Home' ? 0 : k === 'End' ? toks.length : Math.max(0, Math.min(toks.length, caret + (k === 'ArrowLeft' ? -1 : 1)));
+      const to = k === 'Home' ? 0 : k === 'End' ? toks.length : k === 'ArrowUp' || k === 'ArrowDown' ? lineFrom(caret, k === 'ArrowUp' ? -1 : 1)
+        : Math.max(0, Math.min(toks.length, caret + (k === 'ArrowLeft' ? -1 : 1)));
       if (e.shiftKey && to !== caret) { anchor = caret; selectGaps(anchor, to); return; }
       caret = to;
       placeBox();
@@ -474,6 +538,20 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     }
     if (k === 'Backspace' || k === 'Delete') { e.preventDefault(); removeSel(); return; }
     if (k === 'Escape') { e.preventDefault(); collapse(sel.b); return; }
+    if (k === '(') { e.preventDefault(); group(); return; }
+    if (k === 'ArrowUp' || k === 'ArrowDown') {
+      e.preventDefault();
+      const dir = k === 'ArrowUp' ? -1 : 1;
+      if (e.shiftKey) {
+        if (anchor === null) anchor = sel.a;
+        const head = anchor === sel.a ? sel.b : sel.a;
+        selectGaps(anchor, lineFrom(head, dir));
+        if (!sel) focusBox();
+        return;
+      }
+      collapse(lineFrom(dir < 0 ? sel.a : sel.b, dir));
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'a') { e.preventDefault(); select(0, toks.length); return; }
     if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home' || k === 'End') {
       e.preventDefault();
@@ -548,15 +626,10 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   // edge of the one after.
   function showDrop(g) {
     if (g === null) { drop.classList.remove('on'); return; }
-    const w = wrap.getBoundingClientRect();
-    const before = g > 0 ? (toks[g - 1].kind === 'close' && groupOf(g - 1) ? groupOf(g - 1) : els[g - 1]) : null;
-    const after = g < toks.length ? (toks[g].kind === 'open' && groupOf(g) ? groupOf(g) : els[g]) : null;
-    const r = (before ?? after).getBoundingClientRect();
-    const rects = (before ?? after).getClientRects();
-    const rr = before ? rects[rects.length - 1] ?? r : rects[0] ?? r;
-    drop.style.left = `${(before ? rr.right + 1 : rr.left - 3) - w.left}px`;
-    drop.style.top = `${rr.top - w.top}px`;
-    drop.style.height = `${rr.height}px`;
+    const w = wrap.getBoundingClientRect(), r = gapRect(g);
+    drop.style.left = `${r.x + (g > 0 ? 1 : -3) - w.left}px`;
+    drop.style.top = `${r.top - w.top}px`;
+    drop.style.height = `${r.bottom - r.top}px`;
     drop.classList.add('on');
   }
   let press = null, float = null;
