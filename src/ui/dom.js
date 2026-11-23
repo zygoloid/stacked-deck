@@ -34,7 +34,9 @@ export const uiScale = () => (typeof document === 'undefined' ? 1
 export function arrowEl(d, cls = '') {
   return s('svg', { class: `arrow ${cls}`.trim(), viewBox: '-8 -8 16 16', 'aria-hidden': 'true' },
     s('g', { transform: `rotate(${d * 60})` },
-      s('path', { d: 'M-5.5 0H4.5M0.5-4.5L5 0L0.5 4.5' })));
+      // (A head of 60°: turned to NE or NW, one side of it is upright, so
+      // the arrow doesn't read as a crooked north.)
+      s('path', { d: 'M-5.5 0H5M-0.2-3L5 0L-0.2 3' })));
 }
 
 export const SUIT_GLYPH = { S: '♠', H: '♥', D: '♦', C: '♣' };
