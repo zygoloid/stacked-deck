@@ -457,7 +457,11 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     if (!empty && !e.shiftKey && !partial(inp.value) && ((k === 'ArrowRight' && atEnd) || (k === 'ArrowLeft' && atStart))) {
       e.preventDefault();
       const g = caret;
-      if (commitBox() && k === 'ArrowLeft') caret = g;
+      // (A count goes onto the entry or group before the caret: off the left
+      // end, the caret goes before that count, which is inside the group,
+      // after its last entry, or before the entry.)
+      const count = COUNT_ONLY.test(inp.value.trim());
+      if (commitBox() && k === 'ArrowLeft') caret = count ? Math.max(0, g - 1) : g;
       placeBox();
       renderBar();
       return;
