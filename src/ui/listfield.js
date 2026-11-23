@@ -849,7 +849,6 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       grid,
       h('div', { class: 'lf-pad-row' },
         specialKeys,
-        h('button', { class: 'btn small', title: 'A new deck: A–K♠, A–K♦, K–A♣, K–A♥', 'data-card': 'deck', onpointerdown: noFocus, onclick: () => tap('deck') }, 'deck'),
         tip));
   }
 
