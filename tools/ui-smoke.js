@@ -885,7 +885,8 @@ try {
       return [pt.x, pt.y];
     }, [[q, r], d]);
     await tap(await nearEdge(free[1], 3));
-    check(/←/.test(await phone.textContent('.picker-head')), `the picker says which way the first port will point ("${await phone.textContent('.picker-head')}")`);
+    check(/ W$/.test(await phone.textContent('.picker-head')) && await phone.locator('.picker-head svg.arrow').count() === 1,
+      `the picker says which way the first port will point ("${await phone.textContent('.picker-head')}")`);
     await tapItem('pass');
     const second = await phone.evaluate(() => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels['opening-night'].cells[1]);
     check(second?.out?.out === 3, `a tap near an edge points the first port that way (${JSON.stringify(second?.out)})`);

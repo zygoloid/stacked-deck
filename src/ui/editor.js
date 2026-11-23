@@ -2,7 +2,7 @@
 import {
   runTest, expectedPayouts, payoutHand, payoutDesk, MAX_FLOOR_CARDS, DIRS,
 } from '../engine.js';
-import { h, s, handEl, cardEl, fmtCards, uiScale, handLetters } from './dom.js';
+import { h, s, handEl, cardEl, fmtCards, uiScale, arrowEl, handLetters } from './dom.js';
 import { listField } from './listfield.js';
 import { stepper } from './stepper.js';
 import { formatList, SIDE_TEXT } from './listtext.js';
@@ -24,7 +24,6 @@ import { perfMeter } from './perf.js';
 import { scatterPlot, solutionList, scoreText, parMark } from './scatter.js';
 import { createCoach } from './coach.js';
 
-const ARROW = ['→', '↘', '↙', '←', '↖', '↗'];
 // The instructions say "click" where there is a mouse, "tap" on a touch-only screen.
 const hasMouse = () => !!window.matchMedia?.('(any-pointer: fine)').matches;
 const tap = () => (hasMouse() ? 'click' : 'tap');
@@ -875,7 +874,7 @@ export function openEditor(root, ctx, level) {
       [0, 1, 2, 3, 4, 5].map((d) => h('button', {
         class: `side-btn${current === d ? ' on' : ''}`, title: `${SIDE_NAMES[d]} (${Object.keys(SIDE_KEYS).find((k) => SIDE_KEYS[k] === d).toUpperCase()})`,
         onclick: (e) => { e.stopPropagation(); onPick(d); },
-      }, ARROW[d])),
+      }, arrowEl(d))),
       floor ? h('button', {
         class: `side-btn floor${current === undefined ? ' on' : ''}`, title: 'Floor: drop these cards (X)',
         onclick: (e) => { e.stopPropagation(); onPick(undefined); },
@@ -1676,7 +1675,7 @@ export function openEditor(root, ctx, level) {
     });
     radialArmed = false;
     radialHot = null; radialSkip = null; holdRadial(null);
-    radial.replaceChildren(h('button', { class: 'radial-hub', title: 'Close (Esc)', onclick: () => { if (radialArmed) closeRadial(); } }, h('b', {}, ARROW[side]), h('span', {}, SIDE_NAMES[side])), ...items);
+    radial.replaceChildren(h('button', { class: 'radial-hub', title: 'Close (Esc)', onclick: () => { if (radialArmed) closeRadial(); } }, h('b', {}, arrowEl(side)), h('span', {}, SIDE_NAMES[side])), ...items);
     markRadial();
     // Centred on the press, kept inside the board.
     const wrap = radial.parentElement.getBoundingClientRect();
@@ -1769,7 +1768,7 @@ export function openEditor(root, ctx, level) {
     selected = null; activePort = null; dropDrafts();
     pickerArmed = false;
     picker.replaceChildren(
-      h('div', { class: 'picker-head' }, side === undefined ? 'Place a croupier' : `Place a croupier, first port ${ARROW[side]} ${SIDE_NAMES[side]}`),
+      h('div', { class: 'picker-head' }, side === undefined ? 'Place a croupier' : ['Place a croupier, first port ', arrowEl(side), ` ${SIDE_NAMES[side]}`]),
       h('div', { class: 'picker-grid', style: { gridTemplateColumns: `repeat(${Math.min(4, level.croupiers.length)}, 4rem)` } }, level.croupiers.map((name, i) => {
         const info = CROUPIERS[name];
         if (!info) return null;
