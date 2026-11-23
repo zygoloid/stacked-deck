@@ -1110,10 +1110,10 @@ export const LEVELS = [
     title: 'Four of a Kind',
     difficulty: 6,
     story: [
-      'The city has learned your game, and asks for one more: single cards all night from a shoe of three decks shuffled together, and every time the fourth card of a rank turns up, the house pays out all four of them together, as one four of a kind, however long ago the first was played.',
-      'Then that rank starts again from nothing, so a rank can pay three times in a night. Some nights the house plays only three ranks, and takes the rest out of the shoe. Cards still waiting for their fourth at closing time stay with the house.',
+      'The city has learned your game, and asks for one more: single cards all night from a shoe of several decks shuffled together, and every time the fourth card of a rank turns up, the house pays out all four of them together, as one four of a kind, however long ago the first was played.',
+      'Then that rank starts again from nothing. Cards still waiting for their fourth at closing time stay with the house.',
     ],
-    brief: 'Single cards, from three decks (some nights only three ranks). Every time four cards of one rank have been played (since that rank last paid), pay out those four as one hand.',
+    brief: 'Single cards, from several decks. Every time four cards of one rank have been played (since that rank last paid), pay out those four as one hand.',
     handSize: 1,
     floor: floorOf(hexRect(-3, 2, -7, 4), B6, [[-1, 1]]),
     fixed: B6,
