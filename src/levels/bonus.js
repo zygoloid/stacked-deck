@@ -18,7 +18,7 @@
 // three players with labelled desks, In-Between three with one desk, Follow
 // Suit four; Mirror Image, Showdown, Twice Shy, Pot Luck, Twenty-One Card
 // Trick and the casino-number floors seat two. Perfect Pair and Counterfeit deal from two decks
-// (`decks: 2`).
+// (`decks: 2`); Four of a Kind deals single cards from three.
 import {
   hexRange, hexRect, makeTests, makeMixedTests, dealtTests, floorOf, source, desk, E, SE, SW, W, NW, NE,
   hv, high, one, suitRun, paletteThrough, paletteOf, finishChapter,
@@ -230,6 +230,17 @@ const unplayed = (inputs) => {
   return fullDeck().filter((c) => !played.has(c)).map((c) => [c]);
 };
 
+// Four of a Kind's nights, single cards from a shoe of three decks: two
+// nights in three hold only three ranks (the whole 36-card shoe, twelve
+// cards of each rank), the third is 26 cards from all thirteen.
+function tripleShoeDeals(rand, nTests) {
+  const shoe = [fullDeck(), fullDeck(), fullDeck()].flat();
+  return Array.from({ length: nTests }, (_, i) => {
+    if (i % 3 === 2) return shuffled(shoe, rand).slice(0, 26).map((c) => [c]);
+    const ranks = shuffled([...RANKS], rand).slice(0, 3);
+    return shuffled(shoe.filter((c) => ranks.includes(rankOf(c))), rand).map((c) => [c]);
+  });
+}
 // Every time the fourth unpaid card of a rank is played, those four.
 function quadsOf(inputs) {
   const piles = {}, out = [];
@@ -1099,10 +1110,10 @@ export const LEVELS = [
     title: 'Four of a Kind',
     difficulty: 6,
     story: [
-      'The city has learned your game, and asks for one more: single cards all night, and every time the fourth card of a rank turns up, the house pays out all four of them together, as one four of a kind, however long ago the first was played.',
-      'Then that rank starts again from nothing. Cards still waiting for their fourth at closing time stay with the house.',
+      'The city has learned your game, and asks for one more: single cards all night from a shoe of three decks shuffled together, and every time the fourth card of a rank turns up, the house pays out all four of them together, as one four of a kind, however long ago the first was played.',
+      'Then that rank starts again from nothing, so a rank can pay three times in a night. Some nights the house plays only three ranks, and takes the rest out of the shoe. Cards still waiting for their fourth at closing time stay with the house.',
     ],
-    brief: 'Single cards. Every time four cards of one rank have been played (since that rank last paid), pay out those four as one hand.',
+    brief: 'Single cards, from three decks (some nights only three ranks). Every time four cards of one rank have been played (since that rank last paid), pay out those four as one hand.',
     handSize: 1,
     floor: floorOf(hexRect(-3, 2, -7, 4), B6, [[-1, 1]]),
     fixed: B6,
@@ -1110,16 +1121,22 @@ export const LEVELS = [
     warRules: ALL,
     specialCards: ['?', '??', '$', '$$'],
     expected: quadsOf,
-    tests: makeTests({
-      handSize: 1, handsPerTest: 26,
+    tests: dealtTests({
+      deal: tripleShoeDeals,
       fixed: [
         one('7S 7D 2C 7H 2S KD 7C 2H AS 2D KH'),
         one('AS 2S 3S 4S 5S 6S 7S 8S 9S TS JS QS KS AD 2D 3D 4D 5D 6D 7D 8D 9D TD JD QD KD ' +
           'AC 2C 3C 4C 5C 6C 7C 8C 9C TC JC QC KC AH 2H 3H 4H 5H 6H 7H 8H 9H TH JH QH KH'),
         one('QH QS QD QC QH QS QD QC QH'),
         one('5C 9D 5H'),
+        // a rank's fourth and fifth cards back to back, at three offsets
+        one('QS QH QD QC QS'), one('7S QS QH QD QC QS'), one('7S 8D QS QH QD QC QS'),
+        // the first four played pay, not the last four
+        one('QS QS QH QD QC'),
+        // a four of a kind while another rank has five
+        one('QS QH QD 7S 7H 7D QC 7C QS'),
       ],
-      nRandom: 4, seed: 166,
+      nRandom: 6, seed: 166,
     }),
   },
   {
@@ -2354,7 +2371,7 @@ const PAR = {
   'penny-ante': { croupiers: 10, rounds: 103 },
   'cut-to-the-ace': { croupiers: 11, rounds: 913 },
   'uneven-tables': { croupiers: 18, rounds: 94 },
-  'four-of-a-kind': { croupiers: 6, rounds: 533 },
+  'four-of-a-kind': { croupiers: 6, rounds: 994 },
   'missing-card': { croupiers: 12, rounds: 1040 },
   'dumbwaiter': { croupiers: 8, rounds: 327 },
   'counting-up': { croupiers: 9, rounds: 290 },

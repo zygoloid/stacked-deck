@@ -731,7 +731,9 @@ export const SPECS = {
     // As in Deja Vu, the memory is a stack of the cards played so far, seeded
     // with an advertising card (which Set never counts). A new card goes on
     // top; four of a kind goes to Set, whose set is the four to pay, and
-    // whose rest is the new memory.
+    // whose rest is the new memory. Checked after every card, the memory
+    // never holds more than three of a rank, so from three decks too the
+    // set is exactly the four that just completed.
     cells: [
       c([-2, 0], 'gather', { under: NE, out: { out: E } }),
       c([-1, 0], 'kind', { n: 4, out: { yes: E, no: NW } }),

@@ -244,6 +244,23 @@ export const MUTANTS = {
     'quads per test': (t) => groupBy(t.map(([c]) => c), rankOf).filter((p) => p.length >= 4).map((p) => p.slice(0, 4)),
     'three of a kind': (t) => { const m = {}, out = []; for (const [c] of t) { (m[rankOf(c)] ??= []).push(c); if (m[rankOf(c)].length === 3) out.push(m[rankOf(c)].splice(0)); } return out; },
     'the fourth card only': (t) => { const m = {}, out = []; for (const [c] of t) { m[rankOf(c)] = (m[rankOf(c)] ?? 0) + 1; if (m[rankOf(c)] % 4 === 0) out.push([c]); } return out; },
+    // Cards taken two at a time (a last odd card never), paying every unpaid
+    // card of a rank that has reached four: a rank can jump from three to five.
+    'two at a time, all of a rank': (t) => {
+      const m = {}, out = [];
+      for (const pair of chunks(t.map(([c]) => c), 2)) {
+        for (const c of pair) (m[rankOf(c)] ??= []).push(c);
+        for (const k of new Set(pair.map(rankOf))) if (m[k].length >= 4) out.push(m[k].splice(0));
+      }
+      return out;
+    },
+    // At closing, only the most common rank(s), cut into fours in play order.
+    'most common rank at closing': (t) => {
+      const g = groupBy(t.map(([c]) => c), rankOf), max = Math.max(...g.map((p) => p.length));
+      return max < 4 ? [] : g.filter((p) => p.length === max).flatMap((p) => chunks(p, 4));
+    },
+    // At closing, every rank cut into fours from its last card back.
+    'the last fours': (t) => groupBy(t.map(([c]) => c), rankOf).flatMap((p) => chunks([...p].reverse(), 4)),
   },
   'every-other': {
     'top two': (h) => highIn(h, [0, 1]) >= high(h), '1st, 3rd or 5th': (h) => highIn(h, [0, 2, 4]) >= high(h),

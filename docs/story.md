@@ -206,7 +206,7 @@ regulation; Ace Count does).
 | J♠ | Penny Ante | Lucky Seven | Old Thursday's pension runs out again |
 | Q♠ | Cut to the Ace | Burn Card | Old Thursday's force: every long hand comes back with the ace of spades on top |
 | K♠ | Uneven Tables | Crossed Wires and Déjà Vu | the cousins stop playing in step |
-| A♥ | Four of a Kind | Déjà Vu | the city asks for one more game |
+| A♥ | Four of a Kind | Déjà Vu | the city asks for one more game, from a three-deck shoe |
 | 2♥ | Missing Card | Four of a Kind | the bottom dealer palms a card from a fresh deck |
 | 3♥ | Dumbwaiter | One Deck and Déjà Vu | tables upstairs, desk downstairs, a bolted dumbwaiter between |
 | 4♥ | Counting Up | Déjà Vu | Old Thursday counts his way through the deck |
