@@ -1922,6 +1922,16 @@ try {
     await page.keyboard.press('Escape');
     await page.keyboard.press('Control+z');
     check((await listText()).endsWith('QSx2') && (await savedDeck())?.length === 86 && !(await page.$('.lf-status.bad')), 'Esc drops it; Ctrl+Z takes back the last entry');
+    // Backspace after a count takes just the count; ArrowRight off the end
+    // of what is typed adds it.
+    await page.keyboard.type('x3 ');
+    await page.keyboard.press('Backspace');
+    check((await listText()).endsWith('deck AD-KD QS'), `Backspace after QSx3 leaves QS ("${await listText()}")`);
+    await page.keyboard.type('5h');
+    await page.keyboard.press('ArrowRight');
+    check((await listText()).endsWith('QS 5H') && await page.inputValue('.lf-type') === '', `ArrowRight off the end of "5h" adds it ("${await listText()}")`);
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Control+z');
+    check((await listText()).endsWith('QSx2') && (await savedDeck())?.length === 86, `and undo goes back a step at a time ("${await listText()}")`);
     await page.keyboard.press('Escape'); // out of the field
     // A drag from one corner of the pad to the opposite one adds a new deck;
     // an entry dragged out of the field is taken out.

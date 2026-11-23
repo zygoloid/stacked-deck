@@ -28,6 +28,10 @@ const RANKS = 'A23456789TJQK'.split('');
 const SUITS = ['S', 'D', 'C', 'H'];
 const rankText = (r) => (r === 'T' ? '10' : r);
 const COUNT_ONLY = /^[xX×*]\s*(\d+)$/;
+// Click with a mouse, tap on a touch screen.
+const hasMouse = () => !!window.matchMedia?.('(any-pointer: fine)').matches;
+const clickWord = () => (hasMouse() ? 'click' : 'tap');
+const ClickWord = () => (hasMouse() ? 'Click' : 'Tap');
 
 // kind: 'deal' or 'shoe'. text: the list's text. specials: the special cards
 // the floor allows. mode: 'cards' | 'text'. keep: what the field it replaces
@@ -87,7 +91,8 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     if (t.kind === 'bad' || t.val == null) return h('span', { class: 'lf-e bad', 'data-i': i, title: t.err ?? '' }, t.text);
     return h('span', { class: `lf-e${t.err ? ' bad' : ''}`, 'data-i': i, title: title(t) }, face(t), countTag(t));
   }
-  const groupOf = (i) => els[i]?.closest('.lf-group');
+  // A group (by its opening or its count): its frame and its count.
+  const groupOf = (i) => els[i]?.closest('.lf-gwrap');
   function render() {
     ({ toks, list, error } = read(text));
     caret = Math.min(caret, toks.length);
@@ -99,19 +104,18 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       if (t.kind === 'open') {
         els[i] = h('span', { class: 'lf-open', 'data-i': i, title: 'A repeated group' });
         const g = h('span', { class: 'lf-group' }, els[i]);
-        add(g);
+        add(h('span', { class: 'lf-gwrap' }, g));
         stack.push(g);
       } else if (t.kind === 'close' && stack.length > 1) {
         const g = stack.pop();
+        // The count, after the frame (so it can't be taken for the last
+        // entry's), on the line where the frame ends (style.css).
         els[i] = h('span', { class: `lf-n lf-gn${t.counted ? '' : ' one'}${t.err ? ' bad' : ''}`, 'data-i': i, title: t.err ?? 'Repeats the group' }, `×${t.n}`);
-        // The group's opening stays on the line of its first entry, and its
-        // count on the line of its last (a line never ends on an empty frame).
+        g.after(els[i]);
+        // The group's opening stays on the line of its first entry (a line
+        // never ends on an empty frame).
         const [open, ...kids] = g.children;
-        if (kids.length <= 1) g.replaceChildren(h('span', { class: 'lf-end' }, open, ...kids, els[i]));
-        else {
-          g.replaceChildren(h('span', { class: 'lf-start' }, open, kids[0]), ...kids.slice(1, -1),
-            h('span', { class: 'lf-end' }, kids.at(-1), els[i]));
-        }
+        if (kids.length) g.replaceChildren(h('span', { class: 'lf-start' }, open, kids[0]), ...kids.slice(1));
       } else {
         els[i] = chip(t, i);
         add(els[i]);
@@ -162,6 +166,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     if (g === 0) { box.prepend(node); return; }
     const t = toks[g - 1], el = els[g - 1];
     if (t.kind === 'close' && groupOf(g - 1)) groupOf(g - 1).after(node);
+    else if (t.kind === 'open' && groupOf(g - 1)) groupOf(g - 1).querySelector('.lf-open').after(node);
     else el.after(node);
   }
   // The typing box: drawn over a slot among the entries while the field has
@@ -176,7 +181,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     slot.remove(); ghost.remove();
     drawSel();
     if (!shown) { inp.style.left = inp.style.top = ''; return; }
-    inp.style.width = text ? `calc(${text.length + 1}ch + 0.875rem)` : '';
+    inp.style.width = text ? `calc(${text.length}ch + 0.75rem + ${4 * uiScale()}px)` : '';
     putAt(slot, caret);
     slot.style.width = `${inp.offsetWidth}px`;
     const r = slot.getBoundingClientRect(), w = wrap.getBoundingClientRect();
@@ -260,8 +265,8 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
         delBtn('them'));
     } else {
       ctx.replaceChildren(h('span', { class: 'lf-hint' }, deal
-        ? 'Tap a side to add it; tap it again to deal there twice in a row.'
-        : 'Tap a card to add it; tap it again for two. Drag along a suit for a run, or corner to corner for a new deck.'));
+        ? `${ClickWord()} a side to add it; ${clickWord()} it again to deal there twice in a row.`
+        : `${ClickWord()} a card to add it; ${clickWord()} it again for two. Drag along a suit for a run, or corner to corner for a new deck.`));
     }
   }
 
@@ -384,6 +389,18 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     if (undoKeys(e, empty)) return;
     if (k === 'Enter') { e.preventDefault(); if (!empty) { commitBox(); placeBox(); renderBar(); } return; }
     if (k === 'Escape') { e.preventDefault(); if (!empty) { inp.value = ''; placeBox(); renderBar(); } else inp.blur(); return; }
+    // Off either end of what is typed: added, as by a space (with the
+    // caret before it, off the left end).
+    const atEnd = inp.selectionStart === inp.selectionEnd && inp.selectionEnd === inp.value.length;
+    const atStart = inp.selectionStart === 0 && inp.selectionEnd === 0;
+    if (!empty && !e.shiftKey && !partial(inp.value) && ((k === 'ArrowRight' && atEnd) || (k === 'ArrowLeft' && atStart))) {
+      e.preventDefault();
+      const g = caret;
+      if (commitBox() && k === 'ArrowLeft') caret = g;
+      placeBox();
+      renderBar();
+      return;
+    }
     if (!empty) return;
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'a') { e.preventDefault(); if (toks.length) select(0, toks.length); return; }
     if (k === 'Backspace' || k === 'Delete') {
@@ -391,7 +408,9 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       const i = k === 'Backspace' ? caret - 1 : caret;
       const t = toks[i];
       if (!t) return;
-      if (t.kind === 'item' || t.kind === 'bad' || matching(toks, i) < 0) edit(removeRange(text, t.s, t.e), { caret: i });
+      // Backspace after a count (an entry's or a group's) takes just the count.
+      if (k === 'Backspace' && t.counted && t.n >= 1 && (t.kind === 'item' || matching(toks, i) >= 0)) edit(setCount(text, t, 1), { caret: caret });
+      else if (t.kind === 'item' || t.kind === 'bad' || matching(toks, i) < 0) edit(removeRange(text, t.s, t.e), { caret: i });
       else { caret = k === 'Backspace' ? caret - 1 : caret + 1; placeBox(); } // into or out of a group
       return;
     }
