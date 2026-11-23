@@ -763,8 +763,10 @@ svg.board.placing { cursor: copy; }
 }
 .lf-group.bad { border-color: var(--bad); border-right-style: dashed; }
 .lf-open { display: inline-block; width: 0.25rem; height: 1.5rem; vertical-align: middle; touch-action: none; }
-.lf-start, .lf-end { white-space: nowrap; }
-.lf-start .lf-group, .lf-end .lf-group { white-space: normal; }
+/* (A group and its count: no line break between the frame's end and the
+   count; breaks inside the frame as usual.) */
+.lf-gwrap, .lf-start { white-space: nowrap; }
+.lf-group { white-space: normal; }
 .lf-gn { display: inline-block; vertical-align: middle; margin: 0 0.125rem 0 0.1875rem; cursor: pointer; touch-action: none; }
 .lf-gn.one { opacity: 0.6; }
 .lf-gn.bad { border-color: var(--bad); color: #ffb3b3; }
