@@ -1187,38 +1187,31 @@ try {
       if (shots) await phone.screenshot({ path: join(shots, '7d-phone-peek.png') });
       await tap([pb.x + pb.width / 2, pb.y + pb.height / 2]);
       check(!(await phone.isVisible('.peek')) && await phone.locator('.cell.selected').count() === 0, 'tapping it again closes it, selecting nothing');
-      // Its list as text, shortest first; the pad adds to it (twice NW is
-      // NWx2) without bringing up the keyboard; the erase tool takes one out.
+      // Its list, shortest first; the pad adds to it (twice NW is NWx2)
+      // without bringing up the keyboard; a tapped entry can be taken out.
       const dealAt = await hexAt(at);
       await tap([dealAt[0], dealAt[1] - 12]);
       await phone.waitForSelector('.inspector .list-field.deal');
       const dealTo = async () => (await phone.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, dealer.id))[0].out.to;
-      check(await phone.inputValue('.lf-in') === '(E SE)x6', `${dealer.id}: the Deal list reads (E SE)x6 ("${await phone.inputValue('.lf-in')}")`);
+      const listText = () => phone.getAttribute('.inspector .list-field', 'data-text');
+      check(await listText() === '(E SE)x6', `${dealer.id}: the Deal list reads (E SE)x6 ("${await listText()}")`);
       await phone.tap('.lf-pad-side[data-side="4"]');
       await phone.tap('.lf-pad-side[data-side="4"]');
-      check(await phone.inputValue('.lf-in') === '(E SE)x6 NWx2' && JSON.stringify(await dealTo()) === JSON.stringify([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 4, 4]) &&
-        await phone.evaluate(() => !document.activeElement?.matches('textarea')), 'the pad adds NW twice as NWx2, keyboard down');
-      await phone.tap('.lf-tools [data-mode="erase"]');
-      await phone.tap('.lf-back [data-t="4"]');
-      check(await phone.inputValue('.lf-in') === '(E SE)x6' && (await dealTo()).length === 12, `the erase tool takes out the tapped entry ("${await phone.inputValue('.lf-in')}")`);
+      check(await listText() === '(E SE)x6 NWx2' && JSON.stringify(await dealTo()) === JSON.stringify([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 4, 4]) &&
+        await phone.evaluate(() => !document.activeElement?.matches('input, textarea')), 'the pad adds NW twice as NWx2, keyboard down');
+      await phone.tap('.lf-chips [data-i="4"]');
+      check(await phone.locator('.lf-chips .lf-e.sel').count() === 1 && await phone.evaluate(() => !document.activeElement?.matches('input, textarea')),
+        'a tap on an entry selects it, keyboard down');
       if (shots) await phone.locator('.inspector').screenshot({ path: join(shots, '7e-phone-deal-list.png') });
-      await phone.tap('.lf-tools [data-mode="type"]');
-      // A tap in the text puts the caret there, and the pad adds there.
-      const charAt = (i) => phone.evaluate((i) => {
-        const walker = document.createTreeWalker(document.querySelector('.lf-back'), NodeFilter.SHOW_TEXT);
-        for (let n = 0, node; (node = walker.nextNode()); n += node.length) {
-          if (n + node.length < i) continue;
-          const r = document.createRange();
-          r.setStart(node, i - n);
-          const b = r.getBoundingClientRect();
-          return [b.left + 1, b.top + b.height / 2];
-        }
-        return null;
-      }, i);
-      await tap(await charAt(1));
+      await phone.tap('.lf-ctx .lf-del');
+      check(await listText() === '(E SE)x6' && (await dealTo()).length === 12, `✕ takes out the selected entry ("${await listText()}")`);
+      // A tap just inside the group puts the caret there, and the pad adds there.
+      const e0 = await phone.locator('.lf-chips [data-i="1"]').boundingBox();
+      await tap([e0.x - 1, e0.y + e0.height / 2]);
       await phone.waitForTimeout(100);
       await phone.tap('.lf-pad-side[data-side="3"]');
-      check(await phone.inputValue('.lf-in') === '(W E SE)x6', `a tap in the text, then the pad: added at the caret ("${await phone.inputValue('.lf-in')}")`);
+      check(await listText() === '(W E SE)x6', `a tap in the group, then the pad: added at the caret ("${await listText()}")`);
+      await phone.evaluate(() => document.activeElement?.blur());
     }
     await phone.close();
   }
@@ -1862,10 +1855,15 @@ try {
     const lvIndex = LEVELS.findIndex((lv) => lv.croupiers.includes('shoe') && pick(lv) && !(lv.specialCards ?? []).length);
     const lv = LEVELS[lvIndex];
     const spot = pick(lv);
+    // The deck typed into the Text view, which puts it into the list when it
+    // is left (and stays open while it has a mistake).
     const setDeck = async (text) => {
-      await page.fill('.lf-in', text);
-      await page.locator('.lf-in').evaluate((el) => el.blur()); // so keys go to the editor again
+      if (!(await page.$('.inspector .list-field.as-text'))) await page.click('.inspector [data-view="text"]');
+      await page.fill('.lf-textarea', text);
+      await page.locator('.lf-textarea').evaluate((el) => el.blur()); // so keys go to the editor again
+      if (!(await page.$('.lf-status.bad'))) await page.click('.inspector [data-view="cards"]');
     };
+    const listText = () => page.getAttribute('.inspector .list-field', 'data-text');
     const savedDeck = async () => (await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id].cells, lv.id)).find((c) => c.kind === 'shoe')?.deck;
     const placeAt = async (tool, at) => {
       await page.click(`.pal-item[data-tool="${tool}"]`);
@@ -1898,21 +1896,33 @@ try {
     // runs (AH-KH), whole suits and decks, repeated groups.
     await setDeck('AS\nKH\r\n10C x2');
     check(JSON.stringify(await savedDeck()) === JSON.stringify(['AS', 'KH', 'TC', 'TC']) && !(await page.$('.lf-status.bad')), `${lv.id}: a deck over several lines, with 10C x2`);
-    check(await page.inputValue('.lf-in') === 'AS\nKH\nTCx2', `leaving the field tidies it, keeping its lines ("${await page.inputValue('.lf-in')}")`);
+    check(await listText() === 'AS\nKH\nTCx2', `leaving the Text view tidies it, keeping its lines ("${await listText()}")`);
     await setDeck('(2h-4h)x2 S deck');
     check((await savedDeck())?.length === 6 + 13 + 52, `${lv.id}: a deck with a repeated group, a suit and a new deck (${(await savedDeck())?.length} cards)`);
-    // The pad: a suit button adds its run, a card twice is x2.
-    await page.click('.lf-in');
-    await page.keyboard.press('Control+End');
-    await page.click('.lf-suit[data-suit="D"]');
+    // The pad: a drag along a suit adds its run, a card twice is x2.
+    const keyAt = async (c) => { const r = await page.locator(`.lf-grid [data-card="${c}"]`).boundingBox(); return [r.x + r.width / 2, r.y + r.height / 2]; };
+    await page.mouse.move(...await keyAt('AD'));
+    await page.mouse.down();
+    await page.mouse.move(...await keyAt('KD'), { steps: 6 });
+    check(await page.locator('.lf-key.lf-run').count() === 13, 'dragging along a suit on the pad marks the run');
+    await page.mouse.up();
     await page.click('.lf-grid [data-card="QS"]');
     await page.click('.lf-grid [data-card="QS"]');
-    check((await page.inputValue('.lf-in')).endsWith('deck AD-KD QSx2') && (await savedDeck())?.length === 6 + 13 + 52 + 13 + 2, `the shoe's pad adds AD-KD and QSx2 ("${await page.inputValue('.lf-in')}")`);
-    // A mistake keeps the deck as it was; Ctrl+Z in the field undoes the mistake first.
-    await page.keyboard.type(' QX');
-    check(/"QX" is not a card/.test(await page.textContent('.lf-status')) && (await savedDeck())?.length === 86, 'a mistake is reported and the shoe keeps its deck');
+    check((await listText()).endsWith('deck AD-KD QSx2') && (await savedDeck())?.length === 6 + 13 + 52 + 13 + 2, `the shoe's pad adds AD-KD and QSx2 ("${await listText()}")`);
+    if (shots) await page.locator('.inspector .list-field').screenshot({ path: join(shots, '9b-shoe-list.png') });
+    // Typing: an entry is added on Space; a mistake stays in the typing box
+    // and the deck keeps its cards; undo takes back whole entries.
+    const field = await page.locator('.lf-chips').boundingBox();
+    await page.mouse.click(field.x + field.width - 4, field.y + field.height - 6);
+    await page.keyboard.type('10h ');
+    check((await listText()).endsWith('QSx2 TH') && (await savedDeck())?.length === 87, `typing 10h and a space adds 10♥ ("${await listText()}")`);
+    await page.keyboard.type('qx ');
+    check(/"QX" is not a card/.test(await page.textContent('.lf-status')) && (await savedDeck())?.length === 87 && await page.inputValue('.lf-type') === 'qx',
+      'a mistake is reported, stays in the box, and the shoe keeps its deck');
+    await page.keyboard.press('Escape');
     await page.keyboard.press('Control+z');
-    check((await page.inputValue('.lf-in')).trimEnd().endsWith('QSx2') && !(await page.$('.lf-status.bad')), 'Ctrl+Z in the field takes back the mistake first');
+    check((await listText()).endsWith('QSx2') && (await savedDeck())?.length === 86 && !(await page.$('.lf-status.bad')), 'Esc drops it; Ctrl+Z takes back the last entry');
+    await page.keyboard.press('Escape'); // out of the field
     await setDeck('? AS');
     let err = await page.textContent('.lf-status.bad').catch(() => '');
     check(/"\?" is not a card/.test(err) && !/joker|special/i.test(err), `${lv.id}: deck rejects "?" where no special cards are allowed ("${err}")`);
@@ -1926,8 +1936,8 @@ try {
     await setDeck('? ?? $ $$ AS 10H');
     const deck = await savedDeck();
     check(JSON.stringify(deck) === JSON.stringify(['?', '??', '$', '$$', 'AS', 'TH']), `deck accepts allowed special cards: ${JSON.stringify(deck)}`);
-    check(await page.locator('.inspector .lf-pad-row .card.spc').count() === 4 && await page.locator('.inspector .lf-back .lf-card.ad').count() === 2,
-      'the pad offers the special cards, and the field paints them');
+    check(await page.locator('.inspector .lf-pad-row .card.spc').count() === 4 && await page.locator('.inspector .lf-chips .card.ad').count() === 2,
+      'the pad offers the special cards, and the field draws them');
     await page.keyboard.press('x');
     await page.keyboard.press('dczaqe'[spot.d]);
     // Hand croupier, n = 4.

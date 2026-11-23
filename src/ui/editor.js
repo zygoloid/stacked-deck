@@ -56,17 +56,15 @@ export function openEditor(root, ctx, level) {
   let runResults = null;          // results of checking every test
   let checks = null;              // this machine's check deals, once a run reaches them
   let running = false;            // every test is being checked
-  // A shoe's deck and a Deal's list are edited as text (src/ui/listfield.js).
-  // The text a player wrote is kept here, by hex (or `tool:shoe` for the
-  // palette's shoe), while it still reads as the croupier's list (`list`, as
-  // JSON); otherwise the list is shown in its shortest text. `bad`: the text
-  // has a mistake, so the croupier keeps its last good list (dropped when
-  // the selection changes).
-  const listTexts = new Map();    // key -> { kind, text, caret, list, bad }
+  // A shoe's deck and a Deal's list are edited in a list field
+  // (src/ui/listfield.js), which keeps the list as text. The text a player
+  // made is kept here, by hex (or `tool:shoe` for the palette's shoe), while
+  // it still reads as the croupier's list (`list`, as JSON: its groups and
+  // runs are the player's); otherwise the list is shown in its shortest text.
+  const listTexts = new Map();    // key -> { kind, text, list }
   let listUi = null;              // the inspector's list field: { key, field }
-  let listCaret = null;           // its caret when the inspector was last redrawn: { key, text, caret }
-  let listMode = 'type';          // its tool: type, erase or move
-  let coalesceKey = null, coalesceAt = 0; // typing in one list field: one undo step per pause
+  let listKeep = null;            // what it showed when the inspector was last redrawn: { key, ...field.state() }
+  let listMode = 'cards';         // its view: cards or text
 
   const cellAt = (key) => cells.find((c) => hexKey(c.at) === key);
   const selCell = () => (selected ? cellAt(selected) : null);
@@ -141,25 +139,20 @@ export function openEditor(root, ctx, level) {
   // Undo and redo restore the selection and its active port too, so undoing
   // a port's side goes back to that port.
   const editState = () => ({ cells: JSON.stringify(cells), selected, activePort, texts: JSON.stringify([...listTexts]) });
-  // coalesce: a key for typing, so a run of keystrokes in the same place
-  // (with no pause over a second) is one undo step. keepInspector: the change
-  // came from the inspector's list field, which shows it already (and
-  // redrawing the panel would take the field out from under the typing).
-  function commit(fn, { coalesce = null, keepInspector = false } = {}) {
-    const now = Date.now();
-    if (!(coalesce && coalesce === coalesceKey && now - coalesceAt < 1000 && undo.length)) {
-      undo.push(editState());
-      if (undo.length > 200) undo.shift();
-    }
-    coalesceKey = coalesce;
-    coalesceAt = now;
+  // keepInspector: the change came from the inspector's list field, which
+  // shows it already (and redrawing the panel would take the field out from
+  // under the typing).
+  function commit(fn, { keepInspector = false } = {}) {
+    undo.push(editState());
+    if (undo.length > 200) undo.shift();
     redo.length = 0;
     fn();
     changed({ keepInspector });
   }
-  // List texts with a mistake go when the selection changes.
+  // What the list field was showing (a caret, a selection, an unfinished
+  // entry, text being edited) goes when the selection changes.
   function dropDrafts() {
-    for (const [k, t] of listTexts) if (t.bad) listTexts.delete(k);
+    listKeep = null;
   }
   // With a group up, undo first puts it down where it is (so undo takes back
   // the move, and redo brings it back).
@@ -192,7 +185,6 @@ export function openEditor(root, ctx, level) {
     activePort = selected ? st.activePort : null;
     listTexts.clear();
     for (const [k, t] of JSON.parse(st.texts ?? '[]')) listTexts.set(k, t);
-    coalesceKey = null;
     changed();
   }
 
@@ -909,38 +901,28 @@ export function openEditor(root, ctx, level) {
   }
   // The selected croupier; with none, the palette tool's settings (the cell
   // it will place); with neither, the floor's brief and how to play.
-  // The text field for a shoe's deck or a Deal's sides (src/ui/listfield.js).
-  // Each change that reads as a list is an undoable edit of the croupier
-  // (typing coalesced into one step per pause); text with a mistake is kept
-  // while the croupier stays selected, and the croupier keeps its last list.
+  // The list field for a shoe's deck or a Deal's sides (src/ui/listfield.js).
+  // Each change it makes is an undoable edit of the croupier.
   function listFor(c, key, kind, template) {
     const listOf = () => (kind === 'shoe' ? c.deck : c.out.to ?? []);
-    const json = JSON.stringify(listOf());
     let memo = listTexts.get(key);
-    if (!memo || memo.kind !== kind || memo.list !== json) {
-      const text = formatList(kind, listOf());
-      memo = { kind, text, caret: text.length, list: json, bad: false };
-    }
-    // The last text that read as a list: undo in the field goes back to it
-    // first, while there is a mistake (which was never an edit of the floor).
-    let good = memo.bad ? formatList(kind, listOf()) : memo.text;
-    const caret = listCaret?.key === key && listCaret.text === memo.text ? listCaret.caret : memo.caret;
+    if (!memo || memo.kind !== kind || memo.list !== JSON.stringify(listOf())) memo = { kind, text: formatList(kind, listOf()) };
     const field = listField({
-      kind, text: memo.text, caret, specials: kind === 'shoe' ? specials : [], mode: listMode,
+      kind, text: memo.text, specials: kind === 'shoe' ? specials : [], mode: listMode,
+      keep: listKeep?.key === key && listKeep.text === memo.text ? listKeep : {},
       onMode: (m) => { listMode = m; },
-      onUndo: () => { if (listTexts.get(key)?.bad) field.setText(good); else undoStep(); },
+      onUndo: undoStep,
       onRedo: redoStep,
-      onEdit: ({ text, caret, list, typed }) => {
-        const now = listOf();
-        const entry = { kind, text, caret, list: JSON.stringify(list ?? now), bad: !list };
-        if (list) good = text;
-        if (!list || JSON.stringify(list) === JSON.stringify(now)) { listTexts.set(key, entry); return; }
+      onEdit: ({ text, list }) => {
+        const entry = { kind, text, list: JSON.stringify(list) };
+        // Only the text changed (its groups or runs): not an edit of the floor.
+        if (entry.list === JSON.stringify(listOf())) { listTexts.set(key, entry); return; }
         const set = () => {
           if (kind === 'shoe') c.deck = list; else c.out.to = list;
           listTexts.set(key, entry);
         };
         if (template) { set(); renderPalette(); return; }
-        commit(set, { coalesce: typed ? `list:${key}` : null, keepInspector: true });
+        commit(set, { keepInspector: true });
       },
     });
     listUi = { key, field };
@@ -950,8 +932,8 @@ export function openEditor(root, ctx, level) {
   function renderInspector() {
     // Redrawing replaces the list field: one with the focus gets it back.
     const refocus = listUi?.field.hasFocus() ? listUi.key : null;
-    // The new field's caret goes where the old one's was (for the same text).
-    if (listUi) listCaret = { key: listUi.key, ...listUi.field.state() };
+    // The new field shows what the old one did (for the same text).
+    if (listUi) listKeep = { key: listUi.key, ...listUi.field.state() };
     listUi = null;
     // On a phone, a selected croupier's panel goes right under the floor:
     // the palette and the play controls step aside (style.css).
@@ -2105,7 +2087,7 @@ export function openEditor(root, ctx, level) {
   document.addEventListener('keyup', onCtrl, true);
   window.addEventListener('blur', ctrlUp);
   function onKey(e) {
-    if (e.target.closest?.('input, textarea, select') || dialogOpen()) return;
+    if (e.target.closest?.('input, textarea, select, .list-field') || dialogOpen()) return;
     if (modal.firstChild) {
       if (e.key === 'Escape') modal.replaceChildren();
       return;

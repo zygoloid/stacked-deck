@@ -152,28 +152,10 @@ function notACard(text, specials) {
 // ---------- writing ----------
 // A list in its shortest text: runs as NEx25, and a repeated stretch as a
 // group, (SE W SE)x5; a shoe's suit runs as AH-KH and a new deck as `deck`.
-// A deck sorted A–K by suit gets a line per suit. Every card is two
-// characters wide, as the field draws them: TS for a ten, and " ?" and " $"
-// (see padSpecials).
+// A deck sorted A–K by suit gets a line per suit.
 export function formatList(kind, list) {
   if (kind === 'deal') return segments(list, dealSeg, 8).join(' ');
-  const text = segments(list, shoeSeg, 26).join(' ').replace(/AS-KS AD-KD AC-KC AH-KH( |$)/g, 'AS-KS\nAD-KD\nAC-KC\nAH-KH\n').trim();
-  return padSpecials(text, 0).text;
-}
-// A one-character card (? or $) has a space of its own in front of it, on
-// top of the one that separates it from the entry before, so it is drawn two
-// characters wide like the rest. isPadded: whether the token starting at `s`
-// has it.
-export const isLoneSpecial = (t) => t.kind === 'item' && t.val?.t === 'card' && (t.val.c === '?' || t.val.c === '$') && t.be - t.s === 1;
-export const isPadded = (text, s) => text[s - 1] === ' ' && (s === 1 || /[\s(]/.test(text[s - 2]));
-// The text with every one-character card padded (the caret kept with its text).
-export function padSpecials(text, caret) {
-  for (const t of lexList('shoe', text).reverse()) {
-    if (!isLoneSpecial(t) || isPadded(text, t.s)) continue;
-    text = `${text.slice(0, t.s)} ${text.slice(t.s)}`;
-    if (caret >= t.s) caret++;
-  }
-  return { text, caret };
+  return segments(list, shoeSeg, 26).join(' ').replace(/AS-KS AD-KD AC-KC AH-KH( |$)/g, 'AS-KS\nAD-KD\nAC-KC\nAH-KH\n').trim();
 }
 // The entry at list[i] (and how many items it covers), without repeats.
 function dealSeg(list, i) {
@@ -214,8 +196,7 @@ function segments(list, seg, maxGroup) {
 
 // Each entry written as the pad writes it, keeping the player's spacing,
 // line breaks, groups and runs: upper case, TS for a ten, letters for suits,
-// side names for arrows, x3 for a count, and a lone ? or $ padded. An entry
-// with a mistake is left as it is. Returns { text, caret } (the caret kept
+// side names for arrows, x3 for a count. An entry with a mistake is left as it is. Returns { text, caret } (the caret kept
 // with the text around it).
 export function tidyText(kind, text, caret) {
   for (const t of lexList(kind, text).reverse()) {
@@ -233,7 +214,7 @@ export function tidyText(kind, text, caret) {
     if (caret >= t.e) caret += tidy.length - t.text.length;
     else if (caret > t.s) caret = t.s + tidy.length;
   }
-  return kind === 'shoe' ? padSpecials(text, caret) : { text, caret };
+  return { text, caret };
 }
 
 // ---------- editing (each returns { text, caret }, or null for no change) ----------
@@ -263,17 +244,8 @@ export function setCount(text, t, n) {
   const tok = text.slice(t.s, t.be) + (n > 1 ? `x${n}` : '');
   return { text: text.slice(0, t.s) + tok + text.slice(t.e), caret: t.s + tok.length };
 }
-// Token t moved to text offset `target` (another token's start or end).
-export function moveToken(text, t, target) {
-  if (target >= t.s && target <= t.e) return null;
-  const r = removeRange(text, t.s, t.e);
-  let to = target > t.s ? target - (text.length - r.text.length) : target;
-  to = Math.max(0, Math.min(to, r.text.length));
-  const moved = insertAt(r.text, to, t.text);
-  return moved.text === text ? null : moved;
-}
 // The bracket matching toks[i], or -1.
-function matching(toks, i) {
+export function matching(toks, i) {
   const dir = toks[i].kind === 'open' ? 1 : -1;
   let depth = 0;
   for (let k = i; k >= 0 && k < toks.length; k += dir) {
@@ -308,4 +280,51 @@ export function tapEntry(kind, text, caret, entry) {
   const val = lexList(kind, entry)[0]?.val;
   if (t && t.kind === 'item' && JSON.stringify(t.val) === JSON.stringify(val)) return setCount(text, t, t.n + 1);
   return insertAt(text, t ? (caret === t.s ? t.s : t.e) : caret, entry);
+}
+
+// ---------- gaps (the list field's caret) ----------
+// The list field works on whole tokens: gap g is the place just before
+// toks[g] (toks.length: the end), so a group has a gap just inside each
+// bracket as well as one either side of it.
+// The text offset where an entry put in gap g goes.
+export const gapOffset = (text, toks, g) => (g > 0 ? toks[g - 1].e : toks.length ? toks[0].s : text.length);
+// The gap at text offset `off` (after every token that ends by it).
+export const gapAt = (toks, off) => toks.filter((t) => t.e <= off).length;
+// Tokens [a, b) widened so they hold the whole of every group they touch.
+export function balance(toks, a, b) {
+  for (let changed = true; changed;) {
+    changed = false;
+    for (let i = a; i < b; i++) {
+      if (toks[i].kind !== 'open' && toks[i].kind !== 'close') continue;
+      const j = matching(toks, i);
+      if (j >= b) { b = j + 1; changed = true; }
+      if (j >= 0 && j < a) { a = j; changed = true; }
+    }
+  }
+  return [a, b];
+}
+// A tap on the pad with the caret at gap g: the entry `entry` (its text)
+// added there, or one more of the entry just before the caret when it is the
+// same one. { text, caret } (caret: a text offset).
+export function tapAt(kind, text, g, entry) {
+  const toks = lexList(kind, text);
+  const t = toks[g - 1];
+  const add = lexList(kind, entry);
+  if (t?.kind === 'item' && t.val != null && add.length === 1 && !add[0].counted && JSON.stringify(t.val) === JSON.stringify(add[0].val)) {
+    return setCount(text, t, t.n + 1);
+  }
+  return insertAt(text, gapOffset(text, toks, g), entry);
+}
+// Tokens [a, b) moved to gap g (outside them): { text, a, b } with where
+// they are now, or null when that is where they are already.
+export function moveTokens(kind, text, a, b, g) {
+  const toks = lexList(kind, text);
+  if (g >= a && g <= b) return null;
+  const s = toks[a].s, e = toks[b - 1].e;
+  const off = gapOffset(text, toks, g);
+  const r = removeRange(text, s, e);
+  const to = off > s ? off - (text.length - r.text.length) : off;
+  const moved = insertAt(r.text, Math.max(0, Math.min(to, r.text.length)), text.slice(s, e));
+  const end = gapAt(lexList(kind, moved.text), moved.caret);
+  return { text: moved.text, a: end - (b - a), b: end };
 }
