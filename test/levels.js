@@ -342,12 +342,16 @@ for (const level of [...LEVELS, ...BONUS, ...FLOOR]) {
   if (level.tutorial !== undefined) {
     const COACH_UI = ['play', 'tests', 'ports', 'roster', 'undo', 'brief', 'stats']; // UI in src/ui/coach.js
     check(Array.isArray(level.tutorial) && level.tutorial.length > 0, 'tutorial is a list of steps');
+    check(level.tutorial?.some((st) => !st.on), 'tutorial has a step in its sequence (not only on-failed ones)');
+    check((level.tutorial ?? []).filter((st) => st.on === 'failed').length <= 1, 'tutorial has at most one on-failed step');
     for (const [i, st] of (level.tutorial ?? []).entries()) {
       const where = `tutorial step ${i + 1}:`;
       check(typeof st.say === 'string' && st.say.length, `${where} says something`);
       check(st.at === undefined || floor.has(key(st.at)), `${where} rings a hex on the floor`);
       check(st.side === undefined || (st.at && Number.isInteger(st.side) && st.side >= 0 && st.side < 6), `${where} side is an edge of its hex`);
       check(st.ui === undefined || COACH_UI.includes(st.ui), `${where} ui ${st.ui} is one coach.js knows`);
+      check(st.modal === undefined || (st.modal === true && i === 0 && st.until === 'next'), `${where} modal only on the first step, which waits for Next`);
+      check(st.on === undefined || (st.on === 'failed' && st.until === 'next' && !st.at && !st.modal), `${where} on is 'failed', on a step that waits for Next and rings no hex`);
       const u = st.until;
       const cellOk = (x) => x && x.cell && Array.isArray(x.cell.at);
       check(['next', 'ran', 'cleared'].includes(u) || cellOk(u) || (Array.isArray(u?.any) && u.any.length && u.any.every(cellOk)),

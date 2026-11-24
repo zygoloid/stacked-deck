@@ -121,9 +121,11 @@ export const LEVELS = [
     ],
     brief: 'Pay out every card from both tables, at either desk.',
     // The tutorial, part 1 (src/ui/coach.js): the top table's machine, then
-    // the player's turn. Nothing here says how to do the bottom table.
+    // the player's turn. Nothing here says how to do the bottom table. The
+    // welcome shows first in the middle of the screen, then flies up to the
+    // strip, so the player sees where the tutorial lives.
     tutorial: [
-      { say: 'Welcome to the floor. The players at the tables on the left lay down cards; the chip desks on the right pay out whatever reaches them. Croupiers carry the cards in between, and you place them on the empty hexes.', until: 'next' },
+      { say: 'Welcome to the floor. The players at the tables on the left lay down cards; the chip desks on the right pay out whatever reaches them. Croupiers carry the cards in between, and you place them on the empty hexes.', modal: true, until: 'next' },
       { say: '{Click} the ringed hex and pick Pass, the one croupier on this floor.', at: [-1, -1], until: { cell: { at: [-1, -1], fn: 'pass' } } },
       { say: 'A Pass hands each card on through its port (the arrow). With it selected, {click} the ringed edge of its hex to point the port east, at the next hex.', at: [-1, -1], side: E, until: { cell: { at: [-1, -1], fn: 'pass', out: { out: E } } } },
       // Placing one points it at the edge {click}ed near, or (in the middle
@@ -167,6 +169,8 @@ export const LEVELS = [
       },
       { say: 'Made a mistake? Undo takes back any change, a croupier can be dragged to another hex, and the 🗑 on a selected croupier\'s bar{kbd: (or the Delete key)} takes it away.', ui: 'undo', until: 'next' },
       { say: 'Your turn: get every card to its desk. Once a machine passes the tests, it is also tried on a few random deals, so it has to follow the rule, not just the tests.', until: 'cleared' },
+      // Out of the sequence: the first failed run points at where the rules are.
+      { say: 'That run failed. Every floor\'s rules are written at the top of the screen, in the brief: it says exactly where each card must go.', ui: 'brief', on: 'failed', until: 'next' },
     ],
     handSize: 1,
     floor: floorOf([[-2, 0], [-1, 0], [0, 0], [-1, -1], [-2, 1]], F2),
