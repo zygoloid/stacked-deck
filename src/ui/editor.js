@@ -98,7 +98,8 @@ export function openEditor(root, ctx, level) {
   // The tutorial (first floors only; src/ui/coach.js), in a strip above the board.
   const coach = createCoach(level, { tapWord: tap, root: () => editorEl, changed: () => renderAll() });
   let clearedHere = false; // the floor was cleared since the editor opened
-  const coachState = () => ({ cells, round: sim?.round ?? 0, cleared: clearedHere });
+  let fails = 0;           // runs that failed since then (a watched test, or the check of them all)
+  const coachState = () => ({ cells, round: sim?.round ?? 0, cleared: clearedHere, fails });
 
   const par = level.par;
   // `expected` levels list the exact payouts (which may repeat, regroup or
@@ -131,7 +132,8 @@ export function openEditor(root, ctx, level) {
     // board on a wide screen, under it on a phone); in play mode both are
     // hidden, leaving the tests.
     side,
-    modal);
+    modal,
+    coach.layer);
   root.replaceChildren(editorEl);
   perf?.attach(editorEl);
 
@@ -467,7 +469,7 @@ export function openEditor(root, ctx, level) {
   function reportStatus() {
     const st = sim.status;
     if (st.kind === 'passed') showToast(`${testName(testIndex)} passed in ${st.rounds} rounds.`, 'good');
-    else showToast(failureText(), 'bad');
+    else { fails++; showToast(failureText(), 'bad'); }
   }
   function failureText() {
     const st = sim.status;
@@ -530,6 +532,7 @@ export function openEditor(root, ctx, level) {
       // Load the failing test and run it up to the failure, so the floor is
       // left paused at the moment it goes wrong (e.g. the bad payout).
       const first = runResults.findIndex((r) => !r.ok);
+      fails++;
       testIndex = first;
       resetSim();
       if (makeSim()) while (!sim.finished) sim.step();
@@ -2092,7 +2095,7 @@ export function openEditor(root, ctx, level) {
   document.addEventListener('keyup', onCtrl, true);
   window.addEventListener('blur', ctrlUp);
   function onKey(e) {
-    if (e.target.closest?.('input, textarea, select, .list-field') || dialogOpen()) return;
+    if (e.target.closest?.('input, textarea, select, .list-field') || dialogOpen() || coach.blocking()) return;
     if (modal.firstChild) {
       if (e.key === 'Escape') modal.replaceChildren();
       return;

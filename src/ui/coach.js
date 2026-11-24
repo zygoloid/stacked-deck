@@ -1,12 +1,14 @@
 // The tutorial: a strip above the board that walks the player through a
 // floor's `tutorial` steps (src/levels/hearts.js has the first two floors').
 // A step is
-//   { say: 'text', at?: [q, r], side?: 0-5, ui?: name, until }
+//   { say: 'text', at?: [q, r], side?: 0-5, ui?: name, modal?: true, on?: 'failed', until }
 // `say` may use {Click} / {click}, which read "Tap" / "tap" on a touch-only
 // screen, {hold}, which reads "long press" there and "Ctrl-click" with a
 // mouse, and {kbd:text}, shown only where there is a keyboard (not on a
 // touch-only screen). `at` (and `side`) ring a hex (and one of its edges) on the board;
-// `ui` lights up part of the editor (UI below). `until` is when the step is
+// `ui` lights up part of the editor (UI below), and dims the rest of the
+// screen around it and the strip: while the step waits for Next (there is
+// only reading to do), or for a moment otherwise. `until` is when the step is
 // done:
 //   'next'                 the player presses Next
 //   'ran'                  a test has been run (a round or more)
@@ -14,12 +16,22 @@
 //   { cell: { at, fn, out? } }   a croupier `fn` at `at`, with these ports
 //                          pointed so (only the ports named; '*': anywhere)
 //   { any: [until, ...] }  any one of these
+// `modal` (the first step only, with until 'next'): the step first shows as a
+// dialog in the middle of the screen, and on Next flies up to the strip, so
+// the player sees where the tutorial lives. `on: 'failed'` (until 'next')
+// takes a step out of the sequence: it shows, once a visit, when a run fails
+// (a watched test or the check of them all), and Next goes back to the step
+// the tutorial was on.
 // Steps only go forward: once one is done the next shows, even if the
-// machine later changes (the player may well build it some other way), and
-// a player who is ahead (a later step already done) skips the ones between.
+// machine later changes (the player may well build it some other way). A
+// player who is ahead skips the steps between: to a later step that is done
+// when every croupier the steps before it ask for is in place too (so
+// pressing play early doesn't skip the building), or to 'cleared'. Back
+// shows the steps before (skipped ones too), each with Next, until the
+// player is back at the one they had reached.
 // Finishing or skipping the tutorial is remembered in this browser; the
 // floor's story page offers it again (forgetTutorial).
-import { h } from './dom.js';
+import { h, uiScale } from './dom.js';
 import { CHANNEL } from '../build.js';
 
 const KEY = CHANNEL === 'beta' ? 'stacked-deck-beta-coach' : 'stacked-deck-coach';
@@ -34,6 +46,12 @@ const UI = {
   brief: '.topbar .brief',
   stats: '.topbar .stats',
 };
+
+// How long the screen stays dim around a lit part, on a step the player acts
+// on (ms); and how far the clear patch reaches past the part (px at the
+// design size).
+const DIM_MS = 2600;
+const DIM_PAD = 8;
 
 function loadDone() {
   try {
@@ -55,6 +73,8 @@ export function forgetTutorial(id) {
 }
 
 const hexKey = ([q, r]) => `${q},${r}`;
+// A step that asks for a croupier.
+const builds = (until) => !!(until?.cell || until?.any);
 
 // Whether `state` ({ cells, round, cleared }) meets a step's `until`;
 // `acked`: Next was pressed on it.
@@ -72,16 +92,35 @@ function met(until, state, acked) {
   return false;
 }
 
+// A rectangle with rounded corners, as an SVG path.
+function roundRect(x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  return `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}`
+    + `H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`;
+}
+
 // createCoach(level, { tapWord: () => 'tap' | 'click', root: () => element
 // the `ui` selectors are looked up in, changed: () => redraw the editor
-// (which calls update()) }) -> { el, update(state), mark() (the ring for the board, or
-// null), relight(), available, active() }.
+// (which calls update()) }) -> { el (the strip), layer (for over the whole
+// editor: the dimmer and the first step's dialog), update(state), mark()
+// (the ring for the board, or null), relight(), available, active(),
+// blocking() (the dialog is up) }.
 export function createCoach(level, { tapWord, root, changed }) {
-  const steps = level.tutorial ?? [];
+  const all = level.tutorial ?? [];
+  const steps = all.filter((st) => !st.on);
+  const onFail = all.find((st) => st.on === 'failed') ?? null;
   const el = h('div', { class: 'coach hidden', role: 'status', 'aria-live': 'polite' });
-  let index = 0, acked = false, state = { cells: [], round: 0, cleared: false };
+  const dim = h('div', { class: 'coach-dim', 'aria-hidden': 'true' });
+  const layer = h('div', { class: 'coach-layer' }, dim);
+  // index: the step shown; far: the furthest reached (index < far while the
+  // player looks back); aside: the on-failed step, while it shows.
+  let index = 0, far = 0, acked = false, aside = null, asideShown = false;
+  let state = { cells: [], round: 0, cleared: false, fails: 0 };
   let on = steps.length > 0 && !loadDone()[level.id];
   let lit = null;
+  let card = null, back = null, modalDone = false; // the first step's dialog
+  let flying = null; // its flight up to the strip
+  const reducedMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   const words = (text) => {
     const t = tapWord();
@@ -93,6 +132,7 @@ export function createCoach(level, { tapWord, root, changed }) {
   // editor is redrawn here; otherwise update()'s caller redraws).
   const finish = (byPlayer = false) => {
     on = false;
+    aside = null;
     const done = loadDone();
     done[level.id] = true;
     saveDone(done);
@@ -100,59 +140,153 @@ export function createCoach(level, { tapWord, root, changed }) {
     if (byPlayer) changed();
   };
 
-  // Past every step that is done, and past any step the player has got
-  // ahead of (a later step, not a Next, already done).
+  // Past every step that is done, and on to a later step the player has got
+  // ahead to: one (not a Next) already done, with every croupier the steps
+  // before it ask for in place (or the floor cleared). Looking back (index <
+  // far) waits for Next, unless the player gets further ahead.
   function advance() {
     if (!on) return;
-    for (let j = steps.length - 1; j > index; j--) {
-      if (steps[j].until !== 'next' && met(steps[j].until, state, false)) { index = j; acked = false; break; }
+    const built = (j) => steps.slice(0, j).every((st) => !builds(st.until) || met(st.until, state, false));
+    for (let j = steps.length - 1; j > far; j--) {
+      const u = steps[j].until;
+      if (u !== 'next' && met(u, state, false) && (u === 'cleared' || built(j))) { index = far = j; acked = false; break; }
     }
+    // Looking back, and the step reached is done: on from there.
+    if (index < far && steps[far].until !== 'next' && met(steps[far].until, state, false)) { index = far; acked = false; }
+    if (index < far) return;
     while (index < steps.length && met(steps[index].until, state, acked)) { index++; acked = false; }
+    far = index;
     if (index >= steps.length) finish();
   }
 
-  function draw() {
-    if (!on) { relight(); el.classList.add('hidden'); el.replaceChildren(); return; }
-    const step = steps[index];
+  // What the strip (or the dialog) shows for the step.
+  function content() {
+    const step = aside ?? steps[index];
     // A tutorial of one step is a note: no count, and no Skip beside its button.
-    const note = steps.length === 1;
-    el.classList.remove('hidden');
-    el.replaceChildren(...[
-      note ? null : h('span', { class: 'coach-count', title: 'Tutorial step' }, `${index + 1} / ${steps.length}`),
+    const note = !aside && steps.length === 1;
+    const looking = !aside && index < far;
+    const next = aside || looking || step.until === 'next';
+    const nextLabel = aside || note ? 'Got it' : !looking && index === steps.length - 1 ? 'Done' : 'Next';
+    return [
+      note || aside ? null : h('span', { class: 'coach-count', title: 'Tutorial step' }, `${index + 1} / ${steps.length}`),
       h('p', { class: 'coach-text' }, words(step.say)),
       h('div', { class: 'coach-actions' },
-        step.until === 'next' ? h('button', { class: 'btn small gold coach-next', onclick: () => { acked = true; advance(); changed(); } },
-          note ? 'Got it' : index === steps.length - 1 ? 'Done' : 'Next') : null,
-        note ? null : h('button', { class: 'btn small ghost coach-skip', title: 'Hide the tutorial (the floor\'s story page can show it again)', onclick: () => finish(true) }, 'Skip tutorial'))].filter(Boolean));
+        !note && !aside && index > 0 ? h('button', { class: 'btn small ghost coach-back', title: 'The tutorial\'s step before', onclick: () => { index--; acked = false; changed(); } }, '‹ Back') : null,
+        next ? h('button', {
+          class: 'btn small gold coach-next',
+          onclick: () => {
+            if (aside) aside = null;
+            else if (looking) { index++; acked = false; } else acked = true;
+            modalDone = true;
+            advance();
+            changed();
+          },
+        }, nextLabel) : null,
+        note || aside ? null : h('button', { class: 'btn small ghost coach-skip', title: 'Hide the tutorial (the floor\'s story page can show it again)', onclick: () => { modalDone = true; finish(true); } }, 'Skip tutorial'))]
+      .filter(Boolean);
+  }
+
+  function draw() {
+    if (!on) { dropCard(); relight(); el.classList.add('hidden'); el.replaceChildren(); return; }
+    if (!aside && steps[index].modal && !modalDone) {
+      // The first step, as a dialog in the middle of the screen.
+      el.classList.add('hidden');
+      if (!card) {
+        back = h('div', { class: 'coach-veil' });
+        card = h('div', { class: 'coach coach-card', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Tutorial' });
+        layer.append(back, card);
+        requestAnimationFrame(() => card?.querySelector('.coach-next')?.focus());
+      }
+      card.replaceChildren(...content());
+      relight();
+      return;
+    }
+    el.classList.remove('hidden');
+    el.replaceChildren(...content());
+    dropCard();
     relight();
   }
 
+  // The dialog goes: it flies up to the strip (which shows once it lands).
+  function dropCard() {
+    if (!card) return;
+    const c = card, b = back;
+    card = back = null;
+    if (!on || reducedMotion() || !c.animate) { c.remove(); b.remove(); return; }
+    const from = c.getBoundingClientRect(), to = el.getBoundingClientRect();
+    const dx = to.left + to.width / 2 - (from.left + from.width / 2), dy = to.top + to.height / 2 - (from.top + from.height / 2);
+    const sx = to.width / from.width, sy = to.height / from.height;
+    el.classList.add('landing');
+    const ms = 650, easing = 'cubic-bezier(0.5, 0, 0.2, 1)';
+    for (const k of c.children) k.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms * 0.3, fill: 'forwards' });
+    b.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms, easing, fill: 'forwards' });
+    flying = c.animate([{ transform: 'none' }, { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` }], { duration: ms, easing, fill: 'forwards' });
+    flying.onfinish = () => {
+      flying = null;
+      c.remove(); b.remove();
+      el.classList.remove('landing');
+      el.animate?.([{ boxShadow: '0 0 0 0.25rem #f2c14e, 0 0 2rem rgba(242, 193, 78, 0.9)' }, { boxShadow: '0 0 0 0 rgba(242, 193, 78, 0)' }], { duration: 900, easing: 'ease-out' });
+      relight();
+    };
+  }
+
   // Light up the part of the editor the step names (again, after the editor
-  // redraws that part).
+  // redraws that part). A new showing of a step that names one dims the
+  // screen around it and the strip.
+  let dimFor = null, dimUntil = 0, dimRaf = 0, dimPath = '';
   function relight() {
-    const sel = on && UI[steps[index]?.ui];
+    const step = on ? aside ?? steps[index] : null;
+    const sel = UI[step?.ui];
     const now = sel ? [...root().querySelectorAll(sel)].find((e) => e.getClientRects().length) ?? null : null;
     if (lit && lit !== now) lit.classList.remove('coach-glow');
     lit = now;
     lit?.classList.add('coach-glow');
+    const want = card || flying ? null : step;
+    if (want !== dimFor) {
+      dimFor = want;
+      dimUntil = want?.until === 'next' ? Infinity : performance.now() + DIM_MS;
+      if (!dimRaf && want?.ui) dimRaf = requestAnimationFrame(dimFrame);
+    }
+  }
+  // Each frame while dim: keep the clear patches over the lit part and the
+  // strip (they may move as the editor lays out).
+  function dimFrame() {
+    const live = !!dimFor?.ui && el.isConnected && performance.now() < dimUntil;
+    if (live && lit?.isConnected) {
+      const W = window.innerWidth, H = window.innerHeight, s = uiScale();
+      const hole = (r, p, rad) => roundRect(r.left - p, r.top - p, r.width + 2 * p, r.height + 2 * p, rad);
+      const path = `M0 0H${W}V${H}H0Z${hole(lit.getBoundingClientRect(), DIM_PAD * s, 12 * s)}${hole(el.getBoundingClientRect(), 0, 0)}`;
+      if (path !== dimPath) { dimPath = path; dim.style.clipPath = `path(evenodd, "${path}")`; }
+      dim.classList.add('on');
+    } else dim.classList.remove('on');
+    dimRaf = live ? requestAnimationFrame(dimFrame) : 0;
+  }
+
+  function mark() {
+    const step = on && !card ? aside ?? steps[index] : null;
+    return step?.at ? { at: step.at, side: step.side ?? null } : null;
   }
 
   return {
     el,
+    layer,
     available: steps.length > 0,
     active: () => on,
+    blocking: () => !!card,
     // The editor redrew a panel: light up the step's part of it again.
     relight,
     // The hex (and edge) to ring on the board, or null.
-    mark: () => (on && steps[index]?.at ? { at: steps[index].at, side: steps[index].side ?? null } : null),
-    // The editor's state changed ({ cells, round, cleared }): move on if a
-    // step is done. True if the step (or the ring) changed.
+    mark,
+    // The editor's state changed ({ cells, round, cleared, fails: runs
+    // failed }): move on if a step is done, or show the on-failed step. True
+    // if the ring on the board changed.
     update(next) {
+      const before = JSON.stringify(mark());
+      if (on && onFail && !asideShown && !card && (next.fails ?? 0) > (state.fails ?? 0)) { aside = onFail; asideShown = true; }
       state = next;
-      const before = index, was = on;
       advance();
       draw();
-      return index !== before || on !== was;
+      return JSON.stringify(mark()) !== before;
     },
   };
 }

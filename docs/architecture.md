@@ -226,18 +226,29 @@ whenever a rule changes; the level select shows it.
 
 **Tutorial.** A level may have `tutorial`, a list of steps that
 `src/ui/coach.js` shows in a strip above the board: `{ say, at?, side?, ui?,
-until }`. `say` is the text ({Click}/{click} read "Tap"/"tap" on a touch-only
+modal?, on?, until }`. `say` is the text ({Click}/{click} read "Tap"/"tap" on a touch-only
 screen, and {kbd:text} shows only where there is a keyboard); `at` and `side` ring a hex and one of its edges; `ui` lights up part
 of the editor (`play`, `tests`, `ports`, `roster`, `undo`, `brief`,
-`stats`); `until` is `'next'` (the player presses Next), `'ran'` (a test has
+`stats`) with a pulsing glow, and dims the rest of the screen but the strip
+(while the step waits for Next; for a moment on a step the player acts on);
+`until` is `'next'` (the player presses Next), `'ran'` (a test has
 run), `'cleared'` (since the editor opened), `{ cell: { at, fn, out? } }`
 (that croupier there, with those ports; `'*'` for a port pointed anywhere),
-or `{ any: [...] }` (any one of those). Steps only go forward, and a player
-who is ahead skips the steps between. The last step is usually `'cleared'`:
-the results that follow would hide anything after it. Finishing or skipping
+or `{ any: [...] }` (any one of those). `modal: true` (the first step only)
+shows that step as a dialog in the middle of the screen, which on Next flies
+up into the strip, so the player sees where the tutorial lives (the first
+floor's welcome). `on: 'failed'` takes a step (one waiting for Next) out of
+the sequence: it shows the first time in a visit that a run fails, then the
+tutorial goes back to where it was (the second floor's: the rules are in the
+brief). Steps only go forward, and a player who is ahead skips the steps
+between: to a later step that is done when every croupier the steps before it
+ask for is in place too (so pressing play early doesn't skip the building),
+or to `'cleared'`. Back shows the steps before, skipped ones too, each with
+Next, until the player is back where they were. The last step is usually
+`'cleared'`: the results that follow would hide anything after it. Finishing or skipping
 it is remembered in this browser (`stacked-deck-coach`); the floor's story
 page offers it again (Replay the tutorial, on an empty floor). A tutorial of
-one step is a note (no count, no Skip, and no replay). `test/levels.js`
+one step is a note (no count, no Skip, no Back, and no replay). `test/levels.js`
 checks the steps, and that every croupier a step asks for is in the floor's
 reference solution. The first two floors carry a tutorial, which explains
 the controls, never the floor's solution. Notes: 6♥, the first big step up,

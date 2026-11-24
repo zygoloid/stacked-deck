@@ -153,9 +153,41 @@ try {
   await page.click('.story-actions .btn.gold');
   await page.waitForSelector('svg.board');
   // The tutorial (src/ui/coach.js) on the first floor: a strip above the board.
-  const tutorial = LEVELS[0].tutorial ?? [];
+  // Its steps in sequence (not an on-failed one).
+  const tutorial = (LEVELS[0].tutorial ?? []).filter((st) => !st.on);
   const coachStep = async () => ((await page.textContent('.coach:not(.hidden) .coach-count').catch(() => '')) || '').trim();
   if (tutorial.length) check(await coachStep() === `1 / ${tutorial.length}`, `the first floor starts its tutorial (${await coachStep()})`);
+  // Its first step shows as a dialog in the middle of the screen, then flies
+  // up to the strip.
+  const dismissWelcome = async () => {
+    await page.click('.coach-card .coach-next');
+    await page.waitForSelector('.coach-card', { state: 'detached' });
+    await page.waitForSelector('.coach:not(.hidden):not(.landing)');
+  };
+  if (tutorial[0]?.modal) {
+    const box = await page.locator('.coach-card').boundingBox();
+    const vp = page.viewportSize();
+    check(box && Math.abs(box.x + box.width / 2 - vp.width / 2) < 4 && Math.abs(box.y + box.height / 2 - vp.height / 2) < 4 &&
+      await page.locator('.coach-veil').count() === 1 && await page.locator('.stage > .coach.hidden').count() === 1,
+      'the first step shows as a dialog in the middle of the screen, the strip hidden');
+    await page.keyboard.press('2'); // keys don't reach the editor behind it
+    check(await page.locator('.pal-item.on').count() === 0, 'the dialog keeps keys from the editor');
+    await dismissWelcome();
+    check(await coachStep() === `2 / ${tutorial.length}` && await page.locator('.coach-card, .coach-veil').count() === 0,
+      `Next flies the dialog up into the strip, on step 2 (${await coachStep()})`);
+    // Back goes to the step before, in the strip, with Next to come back.
+    await page.click('.coach .coach-back');
+    check(await coachStep() === `1 / ${tutorial.length}` && await page.locator('.coach-card').count() === 0 && await page.isVisible('.coach .coach-next'),
+      `Back shows the welcome again, in the strip (${await coachStep()})`);
+    await page.click('.coach .coach-next');
+    check(await coachStep() === `2 / ${tutorial.length}`, `Next comes back to step 2 (${await coachStep()})`);
+  }
+  // Running a test before building doesn't skip the building steps.
+  if (tutorial.length) {
+    await page.keyboard.press('.'); // step a round
+    check(await coachStep() === `2 / ${tutorial.length}`, `running a test early stays on the step (${await coachStep()})`);
+    await page.keyboard.press('r'); // back to editing
+  }
 
   // Screen position of a hex centre (and of a point toward side d).
   const hexPoint = (at, d = null, frac = 0.8) => page.evaluate(([[q, r], d, frac]) => {
@@ -393,6 +425,7 @@ try {
     await page.waitForSelector('svg.board');
     check(await coachStep() === `1 / ${tutorial.length}` && (await page.textContent('.stats .stat-v')).trim() === '0',
       `the story page's Replay the tutorial brings it back, on an empty floor (${await coachStep()})`);
+    if (tutorial[0]?.modal) await dismissWelcome();
     await buildLine(line1);
     await page.click('.coach-skip');
     check(await page.locator('.coach.hidden').count() === 1, 'Skip tutorial hides it');
@@ -614,8 +647,9 @@ try {
   // a click (which redraws the panel) lights its active port.
   {
     const lv = LEVELS[1];
-    const step = (lv.tutorial ?? []).findIndex((st) => st.ui === 'ports');
-    const before = (lv.tutorial ?? []).slice(0, step).filter((st) => st.until?.cell).map((st) => st.until.cell);
+    const seq = (lv.tutorial ?? []).filter((st) => !st.on);
+    const step = seq.findIndex((st) => st.ui === 'ports');
+    const before = seq.slice(0, step).filter((st) => st.until?.cell).map((st) => st.until.cell);
     if (step >= 0 && before.length) {
       await page.goto(base);
       await page.evaluate(([id, cells]) => {
@@ -625,8 +659,42 @@ try {
       await page.goto(`${base}?unlockall#/level/${lv.id}`);
       await page.waitForSelector('svg.board');
       await clickHex(before[before.length - 1].at);
-      check((await page.textContent('.coach .coach-count')).trim() === `${step + 1} / ${lv.tutorial.length}` &&
+      check((await page.textContent('.coach .coach-count')).trim() === `${step + 1} / ${seq.length}` &&
         await page.locator('.inspector .port-row.active.coach-glow').count() === 1, 'the tutorial lights the selected croupier\'s active port');
+      await page.evaluate(() => localStorage.removeItem('stacked-deck-coach'));
+    }
+  }
+
+  // A step that names a part of the editor lights it and dims the rest of the
+  // screen; a failed run brings the on-failed step (the rules are in the
+  // brief), and Got it goes back to the step the tutorial was on.
+  {
+    const lv = LEVELS.find((l) => l.tutorial?.some((st) => st.on === 'failed'));
+    const seq = (lv?.tutorial ?? []).filter((st) => !st.on);
+    const failed = lv?.tutorial.find((st) => st.on === 'failed');
+    if (lv && seq[0].until === 'next' && !seq[0].modal) {
+      await page.goto(base);
+      await page.evaluate((id) => {
+        localStorage.removeItem('stacked-deck-coach');
+        const save = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{}');
+        if (save.levels?.[id]) save.levels[id].cells = [];
+        localStorage.setItem('stacked-deck-v1', JSON.stringify(save));
+      }, lv.id);
+      await page.goto(`${base}?unlockall#/level/${lv.id}`);
+      await page.waitForSelector('svg.board');
+      if (seq[0].ui) {
+        await page.waitForSelector('.coach-dim.on');
+        check(await page.locator('.coach-glow').count() === 1, `${lv.id}: the first step lights its part, the rest dimmed`);
+      }
+      await page.click('.coach .coach-next');
+      await page.click('.speeds .sp:last-child');
+      await page.click('.tp.main');
+      await page.waitForFunction((say) => document.querySelector('.coach:not(.hidden) .coach-text')?.textContent.startsWith(say.slice(0, 20)), failed.say, { timeout: 20000 });
+      check(await page.locator('.coach .coach-count').count() === 0 && (!failed.ui || await page.locator('.topbar .coach-glow, .coach-glow').count() === 1),
+        `${lv.id}: a failed run shows the on-failed step, its part lit`);
+      if (failed.ui) await page.waitForSelector('.coach-dim.on');
+      await page.click('.coach .coach-next');
+      check((await page.textContent('.coach .coach-count')).trim() === `2 / ${seq.length}`, `${lv.id}: Got it goes back to the step it was on`);
       await page.evaluate(() => localStorage.removeItem('stacked-deck-coach'));
     }
   }
