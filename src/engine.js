@@ -47,8 +47,10 @@ import {
 //  10  a run stops when the floor repeats a state with no progress (a hand
 //      dealt or a payout) since, or after STALL_ROUNDS rounds without
 //      progress, or at a wrong payout; player and house cards alike (see Run)
-//  11  no rule changed: shipped floors' tests changed (Four of a Kind deals
-//      from three decks), and the server re-scores only on a version change
+//  11  Suits sends the colour joker to the first of S, D, C, H with a port
+//      (was S, H, D, C); also shipped floors' tests changed (Four of a Kind
+//      deals from three decks), and the server re-scores only on a version
+//      change
 // (The card limit going from 1000 to 2000 and Hand's n from 13 to 52 at
 // most are not rules changes either: no machine that cleared a floor before
 // behaves differently.)
@@ -98,15 +100,16 @@ export const FUNCTIONS = {
   flush: (st, h) => [[isFlush(cardsOf(h)) ? 'yes' : 'no', h]],
   // n of a kind (or better): some rank appears at least n times.
   kind: (st, h) => [[largestSet(cardsOf(h)) >= st.n ? 'yes' : 'no', h]],
-  // Suits: deal each card to the pile for its suit (ports S, H, D, C).
+  // Suits: deal each card to the pile for its suit (ports S, D, C, H).
   // Cards whose suit has no port go to 'misc' if it is assigned, otherwise
   // they are dropped. Suits sharing a side form one pile, in hand order.
   suits: (st, h) => {
     const piles = new Map();
     let last;
     for (const x of h) {
-      // The colour joker goes to the first suit (S, H, D, C) that has a port;
-      // the monochrome joker and advertising cards have no suit.
+      // The colour joker goes to the first suit (S, D, C, H, as in new deck
+      // order) that has a port; the monochrome joker and advertising cards
+      // have no suit.
       const own = suitsOf(x.c).find((u) => st.out[u] !== undefined);
       const port = own ?? 'misc';
       const side = st.out[port];

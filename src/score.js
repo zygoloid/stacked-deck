@@ -141,7 +141,7 @@ export function sanitizeCells(level, cells) {
 export const PORTS = {
   pass: ['out'], duplicate: ['a', 'b'], sort: ['out'], cut: ['top', 'bottom'],
   outshuffle: ['out'], inshuffle: ['out'], straight: ['yes', 'no'], flush: ['yes', 'no'],
-  kind: ['yes', 'no'], set: ['set', 'rest'], suits: ['S', 'H', 'D', 'C', 'misc'],
+  kind: ['yes', 'no'], set: ['set', 'rest'], suits: ['S', 'D', 'C', 'H', 'misc'],
   burn: ['burn', 'rest'], hand: ['out'], deal: ['to'], gather: ['out'],
   war: ['win', 'lose', 'dwin', 'dlose'],
 };

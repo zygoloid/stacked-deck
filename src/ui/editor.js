@@ -637,7 +637,7 @@ export function openEditor(root, ctx, level) {
     const close = () => modal.replaceChildren();
     modal.replaceChildren(h('div', { class: 'modal-back', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
       h('div', { class: 'modal results' },
-        h('div', { class: 'res-suits' }, '♠ ♥ ♦ ♣'),
+        h('div', { class: 'res-suits' }, '♠ ♦ ♣ ♥'),
         h('h2', {}, wasSolved ? 'Floor cleared again' : 'Floor cleared!'),
         h('p', { class: 'res-sub' }, `${level.title}: all ${level.tests.length} tests${checks?.length ? ` and ${checks.length} check deals` : ''} passed.`),
         h('div', { class: 'res-grid' },

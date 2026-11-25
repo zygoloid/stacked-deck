@@ -81,7 +81,7 @@ export const CROUPIERS = {
     desc: 'The cards of the most common rank go to set, the rest to rest.',
   },
   suits: {
-    name: 'Suits', abbr: 'SUIT', family: SHAPE, ports: ['S', 'H', 'D', 'C', 'misc'],
+    name: 'Suits', abbr: 'SUIT', family: SHAPE, ports: ['S', 'D', 'C', 'H', 'misc'],
     desc: 'Deals each card to its suit\'s pile. Cards without a side go to misc.',
   },
   burn: {

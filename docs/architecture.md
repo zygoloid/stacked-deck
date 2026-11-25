@@ -165,7 +165,7 @@ scanning on clockwise from the first), so they keep up with a line of passes.
 | `flush` | `yes`, `no` | | all one suit |
 | `kind` | `yes`, `no` | `n` (2–8) | some rank appears ≥ n times |
 | `set` | `set`, `rest` | | cards of the most common rank(s) (jokers join them) / the rest (ad cards always) |
-| `suits` | `S`,`H`,`D`,`C`,`misc` | | each card to its suit's pile; unassigned suits go to misc (or the floor); suits sharing a side form one pile |
+| `suits` | `S`,`D`,`C`,`H`,`misc` | | each card to its suit's pile; unassigned suits go to misc (or the floor); suits sharing a side form one pile |
 | `deal` | `out: {to: [sides…]}` | | one card at a time, round-robin, each onto the top of its side's pile (one pile per side, even if listed twice), so piles come out in reverse deal order |
 | `gather` | `out` | `under?` (side) | stacks two hands from different sides; the hand from `under` goes underneath (else the first picked up does) |
 | `burn` | `burn`, `rest` | | top card / the rest; both to one side moves the top card to the bottom |
@@ -200,7 +200,7 @@ campaign floors.
   sends them to `rest` even when they're all there is), a straight or a flush,
   and they lose to everything in War.
 * **Flush and Suits:** the colour joker matches any suit, so it never spoils a
-  flush, and Suits sends it to the first of ♠ ♥ ♦ ♣ that has a port. The
+  flush, and Suits sends it to the first of ♠ ♦ ♣ ♥ that has a port. The
   monochrome joker and ad cards spoil a flush and go to `misc` in Suits.
 * `isCard`, `isJoker`, `isAd` and `suitsOf` in `src/cards.js` encode this.
 

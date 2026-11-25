@@ -24,7 +24,7 @@ export const rankOf = (card) => card[0];
 export const suitOf = (card) => card[1];
 // The suits a card counts as: the colour joker has all four, the monochrome
 // joker and advertising cards have none.
-export const suitsOf = (card) => (card === '??' ? ['S', 'H', 'D', 'C'] : isSpecial(card) ? [] : [card[1]]);
+export const suitsOf = (card) => (card === '??' ? ['S', 'D', 'C', 'H'] : isSpecial(card) ? [] : [card[1]]);
 
 // 1..13 with ace low (natural cards only).
 export const rankValue = (card) => RANKS.indexOf(rankOf(card)) + 1;
@@ -53,7 +53,7 @@ export function fullDeck() {
 // Every card shares a suit (the colour joker matches any suit).
 export function isFlush(hand) {
   if (!hand.length) return false;
-  let common = ['S', 'H', 'D', 'C'];
+  let common = ['S', 'D', 'C', 'H'];
   for (const c of hand) common = common.filter((x) => suitsOf(c).includes(x));
   return common.length > 0;
 }

@@ -184,7 +184,7 @@ const runFloor = (cells, inputs, rounds = 12) => {
   ], [['$', '$$']]);
   assert.deepStrictEqual(g.paid, [['$', '$$']], 'ad cards alone are all rest');
 }
-// Suits: the colour joker goes to the first suit with a port (S, H, D, C);
+// Suits: the colour joker goes to the first suit with a port (S, D, C, H);
 // the monochrome joker and ad cards go to misc.
 {
   const f = runFloor([
@@ -193,7 +193,7 @@ const runFloor = (cells, inputs, rounds = 12) => {
     { at: [1, 0], kind: 'payout' }, { at: [0, 1], kind: 'payout' }, { at: [1, -1], kind: 'payout' },
   ], [['??', '2D', '?', '$', '3H']]);
   const byLen = f.paid.map((h) => h.join(' ')).sort();
-  assert.deepStrictEqual(byLen, ['2D', '? $', '?? 3H']);
+  assert.deepStrictEqual(byLen, ['3H', '? $', '?? 2D']);
 }
 // War: jokers beat aces, ad cards lose to everything.
 {
