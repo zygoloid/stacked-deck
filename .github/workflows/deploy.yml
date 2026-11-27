@@ -26,6 +26,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    concurrency:
+      group: test-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -101,6 +104,8 @@ jobs:
           service_account: stacked-deck-deploy@zygoloid-github-io.iam.gserviceaccount.com
       - name: Check the server's rules version
         run: node tools/check-rules-version.js "$($FIREBASE database:get /config/rulesVersion --instance zygoloid-stacked-deck --project $PROJECT)"
+      - name: Check the database is not locked down
+        run: node functions/tools/check-lockdown.js
       # Functions first, so they know about anything the new rules accept.
       - name: Deploy functions
         run: $FIREBASE deploy --only functions:stacked-deck --project $PROJECT --non-interactive $DRY_RUN
@@ -146,32 +151,54 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read
+      actions: read
+      deployments: read
       pages: write
       id-token: write
     steps:
-      # The site is always main's, whichever branch triggered the deploy.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
-          persist-credentials: false
-      # The beta, if the branch exists (a missing branch fails only this step).
-      - id: beta
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        continue-on-error: true
-        with:
-          ref: beta
-          path: beta-src
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-      - run: node tools/build-site.js
+      # On main, publish this run's commit at / and the last published beta at
+      # /beta/ (if refs/heads/beta exists); on beta, keep / at the commit main
+      # last published to github-pages (never an unmigrated main commit whose
+      # firebase job failed) and publish this run's commit at /beta/.
+      - name: Resolve live and beta commits
+        id: refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci-pages.js resolve-refs
+      - name: Check out live site commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.refs.outputs.live_ref }}
+          path: live-src
+          persist-credentials: false
+      - name: Check out beta commit
+        id: beta
+        if: steps.refs.outputs.beta_ref != ''
+        continue-on-error: ${{ github.ref == 'refs/heads/main' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.refs.outputs.beta_ref }}
+          path: beta-src
+          persist-credentials: false
+      - name: Build live site into _site
+        run: node live-src/tools/build-site.js --out _site
       - name: Build the beta into _site/beta
-        if: steps.beta.outcome == 'success'
+        if: steps.refs.outputs.beta_ref != '' && steps.beta.outcome == 'success'
+        continue-on-error: ${{ github.ref == 'refs/heads/main' }}
         run: node beta-src/tools/build-site.js --beta --out _site/beta
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
+      - name: Wait for Pages artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci-pages.js wait-artifact
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -752,21 +752,25 @@ deployed by hand except a rules version change (below) and the kill switch
 * **firebase**, on `main` after the tests pass, in the `production`
   environment; the only job that can get Google credentials. It checks that
   the server's `config/rulesVersion` equals `RULES_VERSION` (if not, it is a
-  rules version change: it stops, deploying nothing), then deploys the
+  rules version change: it stops, deploying nothing) and that the database
+  has not been locked down by the kill switch (`functions/tools/check-lockdown.js`,
+  so a routine push never silently unlocks `DENY_ALL`), then deploys the
   functions, then the database rules: in that order, so the functions know
   every floor and feature the new rules accept. Unchanged functions are
   skipped by the Firebase CLI. Then it fills in and repairs each floor's
   best known score (`tools/repair-best.js`, above), and last it scores any
   submission the trigger missed (`rescore.js`, a sweep: normally there are
   none). A dry run only reports what they would write.
-* **pages**, after that: builds `_site/` from `main` (`index.html`,
-  `privacy.html`, `style.css`, `src/`; `tools/build-site.js` checks every
-  import stays inside it), and the `beta` branch, if there is one, into
-  `_site/beta/` (see "The beta" below), and publishes it. The site goes
+* **pages**, after that: builds `_site/` from the exact `main` commit that
+  passed (`tools/build-site.js` checks every import stays inside it), and
+  the last published `beta` commit (if `refs/heads/beta` exists) into
+  `_site/beta/` (see "The beta" below), waits for GitHub's REST API to index
+  the uploaded artifact (`tools/ci-pages.js`), and publishes it. The site goes
   live last, after the server can handle it, and not at all if anything
   before failed. A push to `beta` runs this job too, after the tests, with
-  no Firebase job: it republishes `main`'s site as it is, with the new
-  beta.
+  no Firebase job: it rebuilds `/` from the commit `main` last published to
+  `github-pages` (never an unmigrated `main` commit whose `firebase` job
+  stopped or failed) together with the newly tested `beta` commit.
 
 Running the workflow by hand (Actions → Test and deploy → Run workflow, on
 `main`) defaults to a **dry run**: `firebase deploy --dry-run` for both
