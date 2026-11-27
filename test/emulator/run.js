@@ -200,7 +200,7 @@ await env.cleanup();
 // ---------- processSolution and addPoint, called directly ----------
 const fnRequire = createRequire(new URL('../../functions/package.json', import.meta.url));
 const admin = { ...fnRequire('firebase-admin/app'), ...fnRequire('firebase-admin/database') };
-const { processSolution, addPoint } = await import('../../functions/solutions.js');
+const { processSolution, addPoint, judgeSolution } = await import('../../functions/solutions.js');
 const app = admin.initializeApp({ projectId: 'demo-stacked-deck' }, 'tests');
 const direct = admin.getDatabaseWithUrl(url('direct-tests'), app);
 await direct.ref('/').set(null);
@@ -359,13 +359,16 @@ console.log('best known scores ok');
   assert.deepStrictEqual((await direct.ref('stats/v1/two-tables').get()).val(), { points: { '5_50': 0, '6_40': 0 }, players: 0 });
 
   // A solution deleted while it is being scored leaves nothing behind.
-  await put('p6', HASH, { cells: JSON.stringify(CELLS) });
-  const run = processSolution(direct, { uid: 'p6', level: LEVEL, hash: HASH });
-  await sleep(15);
   const mid = await stats();
-  await deleteUserData(direct, 'p6');
-  const res = await run;
-  assert(['deleted meanwhile', 'done already'].includes(res), res);
+  await put('p6', HASH, { cells: JSON.stringify(CELLS) });
+  const res = await processSolution(direct, { uid: 'p6', level: LEVEL, hash: HASH }, {
+    judge: async (...a) => {
+      const r = await judgeSolution(...a);
+      await deleteUserData(direct, 'p6');
+      return r;
+    },
+  });
+  assert.strictEqual(res, 'deleted meanwhile');
   assert.strictEqual((await direct.ref('solutions/p6').get()).val(), null, 'nothing written back');
   assert.strictEqual((await direct.ref(`scores/v${RULES_VERSION}/p6`).get()).val(), null);
   const end = await stats();
@@ -514,8 +517,8 @@ console.log('rescore ok');
     [`solutions/e2e/${LEVEL}/${HASH}`]: { cells: JSON.stringify(CELLS), at: Date.now(), rules: RULES_VERSION },
   }));
   let score = null;
-  for (let i = 0; i < 60 && !score; i++) {
-    await sleep(500);
+  for (let i = 0; i < 600 && !score; i++) {
+    await sleep(50);
     score = (await player.ref(`solutions/e2e/${LEVEL}/${HASH}/score`).get()).val();
   }
   assert.deepStrictEqual(score, { croupiers: PAR.croupiers, rounds: PAR.rounds }, 'scored by the trigger');

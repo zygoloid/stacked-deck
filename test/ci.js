@@ -147,4 +147,18 @@ const B_NEW = 'bbbb222222222222222222222222222222222222';
   );
 }
 
+// 5. Workflow invariants (.github/workflows/deploy.yml): SHA-pinned actions,
+// persist-credentials: false on every checkout, no cache or pull_request_target,
+// and the `test` status-check job required by the main branch ruleset.
+{
+  const yml = readFileSync(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+  assert.doesNotMatch(yml, /pull_request_target|actions\/cache/);
+  assert.match(yml, /^  test:\n    needs: \[unit, ui-smoke, emulator\]/m);
+  const uses = [...yml.matchAll(/\buses:\s*([^\s#]+)/g)].map((m) => m[1]);
+  assert(uses.length > 0 && uses.every((u) => /^[^@]+@[0-9a-f]{40}$/.test(u)), `unpinned action: ${uses}`);
+  const checkouts = yml.split(/\buses:\s*actions\/checkout@/).slice(1);
+  assert(checkouts.length > 0 && checkouts.every((chunk) => /^\S+[^\n]*\n\s+with:\n(?:\s+\S+:.*\n)*?\s+persist-credentials:\s*false\b/.test(chunk)),
+    'every actions/checkout must set persist-credentials: false');
+}
+
 console.log('ci helpers ok');

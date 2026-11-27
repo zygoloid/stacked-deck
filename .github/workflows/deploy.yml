@@ -23,11 +23,47 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 10
     concurrency:
-      group: test-${{ github.event.pull_request.number || github.ref }}
+      group: unit-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: npm test
+      - run: node tools/build-site.js
+
+  ui-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: ui-smoke-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Install Playwright headless shell
+        # Install scripts are skipped: nothing here needs them.
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.63.0
+          npx playwright install --with-deps --only-shell chromium
+      - run: node tools/ui-smoke.js
+
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    concurrency:
+      group: emulator-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,19 +76,32 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - run: npm test
-      - name: Install test tools
+      - name: Install emulator and browser test tools
         # Install scripts are skipped: nothing here needs them.
         run: |
-          (cd functions && npm ci --ignore-scripts)
-          (cd test/emulator && npm ci --ignore-scripts)
-          npm install --no-save --ignore-scripts playwright@1.63.0
-          npx playwright install --with-deps chromium
-      - run: node tools/ui-smoke.js
+          (cd functions && npm ci --ignore-scripts) & p1=$!
+          (cd test/emulator && npm ci --ignore-scripts) & p2=$!
+          npm install --no-save --ignore-scripts playwright@1.63.0 & p3=$!
+          wait $p1 && wait $p2 && wait $p3
+          npx playwright install --with-deps --only-shell chromium
       - name: Emulator tests
         working-directory: test/emulator
-        run: npm test && npm run test:browser
-      - run: node tools/build-site.js
+        run: npm run test:all
+
+  # Required status check on main ("Live site protection" ruleset) and single
+  # upstream gate for firebase and pages.
+  test:
+    needs: [unit, ui-smoke, emulator]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check all test suites passed
+        run: |
+          if [ "${{ needs.unit.result }}" != "success" ] || [ "${{ needs.ui-smoke.result }}" != "success" ] || [ "${{ needs.emulator.result }}" != "success" ]; then
+            echo "Suite results: unit=${{ needs.unit.result }} ui-smoke=${{ needs.ui-smoke.result }} emulator=${{ needs.emulator.result }}" >&2
+            exit 1
+          fi
 
   # Only this job can get Google credentials: the Workload Identity
   # Federation provider accepts tokens only from this workflow on main, in
@@ -96,8 +145,9 @@ jobs:
           node-version: 22
       - name: Install firebase-tools and the functions' dependencies
         run: |
-          (cd functions && npm ci --ignore-scripts)
-          (cd test/emulator && npm ci --ignore-scripts)
+          (cd functions && npm ci --ignore-scripts) & p1=$!
+          (cd test/emulator && npm ci --ignore-scripts) & p2=$!
+          wait $p1 && wait $p2
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}

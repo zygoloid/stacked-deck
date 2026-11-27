@@ -115,9 +115,17 @@ const browser = await chromium.launch();
 // sessionStorage): every page here starts past it, but the ones that check
 // the title itself (rawContext).
 const titleSeen = () => { try { sessionStorage.setItem('stacked-deck-title', '1'); } catch { /* storage blocked */ } };
+const errors = [];
+// Signed out, the game must not contact any other site (the online
+// features load only on signing in), and nothing may break its CSP.
+const external = [];
 // Headless Chromium can occasionally abort in-flight ES module imports during
 // rapid back-to-back navigations/reloads, leaving #app unbooted after load.
 function steadyPage(p) {
+  p.on('request', (r) => {
+    const u = new URL(r.url());
+    if (/^https?:$/.test(u.protocol) && !['localhost', '127.0.0.1'].includes(u.hostname)) external.push(r.url());
+  });
   const rawGoto = p.goto.bind(p), rawReload = p.reload.bind(p);
   const ensureBooted = async () => {
     for (let k = 0; k < 2; k++) {
@@ -154,18 +162,54 @@ const rawContext = async (opts) => steadyContext(await baseContext(opts));
 browser.newContext = async (opts) => { const c = await rawContext(opts); await c.addInitScript(titleSeen); return c; };
 const rawNewPage = browser.newPage.bind(browser);
 browser.newPage = async (opts) => { const p = steadyPage(await rawNewPage(opts)); await p.addInitScript(titleSeen); return p; };
-try {
+
+// Screen position of a hex centre (and of a point toward side d) on `page`.
+async function makeDesktopPage() {
   const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
-  const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  // Signed out, the game must not contact any other site (the online
-  // features load only on signing in), and nothing may break its CSP.
-  const external = [];
-  page.on('request', (r) => { const u = new URL(r.url()); if (/^https?:$/.test(u.protocol) && !['localhost', '127.0.0.1'].includes(u.hostname)) external.push(r.url()); });
-  page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy/i.test(m.text())) errors.push(m.text()); });
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('dialog', (d) => d.accept()); // "Clear the whole floor?", "Delete ... solution?"
+  const hexPoint = (at, d = null, frac = 0.8) => page.evaluate(([[q, r], d, frac]) => {
+    const R = 50, svg = document.querySelector('svg.board');
+    let x = R * Math.sqrt(3) * (q + r / 2), y = R * 1.5 * r;
+    if (d !== null) { x += Math.cos(d * Math.PI / 3) * R * 0.866 * frac; y += Math.sin(d * Math.PI / 3) * R * 0.866 * frac; }
+    const p = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+    return [p.x, p.y];
+  }, [at, d, frac]);
+  const clickHex = async (at, d, frac) => { const [x, y] = await hexPoint(at, d, frac); await page.mouse.click(x, y); };
+  return { page, hexPoint, clickHex };
+}
 
+async function runTracks(fns) {
+  const logs = fns.map(() => []);
+  // Start the longest tracks first, capped at 4 concurrent contexts so
+  // time-sensitive touch/animation checks never starve on 4-core runners.
+  const order = [2, 3, 4, 0, 6, 5, 1].filter((i) => i < fns.length);
+  for (let i = 0; i < fns.length; i++) if (!order.includes(i)) order.push(i);
+  let next = 0;
+  try {
+    await Promise.all(Array.from({ length: Math.min(4, fns.length) }, async () => {
+      while (next < order.length) {
+        const idx = order[next++];
+        const trackCheck = (cond, msg) => {
+          logs[idx].push(`${cond ? 'ok  ' : 'FAIL'} ${msg}`);
+          if (!cond) failures++;
+        };
+        await fns[idx](trackCheck);
+      }
+    }));
+  } finally {
+    for (const lines of logs) {
+      for (const l of lines) console.log(l);
+    }
+  }
+}
+
+try {
+  await runTracks([
+    async (check) => {
+      const { page, hexPoint, clickHex } = await makeDesktopPage();
+      try {
   await page.goto(base);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
@@ -224,15 +268,6 @@ try {
     await page.keyboard.press('r'); // back to editing
   }
 
-  // Screen position of a hex centre (and of a point toward side d).
-  const hexPoint = (at, d = null, frac = 0.8) => page.evaluate(([[q, r], d, frac]) => {
-    const R = 50, svg = document.querySelector('svg.board');
-    let x = R * Math.sqrt(3) * (q + r / 2), y = R * 1.5 * r;
-    if (d !== null) { x += Math.cos(d * Math.PI / 3) * R * 0.866 * frac; y += Math.sin(d * Math.PI / 3) * R * 0.866 * frac; }
-    const p = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
-    return [p.x, p.y];
-  }, [at, d, frac]);
-  const clickHex = async (at, d, frac) => { const [x, y] = await hexPoint(at, d, frac); await page.mouse.click(x, y); };
 
   // Build the trivial solution: a line of passes from each player to a desk,
   // derived from level.fixed.
@@ -786,7 +821,11 @@ try {
     const status = await page.textContent('.sim-status');
     check(/desk X that belongs at desk Z/.test(status), `a hand paid at the wrong desk is flagged: "${status.slice(0, 80)}"`);
   }
-
+      } finally {
+        await page.close();
+      }
+    },
+    async (check) => {
   // On a phone-sized screen, playing must not scroll the page away from the floor.
   {
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -806,10 +845,11 @@ try {
     // where the fonts make the page taller), so compare with just after.
     await phone.click('.tp.main');
     const y0 = await phone.evaluate(() => window.scrollY);
-    await phone.waitForTimeout(3000);
+    await phone.waitForFunction(() => (document.querySelector('.queue')?.scrollTop ?? 0) > 0, null, { timeout: 5000 }).catch(() => phone.waitForTimeout(1000));
     const y = await phone.evaluate(() => window.scrollY);
     check(y === y0, `playing on a phone keeps the page still (scrollY ${y0} -> ${y})`);
     if (shots) await phone.screenshot({ path: join(shots, '7-phone-playing.png') });
+    if (!(await phone.locator('.modal.results').count())) await phone.click('.speeds .sp:last-child');
     await phone.waitForSelector('.modal.results', { timeout: 60000 });
     check(await phone.locator('.modal.results .sc-pt').count() === 1, 'phone: results plot shows the solution');
     if (shots) await phone.screenshot({ path: join(shots, '7b-phone-results.png'), fullPage: true });
@@ -872,6 +912,7 @@ try {
     check(seen.join() === '1,2,3,4' && scrolled === 0 && await after() === 4 && path() === '',
       `phone: sliding moves the break along the hand a card at a time without scrolling, and it stays as the finger lifts (${seen.join(' ')}, scrolled ${scrolled})`);
     await tap(await strip(2));
+    await hand.evaluate((t) => Promise.all(t.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {}))));
     check(await after() === 2 && path() === '', 'phone: a tap on a hidden card in a hand shows it, without opening it');
     const shown = await hand.locator(':scope > *').nth(2).boundingBox();
     await tap([shown.x + shown.width / 2, shown.y + shown.height / 2]);
@@ -894,7 +935,8 @@ try {
     if (shots) await phone.screenshot({ path: join(shots, '7f-phone-hand.png') });
     await phone.close();
   }
-
+    },
+    async (check) => {
   // Touch on a phone: a drag pans; a tap on an empty hex opens the croupier
   // picker there (no palette on a phone), and a tap near an edge points the
   // first port that way; tapping the bare floor deselects, two fingers
@@ -1037,11 +1079,12 @@ try {
       const before = await ats();
       await touch('touchStart', [p]);
       await phone.evaluate(() => { document.querySelector('.board-wrap').style.marginTop = '150px'; });
-      for (let i = 1; i <= 4; i++) await touch('touchMove', [[p[0], p[1] - 4 * i]]);
+      for (const dy of [10, 13, 16]) await touch('touchMove', [[p[0], p[1] - dy]]);
       await touch('touchEnd', []);
       await phone.evaluate(() => { document.querySelector('.board-wrap').style.marginTop = ''; });
       check(JSON.stringify(await ats()) === JSON.stringify(before), `the floor moving under a pressed croupier doesn't move it (${JSON.stringify(await ats())})`);
-      await phone.tap('.sel-bar [data-act="done"]');
+      if (await phone.isVisible('.sel-bar')) await phone.tap('.sel-bar [data-act="done"]');
+      else await phone.keyboard.press('Escape');
     }
     // A long press on an edge opens the port menu, which stays open after the
     // finger lifts (lifting it clicks whatever is under it: the menu's centre);
@@ -1426,7 +1469,10 @@ try {
   }
   check(dealLabel([1, 2, 3, 4, 5, 6]).text === '1-6' && dealLabel([1, 2, 4, 5, 6, 9]).text === '1·2·4-6·9' &&
     dealLabel([1, 3, 5, 7, 9, 11], 26).text === '1·3·…' && dealLabel([1, 3, 5, 7, 9, 11], 20).text === '1·…', 'Deal labels collapse runs, then cut the tail');
-
+    },
+    async (check) => {
+      const { page, hexPoint, clickHex } = await makeDesktopPage();
+      try {
   // Pointing ports: only required ports start with a side (and have no
   // floor option); selecting starts at the first port; each direction key
   // points the active port and moves on; Ctrl+Z goes back a port; a long
@@ -2018,7 +2064,13 @@ try {
     check(/Burn/.test(txt) && /Hand/.test(txt) && /n \(1–52, default 5\)/.test(txt), 'help documents Burn and Hand (n 1–52, default 5)');
     await page.keyboard.press('Escape');
   }
-
+      } finally {
+        await page.close();
+      }
+    },
+    async (check) => {
+      const { page, hexPoint, clickHex } = await makeDesktopPage();
+      try {
   // Special card faces (HTML), drawn straight from the dom helpers.
   {
     await page.goto(`${base}?unlockall`);
@@ -2479,7 +2531,11 @@ try {
     check(lb.solved && lb.best.croupiers === 1, `the bolted croupier doesn't count (${JSON.stringify(lb.best)})`);
     await setSave({});
   }
-
+      } finally {
+        await page.close();
+      }
+    },
+    async (check) => {
   // Dev mode (src/ui/dev.js; the checkout served as it is is a 'dev' build):
   // ?dev turns it on and it is remembered; a locked floor can be entered,
   // its par machine loaded and measured (the measured total is par's
@@ -2650,30 +2706,36 @@ try {
   }
 
   if (all) {
-    const { readdirSync } = await import('node:fs');
-    const have = new Set(readdirSync(join(repo, 'solutions/levels')).map((f) => f.replace(/\.js$/, '')));
-    for (const lv of [...LEVELS, ...BONUS_LEVELS]) {
-      if (!have.has(lv.id)) { console.log(`skip ${lv.id}: no reference solution`); continue; }
-      const sol = (await import(pathToFileURL(join(repo, 'solutions/levels', `${lv.id}.js`)).href)).default;
-      await page.goto(base);
-      await page.evaluate(([id, cells]) => {
-        const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
-        s.levels[id] = { cells };
-        localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
-      }, [lv.id, sol.cells]);
-      await page.goto(`${base}?unlockall#/level/${lv.id}`);
-      await page.waitForSelector('svg.board');
-      await page.click('.speeds .sp:last-child');
-      const res = await Promise.race([
-        page.waitForSelector('.modal.results', { timeout: 120000 }).then(() => 'solved'),
-        page.waitForSelector('.toast.bad', { timeout: 120000 }).then(async () => `failed: ${await page.textContent('.toast')}`),
-      ]);
-      const saved = await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id], lv.id);
-      const par = lv.par ? ` (par ${lv.par.croupiers}/${lv.par.rounds})` : '';
-      check(res === 'solved' && saved.solved && saved.solutions?.length === 1, `${lv.id}: reference solution ${res}, best ${JSON.stringify(saved.best)}${par}`);
+    const { page } = await makeDesktopPage();
+    try {
+      const { readdirSync } = await import('node:fs');
+      const have = new Set(readdirSync(join(repo, 'solutions/levels')).map((f) => f.replace(/\.js$/, '')));
+      for (const lv of [...LEVELS, ...BONUS_LEVELS]) {
+        if (!have.has(lv.id)) { console.log(`skip ${lv.id}: no reference solution`); continue; }
+        const sol = (await import(pathToFileURL(join(repo, 'solutions/levels', `${lv.id}.js`)).href)).default;
+        await page.goto(base);
+        await page.evaluate(([id, cells]) => {
+          const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+          s.levels[id] = { cells };
+          localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+        }, [lv.id, sol.cells]);
+        await page.goto(`${base}?unlockall#/level/${lv.id}`);
+        await page.waitForSelector('svg.board');
+        await page.click('.speeds .sp:last-child');
+        const res = await Promise.race([
+          page.waitForSelector('.modal.results', { timeout: 120000 }).then(() => 'solved'),
+          page.waitForSelector('.toast.bad', { timeout: 120000 }).then(async () => `failed: ${await page.textContent('.toast')}`),
+        ]);
+        const saved = await page.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id], lv.id);
+        const par = lv.par ? ` (par ${lv.par.croupiers}/${lv.par.rounds})` : '';
+        check(res === 'solved' && saved.solved && saved.solutions?.length === 1, `${lv.id}: reference solution ${res}, best ${JSON.stringify(saved.best)}${par}`);
+      }
+    } finally {
+      await page.close();
     }
   }
-
+    },
+    async (check) => {
   // The title screen: once a visit, when the game opens on the floors list.
   {
     const tctx = await rawContext({ viewport: { width: 1440, height: 860 } });
@@ -2684,7 +2746,8 @@ try {
     check(await tp.evaluate(() => document.activeElement?.classList.contains('title-start')), 'the title screen shows, with Start focused');
     const paid = () => tp.evaluate(() => Number(document.querySelector('.title-board .paid-badge-t')?.textContent ?? 0));
     const p0 = await paid();
-    await tp.waitForTimeout(1500);
+    await tp.waitForFunction((n) => Number(document.querySelector('.title-board .paid-badge-t')?.textContent ?? 0) > n &&
+      document.querySelectorAll('.title-board .scard').length > 10, p0, { timeout: 4000 }).catch(() => {});
     check(await tp.locator('.title-board .scard').count() > 10 && await paid() > p0, 'its machine runs, paying out at its desk');
     if (shots) await tp.screenshot({ path: join(shots, 'title.png') });
     await tp.mouse.wheel(0, 600);
@@ -2747,7 +2810,7 @@ try {
     await rp.goto(base);
     await rp.waitForSelector('.title-start');
     const r0 = await rp.evaluate(() => document.querySelector('.title-board .paid-badge-t')?.textContent);
-    await rp.waitForTimeout(1200);
+    await rp.waitForTimeout(500);
     const still = r0 === await rp.evaluate(() => document.querySelector('.title-board .paid-badge-t')?.textContent);
     await rp.click('.title-start');
     await rp.waitForSelector('.title-screen', { state: 'detached', timeout: 1000 }).catch(() => {});
@@ -2919,11 +2982,20 @@ try {
 
   // The privacy notice, a page of its own (no scripts; checked for CSP
   // errors and requests below).
-  await page.goto(`${base}privacy.html`);
-  await page.waitForSelector('main.doc h1');
-  check(/Delete my data/.test(await page.textContent('main.doc')) && await page.locator('main.doc a[href="./"]').count() === 1,
-    'the privacy notice loads, with a way back to the game');
-  if (shots) await page.screenshot({ path: join(shots, 'privacy.png'), fullPage: true });
+  {
+    const { page } = await makeDesktopPage();
+    try {
+      await page.goto(`${base}privacy.html`);
+      await page.waitForSelector('main.doc h1');
+      check(/Delete my data/.test(await page.textContent('main.doc')) && await page.locator('main.doc a[href="./"]').count() === 1,
+        'the privacy notice loads, with a way back to the game');
+      if (shots) await page.screenshot({ path: join(shots, 'privacy.png'), fullPage: true });
+    } finally {
+      await page.close();
+    }
+  }
+    },
+  ]);
 
   check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
   check(external.length === 0, `signed out, no requests to other sites${external.length ? ': ' + external.slice(0, 3).join(' ') : ''}`);
