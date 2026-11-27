@@ -27,6 +27,7 @@ export function stepper(n, { min = 1, max = Infinity, prefix = '', onSet, title,
     const finish = (keep) => {
       if (done) return;
       done = true;
+      if (!box.isConnected) return;
       const k = Number(box.value.trim());
       box.replaceWith(value);
       if (keep) set(k);

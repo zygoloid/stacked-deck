@@ -145,6 +145,7 @@ export function openEditor(root, ctx, level) {
   // shows it already (and redrawing the panel would take the field out from
   // under the typing).
   function commit(fn, { keepInspector = false } = {}) {
+    if (running) return;
     undo.push(editState());
     if (undo.length > 200) undo.shift();
     redo.length = 0;
@@ -159,10 +160,12 @@ export function openEditor(root, ctx, level) {
   // With a group up, undo first puts it down where it is (so undo takes back
   // the move, and redo brings it back).
   function undoStep() {
+    if (running) return;
     placeLift();
     if (undo.length) { redo.push(editState()); restoreCells(undo.pop()); }
   }
   function redoStep() {
+    if (running) return;
     placeLift();
     if (redo.length) { undo.push(editState()); restoreCells(redo.pop()); }
   }
@@ -480,68 +483,80 @@ export function openEditor(root, ctx, level) {
   async function checkAll() {
     if (running) return;
     const watched = testIndex;
-    const machine = structuredClone(cells); // the machine being checked
+    const checked = structuredClone(cells); // the machine being checked
+    const results = [];
     running = true;
-    runResults = [];
+    runResults = results;
     renderAll();
-    let spec;
-    try { spec = toSpec(level, cells); } catch (e) { showToast(e.message, 'bad'); running = false; return; }
-    // Yield to the page (to redraw the tests' chips, and stay responsive)
-    // only after about a frame's work: yielding after every test spends more
-    // time redrawing the floor than running the tests.
-    let since = 0;
-    const runAll = async (tests) => {
-      for (const t of tests) {
-        if (performance.now() - since > 12) {
-          renderTests();
-          await new Promise((r) => setTimeout(r, 0));
-          since = performance.now();
+    try {
+      let spec;
+      try { spec = toSpec(level, cells); } catch (e) { showToast(e.message, 'bad'); return; }
+      // Yield to the page (to redraw the tests' chips, and stay responsive)
+      // only after about a frame's work: yielding after every test spends more
+      // time redrawing the floor than running the tests.
+      let since = 0;
+      const runAll = async (tests) => {
+        for (const t of tests) {
+          if (performance.now() - since > 12) {
+            renderTests();
+            await new Promise((r) => setTimeout(r, 0));
+            if (!editorEl.isConnected || runResults !== results) return false;
+            since = performance.now();
+          }
+          let res;
+          try { res = runTest(spec, t, level); } catch (e) { res = { ok: false, error: e.message, rounds: 0, wrong: [], missing: [] }; }
+          results.push(res);
         }
-        let res;
-        try { res = runTest(spec, t, level); } catch (e) { res = { ok: false, error: e.message, rounds: 0, wrong: [], missing: [] }; }
-        runResults.push(res);
+        renderTests();
+        return true;
+      };
+      // The published tests, then (if they all pass) the check deals. They
+      // depend only on the machine, so any shown already stay valid (editing the
+      // machine clears them).
+      if (!(await runAll(level.tests))) return;
+      if (results.every((r) => r.ok)) {
+        const dealt = await checkDeals(level, checked);
+        if (!editorEl.isConnected || runResults !== results) return;
+        checks = dealt;
+        if (!(await runAll(checks))) return;
       }
-      renderTests();
-    };
-    // The published tests, then (if they all pass) the check deals. They
-    // depend only on the machine, so any shown already stay valid (editing the
-    // machine clears them).
-    await runAll(level.tests);
-    if (runResults.every((r) => r.ok)) {
-      checks = await checkDeals(level, machine);
-      await runAll(checks);
-    }
-    running = false;
-    const ok = runResults.every((r) => r.ok);
-    if (ok) {
-      const croupiers = countCroupiers(machine);
-      // Scores come from the published tests only.
-      const rounds = totalRounds(runResults.slice(0, level.tests.length));
-      solutionsOf(ls);
-      const prev = ls.best ? { ...ls.best } : undefined;
-      const wasSolved = !!ls.solved;
-      const { index: found, isNew } = recordSolution(ls, machine, { croupiers, rounds }, level);
-      ls.last = { croupiers, rounds };
-      clearedHere = true;
-      ctx.persist();
-      ctx.cloud?.levelChanged(level.id, { solved: true });
-      ctx.cloud?.queueUploads();
-      renderAll();
-      showResults({ croupiers, rounds, prev, wasSolved, found, isNew });
-    } else {
-      // Load the failing test and run it up to the failure, so the floor is
-      // left paused at the moment it goes wrong (e.g. the bad payout).
-      const first = runResults.findIndex((r) => !r.ok);
-      fails++;
-      testIndex = first;
-      resetSim();
-      if (makeSim()) while (!sim.finished) sim.step();
-      renderAll();
-      const note = isCheck(first) ? ` ${CHECK_NOTE}` : '';
-      if (sim?.finished && sim.status.kind !== 'passed') {
-        showToast(`${testName(watched)} passed, but ${testName(first).toLowerCase()} failed. ${failureText()}${note}`, 'bad');
+      running = false;
+      const ok = results.every((r) => r.ok);
+      if (ok) {
+        const croupiers = countCroupiers(checked);
+        // Scores come from the published tests only.
+        const rounds = totalRounds(results.slice(0, level.tests.length));
+        solutionsOf(ls);
+        const prev = ls.best ? { ...ls.best } : undefined;
+        const wasSolved = !!ls.solved;
+        const { index: found, isNew } = recordSolution(ls, checked, { croupiers, rounds }, level);
+        ls.last = { croupiers, rounds };
+        clearedHere = true;
+        ctx.persist();
+        ctx.cloud?.levelChanged(level.id, { solved: true });
+        ctx.cloud?.queueUploads();
+        renderAll();
+        showResults({ croupiers, rounds, prev, wasSolved, found, isNew });
       } else {
-        showToast(`${testName(first)} failed: ${describeFailure(runResults[first])}${note}`, 'bad');
+        // Load the failing test and run it up to the failure, so the floor is
+        // left paused at the moment it goes wrong (e.g. the bad payout).
+        const first = results.findIndex((r) => !r.ok);
+        fails++;
+        testIndex = first;
+        resetSim();
+        if (makeSim()) while (!sim.finished) sim.step();
+        renderAll();
+        const note = isCheck(first) ? ` ${CHECK_NOTE}` : '';
+        if (sim?.finished && sim.status.kind !== 'passed') {
+          showToast(`${testName(watched)} passed, but ${testName(first).toLowerCase()} failed. ${failureText()}${note}`, 'bad');
+        } else {
+          showToast(`${testName(first)} failed: ${describeFailure(results[first])}${note}`, 'bad');
+        }
+      }
+    } finally {
+      if (running) {
+        running = false;
+        if (editorEl.isConnected) renderAll();
       }
     }
   }
@@ -739,8 +754,8 @@ export function openEditor(root, ctx, level) {
     const nSol = ls.solutions?.length ?? 0;
     solBtn.textContent = `Solutions (${nSol})`;
     solBtn.classList.toggle('hidden', !nSol);
-    undoBtn.disabled = !undo.length;
-    redoBtn.disabled = !redo.length;
+    undoBtn.disabled = running || !undo.length;
+    redoBtn.disabled = running || !redo.length;
     renderPalette(); renderBoard(); if (!keepInspector) renderInspector(); renderTests(); renderTransport();
     if (coach.update(coachState())) renderBoard();
   }
@@ -2123,6 +2138,7 @@ export function openEditor(root, ctx, level) {
     if (k === '0') { board.fit(); return; }
     if (lower === 'f') { speed = (speed + 1) % SPEEDS.length; renderTransport(); return; }
     if (lower === 'h') { ctx.help(); return; }
+    if (running) return;
     // A picked-up group: direction keys move it a hex, [ ] turn it, M and
     // Shift+M mirror it, Enter or Esc puts it down, Delete deletes it.
     if (lift) {

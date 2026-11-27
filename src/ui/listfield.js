@@ -289,6 +289,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   }
   // A count: ×1 to ×999 (its number can be typed).
   const counter = (n, onSet, title = 'How many times') => stepper(n, { min: 1, max: MAX_COUNT, prefix: '×', onSet, title, cls: 'lf-step' });
+  const closeStepper = () => { if (ctx.contains(document.activeElement)) document.activeElement.blur(); };
   const delBtn = (what) => h('button', { class: 'lf-del', title: `Remove ${what}`, 'aria-label': `Remove ${what}`, onpointerdown: noFocus, onclick: removeSel }, '✕');
   function renderCtx() {
     if (mode === 'text') {
@@ -303,16 +304,16 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     const bar = (...xs) => ctx.replaceChildren(hint, h('div', { class: 'lf-ctx-bar' }, ...xs));
     const g = selGroup();
     if (sel && sel.b - sel.a === 1 && toks[sel.a].kind === 'item' && toks[sel.a].val != null) {
-      const t = toks[sel.a];
-      bar(h('span', { class: 'lf-ctx-chip' }, face(t)), counter(t.n, (k) => edit(setCount(text, toks[sel.a], k), { sel: { ...sel } })), delBtn('it'));
+      const t = toks[sel.a], curSel = { ...sel };
+      bar(h('span', { class: 'lf-ctx-chip' }, face(t)), counter(t.n, (k) => edit(setCount(text, t, k), { sel: curSel })), delBtn('it'));
     } else if (g >= 0) {
       // A group's count; down to 1, the group goes (its entries stay selected).
-      const c = toks[sel.b - 1], e = entriesIn(g + 1, sel.b - 1);
+      const c = toks[sel.b - 1], curSel = { ...sel }, e = entriesIn(g + 1, sel.b - 1);
       bar(
         h('span', { class: 'lf-ctx-n' }, `A group of ${e} entr${e === 1 ? 'y' : 'ies'}, ${cardsIn(g, sel.b)} cards in all`),
         counter(c.n, (k) => {
-          if (k > 1) { edit(setCount(text, toks[sel.b - 1], k), { sel: { ...sel } }); return; }
-          const { a, b } = sel;
+          if (k > 1) { edit(setCount(text, c, k), { sel: curSel }); return; }
+          const { a, b } = curSel;
           edit(ungroup(text, toks, a), b - 2 > a ? { sel: { a, b: b - 2 } } : { caret: a });
         }, 'How many times the group is repeated (1: not a group)'),
         delBtn('the group'));
@@ -323,7 +324,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
         h('span', { class: 'lf-ctx-n' }, `${e} entr${e === 1 ? 'y' : 'ies'}, ${cardsIn(sel.a, sel.b)} cards`),
         counter(1, (k) => {
           if (k < 2 || !group()) return;
-          if (k > 2) edit(setCount(text, toks[sel.b - 1], k), { sel: { ...sel } });
+          if (k > 2 && sel) edit(setCount(text, toks[sel.b - 1], k), { sel: { ...sel } });
         }, 'Repeat these as a group'),
         delBtn('them'));
     } else ctx.replaceChildren(hint);
@@ -364,6 +365,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   }
   // A tap on the pad (or from outside: the Deal's side keys, the port menu).
   function tap(entry) {
+    closeStepper();
     if (mode === 'text') {
       const at = document.activeElement === area ? area.selectionEnd : (draft ?? text).length;
       const r = tapEntry(kind, draft ?? text, at, entry);
@@ -655,6 +657,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   }
   box.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 || mode !== 'cards') return;
+    closeStepper();
     e.preventDefault();
     box.setPointerCapture?.(e.pointerId);
     // (What is under the point itself: a touch's target can be moved onto an
@@ -755,6 +758,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
 
   function setMode(m) {
     if (m === mode) return;
+    closeStepper();
     if (mode === 'text' && !applyDraft()) { renderBar(); return; }
     if (mode === 'cards') { commitBox(); inp.value = ''; }
     mode = m;

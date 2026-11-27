@@ -1272,8 +1272,15 @@ try {
       check(await phone.locator('.lf-chips .lf-e.sel').count() === 1 && await phone.evaluate(() => !document.activeElement?.matches('input, textarea')),
         'a tap on an entry selects it, keyboard down');
       if (shots) await phone.locator('.inspector').screenshot({ path: join(shots, '7e-phone-deal-list.png') });
+      await phone.tap('.lf-ctx .stepper-n');
+      await phone.fill('.lf-ctx .stepper-in', '5');
+      await phone.tap('.lf-chips [data-i="1"]');
+      check(await listText() === '(E SE)x6 NWx5', `tapping another entry commits an open count edit ("${await listText()}")`);
+      await phone.tap('.lf-chips [data-i="4"]');
+      await phone.tap('.lf-ctx .stepper-n');
+      await phone.fill('.lf-ctx .stepper-in', '9');
       await phone.tap('.lf-ctx .lf-del');
-      check(await listText() === '(E SE)x6' && (await dealTo()).length === 12, `✕ takes out the selected entry ("${await listText()}")`);
+      check(await listText() === '(E SE)x6' && (await dealTo()).length === 12, `✕ takes out the selected entry even while editing its count ("${await listText()}")`);
       // A tap just inside the group puts the caret there, and the pad adds there.
       const e0 = await phone.locator('.lf-chips [data-i="1"]').boundingBox();
       await tap([e0.x - 1, e0.y + e0.height / 2]);
