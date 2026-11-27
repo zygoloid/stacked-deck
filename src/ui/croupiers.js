@@ -140,14 +140,14 @@ export const isRequired = (cell, port) => !!infoFor(cell)?.required?.includes(po
 
 // A fresh cell for a palette tool. Only its required ports get a side:
 // outputs toward `primarySide` (where the last croupier's first port
-// pointed), War's dealer side off to one side of that flow. Optional ports
-// start on the floor.
+// pointed), War's dealer side opposite `primarySide` (refined from its
+// neighbours when placed on a floor). Optional ports start on the floor.
 export function newCell(tool, at, primarySide = 0) {
   if (tool === 'shoe') return { at, kind: 'shoe', out: primarySide, deck: ['AS'] };
   const info = CROUPIERS[tool];
   const cell = { at, kind: 'croupier', fn: tool, out: {} };
   if (info.deal) cell.out = { to: [] };
-  for (const p of info.required ?? []) setPort(cell, p, p === 'dealer' ? (primarySide + 4) % 6 : primarySide);
+  for (const p of info.required ?? []) setPort(cell, p, p === 'dealer' ? (primarySide + 3) % 6 : primarySide);
   for (const [k, p] of Object.entries(info.params ?? {})) cell[k] = p.default;
   return cell;
 }

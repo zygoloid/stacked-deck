@@ -121,7 +121,12 @@ function steadyPage(p) {
   const rawGoto = p.goto.bind(p), rawReload = p.reload.bind(p);
   const ensureBooted = async () => {
     for (let k = 0; k < 2; k++) {
-      if (await p.evaluate(() => !document.getElementById('app') || !!document.body.dataset.screen).catch(() => true)) return;
+      const ok = await p.waitForFunction(
+        () => !document.getElementById('app') || !!document.body.dataset.screen,
+        null,
+        { timeout: 800 },
+      ).then(() => true, () => false);
+      if (ok) return;
       await rawReload().catch(() => {});
     }
   };
@@ -2736,6 +2741,168 @@ try {
     await rp.waitForSelector('.title-screen', { state: 'detached', timeout: 1000 }).catch(() => {});
     check(still && await rp.locator('.title-screen').count() === 0, 'with reduced motion, the machine stands still and Start is quick');
     await rctx.close();
+  }
+
+  // War's default dealer side heuristics, ports footer, keyboard navigation,
+  // listField selection/paste fixes, tutorial focus trap, and ARIA labels.
+  {
+    const kctx = await browser.newContext({ viewport: { width: 1280, height: 820 } });
+    const kp = await kctx.newPage();
+    kp.on('pageerror', (e) => errors.push(e.message));
+    kp.on('dialog', (d) => d.accept());
+    const hexCenter = (at) => kp.evaluate(([q, r]) => {
+      const R = 50, svg = document.querySelector('svg.board');
+      const x = R * Math.sqrt(3) * (q + r / 2), y = R * 1.5 * r;
+      const p = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+      return [p.x, p.y];
+    }, at);
+    const clickCenter = async (at) => { const [x, y] = await hexCenter(at); await kp.mouse.click(x, y); };
+    const savedCells = (id) => kp.evaluate((k) => JSON.parse(localStorage.getItem('stacked-deck-v1') || '{}').levels?.[k]?.cells ?? [], id);
+
+    // 1. Story screen: Enter on focused "← All floors" returns to #/, and Esc
+    // while Help is open closes Help without leaving the story screen.
+    await kp.goto(`${base}?unlockall#/level/${FIRST}/story`);
+    await kp.waitForSelector('.story-card');
+    await kp.keyboard.press('?');
+    await kp.waitForSelector('#help .modal.help');
+    await kp.keyboard.press('Escape');
+    check(await kp.locator('#help .modal.help').count() === 0 && await kp.evaluate(() => document.body.dataset.screen) === 'story',
+      'story screen: Esc with Help open closes Help and stays on the story screen');
+    await kp.focus('.story-back .btn.ghost');
+    await kp.keyboard.press('Enter');
+    await kp.waitForSelector('.tile');
+    check(await kp.evaluate(() => document.body.dataset.screen) === 'select',
+      'story screen: Enter on focused "← All floors" activates the button instead of opening the floor');
+
+    // 2. Tutorial modal: Tab wraps inside .coach-card, Esc dismisses it, and
+    // .coach-veil has pointer-events: none during its flight.
+    await kp.goto(`${base}?unlockall#/level/${FIRST}`);
+    await kp.waitForSelector('.coach-card');
+    await kp.focus('.coach-card .coach-next');
+    await kp.keyboard.press('Tab');
+    const firstTab = await kp.evaluate(() => document.activeElement?.className ?? '');
+    await kp.keyboard.press('Tab');
+    const secondTab = await kp.evaluate(() => document.activeElement?.className ?? '');
+    check(/coach-skip/.test(firstTab) && /coach-next/.test(secondTab),
+      `tutorial dialog traps Tab between its buttons ("${firstTab}" -> "${secondTab}")`);
+    await kp.keyboard.press('Escape');
+    const veilPe = await kp.evaluate(() => document.querySelector('.coach-veil')?.style.pointerEvents ?? 'gone');
+    check(veilPe === 'none' || veilPe === 'gone', `tutorial veil ignores pointer events while flying away (${veilPe})`);
+    await kp.waitForSelector('.coach-card', { state: 'detached' });
+    check(/^2 \/ /.test(((await kp.textContent('.coach:not(.hidden) .coach-count')) || '').trim()),
+      'Esc dismisses the tutorial welcome card to step 2');
+
+    // 3. War default dealer heuristics & PORTS keyboard footer on high-card.
+    await kp.goto(`${base}?unlockall#/level/high-card`);
+    await kp.waitForSelector('svg.board');
+    // Keyboard activation of .pal-item via Enter and Space (Space doesn't start Play).
+    await kp.focus('.pal-item[data-tool="pass"]');
+    await kp.keyboard.press('Enter');
+    check(await kp.getAttribute('.pal-item[data-tool="pass"]', 'aria-pressed') === 'true',
+      'palette item activates with Enter and sets aria-pressed="true"');
+    await kp.keyboard.press(' ');
+    check(await kp.getAttribute('.pal-item[data-tool="pass"]', 'aria-pressed') === 'false' &&
+      !(await kp.locator('.transport .tp.main.on').count()),
+      'Space on a focused palette button toggles it instead of starting Play');
+
+    // Place Pass at [-1,-1] pointing NE (5): 1 incoming arrow into [-1,0] (from source at [-2,0], d=3)
+    // and occupied non-incoming Pass at d=4 ([-1,-1]) -> War at [-1,0] picks d=2 (SW).
+    await kp.click('.pal-item[data-tool="pass"]');
+    await clickCenter([-1, -1]);
+    await kp.keyboard.press('e'); // NE = 5
+    const passKeys = await kp.textContent('.inspector .keys');
+    check(!/floor|next port/.test(passKeys), `1-port required Pass omits "floor" and "next port" in keys hint ("${passKeys.trim()}")`);
+    // With a 1-port Pass selected and focus on body, Tab moves focus to a button instead of trapping.
+    await kp.evaluate(() => document.activeElement?.blur?.());
+    await kp.keyboard.press('Tab');
+    check(await kp.evaluate(() => document.activeElement?.tagName) === 'BUTTON',
+      'Tab with a 1-port croupier selected enters button navigation instead of trapping');
+    await kp.evaluate(() => document.activeElement?.blur?.());
+    await kp.click('.pal-item[data-tool="war"]');
+    await clickCenter([-1, 0]);
+    let hc = await savedCells('high-card');
+    check(hc.find((c) => c.fn === 'war')?.dealer === 2,
+      `War with 1 incoming arrow (W) and occupied non-input neighbour (NW) points dealer SW (got ${hc.find((c) => c.fn === 'war')?.dealer})`);
+    const warKeys = await kp.textContent('.inspector .keys');
+    check(/floor/.test(warKeys) && /next port/.test(warKeys),
+      `multi-port War shows both "floor" and "next port" in keys hint ("${warKeys.trim()}")`);
+
+    // 2 incoming arrows into [0,-1]: Pass at [-1,-1] (d=3, pointing E=0) and Pass at [-1,0] (d=2, pointing NE=5).
+    await kp.keyboard.press('Delete'); // remove War at [-1,0]
+    await clickCenter([-1, -1]);
+    await kp.keyboard.press('d'); // E = 0 -> [0,-1]
+    await kp.click('.pal-item[data-tool="pass"]');
+    await clickCenter([-1, 0]);
+    await kp.keyboard.press('e'); // NE = 5 -> [0,-1]; lastSelected is '-1,0' (d=2)
+    await kp.click('.pal-item[data-tool="war"]');
+    await clickCenter([0, -1]);
+    hc = await savedCells('high-card');
+    check(hc.find((c) => c.fn === 'war')?.dealer === 3,
+      `War with 2 incoming arrows avoids previously-selected Pass (SW) and points dealer W (got ${hc.find((c) => c.fn === 'war')?.dealer})`);
+    await kp.keyboard.press('Control+z'); // undo War
+    await clickCenter([-1, -1]); // select Pass at [-1,-1], so lastSelected is '-1,-1' (d=3)
+    await kp.click('.pal-item[data-tool="war"]');
+    await clickCenter([0, -1]);
+    hc = await savedCells('high-card');
+    check(hc.find((c) => c.fn === 'war')?.dealer === 2,
+      `War with 2 incoming arrows avoids previously-selected Pass (W) and points dealer SW (got ${hc.find((c) => c.fn === 'war')?.dealer})`);
+
+    // 0 incoming arrows: clear floor, set lastSide = 4 (NW -> oppLast = 1, SE).
+    await kp.click('.pal-tools .btn.danger');
+    await kp.click('.pal-item[data-tool="pass"]');
+    await clickCenter([-2, 1]);
+    await kp.keyboard.press('q'); // NW = 4 -> oppLast = 1 (SE)
+    await kp.click('.pal-item[data-tool="war"]');
+    await clickCenter([0, -1]); // d=1 ([0,0]) is occupied by fixed desk -> avoids 1, picks 2 (SW)
+    hc = await savedCells('high-card');
+    check(hc.find((c) => c.fn === 'war' && c.at.join() === '0,-1')?.dealer === 2,
+      `War with 0 incoming arrows avoids occupied non-input desk at oppLast (SE) and picks SW (got ${hc.find((c) => c.fn === 'war' && c.at.join() === '0,-1')?.dealer})`);
+    await kp.click('.pal-item[data-tool="war"]');
+    await clickCenter([-1, -1]); // d=1 ([-1,0]) is empty -> picks oppLast (1) directly
+    hc = await savedCells('high-card');
+    check(hc.find((c) => c.fn === 'war' && c.at.join() === '-1,-1')?.dealer === 1,
+      `War with 0 incoming arrows and empty oppLast hex points dealer opposite lastSide (got ${hc.find((c) => c.fn === 'war' && c.at.join() === '-1,-1')?.dealer})`);
+
+    // 4. listField keyboard: Tab to .lf-ctx-bar, Shift+ArrowLeft, and paste when !sel.
+    await kp.click('.pal-tools .btn.danger');
+    await kp.click('.pal-item[data-tool="shoe"]');
+    await clickCenter([-1, 0]);
+    await kp.click('.inspector [data-view="text"]');
+    await kp.fill('.lf-textarea', 'AS KH QD');
+    await kp.locator('.lf-textarea').evaluate((el) => el.blur());
+    await kp.click('.inspector [data-view="cards"]');
+    await kp.locator('.lf-chips .lf-e').nth(1).click(); // select KH
+    for (let i = 0; i < 3; i++) await kp.keyboard.press('Tab'); // past Cards & Text view buttons into .lf-ctx-bar
+    check(await kp.evaluate(() => !!document.activeElement?.closest('.lf-ctx-bar')) && await kp.locator('.lf-chips .lf-e.sel').count() === 1,
+      'listField: Tab with a selected chip reaches .lf-ctx-bar without dropping the selection');
+    await kp.focus('.lf-chips');
+    await kp.keyboard.press('Shift+ArrowLeft');
+    check(await kp.locator('.lf-chips .lf-e.sel').count() === 2,
+      'listField: Shift+ArrowLeft from a single selected chip extends selection leftward to 2 chips');
+    await kp.locator('.lf-chips .lf-e').nth(1).click();
+    await kp.keyboard.press('Backspace'); // removes KH, leaving !sel and caret = 1
+    await kp.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', 'TC 9D');
+      document.querySelector('.lf-chips').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    hc = await savedCells('high-card');
+    check(JSON.stringify(hc.find((c) => c.kind === 'shoe')?.deck) === JSON.stringify(['AS', 'TC', '9D', 'QD']),
+      `listField: pasting with no selection inserts at the caret (${JSON.stringify(hc.find((c) => c.kind === 'shoe')?.deck)})`);
+
+    // 5. ARIA labels on icon buttons & non-colour pass/fail badges on .test-chip.
+    await kp.evaluate(() => document.activeElement?.blur?.());
+    await kp.keyboard.press('Control+a'); // open .lift-bar
+    const unlabelled = await kp.$$eval(
+      '.zoom button, .history button, .transport .tp, .lift-bar button, .test-chip',
+      (bs) => bs.filter((b) => !b.getAttribute('aria-label')).map((b) => b.className),
+    );
+    check(unlabelled.length === 0, `icon-only controls and test chips all have aria-labels${unlabelled.length ? ': ' + unlabelled.join(', ') : ''}`);
+    await kp.keyboard.press('Escape');
+    await clickCenter([-1, 0]);
+    const sideUnlabelled = await kp.$$eval('.inspector .side-btn', (bs) => bs.filter((b) => !b.getAttribute('aria-label')).length);
+    check(sideUnlabelled === 0 && await kp.locator('.inspector .side-btn').count() === 6, 'inspector side buttons all have aria-labels');
+    await kctx.close();
   }
 
   // The privacy notice, a page of its own (no scripts; checked for CSP

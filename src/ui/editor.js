@@ -39,6 +39,7 @@ export function openEditor(root, ctx, level) {
   const ls = levelSave(save, level.id);
   let cells = sanitizeCells(level, ls.cells);
   let selected = null;            // hex key of the selected player cell
+  let lastSelected = null;        // hex key of the most recently selected cell
   let activePort = null;
   let tool = null;                // palette tool
   const toolCells = new Map();    // palette tool -> the cell it places (params set before placing)
@@ -92,8 +93,9 @@ export function openEditor(root, ctx, level) {
   const selBar = h('div', { class: 'sel-bar hidden' });
   // Undo and redo sit on the floor, so they stay in reach whatever is
   // selected (undo restores the selection, which on a phone hides the palette).
-  const undoBtn = h('button', { title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => undoStep() }, '↶');
-  const redoBtn = h('button', { title: 'Redo (Ctrl+Shift+Z)', 'aria-label': 'Redo', onclick: () => redoStep() }, '↷');
+  const keepFocus = (e) => e.preventDefault();
+  const undoBtn = h('button', { title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onmousedown: keepFocus, onclick: () => undoStep() }, '↶');
+  const redoBtn = h('button', { title: 'Redo (Ctrl+Shift+Z)', 'aria-label': 'Redo', onmousedown: keepFocus, onclick: () => redoStep() }, '↷');
 
   // The tutorial (first floors only; src/ui/coach.js), in a strip above the board.
   const coach = createCoach(level, { tapWord: tap, root: () => editorEl, changed: () => renderAll() });
@@ -125,9 +127,9 @@ export function openEditor(root, ctx, level) {
     h('main', { class: 'stage' }, coach.el, h('div', { class: 'board-wrap' }, svg, toast, peek, radial, picker, boxSel, liftBar, selBar,
       h('div', { class: 'history' }, undoBtn, redoBtn),
       h('div', { class: 'zoom' },
-        h('button', { title: 'Zoom in (+)', onclick: () => zoomCenter(1 / 1.25) }, '+'),
-        h('button', { title: 'Zoom out (-)', onclick: () => zoomCenter(1.25) }, '−'),
-        h('button', { title: 'Fit the floor (0)', onclick: () => board.fit() }, '⤢'))), transport, perf?.el),
+        h('button', { title: 'Zoom in (+)', 'aria-label': 'Zoom in', onmousedown: keepFocus, onclick: () => zoomCenter(1 / 1.25) }, '+'),
+        h('button', { title: 'Zoom out (-)', 'aria-label': 'Zoom out', onmousedown: keepFocus, onclick: () => zoomCenter(1.25) }, '−'),
+        h('button', { title: 'Fit the floor (0)', 'aria-label': 'Fit the floor', onmousedown: keepFocus, onclick: () => board.fit() }, '⤢'))), transport, perf?.el),
     // The palette sits right above the inspector it switches (beside the
     // board on a wide screen, under it on a phone); in play mode both are
     // hidden, leaving the tests.
@@ -187,6 +189,8 @@ export function openEditor(root, ctx, level) {
     closePicker();
     cells = JSON.parse(st.cells);
     selected = st.selected && cellAt(st.selected) ? st.selected : null;
+    if (selected) lastSelected = selected;
+    else if (lastSelected && !cellAt(lastSelected)) lastSelected = null;
     activePort = selected ? st.activePort : null;
     listTexts.clear();
     for (const [k, t] of JSON.parse(st.texts ?? '[]')) listTexts.set(k, t);
@@ -214,6 +218,39 @@ export function openEditor(root, ctx, level) {
     if (name === 'war') cell.rule = rules.length === 1 ? rules[0] : undefined;
     return cell;
   }
+  // Default dealer side for a War placed at `at`:
+  // - Avoid occupied neighbours with no incoming arrow unless every option is one.
+  // - With one incoming arrow, point near it (not at it).
+  // - With several incoming arrows, point at one of them, avoiding the
+  //   previously-selected cell.
+  // - Break ties as near to opposite `lastSide` as possible.
+  function warDealerSide(at) {
+    const key = hexKey(at), oppLast = (lastSide + 3) % 6;
+    const all = [...cells, ...level.fixed].filter((x) => hexKey(x.at) !== key);
+    const byKey = new Map(all.map((x) => [hexKey(x.at), x]));
+    const pointsAt = (x, side) => {
+      if (x.kind === 'source' || x.kind === 'shoe') return x.out === side;
+      if (x.kind !== 'croupier' || !x.out) return false;
+      return x.fn === 'deal' ? !!x.out.to?.includes(side) : Object.values(x.out).includes(side);
+    };
+    const dist = (a, b) => Math.min((a - b + 6) % 6, (b - a + 6) % 6);
+    const sides = [0, 1, 2, 3, 4, 5].map((d) => {
+      const nb = hexKey([at[0] + DIRS[d][0], at[1] + DIRS[d][1]]), occ = byKey.get(nb);
+      return { d, nb, occ: !!occ, inc: !!occ && pointsAt(occ, (d + 3) % 6) };
+    });
+    const inc = sides.filter((s) => s.inc);
+    const nonIncOcc = (s) => (s.occ && !s.inc ? 1 : 0);
+    const score = (s) => {
+      if (inc.length >= 2) return [s.inc ? 0 : 1, s.nb === lastSelected ? 1 : 0, nonIncOcc(s), dist(s.d, oppLast), (s.d - oppLast + 6) % 6];
+      if (inc.length === 1) return [s.d === inc[0].d ? 1 : 0, nonIncOcc(s), dist(s.d, inc[0].d), dist(s.d, oppLast), (s.d - oppLast + 6) % 6];
+      return [nonIncOcc(s), dist(s.d, oppLast), (s.d - oppLast + 6) % 6];
+    };
+    return sides.sort((a, b) => {
+      const sa = score(a), sb = score(b);
+      for (let i = 0; i < sa.length; i++) if (sa[i] !== sb[i]) return sa[i] - sb[i];
+      return 0;
+    })[0].d;
+  }
   // Place a croupier. Placed by an edge (`side`: tapped or dropped near one,
   // or the hovered edge), its first port points there.
   // Placed on another croupier (dragged from the palette), it takes that
@@ -231,13 +268,14 @@ export function openEditor(root, ctx, level) {
       // Placing one is the usual end of it: the new croupier is selected,
       // ready to point its ports, and the palette tool is put down.
       tool = null;
-      selected = hexKey(at);
+      selected = lastSelected = hexKey(at);
       activePort = active;
     });
   }
   // The croupier `place` would put down, and the port it would make active.
   function placing(toolName, at, side) {
     const c = newCell(toolName, at, lastSide);
+    if (toolName === 'war') c.dealer = warDealerSide(at);
     const t = toolCell(toolName);
     for (const k of ['n', 'rule', 'once']) if (t[k] !== undefined) c[k] = t[k];
     if (t.deck) c.deck = [...t.deck];
@@ -273,7 +311,7 @@ export function openEditor(root, ctx, level) {
     commit(() => {
       if (under) cells = cells.filter((x) => x !== under);
       c.at = [...at];
-      selected = hexKey(at);
+      selected = lastSelected = hexKey(at);
     });
   }
   function remove(key) {
@@ -281,6 +319,7 @@ export function openEditor(root, ctx, level) {
     commit(() => {
       cells = cells.filter((c) => hexKey(c.at) !== key);
       if (selected === key) selected = null;
+      if (lastSelected === key) lastSelected = null;
     });
   }
   // Selecting a croupier starts at its first port.
@@ -289,6 +328,7 @@ export function openEditor(root, ctx, level) {
     if (selected !== key) {
       closeRadial();
       selected = key;
+      if (key) lastSelected = key;
       dropDrafts();
       const c = selCell();
       activePort = c ? portsOf(c)[0] ?? null : null;
@@ -620,7 +660,7 @@ export function openEditor(root, ctx, level) {
     if (!par) { showToast('There is no reference solution for this floor here.', 'bad'); return; }
     commit(() => {
       cells = sanitizeCells(level, par);
-      selected = null;
+      selected = lastSelected = null;
       activePort = null;
       dropDrafts();
     });
@@ -647,7 +687,7 @@ export function openEditor(root, ctx, level) {
     if (!sol || running) return;
     commit(() => {
       cells = sanitizeCells(level, sol.cells);
-      selected = null;
+      selected = lastSelected = null;
       activePort = null;
       dropDrafts();
     });
@@ -672,7 +712,7 @@ export function openEditor(root, ctx, level) {
       const b = ls.best;
       modal.replaceChildren(h('div', { class: 'modal-back', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
         h('div', { class: 'modal solutions' },
-          h('button', { class: 'modal-x', onclick: close, title: 'Close (Esc)' }, '×'),
+          h('button', { class: 'modal-x', onclick: close, title: 'Close (Esc)', 'aria-label': 'Close' }, '×'),
           h('h2', {}, 'Your solutions'),
           h('p', { class: 'res-sub' }, `${level.title}: ${list.length} machine${list.length === 1 ? '' : 's'} saved`,
             b ? ` · best ${b.croupiers} croupiers, ${b.rounds} rounds` : '', par ? ` · par ${par.croupiers ?? '–'} / ${par.rounds ?? '–'}` : '',
@@ -744,7 +784,7 @@ export function openEditor(root, ctx, level) {
   // ---------- toast ----------
   function showToast(msg, kind = '') {
     toast.className = `toast ${kind}`;
-    toast.replaceChildren(h('span', {}, msg), h('button', { class: 'toast-x', onclick: hideToast, title: 'Dismiss' }, '×'));
+    toast.replaceChildren(h('span', {}, msg), h('button', { class: 'toast-x', onclick: hideToast, title: 'Dismiss', 'aria-label': 'Dismiss' }, '×'));
   }
   function hideToast() { toast.className = 'toast hidden'; }
 
@@ -841,6 +881,10 @@ export function openEditor(root, ctx, level) {
   });
   function updatePeek() {
     if (typeInfo) return; // the picker's croupier details have the popover
+    if (!board.peeks.length && peekKey === null) {
+      if (peekAt?.tap) peekAt = null;
+      return;
+    }
     const el = peekAt && under(peekAt.x, peekAt.y)?.closest?.('svg.board [data-peek]');
     const item = el ? board.peeks[Number(el.dataset.peek)] : null;
     if (!item) {
@@ -876,7 +920,7 @@ export function openEditor(root, ctx, level) {
         h('div', { class: 'pal-tools' },
           h('button', {
             class: 'btn small danger', disabled: !cells.length, title: 'Remove every croupier',
-            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; lift = null; }); },
+            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = lastSelected = null; lift = null; }); },
           }, 'Clear floor'))),
       h('div', { class: 'pal-grid' }, level.croupiers.map((name, i) => {
         const info = CROUPIERS[name];
@@ -885,7 +929,14 @@ export function openEditor(root, ctx, level) {
         return h('button', {
           class: `pal-item${tool === name ? ' on' : ''}`, 'data-tool': name,
           title: `${info.name} (${i + 1}): ${info.desc}`,
+          'aria-pressed': String(tool === name),
           onpointerdown: (e) => startPaletteDrag(e, name),
+          onclick: (e) => {
+            if (e.detail === 0 && !running) {
+              setTool(tool === name ? null : name);
+              palette.querySelector(`.pal-item[data-tool="${name}"]`)?.focus();
+            }
+          },
         },
         h('span', { class: 'pal-chip', style: { background: info.family } }, h('span', {}, chipLabel(sample))),
         h('span', { class: 'pal-name' }, info.name),
@@ -899,11 +950,17 @@ export function openEditor(root, ctx, level) {
   function sideButtons(current, onPick, { floor = true } = {}) {
     return h('div', { class: 'sides' },
       [0, 1, 2, 3, 4, 5].map((d) => h('button', {
-        class: `side-btn${current === d ? ' on' : ''}`, title: `${SIDE_NAMES[d]} (${Object.keys(SIDE_KEYS).find((k) => SIDE_KEYS[k] === d).toUpperCase()})`,
+        class: `side-btn${current === d ? ' on' : ''}`,
+        title: `${SIDE_NAMES[d]} (${Object.keys(SIDE_KEYS).find((k) => SIDE_KEYS[k] === d).toUpperCase()})`,
+        'aria-label': SIDE_NAMES[d],
+        'aria-pressed': String(current === d),
         onclick: (e) => { e.stopPropagation(); onPick(d); },
       }, arrowEl(d))),
       floor ? h('button', {
-        class: `side-btn floor${current === undefined ? ' on' : ''}`, title: 'Floor: drop these cards (X)',
+        class: `side-btn floor${current === undefined ? ' on' : ''}`,
+        title: 'Floor: drop these cards (X)',
+        'aria-label': 'Floor: drop these cards',
+        'aria-pressed': String(current === undefined),
         onclick: (e) => { e.stopPropagation(); onPick(undefined); },
       }, '✕') : null);
   }
@@ -1002,7 +1059,7 @@ export function openEditor(root, ctx, level) {
           // On a phone the palette (and its Clear floor) is hidden.
           h('button', {
             class: 'btn small danger phone-only', disabled: !cells.length, title: 'Remove every croupier',
-            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = null; lift = null; }); },
+            onclick: () => { if (confirm('Clear the whole floor?')) commit(() => { cells = []; selected = lastSelected = null; lift = null; }); },
           }, 'Clear floor')),
         h('p', { class: 'brief-big' }, level.brief ?? ''),
         h('ul', { class: 'howto' },
@@ -1032,8 +1089,8 @@ export function openEditor(root, ctx, level) {
           // Play and step, for when the play controls step aside for this
           // panel (on a phone; style.css): either one leaves the croupier.
           : h('div', { class: 'insp-tp' },
-            h('button', { class: 'tp main', title: 'Play (Space)', disabled: running, onclick: play }, '▶'),
-            h('button', { class: 'tp', title: 'Step (.)', disabled: running || !!sim?.finished, onclick: stepOnce }, icon('step')))),
+            h('button', { class: 'tp main', title: 'Play (Space)', 'aria-label': 'Play', onmousedown: keepFocus, disabled: running, onclick: play }, '▶'),
+            h('button', { class: 'tp', title: 'Step (.)', 'aria-label': 'Step', onmousedown: keepFocus, disabled: running || !!sim?.finished, onclick: stepOnce }, icon('step')))),
       h('p', { class: 'insp-desc' }, info.desc),
     ];
     // params
@@ -1097,9 +1154,13 @@ export function openEditor(root, ctx, level) {
         sideButtons(cur, (d) => { activePort = p; assign(d, p); }, { floor: !isRequired(c, p) })));
       }
       const qeadzc = ['Q', 'E', 'A', 'D', 'Z', 'C'].map((k) => h('kbd', {}, k));
+      const hasFloor = ports.some((p) => !isRequired(c, p));
+      const hasNext = ports.length > 1;
       parts.push(c.fn === 'deal'
         ? h('p', { class: 'keys kbd-only' }, 'Keys (outside the list): ', qeadzc, ' add NW NE W E SW SE, ', h('kbd', {}, 'X'), ' empties the list.')
-        : h('p', { class: 'keys kbd-only' }, 'Keys: ', qeadzc, ' point the port NW NE W E SW SE, ', h('kbd', {}, 'X'), ' floor, ', h('kbd', {}, 'Tab'), ' next port.'));
+        : h('p', { class: 'keys kbd-only' }, 'Keys: ', qeadzc, ' point the port NW NE W E SW SE',
+          ...(hasFloor ? [', ', h('kbd', {}, 'X'), ' floor'] : []),
+          ...(hasNext ? [', ', h('kbd', {}, 'Tab'), ' next port'] : []), '.'));
     }
     inspector.replaceChildren(...parts.filter(Boolean));
     if (refocus && listUi?.key === refocus.key) listUi.field.focus(refocus.kind);
@@ -1147,7 +1208,7 @@ export function openEditor(root, ctx, level) {
   let chipsKey = null;
   // Its heading is kept too: the Edit button (play mode only) must get its click.
   const testsCount = h('span', { class: 'muted small' });
-  const editBtn = h('button', { class: 'btn small edit-btn', title: 'Back to building: show the croupiers (the run stays where it is)', onclick: () => leavePlay() }, '✎ Edit');
+  const editBtn = h('button', { class: 'btn small edit-btn', title: 'Back to building: show the croupiers (the run stays where it is)', onmousedown: keepFocus, onclick: () => leavePlay() }, '✎ Edit');
   const testsHead = h('div', { class: 'tests-head' }, h('h3', {}, 'Tests'), testsCount, editBtn);
   const chipsEl = h('div', { class: 'test-chips' });
   const testsBody = h('div', { class: 'tests-body' });
@@ -1164,9 +1225,11 @@ export function openEditor(root, ctx, level) {
     const chip = (i) => {
       const r = runResults?.[i];
       const cls = r ? (r.ok ? 'pass' : 'fail') : '';
+      const desc = `${testName(i)}: ${r ? (r.ok ? `passed in ${r.rounds} rounds` : describeFailure(r)) : `${tests[i].length} hands`}`;
       return h('button', {
-        class: `test-chip ${cls}${isCheck(i) ? ' check' : ''}${i === testIndex ? ' on' : ''}`, onclick: () => setTest(i),
-        title: `${testName(i)}: ${r ? (r.ok ? `passed in ${r.rounds} rounds` : describeFailure(r)) : `${tests[i].length} hands`}`,
+        class: `test-chip ${cls}${isCheck(i) ? ' check' : ''}${i === testIndex ? ' on' : ''}`,
+        onmousedown: keepFocus, onclick: () => setTest(i),
+        title: desc, 'aria-label': desc, 'aria-pressed': String(i === testIndex),
       }, isCheck(i) ? `C${i - level.tests.length + 1}` : String(i + 1));
     };
     const key = JSON.stringify([tests.length, testIndex, runResults?.map((r) => [r.ok, r.rounds]), !!checks]);
@@ -1284,12 +1347,12 @@ export function openEditor(root, ctx, level) {
   // updated every round, and buttons rebuilt between a mouse press and its
   // release never get the click (so pause didn't work with a mouse).
   const tp = {
-    reset: h('button', { class: 'tp', title: 'Reset (R)', onclick: () => { leavePlay(); resetSim(); renderAll(); } }, '⟲'),
-    back: h('button', { class: 'tp', title: 'Step back (,)', onclick: back }, icon('back')),
-    play: h('button', { class: 'tp main', title: 'Play / pause (Space)', onclick: () => { if (playing) stop(); else play(); } }),
-    step: h('button', { class: 'tp', title: 'Step (.)', onclick: stepOnce }, icon('step')),
+    reset: h('button', { class: 'tp', title: 'Reset (R)', 'aria-label': 'Reset', onmousedown: keepFocus, onclick: () => { leavePlay(); resetSim(); renderAll(); } }, '⟲'),
+    back: h('button', { class: 'tp', title: 'Step back (,)', 'aria-label': 'Step back', onmousedown: keepFocus, onclick: back }, icon('back')),
+    play: h('button', { class: 'tp main', title: 'Play / pause (Space)', 'aria-label': 'Play', onmousedown: keepFocus, onclick: () => { if (playing) stop(); else play(); } }),
+    step: h('button', { class: 'tp', title: 'Step (.)', 'aria-label': 'Step', onmousedown: keepFocus, onclick: stepOnce }, icon('step')),
     speeds: SPEEDS.map((sp, i) => h('button', {
-      class: 'sp', onclick: () => { speed = i; if (!playing && !running) play(); else renderTransport(); },
+      class: 'sp', onmousedown: keepFocus, onclick: () => { speed = i; if (!playing && !running) play(); else renderTransport(); },
     }, sp.label)),
     round: h('b'),
     which: h('span', { class: 'muted' }),
@@ -1305,8 +1368,12 @@ export function openEditor(root, ctx, level) {
     tp.play.disabled = running;
     tp.play.classList.toggle('on', playing);
     tp.play.textContent = playing ? '⏸' : '▶';
+    tp.play.setAttribute('aria-label', playing ? 'Pause' : 'Play');
     tp.step.disabled = running || !!sim?.finished;
-    tp.speeds.forEach((b, i) => b.classList.toggle('on', i === speed));
+    tp.speeds.forEach((b, i) => {
+      b.classList.toggle('on', i === speed);
+      b.setAttribute('aria-pressed', String(i === speed));
+    });
     tp.round.textContent = String(r);
     tp.which.textContent = ` · ${isCheck(testIndex) ? `${testName(testIndex)}/${checks?.length ?? CHECK_DEALS}` : `Test ${testIndex + 1}/${level.tests.length}`}`;
     coach.relight();
@@ -2030,13 +2097,13 @@ export function openEditor(root, ctx, level) {
   };
   liftBar.append(
     h('span', { class: 'lift-n' }),
-    barButton({ title: 'Turn anticlockwise ([)', 'data-act': 'ccw' }, '⟲', () => turnLift(-1)),
-    barButton({ title: 'Turn clockwise (])', 'data-act': 'cw' }, '⟳', () => turnLift(1)),
-    barButton({ title: 'Mirror left to right (M)', 'data-act': 'mirror' }, '⇋', () => mirrorLift()),
-    barButton({ title: 'Mirror top to bottom (Shift+M)', 'data-act': 'flip' }, flipIcon(), () => flipLift()),
-    barButton({ title: 'Put them down here, and pick up a copy', 'data-act': 'copy' }, '⧉', () => copyLift()),
-    barButton({ title: 'Delete them (Delete)', 'data-act': 'delete' }, '🗑', () => deleteLift()),
-    barButton({ class: 'ok', title: 'Put them down here (Enter)', 'data-act': 'place' }, '✓', () => placeLift()));
+    barButton({ title: 'Turn anticlockwise ([)', 'aria-label': 'Turn anticlockwise', 'data-act': 'ccw' }, '⟲', () => turnLift(-1)),
+    barButton({ title: 'Turn clockwise (])', 'aria-label': 'Turn clockwise', 'data-act': 'cw' }, '⟳', () => turnLift(1)),
+    barButton({ title: 'Mirror left to right (M)', 'aria-label': 'Mirror left to right', 'data-act': 'mirror' }, '⇋', () => mirrorLift()),
+    barButton({ title: 'Mirror top to bottom (Shift+M)', 'aria-label': 'Mirror top to bottom', 'data-act': 'flip' }, flipIcon(), () => flipLift()),
+    barButton({ title: 'Put them down here, and pick up a copy', 'aria-label': 'Copy', 'data-act': 'copy' }, '⧉', () => copyLift()),
+    barButton({ title: 'Delete them (Delete)', 'aria-label': 'Delete', 'data-act': 'delete' }, '🗑', () => deleteLift()),
+    barButton({ class: 'ok', title: 'Put them down here (Enter)', 'aria-label': 'Put down', 'data-act': 'place' }, '✓', () => placeLift()));
   selBar.append(
     h('span', { class: 'lift-n' }),
     barButton({ title: 'Turn anticlockwise, ports and all ([)', 'aria-label': 'Turn anticlockwise', 'data-act': 'ccw' }, '⟲', () => changeSel((c) => rotateCell(c, -1))),
@@ -2111,12 +2178,13 @@ export function openEditor(root, ctx, level) {
   document.addEventListener('keyup', onCtrl, true);
   window.addEventListener('blur', ctrlUp);
   function onKey(e) {
-    if (e.target.closest?.('input, textarea, select, .list-field') || dialogOpen() || coach.blocking()) return;
+    if (e.defaultPrevented || e.target.closest?.('input, textarea, select, .list-field') || dialogOpen() || coach.blocking()) return;
     if (modal.firstChild) {
       if (e.key === 'Escape') modal.replaceChildren();
       return;
     }
     if (ctx.helpOpen()) return;
+    const onControl = !!e.target.closest?.('button, a, summary, [role="button"], [role="menuitem"]');
     const k = e.key;
     const lower = k.length === 1 ? k.toLowerCase() : k;
     if ((e.ctrlKey || e.metaKey) && lower === 'z') {
@@ -2130,7 +2198,7 @@ export function openEditor(root, ctx, level) {
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (k === ' ') { e.preventDefault(); if (playing) stop(); else play(); return; }
+    if (k === ' ') { if (onControl) return; e.preventDefault(); if (playing) stop(); else play(); return; }
     if (k === '.') { e.preventDefault(); stop(); stepOnce(); return; }
     if (k === ',') { e.preventDefault(); back(); return; }
     if (lower === 'r') { leavePlay(); resetSim(); renderAll(); return; }
@@ -2143,7 +2211,7 @@ export function openEditor(root, ctx, level) {
     // A picked-up group: direction keys move it a hex, [ ] turn it, M and
     // Shift+M mirror it, Enter or Esc puts it down, Delete deletes it.
     if (lift) {
-      if (k === 'Escape' || k === 'Enter') placeLift();
+      if (k === 'Escape' || (k === 'Enter' && !onControl)) placeLift();
       else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); deleteLift(); }
       else if (k === '[' || k === ']') turnLift(k === ']' ? 1 : -1);
       else if (lower === 'm') { if (e.shiftKey) flipLift(); else mirrorLift(); }
@@ -2170,9 +2238,12 @@ export function openEditor(root, ctx, level) {
     if (!c) return;
     // [ ] turn the selected croupier (all its sides) a sixth of a turn; M
     // mirrors it left to right, Shift+M top to bottom.
-    if (k === '[' || k === ']') { commit(() => rotateCell(c, k === ']' ? 1 : -1)); return; }
-    if (lower === 'm') { commit(() => (e.shiftKey ? flipCell : mirrorCell)(c)); return; }
-    if (k === 'Tab') { e.preventDefault(); cyclePort(e.shiftKey ? -1 : 1); return; }
+    if ((k === '[' || k === ']') && portsOf(c).length) { commit(() => rotateCell(c, k === ']' ? 1 : -1)); return; }
+    if (lower === 'm' && portsOf(c).length) { commit(() => (e.shiftKey ? flipCell : mirrorCell)(c)); return; }
+    if (k === 'Tab') {
+      if (portsOf(c).length > 1 && !onControl) { e.preventDefault(); cyclePort(e.shiftKey ? -1 : 1); }
+      return;
+    }
     if (lower in SIDE_KEYS) { assign(SIDE_KEYS[lower]); return; }
     if (lower === 'x' && activePort) {
       if (activePort === 'to') { if (listUi?.key === hexKey(c.at)) listUi.field.setText(''); else commit(() => { c.out.to = []; }); }
@@ -2191,6 +2262,9 @@ export function openEditor(root, ctx, level) {
 
   return () => {
     stop();
+    coach.destroy();
+    perf?.destroy();
+    ghost.remove();
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     document.removeEventListener('pointercancel', onUp);

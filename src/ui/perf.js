@@ -148,5 +148,11 @@ export function perfMeter({ redraw }) {
       if (t > cur.until) { finish(); return; }
       cur.frames.push([t, boardMs]);
     },
+    destroy() {
+      clearTimeout(cur?.timer);
+      cur = null;
+      observer?.disconnect();
+      observer = null;
+    },
   };
 }

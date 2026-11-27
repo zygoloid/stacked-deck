@@ -55,6 +55,8 @@ const server = createServer((req, res) => {
   createReadStream(file).pipe(res);
 });
 
+server.keepAliveTimeout = 60_000;
+server.headersTimeout = 65_000;
 server.listen(port, () => {
   console.log(`Stacked Deck: http://localhost:${port}`);
 });

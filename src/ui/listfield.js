@@ -238,6 +238,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     const isTyping = typing();
     wrap.classList.toggle('typing', isTyping);
     const shown = mode === 'cards' && !sel && (isTyping || text);
+    inp.tabIndex = sel ? -1 : 0;
     inp.classList.toggle('on', !!shown);
     inp.classList.toggle('filled', !!text);
     slot.remove(); ghost.remove();
@@ -578,6 +579,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   }
   function collapse(to, { touchScroll = false } = {}) {
     sel = null;
+    anchor = null;
     caret = to;
     render();
     if (touchScroll) openTouchKeyboard(inp);
@@ -604,8 +606,8 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       e.preventDefault();
       const dir = k === 'ArrowUp' ? -1 : 1;
       if (e.shiftKey) {
-        if (anchor === null) anchor = sel.a;
-        const head = anchor === sel.a ? sel.b : sel.a;
+        if (anchor === null) anchor = dir < 0 ? sel.b : sel.a;
+        const head = Math.abs(anchor - sel.a) <= Math.abs(anchor - sel.b) ? sel.b : sel.a;
         selectGaps(anchor, lineFrom(head, dir));
         if (!sel) focusBox();
         return;
@@ -613,12 +615,13 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       collapse(lineFrom(dir < 0 ? sel.a : sel.b, dir));
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'a') { e.preventDefault(); select(0, toks.length); return; }
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'a') { e.preventDefault(); anchor = null; select(0, toks.length); return; }
     if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Home' || k === 'End') {
       e.preventDefault();
       if (e.shiftKey) {
-        if (anchor === null) anchor = sel.a;
-        const head = anchor === sel.a ? sel.b : sel.a;
+        const left = k === 'ArrowLeft' || k === 'Home';
+        if (anchor === null) anchor = left ? sel.b : sel.a;
+        const head = Math.abs(anchor - sel.a) <= Math.abs(anchor - sel.b) ? sel.b : sel.a;
         const to = k === 'Home' ? 0 : k === 'End' ? toks.length : Math.max(0, Math.min(toks.length, head + (k === 'ArrowLeft' ? -1 : 1)));
         selectGaps(anchor, to);
         if (!sel) focusBox();
@@ -641,10 +644,10 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   box.addEventListener('cut', (e) => { if (!sel) return; e.preventDefault(); e.clipboardData.setData('text/plain', selText()); removeSel(); });
   box.addEventListener('paste', (e) => {
     const t = e.clipboardData?.getData('text/plain');
-    if (!sel || t == null) return;
+    if (t == null) return;
     e.preventDefault();
-    const r = removeRange(text, toks[sel.a].s, toks[sel.b - 1].e);
-    const next = insertAt(r.text, r.caret, t.replace(/\s+/g, ' ').trim());
+    const base = sel ? removeRange(text, toks[sel.a].s, toks[sel.b - 1].e) : { text, caret: gapOffset(text, toks, caret) };
+    const next = insertAt(base.text, base.caret, t.replace(/\s+/g, ' ').trim());
     if (edit(next, { caret: gapAt(lexList(kind, next.text), next.caret) })) focusBox();
   });
 
