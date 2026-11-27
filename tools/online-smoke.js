@@ -67,13 +67,14 @@ async function owner(path, method = 'GET', body) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(fn, ms = 60000) {
-  for (const t = Date.now(); Date.now() - t < ms; await sleep(300)) {
+  for (const t = Date.now(); Date.now() - t < ms; await sleep(50)) {
     const v = await fn();
     if (v) return v;
   }
   return null;
 }
 
+await owner('', 'PUT', null);
 await owner('.settings/rules', 'PUT', JSON.parse(await (await import('node:fs/promises')).readFile(join(repo, 'database.rules.json'), 'utf8')));
 await owner('config/rulesVersion', 'PUT', RULES_VERSION);
 

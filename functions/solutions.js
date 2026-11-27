@@ -23,26 +23,61 @@ const parseKey = (k) => {
 // a is at least as good as b on both axes.
 const beats = (a, b) => a.croupiers <= b.croupiers && a.rounds <= b.rounds;
 
+const WORKER_URL = new URL('./worker.js', import.meta.url);
+const MAX_IDLE_WORKERS = 4;
+const idleWorkers = [];
+
+function takeWorker(heapMb) {
+  if (heapMb === SCORE_LIMITS.heapMb && idleWorkers.length) return idleWorkers.pop();
+  const w = new Worker(WORKER_URL, { resourceLimits: { maxOldGenerationSizeMb: heapMb } });
+  w.once('exit', () => {
+    const i = idleWorkers.indexOf(w);
+    if (i >= 0) idleWorkers.splice(i, 1);
+  });
+  return w;
+}
+
 // Score validated cells in a worker thread with a memory and time budget:
-// { ok, croupiers, rounds } or { error: 'resources' }.
+// { ok, croupiers, rounds } or { error: 'resources' }. Healthy workers are kept
+// warm (unref'd while idle) so levels aren't rebuilt on every call; any worker
+// that times out or errors is terminated and discarded.
 export function scoreInWorker(level, cells, limits = SCORE_LIMITS) {
+  const poolable = limits.heapMb === SCORE_LIMITS.heapMb;
+  const worker = takeWorker(limits.heapMb);
+  worker.ref();
   return new Promise((resolve) => {
-    const worker = new Worker(new URL('./worker.js', import.meta.url), {
-      workerData: { level, cells },
-      resourceLimits: { maxOldGenerationSizeMb: limits.heapMb },
-    });
     let done = false;
-    const finish = (result) => {
+    const cleanup = () => {
+      worker.off('message', onMsg);
+      worker.off('error', onBad);
+      worker.off('exit', onBad);
+    };
+    const onMsg = (result) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      worker.terminate();
+      cleanup();
+      if (poolable && idleWorkers.length < MAX_IDLE_WORKERS) {
+        worker.unref();
+        idleWorkers.push(worker);
+      } else {
+        worker.terminate();
+      }
       resolve(result);
     };
-    const timer = setTimeout(() => finish({ error: 'resources' }), limits.ms);
-    worker.once('message', finish);
-    worker.once('error', () => finish({ error: 'resources' }));
-    worker.once('exit', () => finish({ error: 'resources' }));
+    const onBad = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      cleanup();
+      worker.terminate();
+      resolve({ error: 'resources' });
+    };
+    const timer = setTimeout(onBad, limits.ms);
+    worker.on('message', onMsg);
+    worker.on('error', onBad);
+    worker.on('exit', onBad);
+    worker.postMessage({ level, cells });
   });
 }
 
@@ -181,7 +216,7 @@ export async function judgeSolution(level, hash, sol) {
 
 // Verify and score one submitted solution (written by a player to
 // solutions/{uid}/{level}/{hash}). Returns what happened, for logs and tests.
-export async function processSolution(db, { uid, level, hash }) {
+export async function processSolution(db, { uid, level, hash }, { judge = judgeSolution } = {}) {
   const ref = db.ref(`solutions/${uid}/${level}/${hash}`);
   // Read it back: the trigger's event only says what the player wrote.
   const sol = (await ref.get()).val();
@@ -190,7 +225,7 @@ export async function processSolution(db, { uid, level, hash }) {
   // During a rules-version deploy, rescoring handles the other version.
   if (sol.rules !== RULES_VERSION) return 'other version';
 
-  const res = await judgeSolution(level, hash, sol);
+  const res = await judge(level, hash, sol);
   if (res.invalid) {
     // Invalid submissions keep only a small tombstone, never their contents.
     // (Only while it still exists: never recreate one the player deleted.)

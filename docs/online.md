@@ -744,11 +744,13 @@ game's rules and functions.
 
 `.github/workflows/deploy.yml` deploys everything from `main`; nothing is
 deployed by hand except a rules version change (below) and the kill switch
-(from its own repository, first). It has three jobs:
+(from its own repository, first). Its stages:
 
-* **test**, on every push and pull request (and pushes to `beta`), with no
-  credentials: `npm test`, `tools/ui-smoke.js`, both emulator suites, and
-  `tools/build-site.js`.
+* **unit**, **ui-smoke**, and **emulator** (gated together as **test**, the
+  required check on `main`), on every push and pull request (and pushes to
+  `beta`), in parallel and with no credentials: `npm test` +
+  `tools/build-site.js`, `tools/ui-smoke.js`, and both emulator suites under a
+  single emulator boot (`npm run test:all`).
 * **firebase**, on `main` after the tests pass, in the `production`
   environment; the only job that can get Google credentials. It checks that
   the server's `config/rulesVersion` equals `RULES_VERSION` (if not, it is a
