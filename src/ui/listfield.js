@@ -50,13 +50,9 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   let draft = keep.draft ?? null; // the Text view's text while it differs from the list
   let els = [];                 // token -> its element (a chip, a group's opening mark, its count tag)
 
-  // Keeps the focus where it is (so a phone's keyboard doesn't come up for a tap).
+  // Keeps the focus where it is: a tap on the pad neither opens a phone's
+  // keyboard when closed nor dismisses it when the cursor is in the field.
   const noFocus = (e) => e.preventDefault();
-  // On a touch screen, pressing the pad puts the keyboard away if nothing is half-typed.
-  const padDown = (e) => {
-    if (e.pointerType !== 'mouse' && typing() && !inp.value) inp.blur();
-    e.preventDefault();
-  };
 
   // ---------- the parts ----------
   const box = h('div', { class: 'lf-chips', tabindex: '-1', role: 'group', 'aria-label': deal ? 'Deal to: sides in order' : 'Deck, top first' });
@@ -384,7 +380,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     return !!r && edit(r, { sel: { a, b: b + 2 } });
   }
   // A tap on the pad (or from outside: the Deal's side keys, the port menu).
-  function tap(entry, { touch = false } = {}) {
+  function tap(entry) {
     closeStepper();
     if (mode === 'text') {
       const active = document.activeElement === area;
@@ -392,15 +388,13 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       const r = tapEntry(kind, draft ?? text, at, entry);
       area.value = r.text;
       draft = r.text;
-      if (active && !touch) area.setSelectionRange(r.caret, r.caret);
-      else if (active && touch) area.blur();
+      if (active) area.setSelectionRange(r.caret, r.caret);
       else applyDraft();
       fitArea();
       renderBar();
       return;
     }
     commitBox();
-    if (touch && typing()) inp.blur();
     if (sel && sel.b - sel.a === 1 && toks[sel.a].kind === 'item') {
       const add = lexList(kind, entry);
       if (add.length === 1 && JSON.stringify(add[0].val) === JSON.stringify(toks[sel.a].val)) {
@@ -837,13 +831,44 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
 
   // ---------- the pad ----------
   let pad;
+  const keepActiveKeyboard = () => typing() || document.activeElement === area;
+  function padButton(attrs, children, entry) {
+    let down = null, tapped = false;
+    const b = h('button', {
+      ...attrs,
+      onpointerdown: (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        down = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      },
+      onmousedown: noFocus,
+      onclick: (e) => { if (e.detail === 0) tap(entry); },
+    }, ...children);
+    b.addEventListener('pointermove', (e) => {
+      if (down?.id === e.pointerId && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8 * uiScale()) down = null;
+    });
+    b.addEventListener('pointercancel', () => { down = null; });
+    b.addEventListener('pointerup', (e) => {
+      if (down?.id !== e.pointerId) return;
+      down = null;
+      tapped = true;
+      tap(entry);
+    });
+    // On iOS Safari, touchend must be canceled after a non-scrolling tap to
+    // keep an already-open software keyboard from dismissing.
+    b.addEventListener('touchend', (e) => {
+      const wasTap = tapped;
+      tapped = false;
+      if (wasTap && keepActiveKeyboard() && e.cancelable) e.preventDefault();
+    });
+    return b;
+  }
   if (deal) {
-    let sideTouch = false;
-    const side = (d) => h('button', {
-      class: 'lf-pad-side', style: `--c: ${SIDE_COLOURS[d]}`, title: `Deal to ${SIDE_TEXT[d]}`, 'aria-label': `Deal to ${SIDE_TEXT[d]}`, 'data-side': d,
-      onpointerdown: (e) => { sideTouch = e.pointerType !== 'mouse'; padDown(e); },
-      onclick: (e) => tap(SIDE_TEXT[d], { touch: e.detail > 0 && sideTouch }),
-    }, arrowEl(d), SIDE_TEXT[d]);
+    const side = (d) => padButton(
+      { class: 'lf-pad-side', style: `--c: ${SIDE_COLOURS[d]}`, title: `Deal to ${SIDE_TEXT[d]}`, 'aria-label': `Deal to ${SIDE_TEXT[d]}`, 'data-side': d },
+      [arrowEl(d), SIDE_TEXT[d]],
+      SIDE_TEXT[d],
+    );
     pad = h('div', { class: 'lf-pad deal' },
       h('div', { class: 'lf-hex' }, h('span'), side(4), side(5), h('span'), side(3), h('span', { class: 'lf-hub', 'aria-hidden': 'true' }, '⬡'), side(0), h('span'), side(2), side(1)));
   } else {
@@ -865,7 +890,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
         grid.append(keys[c]);
       }
     }
-    let run = null; // { s, from, to, id, x0, y0, locked, touch, touchId, deck, aborted }
+    let run = null, touchTap = false; // run: { s, from, to, id, x0, y0, locked, touchId, deck, aborted }
     // The pad's corners: a drag from one to the one opposite is a new deck.
     const OPPOSITE = { AS: 'KH', KH: 'AS', KS: 'AH', AH: 'KS' };
     const runKeys = () => {
@@ -883,18 +908,21 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       tip.textContent = run.deck ? 'A new deck: 52 cards'
         : n > 1 ? `${rankText(run.from)}${SUIT_GLYPH[run.s]} to ${rankText(run.to)}${SUIT_GLYPH[run.s]}: ${n} cards` : '';
     };
+    grid.addEventListener('mousedown', noFocus);
     grid.addEventListener('pointerdown', (e) => {
       const k = e.target.closest?.('.lf-key');
       if (!k || e.button !== 0) return;
-      const mouse = e.pointerType === 'mouse';
-      padDown(e);
+      noFocus(e);
       grid.setPointerCapture?.(e.pointerId);
       const c = k.dataset.card;
-      run = { s: c[1], from: c[0], to: c[0], id: e.pointerId, x0: e.clientX, y0: e.clientY, locked: mouse, touch: !mouse, aborted: false };
+      run = { s: c[1], from: c[0], to: c[0], id: e.pointerId, x0: e.clientX, y0: e.clientY, locked: e.pointerType === 'mouse', aborted: false };
       markRun();
     });
     grid.addEventListener('touchstart', (e) => {
-      if (run && !run.locked && e.touches.length === 1) run.touchId = e.changedTouches[0].identifier;
+      if (run && !run.locked && e.touches.length === 1) {
+        run.touchId = e.changedTouches[0].identifier;
+        touchTap = true;
+      }
     }, { passive: true });
     grid.addEventListener('touchmove', (e) => {
       if (!run) return;
@@ -910,6 +938,12 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
         endRun(true);
       }
     }, { passive: false });
+    grid.addEventListener('touchend', (e) => {
+      const wasTap = touchTap;
+      touchTap = false;
+      if (wasTap && keepActiveKeyboard() && e.cancelable) e.preventDefault();
+    });
+    grid.addEventListener('touchcancel', () => { touchTap = false; });
     grid.addEventListener('pointermove', (e) => {
       if (!run || e.pointerId !== run.id) return;
       if (!run.locked) {
@@ -945,22 +979,20 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       const r = run;
       if (!r) return;
       run = null;
-      if (cancel) { try { grid.releasePointerCapture?.(r.id); } catch {} }
+      if (cancel) {
+        touchTap = false;
+        try { grid.releasePointerCapture?.(r.id); } catch {}
+      }
       markRun();
       if (cancel || r.aborted) return;
-      tap(r.deck ? 'deck' : r.from === r.to ? r.from + r.s : `${r.from}${r.s}-${r.to}${r.s}`, { touch: r.touch });
+      tap(r.deck ? 'deck' : r.from === r.to ? r.from + r.s : `${r.from}${r.s}-${r.to}${r.s}`);
     };
     grid.addEventListener('pointerup', (e) => { if (run && e.pointerId === run.id) endRun(false); });
     grid.addEventListener('pointercancel', () => endRun(true));
     grid.addEventListener('lostpointercapture', () => { if (run) endRun(true); });
-    let spTouch = false;
     const specialKeys = specials.map((c) => {
       const f = cardEl(c, 'lf-key-sp');
-      return h('button', {
-        class: f.className, title: cardName(c), 'data-card': c,
-        onpointerdown: (e) => { spTouch = e.pointerType !== 'mouse'; padDown(e); },
-        onclick: (e) => tap(c, { touch: e.detail > 0 && spTouch }),
-      }, ...f.childNodes);
+      return padButton({ class: f.className, title: cardName(c), 'data-card': c }, [...f.childNodes], c);
     });
     pad = h('div', { class: 'lf-pad shoe' },
       grid,

@@ -1319,9 +1319,9 @@ try {
         await phone.isVisible('.lf-caret.on') && !(await phone.locator('.lf-text.typing').count()) &&
         await phone.evaluate(() => !document.activeElement?.matches('input, textarea')),
       `✕ takes out the selected entry, keeping the keyboard down with the passive insertion mark ("${await listText()}")`);
-      // A tap just inside the group opens the keyboard, scrolls the edit box
-      // to the top of the screen so the pad stays clear of the keyboard, and
-      // tapping the pad adds there while putting the keyboard away again.
+      // A tap just inside the group opens the keyboard and scrolls the edit box
+      // to the top of the screen so the pad stays clear; tapping the pad while
+      // typing adds at the cursor and keeps the cursor and keyboard active.
       const e0 = await phone.locator('.lf-chips [data-i="1"]').boundingBox();
       await tap([e0.x - 1, e0.y + e0.height / 2]);
       await phone.waitForTimeout(350);
@@ -1331,10 +1331,10 @@ try {
         topAfterGap >= 20 && topAfterGap <= 60,
       `a tap in a gap focuses the typing box and scrolls the edit box to the top (top ${topAfterGap.toFixed(0)}px)`);
       await phone.tap('.lf-pad-side[data-side="3"]');
-      check(await listText() === '(W E SE)x6' && await phone.isVisible('.lf-caret.on') &&
-        !(await phone.locator('.lf-text.typing').count()) &&
-        await phone.evaluate(() => !document.activeElement?.matches('input, textarea')),
-      `a tap in the group, then the pad: added at the caret and puts the keyboard away ("${await listText()}")`);
+      check(await listText() === '(W E SE)x6' &&
+        await phone.locator('.lf-text.typing').count() === 1 && !(await phone.isVisible('.lf-caret.on')) &&
+        await phone.evaluate(() => document.activeElement?.classList.contains('lf-type')),
+      `a tap in the group, then the pad: added at the cursor while keeping the cursor and keyboard active ("${await listText()}")`);
     }
     // A shoe's card pad on a phone: vertical swipes scroll the page without
     // adding a card; horizontal or diagonal starts lock out scrolling for runs,
@@ -1409,6 +1409,18 @@ try {
       check(cancelTip === 'Release to cancel' && runLit === 0 && Math.abs((await phone.evaluate(() => scrollY)) - sy4) < 2 && await listText() === 'JC 2S-5S deck',
         `phone: dragging off the card pad cancels the run without scrolling ("${cancelTip}", "${await listText()}")`);
       if (shots) await phone.locator('.inspector').screenshot({ path: join(shots, '7g-phone-shoe-passive-caret.png') });
+      // Tapping in a gap in .lf-chips opens the cursor/keyboard, and tapping a
+      // card on the pad inserts at the cursor while keeping cursor & keyboard up.
+      await phone.locator('.lf-chips').scrollIntoViewIfNeeded();
+      await phone.waitForTimeout(50);
+      const jcBox = await phone.locator('.lf-chips [data-i="0"]').boundingBox();
+      await tap([jcBox.x + 1, jcBox.y + jcBox.height / 2]);
+      await phone.waitForTimeout(350);
+      await phone.tap('.lf-grid [data-card="9H"]');
+      check(await listText() === '9H JC 2S-5S deck' &&
+        await phone.locator('.lf-text.typing').count() === 1 &&
+        await phone.evaluate(() => document.activeElement?.classList.contains('lf-type')),
+      `phone: tapping a card on the pad while typing inserts at the cursor and keeps cursor & keyboard active ("${await listText()}")`);
     }
     await phone.close();
   }
