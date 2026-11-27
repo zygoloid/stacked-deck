@@ -74,8 +74,6 @@ export function openEditor(root, ctx, level) {
 
   const cellAt = (key) => cells.find((c) => hexKey(c.at) === key);
   const machine = () => sanitizeCells(level, cells);
-  // Hexes with a player or desk on them (no croupier can go there).
-  const moverAt = (at) => cells.some((c) => isMover(c) && hexKey(c.at) === hexKey(at));
   const selCell = () => (selected ? cellAt(selected) : null);
 
   // ---------- DOM skeleton ----------
@@ -819,7 +817,8 @@ export function openEditor(root, ctx, level) {
     const b0 = performance.now();
     board.rebuildCards = !!perf?.rebuildCards;
     board.render({
-      cells: lift ? [...staying(), ...lifted] : cells, lifted: lift ? { cells: new Set(lifted), bad: liftOff(), covers: liftCovers() } : null, pick,
+      cells: lift ? [...staying(), ...lifted] : cells,
+      lifted: lift ? { cells: new Set(lifted), bad: liftOff(), covers: liftCovers(), nudged: liftNudged() } : null, pick,
       coach: coach.mark(), selected, activePort, hover, live, tool, drag: drag?.active && drag.kind !== 'box' && drag.kind !== 'group' ? drag : null,
       preview: clickPreview(), ghost: placePreview(), pickHint: pickPreview(),
       paidNow: live ? sim.paidNow : null, paidNowHex: sim?.paidNowHex, paidWrong: sim?.paidWrong,
@@ -1034,15 +1033,19 @@ export function openEditor(root, ctx, level) {
     // the palette and the play controls step aside (style.css).
     editorEl.classList.toggle('cell-selected', !!selCell());
     if (lift) {
-      const n = lift.items.length;
+      const hasMover = liftHasMover();
       inspector.replaceChildren(
-        h('h3', {}, `${n} croupier${n === 1 ? '' : 's'}`),
+        h('h3', {}, liftTitle()),
         h('ul', { class: 'howto' },
-          h('li', {}, `Drag one of them to move them all. ${Tap()} a croupier to add it, or one of these to put it down.`),
-          h('li', {}, h('b', {}, '⟲ ⟳'), ' turn, ', h('b', {}, '⇋ ⇵'), ' mirror (left to right, top to bottom), ', h('b', {}, '⧉'), ' puts them down and picks up a copy, ', h('b', {}, '🗑'), ' deletes.'),
-          h('li', {}, h('b', {}, '✓'), ' or a tap elsewhere puts them down, in place of any croupier under them; red ones, off the floor, are deleted. Undo puts it all back.')),
+          h('li', {}, `Drag one of them to move them all. ${Tap()} another to add it, or one of these to put it down.`),
+          h('li', {}, h('b', {}, '⟲ ⟳'), ' turn, ', h('b', {}, '⇋ ⇵'), ' mirror (left to right, top to bottom)',
+            ...(hasMover ? [' (players and desks can\'t be copied or deleted).']
+              : [', ', h('b', {}, '⧉'), ' puts them down and picks up a copy, ', h('b', {}, '🗑'), ' deletes.'])),
+          h('li', {}, h('b', {}, '✓'), ' or a tap elsewhere puts them down: croupiers replace any croupier under them (red ones, off the floor, are deleted)',
+            hasMover ? ', and a player or desk off the floor or over another table settles onto the nearest free hex.' : '. Undo puts it all back.')),
         h('p', { class: 'keys kbd-only' }, h('kbd', {}, 'Q'), h('kbd', {}, 'E'), h('kbd', {}, 'A'), h('kbd', {}, 'D'), h('kbd', {}, 'Z'), h('kbd', {}, 'C'), ' move  ',
-          h('kbd', {}, '['), h('kbd', {}, ']'), ' turn  ', h('kbd', {}, 'M'), ' ', h('kbd', {}, 'Shift+M'), ' mirror  ', h('kbd', {}, 'Enter'), ' ', h('kbd', {}, 'Esc'), ' put down  ', h('kbd', {}, 'Del'), ' delete'));
+          h('kbd', {}, '['), h('kbd', {}, ']'), ' turn  ', h('kbd', {}, 'M'), ' ', h('kbd', {}, 'Shift+M'), ' mirror  ', h('kbd', {}, 'Enter'), ' ', h('kbd', {}, 'Esc'), ' put down',
+          ...(hasMover ? [] : ['  ', h('kbd', {}, 'Del'), ' delete'])));
       return;
     }
     let c = selCell();
@@ -1076,8 +1079,8 @@ export function openEditor(root, ctx, level) {
           h('li', {}, `${Tap()} an empty hex to place a croupier there.`),
           h('li', {}, `Select a croupier, then ${tap()} the edges of its hex to point its ports.`),
           desksMove(level) ? h('li', {}, `Drag the player or the chip desk to move it. Select the player, then ${tap()} an edge of its hex to turn it.`) : null,
-          h('li', { class: 'touch-only' }, 'Long-press to pick up croupiers.'),
-          h('li', { class: 'kbd-only' }, 'Shift-click or Shift-drag to pick up croupiers.'),
+          h('li', { class: 'touch-only' }, 'Long-press to pick up a group.'),
+          h('li', { class: 'kbd-only' }, 'Shift-click or Shift-drag to pick up a group.'),
           h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
         ...(devMode() ? [devPanel(level, { measured: devMeasured, loadPar, measure })] : []), // (replaceChildren writes out a null)
         roster,
@@ -1104,19 +1107,6 @@ export function openEditor(root, ctx, level) {
             h('button', { class: 'tp', title: 'Step (.)', 'aria-label': 'Step', onmousedown: keepFocus, disabled: running || !!sim?.finished, onclick: stepOnce }, icon('step')))),
       h('p', { class: 'insp-desc' }, info.desc),
     ];
-    // A player or desk moved: it can go back where the floor had it.
-    if (!template && isMover(c)) {
-      const home = level.fixed.find((f) => f.kind === c.kind && f.seat === c.seat && f.desk === c.desk);
-      const moved = home && (hexKey(home.at) !== hexKey(c.at) || home.out !== c.out);
-      const free = home && !cells.some((x) => x !== c && hexKey(x.at) === hexKey(home.at));
-      if (moved) {
-        parts.push(h('div', { class: 'param' }, h('button', {
-          class: 'btn small', 'data-act': 'home', disabled: !free,
-          title: free ? 'Put it back where the floor had it' : 'Something is standing where it was',
-          onclick: () => commit(() => { c.at = [...home.at]; if (c.kind === 'source') c.out = home.out; selected = hexKey(home.at); }),
-        }, 'Put it back')));
-      }
-    }
     // params
     if (c.fn === 'kind' || c.fn === 'hand') {
       const p = CROUPIERS[c.fn].params.n;
@@ -1421,7 +1411,7 @@ export function openEditor(root, ctx, level) {
   // put down next to the selected one.
   function selectedEdge(x, y, reach = false) {
     const c = selCell(), m = svg.getScreenCTM();
-    if (!c || !m) return null;
+    if (!c || !portsOf(c).length || !m) return null;
     if (!reach && board.locate(x, y)?.at.join() !== c.at.join()) return null;
     const p = new DOMPoint(x, y).matrixTransform(m.inverse());
     const [cx, cy] = center(c.at);
@@ -1975,38 +1965,68 @@ export function openEditor(root, ctx, level) {
 
   // ---------- groups ----------
   // A box drawn on the floor (long press on the bare floor, then drag; or
-  // Shift-drag with a mouse) picks up the croupiers in it. A picked-up group
-  // floats: drag one of them to move them all, turn them, copy or delete
-  // them; a tap on one of them puts that one down, a tap on another croupier
-  // adds it. Put down (✓, Enter, Esc, a tap elsewhere on the floor, or doing
-  // anything else), they take the place of any croupier under them; any off
-  // the floor (shown red) are deleted. There is no putting them back but
-  // undo: putting them down is one undo step.
-  // The croupiers left where they were (not the ones picked up).
+  // Shift-drag with a mouse) picks up the croupiers — and any movable player
+  // or chip desk — in it. A picked-up group floats: drag one of them to move
+  // them all, turn them, or (when no player or desk is in the group) copy or
+  // delete them; a tap on one of them puts that one down, a tap on another
+  // cell adds it. Put down (✓, Enter, Esc, a tap elsewhere on the floor, or
+  // doing anything else), croupiers take the place of any croupier under them
+  // and any off the floor (shown red) are deleted, then any player or desk in
+  // the group lands where it floats if that hex is buildable and free, or else
+  // on the nearest free hex without overwriting anything. Putting them down is
+  // one undo step.
+  // The cells left where they were (not the ones picked up).
   function staying() {
     if (!lift) return cells;
     const srcs = new Set(lift.items.map((i) => i.src));
     return cells.filter((c) => !srcs.has(c));
   }
+  const liftHasMover = () => !!lift?.items.some((i) => isMover(i.cell));
+  function liftTitle() {
+    const n = lift.items.length;
+    if (!liftHasMover()) return `${n} croupier${n === 1 ? '' : 's'}`;
+    return n === 1 ? infoFor(lift.items[0].cell).name : `${n} picked up`;
+  }
   const liftHexes = () => new Set(lift.items.map((i) => hexKey(i.cell.at)));
-  // Picked-up croupiers' hexes that are off the floor: they are deleted when put down.
-  // (So are any on a player or desk: they go only where nothing else is.)
-  const liftOff = () => new Set(lift.items.map((i) => i.cell.at).filter((at) => !board.isBuildable(at) || moverAt(at)).map(hexKey));
-  // The croupiers the group would replace if put down: hex key -> croupier.
+  const stayMoverAt = (at) => staying().some((c) => isMover(c) && hexKey(c.at) === hexKey(at));
+  // Picked-up croupiers' hexes that are off the floor (or on a stationary
+  // player or desk): they are deleted when put down. Movers are never deleted.
+  const liftOff = () => new Set(
+    lift.items.filter((i) => !isMover(i.cell))
+      .map((i) => i.cell.at)
+      .filter((at) => !board.isBuildable(at) || stayMoverAt(at))
+      .map(hexKey),
+  );
+  // The croupiers the group's croupiers would replace if put down: hex key -> croupier.
   function liftCovers() {
     const stay = new Map(staying().filter((c) => !isMover(c)).map((c) => [hexKey(c.at), c]));
-    return new Map(lift.items.map((i) => hexKey(i.cell.at)).filter((k) => stay.has(k)).map((k) => [k, stay.get(k)]));
+    return new Map(
+      lift.items.filter((i) => !isMover(i.cell))
+        .map((i) => hexKey(i.cell.at))
+        .filter((k) => stay.has(k))
+        .map((k) => [k, stay.get(k)]),
+    );
   }
-  // Pick up these croupiers (hex keys; any missing are skipped), adding them
-  // to the group already up.
+  // Picked-up movers that are off the floor or over a stationary cell: they
+  // will settle onto the nearest free hex when put down.
+  function liftNudged() {
+    const stay = new Set(staying().map((c) => hexKey(c.at)));
+    return new Set(
+      lift.items.filter((i) => isMover(i.cell))
+        .map((i) => i.cell.at)
+        .filter((at) => !board.isBuildable(at) || stay.has(hexKey(at)))
+        .map(hexKey),
+    );
+  }
+  // Pick up these cells (hex keys; any missing are skipped), adding them to
+  // the group already up.
   function liftMore(keys) {
     const items = [...(lift?.items ?? [])];
     const have = new Set(items.map((i) => i.src));
     const covered = lift ? liftHexes() : new Set();
     for (const k of keys) {
       const src = k && cellAt(k);
-      // (Players and desks are moved one at a time.)
-      if (!src || isMover(src) || have.has(src) || covered.has(k)) continue;
+      if (!src || have.has(src) || covered.has(k)) continue;
       have.add(src);
       items.push({ src, cell: structuredClone(src) });
     }
@@ -2016,22 +2036,71 @@ export function openEditor(root, ctx, level) {
     tool = null; selected = null; activePort = null; dropDrafts();
     renderAll();
   }
-  // The same croupiers, in any order.
+  // Nearest buildable hex not in `taken` to `targetAt` (Euclidean board
+  // distance; ties broken toward `srcAt`).
+  function nearestFree(targetAt, taken, srcAt) {
+    if (board.isBuildable(targetAt) && !taken.has(hexKey(targetAt))) return [...targetAt];
+    const [tx, ty] = center(targetAt);
+    const [sx, sy] = srcAt ? center(srcAt) : [tx, ty];
+    let best = null, bestD = Infinity, bestS = Infinity;
+    for (const k of board.floorKeys) {
+      if (taken.has(k)) continue;
+      const cand = k.split(',').map(Number);
+      const [cx, cy] = center(cand);
+      const d = (cx - tx) ** 2 + (cy - ty) ** 2;
+      const sd = (cx - sx) ** 2 + (cy - sy) ** 2;
+      if (d < bestD - 1e-6 || (Math.abs(d - bestD) <= 1e-6 && sd < bestS - 1e-6)) {
+        best = cand; bestD = d; bestS = sd;
+      }
+    }
+    return best ?? [...(srcAt ?? targetAt)];
+  }
+  // The same cells, in any order.
   const sameCells = (a, b) => JSON.stringify(a.map((c) => JSON.stringify(c)).sort()) === JSON.stringify(b.map((c) => JSON.stringify(c)).sort());
-  // Put down these of the group where they are, as one undo step (none if
-  // nothing changes): each in place of whatever croupier is under it, or
-  // deleted off the floor. The rest stay up. One put down where another of
-  // the group was picked up from takes that hex: the other, still up, is
-  // then a new croupier (as a copy is).
+  // Put down `items` where they are, as one undo step (none if nothing
+  // changes): croupiers first (each in place of whatever croupier is under it,
+  // or deleted off the floor), then any players or desks as close as possible
+  // to where they were floating without overwriting anything. The rest stay
+  // up; one put down where another of the group was picked up from takes that
+  // hex (a floating croupier whose hex was taken becomes a copy).
   function putDown(items) {
-    const hexes = new Set(items.map((i) => hexKey(i.cell.at)));
-    const going = new Set(items.map((i) => i.src));
     const rest = lift.items.filter((i) => !items.includes(i));
-    for (const i of rest) if (i.src && hexes.has(hexKey(i.src.at))) i.src = null;
-    const next = [
-      ...cells.filter((c) => isMover(c) || (!going.has(c) && !hexes.has(hexKey(c.at)))),
-      ...items.map((i) => i.cell).filter((c) => board.isBuildable(c.at) && !moverAt(c.at)),
-    ];
+    const stay = staying();
+    const stayMovers = stay.filter(isMover);
+    const stayMoverHexes = new Set(stayMovers.map((c) => hexKey(c.at)));
+    const stayCroupiers = stay.filter((c) => !isMover(c));
+    const croupierItems = items.filter((i) => !isMover(i.cell));
+    const moverItems = items.filter((i) => isMover(i.cell));
+    const restMovers = rest.filter((i) => isMover(i.cell));
+    const placedCroupiers = croupierItems.map((i) => i.cell)
+      .filter((c) => board.isBuildable(c.at) && !stayMoverHexes.has(hexKey(c.at)));
+    const placedHexes = new Set(placedCroupiers.map((c) => hexKey(c.at)));
+    const keptStayCroupiers = stayCroupiers.filter((c) => !placedHexes.has(hexKey(c.at)));
+    // Guarantee every mover (placed now or still floating) has a free floor hex.
+    const maxNonMovers = board.floorKeys.size - stayMovers.length - moverItems.length - restMovers.length;
+    while (keptStayCroupiers.length + placedCroupiers.length > maxNonMovers && placedCroupiers.length) {
+      placedCroupiers.pop();
+    }
+    const taken = new Set([...stayMovers, ...keptStayCroupiers, ...placedCroupiers].map((c) => hexKey(c.at)));
+    const placedMovers = [];
+    for (const m of moverItems) {
+      m.cell.at = nearestFree(m.cell.at, taken, m.src?.at);
+      taken.add(hexKey(m.cell.at));
+      placedMovers.push(m.cell);
+    }
+    const keptRestSrcs = [];
+    for (const r of restMovers) {
+      if (!r.src) continue;
+      r.src.at = nearestFree(r.src.at, taken);
+      taken.add(hexKey(r.src.at));
+      keptRestSrcs.push(r.src);
+    }
+    for (const r of rest) {
+      if (isMover(r.cell) || !r.src) continue;
+      if (taken.has(hexKey(r.src.at))) r.src = null;
+      else { taken.add(hexKey(r.src.at)); keptRestSrcs.push(r.src); }
+    }
+    const next = [...stayMovers, ...keptStayCroupiers, ...placedCroupiers, ...placedMovers, ...keptRestSrcs];
     lift = rest.length ? { items: rest } : null;
     if (!sameCells(next, cells)) commit(() => { cells = next; });
     else renderAll();
@@ -2041,7 +2110,7 @@ export function openEditor(root, ctx, level) {
   // Put the whole group down (with any other action, too).
   function placeLift() { if (lift) putDown(lift.items); }
   function deleteLift() {
-    if (!lift) return;
+    if (!lift || liftHasMover()) return;
     const keep = staying();
     lift = null;
     if (keep.length !== cells.length) commit(() => { cells = keep; });
@@ -2061,17 +2130,17 @@ export function openEditor(root, ctx, level) {
   const turnLift = (k) => transformLift((at, p) => rotateAt(at, p, k), (c) => rotateCell(c, k));
   const mirrorLift = () => transformLift(mirrorAt, mirrorCell);
   const flipLift = () => transformLift(flipAt, flipCell);
-  // One selected croupier: turned or mirrored where it is.
+  // One selected croupier (or player): turned or mirrored where it is.
   function changeSel(change) {
     const c = selCell();
-    if (c) commit(() => change(c));
+    if (c && portsOf(c).length) commit(() => change(c));
   }
   // Copy: put the group down where it is (as ✓ does), and pick up a copy of
   // it, nudged to the nearest place where it is all on the floor and covers
   // no croupier (if there is one near); again and again, to stamp out more.
   // A selected croupier: pick up a copy of it, the same way.
   function copyLift() {
-    if (!lift) return;
+    if (!lift || liftHasMover()) return;
     const copies = lift.items.map((i) => structuredClone(i.cell));
     placeLift();
     liftCopies(copies);
@@ -2119,6 +2188,7 @@ export function openEditor(root, ctx, level) {
       fn();
     });
     b.addEventListener('click', (e) => {
+      if (b.disabled) return;
       if (e.detail === 0 || (lastPress?.type === 'mouse' && b.contains(lastPress.target))) fn();
     });
     return b;
@@ -2150,8 +2220,14 @@ export function openEditor(root, ctx, level) {
     for (const act of ['ccw', 'cw', 'mirror', 'flip']) selBar.querySelector(`[data-act="${act}"]`).classList.toggle('hidden', c?.kind === 'payout');
     liftBar.classList.toggle('hidden', !lift);
     if (!lift) return;
-    const n = lift.items.length, covers = liftCovers().size;
-    liftBar.querySelector('.lift-n').replaceChildren(`${n} croupier${n === 1 ? '' : 's'}`,
+    const covers = liftCovers().size, hasMover = liftHasMover();
+    const copyBtn = liftBar.querySelector('[data-act="copy"]');
+    const delBtn = liftBar.querySelector('[data-act="delete"]');
+    copyBtn.disabled = hasMover;
+    copyBtn.title = hasMover ? 'Players and chip desks can\'t be copied' : 'Put them down here, and pick up a copy';
+    delBtn.disabled = hasMover;
+    delBtn.title = hasMover ? 'Players and chip desks can\'t be deleted' : 'Delete them (Delete)';
+    liftBar.querySelector('.lift-n').replaceChildren(liftTitle(),
       covers ? h('span', { class: 'lift-covers', title: 'Put down here, they replace the croupiers marked' }, `replaces ${covers}`) : '');
     liftBar.classList.toggle('bad', liftOff().size > 0);
   }
@@ -2162,7 +2238,7 @@ export function openEditor(root, ctx, level) {
     Object.assign(boxSel.style, { transform: `translate(${x}px, ${y}px)`, width: `${Math.abs(d.x - d.x0)}px`, height: `${Math.abs(d.y - d.y0)}px` });
     boxSel.className = 'box-select';
   }
-  // Pick up the croupiers whose middles are in the box (adding to a group already up).
+  // Pick up the cells whose middles are in the box (adding to a group already up).
   function boxSelect(d) {
     boxSel.className = 'box-select hidden';
     const m = svg.getScreenCTM();
@@ -2170,7 +2246,7 @@ export function openEditor(root, ctx, level) {
     const [x0, x1] = [Math.min(d.x0, d.x), Math.max(d.x0, d.x)], [y0, y1] = [Math.min(d.y0, d.y), Math.max(d.y0, d.y)];
     // (Not those under the group: they are hidden.)
     const covered = lift ? liftHexes() : new Set();
-    const inBox = staying().filter((c) => !isMover(c)).filter((c) => {
+    const inBox = staying().filter((c) => {
       const p = new DOMPoint(...center(c.at)).matrixTransform(m);
       return p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && !covered.has(hexKey(c.at));
     }).map((c) => hexKey(c.at));
@@ -2226,6 +2302,11 @@ export function openEditor(root, ctx, level) {
     if ((e.ctrlKey || e.metaKey) && lower === 'y') {
       e.preventDefault();
       redoStep();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && lower === 'a') {
+      e.preventDefault();
+      if (!running) liftMore(cells.map((c) => hexKey(c.at)));
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;

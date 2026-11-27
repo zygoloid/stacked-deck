@@ -4,7 +4,7 @@ import {
   PORT_STYLE, infoFor, chipLabel, arrowsOf, SIDE_NAMES,
 } from './croupiers.js';
 import { hexKey } from './model.js';
-import { fixedOf, isMover, desksMove, dockHexes } from '../score.js';
+import { fixedOf, isMover, desksMove, buildable } from '../score.js';
 import { DESK_NAMES } from './sim.js';
 
 export const R = 50;                       // hex circumradius
@@ -199,7 +199,7 @@ export class Board {
     this.view = { ...this.box };
     this.applyView();
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    this.floorKeys = new Set(level.floor.map(hexKey));
+    this.floorKeys = buildable(level);
     // Arrows (pills, input marks) a click would take away, by fade key: when
     // each turned grey, and when each that was grey stopped being (so their
     // fades carry on smoothly over the next renders).
@@ -211,10 +211,7 @@ export class Board {
     this.coachEdgeT0 = 0;
     this.alertKey = null;
     this.alertT0 = 0;
-    for (const f of level.fixed) this.floorKeys.delete(hexKey(f.at));
-    // Where a moved player or desk may stand (src/score.js), and whether
-    // they move here at all (if not, they are drawn bolted down).
-    this.dockKeys = dockHexes(level);
+    // Whether the floor's player and desk move at all (if not, they are drawn bolted down).
     this.moves = desksMove(level);
   }
 
@@ -262,17 +259,16 @@ export class Board {
   }
 
   isBuildable(at) { return this.floorKeys.has(hexKey(at)); }
-  // Where a player or desk that moves may stand.
-  isDock(at) { return this.dockKeys.has(hexKey(at)); }
 
-  // Whether `cell` (one of `cells`) could be dropped on `at`: a croupier on
-  // a buildable hex (in place of a croupier there, not of a player or desk);
-  // a player or desk where one may stand, on no other cell.
+  // Whether `cell` (one of `cells`) could be dropped on `at`: on a buildable
+  // hex, a croupier in place of a croupier there (never a player or desk), and
+  // a player or desk only where nothing else stands.
   canDrop(cell, at, cells) {
+    if (!this.isBuildable(at)) return false;
     const k = hexKey(at);
     const under = cells.find((c) => c !== cell && hexKey(c.at) === k);
-    if (cell && isMover(cell)) return this.isDock(at) && !under && !fixedOf(this.level, cells).some((f) => !isMover(f) && hexKey(f.at) === k);
-    return this.isBuildable(at) && !(under && isMover(under));
+    if (cell && isMover(cell)) return !under;
+    return !(under && isMover(under));
   }
 
   // state: { cells, selected (key), activePort, hover {at, side, edge}, live (Floor), alert (key), ghost {at, tool}, pickHint {at, side},
@@ -323,22 +319,11 @@ export class Board {
     const gLift = s('g', { class: 'l-lift' });
     svg.append(gFloor, gBody, gArrow, gCards, gLift, gOver);
 
-    const fixedKeys = new Set(this.level.fixed.map((c) => hexKey(c.at)));
-    for (const at of this.level.floor) {
-      if (fixedKeys.has(hexKey(at))) continue;
-      const [x, y] = center(at);
-      gFloor.append(s('polygon', { class: 'hex floor', points: HEX, transform: `translate(${x},${y})`, 'data-at': hexKey(at) }));
+    for (const k of this.floorKeys) {
+      const [x, y] = center(k.split(',').map(Number));
+      gFloor.append(s('polygon', { class: 'hex floor', points: HEX, transform: `translate(${x},${y})`, 'data-at': k }));
     }
-    // The players and desks where this machine has them (a moved one is
-    // the machine's own cell), and an outline where a moved one came from
-    // (it can go back there).
     const fixed = fixedOf(this.level, cells);
-    const standing = new Set([...fixed, ...cells].map((c) => hexKey(c.at)));
-    for (const f of this.level.fixed) {
-      if (!isMover(f) || fixed.includes(f) || standing.has(hexKey(f.at))) continue;
-      const [x, y] = center(f.at);
-      gFloor.append(s('polygon', { class: `hex dock ${f.kind}`, points: HEX, transform: `translate(${x},${y})`, 'data-at': hexKey(f.at) }));
-    }
 
     const all = [...fixed, ...cells.filter((c) => !isMover(c))];
     // The live cells' hexes, in drawing order, for renderCards; each cell's
@@ -352,16 +337,18 @@ export class Board {
       const selected = state.selected === k;
       const body = this.cellBody(cell, state);
       this.bodies.push({ cell, el: body, key: this.bodyKey(cell, state) });
-      // A picked-up group floats over the floor, red where it can't go and
-      // marked where it would replace a croupier; that croupier's ports are
-      // hidden (they would only show round the edges).
+      // A picked-up group floats over the floor, red where croupiers can't go
+      // and marked where they would replace a croupier; that croupier's ports
+      // are hidden (they would only show round the edges).
       // (With the pointer on an edge of the selected croupier: what a click there would do.)
       const preview = selected && state.preview;
       const arrows = preview ? this.arrowsSvg(preview, t, state.activePort, { was: cell, key: k })
         : this.arrowsSvg(cell, t, selected ? state.activePort : null, { key: k });
       if (state.lifted?.cells.has(cell)) {
-        const bad = state.lifted.bad.has(k), under = bad ? null : state.lifted.covers.get(k);
-        body.classList.add('lifted', ...(bad ? ['bad'] : []), ...(under ? ['covers'] : []));
+        const bad = !isMover(cell) && state.lifted.bad.has(k);
+        const under = bad || isMover(cell) ? null : state.lifted.covers.get(k);
+        const nudged = isMover(cell) && state.lifted.nudged?.has(k);
+        body.classList.add('lifted', ...(bad ? ['bad'] : []), ...(under || nudged ? ['covers'] : []));
         gLift.append(body, arrows);
         if (under) gLift.append(this.coverTag(under, t));
       } else {

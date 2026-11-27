@@ -2881,11 +2881,11 @@ try {
     await rctx.close();
   }
 
-  // Moving the chip desk (src/score.js: desksMove): on Upper Hand the par
-  // machine's last Pass can go, the desk dragged onto its hex. The move is
-  // saved as a desk cell in the machine, survives a reload, can't be undone by
-  // deleting the desk, keeps croupiers off its hex, and clears the floor with
-  // a croupier fewer; Put it back returns it. A bolted floor's desk doesn't move.
+  // Moving the player and chip desk (src/score.js: desksMove): starting hexes
+  // are ordinary floor hexes (a croupier can take a vacated desk's hex), a
+  // selected desk drags from near its edge too, group lift includes movable
+  // players and desks with copy/delete disabled and snaps displaced ones to
+  // the nearest free hex without overwriting anything, and bolted floors stay put.
   {
     const mctx = await browser.newContext({ viewport: { width: 1440, height: 860 } });
     const mp = await mctx.newPage();
@@ -2897,13 +2897,13 @@ try {
       if (await mp.locator('.story-actions .btn.gold').count()) await mp.click('.story-actions .btn.gold');
       await mp.waitForSelector('svg.board');
     };
-    const at = (q, r) => mp.evaluate(([q, r]) => {
+    const at = (q, r, dx = 0) => mp.evaluate(([q, r, dx]) => {
       const R = 50, svg = document.querySelector('svg.board');
-      const p = new DOMPoint(R * Math.sqrt(3) * (q + r / 2), R * 1.5 * r).matrixTransform(svg.getScreenCTM());
+      const p = new DOMPoint(R * Math.sqrt(3) * (q + r / 2) + dx * R, R * 1.5 * r).matrixTransform(svg.getScreenCTM());
       return [p.x, p.y];
-    }, [q, r]);
-    const dragHex = async (from, to) => {
-      const [x0, y0] = await at(...from), [x1, y1] = await at(...to);
+    }, [q, r, dx]);
+    const dragHex = async (from, to, dx0 = 0) => {
+      const [x0, y0] = await at(from[0], from[1], dx0), [x1, y1] = await at(to[0], to[1]);
       await mp.mouse.move(x0, y0); await mp.mouse.down(); await mp.mouse.move(x1, y1, { steps: 8 }); await mp.mouse.up();
     };
     const work = (id) => mp.evaluate((id) => JSON.parse(localStorage.getItem('stacked-deck-v1')).levels[id], id);
@@ -2914,13 +2914,22 @@ try {
     await mp.mouse.click(px, py, { button: 'right' }); // remove the Pass by the desk
     await dragHex([2, 0], [1, 0]);
     let w = await work('upper-hand');
-    check(JSON.stringify(w.cells.filter((c) => c.kind === 'payout')) === '[{"at":[1,0],"kind":"payout"}]' && await mp.locator('.hex.dock[data-at="2,0"]').count() === 1,
-      'moving the chip desk: saved as a desk cell in the machine, an outline where it was');
+    check(JSON.stringify(w.cells.filter((c) => c.kind === 'payout')) === '[{"at":[1,0],"kind":"payout"}]' &&
+      await mp.locator('.hex.dock').count() === 0 && await mp.locator('.hex.floor[data-at="2,0"]').count() === 1,
+      'moving the chip desk: saved in the machine, and its starting hex is an ordinary floor hex');
+    // Vacated starting hex accepts a croupier.
+    const [hx, hy] = await at(2, 0);
+    await mp.mouse.move(hx, hy);
+    await mp.keyboard.press('Escape');
+    await mp.keyboard.press('1');
+    w = await work('upper-hand');
+    check(w.cells.some((c) => c.kind === 'croupier' && c.at.join() === '2,0'), 'a croupier can be placed on the desk\'s vacated starting hex');
+    await mp.mouse.click(hx, hy, { button: 'right' }); // remove that Pass again
     await mp.mouse.click(px, py, { button: 'right' });
     await mp.keyboard.press('Delete');
     await mp.mouse.move(px, py);
     await mp.keyboard.press('Escape');
-    await mp.keyboard.press('1'); // a Pass at the pointer: not on the desk
+    await mp.keyboard.press('1'); // not on the desk
     w = await work('upper-hand');
     check(w.cells.filter((c) => c.at.join() === '1,0').map((c) => c.kind).join() === 'payout', 'the desk can\'t be deleted, nor a croupier put on it');
     await mp.click('.transport button:has-text("Max")');
@@ -2931,10 +2940,59 @@ try {
     await mp.reload();
     await mp.waitForSelector('svg.board');
     check(await mp.locator('.cell.payout[data-at="1,0"]').count() === 1, 'the moved desk is still there after a reload');
+    // Selected desk drags cleanly even when grabbed near its edge (dist = 0.7R).
     await mp.mouse.click(px, py);
-    await mp.click('.inspector [data-act="home"]');
+    await dragHex([1, 0], [2, 0], 0.7);
     w = await work('upper-hand');
-    check(await mp.locator('.cell.payout[data-at="2,0"]').count() === 1 && !w.cells.some((c) => c.kind === 'payout'), 'Put it back returns the desk, and the machine no longer moves it');
+    check(await mp.locator('.cell.payout[data-at="2,0"]').count() === 1 && !w.cells.some((c) => c.kind === 'payout'),
+      'dragging a selected desk near its edge moves it back, and at its starting place it leaves the machine');
+    // Group selection includes movers, disables copy and delete, and snaps
+    // a mover dropped off the floor or over a croupier to the nearest free hex.
+    await mp.keyboard.press('Escape');
+    await mp.keyboard.press('Control+a');
+    check(await mp.isVisible('.lift-bar') && /5 picked up/.test(await mp.textContent('.lift-bar')) &&
+      await mp.locator('.lift-bar [data-act="copy"]').isDisabled() && await mp.locator('.lift-bar [data-act="delete"]').isDisabled(),
+      'Ctrl+A picks up croupiers, player and desk together, with copy and delete disabled');
+    await mp.keyboard.press('Delete');
+    check(await mp.isVisible('.lift-bar'), 'Delete does nothing when a group contains a player or desk');
+    await mp.keyboard.press('Escape');
+    // Lift just the desk (Shift-click when selected or Shift-click twice) and move it over a croupier / off the floor.
+    await mp.mouse.click(hx, hy);
+    await mp.keyboard.down('Shift');
+    const [cx0, cy0] = await at(0, 0);
+    await mp.mouse.click(cx0, cy0); // lift desk@(2,0) + croupier@(0,0)
+    await mp.keyboard.up('Shift');
+    await mp.mouse.click(cx0, cy0); // drop croupier@(0,0) back down, leaving desk@(2,0) floating in lift
+    check(await mp.isVisible('.lift-bar') && /Chip desk/.test(await mp.textContent('.lift-bar')), 'desk stays picked up in lift');
+    for (let i = 0; i < 4; i++) await mp.keyboard.press('d'); // float desk far east into the void (6,0)
+    check(await mp.locator('.lift-bar.bad').count() === 0 && await mp.locator('.board .cell.lifted.covers').count() === 1,
+      'floating a desk over the void marks it displaced (amber), never deleted (red)');
+    await mp.keyboard.press('Enter');
+    w = await work('upper-hand');
+    check(await mp.locator('.cell.payout[data-at="2,0"]').count() === 1 && w.cells.length === 3,
+      'dropping a desk over the void snaps it to the nearest free floor hex without overwriting croupiers');
+    // Float desk onto a stationary croupier at (0,0) while (2,0) is occupied, verify it snaps to an adjacent free hex without overwriting (0,0).
+    await mp.mouse.move(px, py);
+    await mp.keyboard.press('1'); // put a Pass on (1,0) so we have 4 croupiers
+    await mp.keyboard.press('Escape');
+    await dragHex([2, 0], [1, -1]); // move desk to (1,-1)
+    await mp.mouse.move(hx, hy);
+    await mp.keyboard.press('1'); // put a Pass on (2,0) too
+    await mp.keyboard.press('Escape');
+    const croupiersBefore = (await work('upper-hand')).cells.filter((c) => c.kind !== 'payout' && c.kind !== 'source').length;
+    const [dx1, dy1] = await at(1, -1);
+    await mp.mouse.click(dx1, dy1);
+    await mp.keyboard.down('Shift');
+    await mp.mouse.click(cx0, cy0);
+    await mp.keyboard.up('Shift');
+    await mp.mouse.click(cx0, cy0); // leave desk@(1,-1) floating
+    await mp.keyboard.press('z'); // shift SW onto (0,0), which has a stationary croupier!
+    await mp.keyboard.press('Enter');
+    w = await work('upper-hand');
+    const deskAfter = w.cells.find((c) => c.kind === 'payout');
+    const croupiersAfter = w.cells.filter((c) => c.kind !== 'payout' && c.kind !== 'source');
+    check(croupiersAfter.length === croupiersBefore && deskAfter && !croupiersAfter.some((c) => c.at.join() === deskAfter.at.join()),
+      `dropping a desk over a stationary croupier keeps every croupier and snaps the desk to a nearby free hex (${JSON.stringify(deskAfter)})`);
     await open('opening-night');
     const [ox, oy] = await at(2, 0);
     await dragHex([2, 0], [1, 0]);

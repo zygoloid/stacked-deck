@@ -81,20 +81,22 @@ coordinates: `0 E [1,0]`, `1 SE [0,1]`, `2 SW [-1,1]`, `3 W [-1,0]`,
 the player may move both (and turn the player), unless the level has
 `boltDesks: true` (floors whose puzzle is where they stand: docs/campaign.md,
 "Moving the players and desks"); with more than one of either they are bolted
-down for now (`desksMove` in `src/score.js`). A machine that moves one holds a
-**mover** among its cells: a copy of the level's cell (`{ at, kind:
-'source', out }` or `{ at, kind: 'payout' }`, with its `seat` or `desk` if it
-has one) at its new place and, for a player, facing its new side. A mover may
-stand on any buildable hex, or on the home of a player or desk that has moved
-away (an outline is drawn there); no croupier may share its hex. One left
-where the level puts it is never in the machine: `sanitizeCells` drops it and
-`validateCells` refuses it, so every machine from before players and desks
-could move keeps its canonical form, hash and check deals. `fixedOf(level,
-cells)` is the level's fixed cells with the machine's movers in place;
-`toSpec` uses it, and ignores movers on a floor where nothing moves. The
-editor works on `withMovers(level, cells)`, the machine plus a mover for
-every one still at home, so they are selected and dragged like croupiers (but
-never removed, copied or picked up in a group); what it saves and scores is
+down for now (`desksMove` in `src/score.js`). Their starting hexes are ordinary
+buildable floor hexes (`buildable` in `src/score.js`), so once a player or desk
+moves away a croupier can stand where it started. A machine that moves one holds
+a **mover** among its cells: a copy of the level's cell (`{ at, kind: 'source',
+out }` or `{ at, kind: 'payout' }`, with its `seat` or `desk` if it has one) at
+its new place and, for a player, facing its new side; no croupier may share its
+hex. One left where the level puts it is never in the machine: `sanitizeCells`
+drops it and `validateCells` refuses it, so every machine from before players
+and desks could move keeps its canonical form, hash and check deals.
+`fixedOf(level, cells)` is the level's fixed cells with the machine's movers in
+place; `toSpec` uses it, and ignores movers on a floor where nothing moves. The
+editor works on `withMovers(level, cells)`, the machine plus a mover for every
+one still at home, so they are selected, dragged and picked up in groups like
+croupiers (copy and delete are disabled when a group holds a player or desk, and
+when put down off the floor or over another table they settle onto the nearest
+free hex after croupiers are placed); what it saves and scores is
 `sanitizeCells` of that. A floor where they don't move draws its players and
 desks with bolts in the corners.
 

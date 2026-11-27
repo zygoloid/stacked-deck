@@ -17,13 +17,6 @@ export const warRules = (level) => (Array.isArray(level.warRules) && level.warRu
 // by default), in the order ? ?? $ $$.
 export const specialCardsOf = (level) => SPECIALS.filter((c) => Array.isArray(level?.specialCards) && level.specialCards.includes(c));
 
-// The hexes of a level the player may build on.
-function buildable(level) {
-  const floor = new Set(level.floor.map(hexKey));
-  for (const f of level.fixed) floor.delete(hexKey(f.at));
-  return floor;
-}
-
 // ---------- moving the players and chip desks ----------
 // On most floors the player may move the card player and the chip desk
 // (turning the player, too): on a floor with one player and one desk, unless
@@ -41,17 +34,21 @@ const desks = (level) => level.fixed.filter((c) => c.kind === 'payout');
 // Whether the player may move this floor's player and chip desk.
 export const desksMove = (level) => !level.boltDesks && players(level).length === 1 && desks(level).length === 1;
 
+// The hexes of a level the player may build on (and where movable players and
+// chip desks may stand: their starting hexes are ordinary floor hexes).
+export function buildable(level) {
+  const floor = new Set(level.floor.map(hexKey));
+  const moves = desksMove(level);
+  for (const f of level.fixed) {
+    if (moves && isMover(f)) floor.add(hexKey(f.at));
+    else floor.delete(hexKey(f.at));
+  }
+  return floor;
+}
+
 // The level's fixed cell a mover stands for (the one of its kind, with the
 // same seat or desk label), or undefined.
 const homeOf = (level, m) => level.fixed.find((f) => f.kind === m.kind && f.seat === m.seat && f.desk === m.desk);
-
-// Where a mover may stand: any hex the player may build on, or the home hex
-// of any player or desk that moves.
-export function dockHexes(level) {
-  const docks = buildable(level);
-  if (desksMove(level)) for (const f of level.fixed) if (isMover(f)) docks.add(hexKey(f.at));
-  return docks;
-}
 
 // A mover left where (and as) the level puts it: the same as no mover.
 const atHome = (level, m) => {
@@ -77,18 +74,18 @@ export function withMovers(level, cells) {
 }
 
 // The player's movers, cleaned up: one per player or desk that may move,
-// each on a hex it may stand on (else dropped: back where the level puts
-// it), facing a side (a player), and none left at home. Their hexes, in
-// `seen`, are then not for croupiers.
-function sanitizeMovers(level, cells, seen) {
+// each on a buildable hex (else dropped: back where the level puts it),
+// facing a side (a player), and none left at home. Every fixed cell's final
+// hex goes into `seen` so no croupier shares it, while vacated starting hexes
+// remain open for croupiers.
+function sanitizeMovers(level, cells, floor, seen) {
   if (!desksMove(level)) return [];
-  const docks = dockHexes(level);
   const out = [];
   const done = new Set(), taken = new Set();
   for (const c of cells) {
     if (!isMover(c) || !Array.isArray(c.at)) continue;
     const f = homeOf(level, c);
-    if (!f || done.has(f) || !docks.has(hexKey(c.at)) || taken.has(hexKey(c.at))) continue;
+    if (!f || done.has(f) || !floor.has(hexKey(c.at)) || taken.has(hexKey(c.at))) continue;
     const m = { ...structuredClone(f), at: [...c.at] };
     if (f.kind === 'source') m.out = isSide(c.out) ? c.out : f.out;
     done.add(f);
@@ -96,21 +93,25 @@ function sanitizeMovers(level, cells, seen) {
     taken.add(hexKey(m.at));
     out.push(m);
   }
-  // (Not on the home of a player or desk that stays there.)
-  const kept = out.filter((m) => !level.fixed.some((f) => f !== homeOf(level, m) && atHomeIn(level, f, out) && hexKey(f.at) === hexKey(m.at)));
-  for (const m of kept) seen.add(hexKey(m.at));
+  // Drop any mover that landed on a fixed cell that stayed put.
+  let kept = out;
+  while (true) {
+    const moved = new Set(kept.map((m) => homeOf(level, m)));
+    const unmovedHexes = new Set(level.fixed.filter((f) => !moved.has(f)).map((f) => hexKey(f.at)));
+    const next = kept.filter((m) => !unmovedHexes.has(hexKey(m.at)));
+    if (next.length === kept.length) break;
+    kept = next;
+  }
+  for (const f of fixedOf(level, kept)) seen.add(hexKey(f.at));
   return kept;
 }
-
-// Whether fixed cell f stays where the level puts it, given these movers.
-const atHomeIn = (level, f, movers) => !movers.some((m) => homeOf(level, m) === f);
 
 // The player's cells, cleaned up: only cells on buildable hexes, one per hex
 // (and the players and desks moved, as above).
 export function sanitizeCells(level, cells) {
   const floor = buildable(level);
   const seen = new Set();
-  const out = sanitizeMovers(level, Array.isArray(cells) ? cells : [], seen);
+  const out = sanitizeMovers(level, Array.isArray(cells) ? cells : [], floor, seen);
   for (const c of Array.isArray(cells) ? cells : []) {
     if (!c || !Array.isArray(c.at) || !floor.has(hexKey(c.at)) || seen.has(hexKey(c.at))) continue;
     if (c.kind === 'croupier' && !level.croupiers.includes(c.fn)) continue;
@@ -169,7 +170,7 @@ export const MAX_DEAL_SIDES = 60;  // entries in a deal's `to` list
 const isPlain = (v) => v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype;
 
 // Check a mover (a player or desk the machine moves); an error message or null.
-function moverError(level, c) {
+function moverError(level, c, floor = buildable(level)) {
   if (!isPlain(c)) return 'not an object';
   if (!desksMove(level)) return 'players and desks are bolted to this floor';
   const f = homeOf(level, c);
@@ -179,7 +180,7 @@ function moverError(level, c) {
   if (k !== undefined) return `unknown field ${k}`;
   if (!Array.isArray(c.at) || c.at.length !== 2 || !c.at.every(Number.isInteger)) return 'bad position';
   if (c.kind === 'source' && !isSide(c.out)) return 'bad side';
-  if (!dockHexes(level).has(hexKey(c.at))) return 'not on the buildable floor';
+  if (!floor.has(hexKey(c.at))) return 'not on the buildable floor';
   if (atHome(level, c)) return 'not moved';
   return null;
 }
@@ -228,14 +229,15 @@ export function cellError(level, c) {
 export function validateCells(level, cells) {
   if (!Array.isArray(cells)) return { error: 'not a list of cells' };
   const floor = buildable(level);
-  const seen = new Set();
+  const seen = new Set(), moverAt = new Map();
   // Players and desks moved: on a floor where they move, each at most once,
-  // where one may stand, and not where the level puts it (the editor leaves
-  // that one out). Their hexes go first, so no croupier can share one.
+  // on the buildable floor, and not where the level puts it (the editor leaves
+  // that one out). Moved and unmoved fixed cells' hexes go into `seen` first,
+  // while vacated starting hexes stay open for croupiers.
   const moved = new Set();
   for (const [i, c] of cells.entries()) {
     if (!isMover(c)) continue;
-    const err = moverError(level, c);
+    const err = moverError(level, c, floor);
     if (err) return { error: `cell ${i}: ${err}` };
     const f = homeOf(level, c);
     if (moved.has(f)) return { error: `cell ${i}: moved twice` };
@@ -243,12 +245,13 @@ export function validateCells(level, cells) {
     const key = hexKey(c.at);
     if (seen.has(key)) return { error: `cell ${i}: two cells on one hex` };
     seen.add(key);
+    moverAt.set(key, i);
   }
-  const movers = cells.filter(isMover);
-  for (const [i, c] of cells.entries()) {
-    if (isMover(c) && level.fixed.some((f) => homeOf(level, c) !== f && atHomeIn(level, f, movers) && hexKey(f.at) === hexKey(c.at))) {
-      return { error: `cell ${i}: two cells on one hex` };
-    }
+  for (const f of level.fixed) {
+    if (moved.has(f)) continue;
+    const key = hexKey(f.at);
+    if (moverAt.has(key)) return { error: `cell ${moverAt.get(key)}: two cells on one hex` };
+    seen.add(key);
   }
   for (const [i, c] of cells.entries()) {
     if (isMover(c)) continue;
