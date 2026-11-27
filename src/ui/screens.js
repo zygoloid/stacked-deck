@@ -749,7 +749,12 @@ const chartIcon = () => s('svg', { class: 'chart-icon', viewBox: '0 0 16 16', wi
 
 export function storyScreen(root, ctx, level) {
   const go = () => ctx.go(`#/level/${level.id}`);
-  const onKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } if (e.key === 'Escape') ctx.go('#/'); };
+  const onKey = (e) => {
+    if (ctx.helpOpen() || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Escape') { e.preventDefault(); ctx.go('#/'); return; }
+    if (e.target.closest?.('button, a, input, textarea, select, summary, [role="button"]')) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+  };
   document.addEventListener('keydown', onKey);
   root.replaceChildren(h('div', { class: 'story' },
     h('article', { class: 'story-card' },
@@ -824,7 +829,7 @@ export function helpPanel(close, save) {
     h('td', { class: 'ports-cell' }, c.deal ? portTag('to') : null, c.ports.map(portTag), (c.sides ?? []).map(portTag))));
   return h('div', { class: 'modal-back', onclick: (e) => { if (e.target === e.currentTarget) close(); } },
     h('div', { class: 'modal help' },
-      h('button', { class: 'modal-x', onclick: close, title: 'Close (Esc)' }, '×'),
+      h('button', { class: 'modal-x', onclick: close, title: 'Close (Esc)', 'aria-label': 'Close' }, '×'),
       h('h2', {}, 'How the house works'),
       h('ul', { class: 'rules' },
         h('li', {}, 'The ', h('b', {}, 'card player'), ' hands out the test hands one at a time. Hands that should win must reach the ', h('b', {}, 'chip desk'), '; every other card must end up on the floor.'),

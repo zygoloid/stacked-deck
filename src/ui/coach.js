@@ -186,6 +186,23 @@ export function createCoach(level, { tapWord, root, changed }) {
       .filter(Boolean);
   }
 
+  function onCardKey(e) {
+    if (!card || !card.isConnected || document.getElementById('help')?.firstChild) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      card.querySelector('.coach-next')?.click();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const btns = [...card.querySelectorAll('button:not(:disabled)')];
+      if (!btns.length) { e.preventDefault(); return; }
+      const i = btns.indexOf(document.activeElement);
+      e.preventDefault();
+      btns[i < 0 ? 0 : (i + (e.shiftKey ? -1 : 1) + btns.length) % btns.length].focus();
+    }
+  }
+  document.addEventListener('keydown', onCardKey, true);
+
   function draw() {
     if (!on) { dropCard(); relight(); el.classList.add('hidden'); el.replaceChildren(); return; }
     if (!aside && steps[index].modal && !modalDone) {
@@ -212,6 +229,7 @@ export function createCoach(level, { tapWord, root, changed }) {
     if (!card) return;
     const c = card, b = back;
     card = back = null;
+    c.style.pointerEvents = b.style.pointerEvents = 'none';
     if (!on || reducedMotion() || !c.animate) { c.remove(); b.remove(); return; }
     const from = c.getBoundingClientRect(), to = el.getBoundingClientRect();
     const dx = to.left + to.width / 2 - (from.left + from.width / 2), dy = to.top + to.height / 2 - (from.top + from.height / 2);
@@ -232,25 +250,12 @@ export function createCoach(level, { tapWord, root, changed }) {
 
   // Light up the part of the editor the step names (again, after the editor
   // redraws that part). A new showing of a step that names one dims the
-  // screen around it and the strip.
-  let dimFor = null, dimUntil = 0, dimRaf = 0, dimPath = '';
-  function relight() {
-    const step = on ? aside ?? steps[index] : null;
-    const sel = UI[step?.ui];
-    const now = sel ? [...root().querySelectorAll(sel)].find((e) => e.getClientRects().length) ?? null : null;
-    if (lit && lit !== now) lit.classList.remove('coach-glow');
-    lit = now;
-    lit?.classList.add('coach-glow');
-    const want = card || flying ? null : step;
-    if (want !== dimFor) {
-      dimFor = want;
-      dimUntil = want?.until === 'next' ? Infinity : performance.now() + DIM_MS;
-      if (!dimRaf && want?.ui) dimRaf = requestAnimationFrame(dimFrame);
-    }
-  }
-  // Each frame while dim: keep the clear patches over the lit part and the
-  // strip (they may move as the editor lays out).
-  function dimFrame() {
+  // screen around it and the strip, updating on scroll and resize rather than
+  // spinning an idle animation loop.
+  let dimFor = null, dimUntil = 0, dimRaf = 0, dimTimer = 0, dimPath = '';
+  const dimRo = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => scheduleDim()) : null;
+  function updateDim() {
+    dimRaf = 0;
     const live = !!dimFor?.ui && el.isConnected && performance.now() < dimUntil;
     if (live && lit?.isConnected) {
       const W = window.innerWidth, H = window.innerHeight, s = uiScale();
@@ -259,7 +264,49 @@ export function createCoach(level, { tapWord, root, changed }) {
       if (path !== dimPath) { dimPath = path; dim.style.clipPath = `path(evenodd, "${path}")`; }
       dim.classList.add('on');
     } else dim.classList.remove('on');
-    dimRaf = live ? requestAnimationFrame(dimFrame) : 0;
+  }
+  function scheduleDim() {
+    if (!dimRaf && dimFor?.ui && el.isConnected) dimRaf = requestAnimationFrame(updateDim);
+  }
+  function bringLitIntoView(target) {
+    if (!target?.isConnected || !el.isConnected) return;
+    const behavior = reducedMotion() ? 'instant' : 'smooth';
+    const side = target.closest('.side');
+    if (side && side.scrollHeight > side.clientHeight && getComputedStyle(side).overflowY !== 'visible') {
+      const sr = side.getBoundingClientRect(), tr = target.getBoundingClientRect();
+      if (tr.bottom > sr.bottom || tr.top < sr.top) {
+        side.scrollTo({ top: Math.max(0, side.scrollTop + tr.top - sr.top - 8 * uiScale()), behavior });
+      }
+    }
+    const tr = target.getBoundingClientRect(), s = uiScale();
+    if (tr.bottom > window.innerHeight - 8 * s) {
+      // Scroll no further than keeps the tutorial strip itself on screen.
+      const maxDown = Math.max(0, el.getBoundingClientRect().top - 8 * s);
+      const wantDown = Math.min(tr.bottom - (window.innerHeight - 8 * s), Math.max(0, tr.top - window.innerHeight * 0.5));
+      const by = Math.min(maxDown, wantDown);
+      if (by > 4) window.scrollBy({ top: by, behavior });
+    }
+  }
+  addEventListener('resize', scheduleDim);
+  document.addEventListener('scroll', scheduleDim, { capture: true, passive: true });
+  function relight() {
+    const step = on ? aside ?? steps[index] : null;
+    const sel = UI[step?.ui];
+    const now = sel ? [...root().querySelectorAll(sel)].find((e) => e.getClientRects().length) ?? null : null;
+    if (lit && lit !== now) { lit.classList.remove('coach-glow'); dimRo?.unobserve(lit); }
+    lit = now;
+    if (lit) { lit.classList.add('coach-glow'); dimRo?.observe(lit); }
+    if (el.isConnected) dimRo?.observe(el);
+    const want = card || flying ? null : step;
+    if (want !== dimFor) {
+      clearTimeout(dimTimer);
+      dimFor = want;
+      dimUntil = want?.until === 'next' ? Infinity : performance.now() + DIM_MS;
+      if (want?.ui && dimUntil < Infinity) dimTimer = setTimeout(updateDim, DIM_MS + 16);
+      if (want?.ui && lit) requestAnimationFrame(() => bringLitIntoView(lit));
+    }
+    updateDim();
+    scheduleDim();
   }
 
   function mark() {
@@ -277,6 +324,14 @@ export function createCoach(level, { tapWord, root, changed }) {
     relight,
     // The hex (and edge) to ring on the board, or null.
     mark,
+    destroy() {
+      document.removeEventListener('keydown', onCardKey, true);
+      removeEventListener('resize', scheduleDim);
+      document.removeEventListener('scroll', scheduleDim, { capture: true });
+      clearTimeout(dimTimer);
+      cancelAnimationFrame(dimRaf);
+      dimRo?.disconnect();
+    },
     // The editor's state changed ({ cells, round, cleared, fails: runs
     // failed }): move on if a step is done, or show the on-failed step. True
     // if the ring on the board changed.

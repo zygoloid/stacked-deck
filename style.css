@@ -929,12 +929,18 @@ svg.arrow path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linec
 .side.watching .palette, .editor:not(.cell-selected) .side.watching .inspector { display: none; }
 .test-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.625rem; }
 .test-chip {
-  min-width: 1.875rem; height: 1.75rem; border-radius: 50%; border: 0.125rem dashed rgba(255, 255, 255, 0.35); background: #24493a;
+  position: relative; min-width: 1.875rem; height: 1.75rem; border-radius: 50%; border: 0.125rem dashed rgba(255, 255, 255, 0.35); background: #24493a;
   cursor: pointer; font-weight: 700; font-size: 0.75rem; padding: 0 0.25rem;
 }
+.test-chip.pass { background: #1f7a45; border-style: solid; border-color: rgba(95, 211, 141, 0.65); }
+.test-chip.fail { background: #8c2632; border-style: solid; border-color: var(--bad); }
+.test-chip.pass::after, .test-chip.fail::after {
+  position: absolute; right: -0.1875rem; top: -0.1875rem; width: 0.75rem; height: 0.75rem; border-radius: 50%;
+  display: grid; place-items: center; font: 800 0.5625rem/1 var(--sans); pointer-events: none;
+}
+.test-chip.pass::after { content: '✓'; background: var(--good); color: #062814; }
+.test-chip.fail::after { content: '!'; background: var(--bad); color: #1d0505; }
 .test-chip.on { border-style: solid; border-color: var(--gold-2); box-shadow: 0 0 0 0.125rem rgba(242, 193, 78, 0.3); }
-.test-chip.pass { background: #1f7a45; }
-.test-chip.fail { background: #8c2632; }
 .test-chip.check { border-radius: 0.5rem; }
 .check-hint { align-self: center; margin-left: 0.25rem; cursor: help; }
 .sim-status { padding: 0.5rem 0.625rem; border-radius: 0.5rem; background: rgba(0, 0, 0, 0.28); font-size: 0.8125rem; margin-bottom: 0.5rem; border: 1px solid var(--line); }

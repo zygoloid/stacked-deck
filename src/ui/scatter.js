@@ -114,11 +114,19 @@ export function scatterPlot({
 
   // friends: a staircase each, in its own colour, with the nickname by it
   // (names are only ever text, never markup)
+  const labelSpots = [];
   friends.forEach((f, n) => {
     const colour = FRIEND_COLOURS[n];
     const best = [...frontierOf(f.points)].map((i) => f.points[i]).sort((a, b) => a.croupiers - b.croupiers);
     let d = `M${X(best[0].croupiers)} ${M.t} V${Y(best[0].rounds)}`;
     for (let i = 1; i < best.length; i++) d += ` H${X(best[i].croupiers)} V${Y(best[i].rounds)}`;
+    const lx = X(best[0].croupiers) + 6;
+    let ly = Y(best[0].rounds) - 6, step = -12;
+    while (labelSpots.some(([ox, oy]) => Math.abs(ox - lx) < 48 && Math.abs(oy - ly) < 11)) {
+      ly += step;
+      if (ly < M.t + 9) { ly = Y(best[0].rounds) + 14; step = 12; }
+    }
+    labelSpots.push([lx, ly]);
     const g = s('g', { class: 'sc-friends' },
       s('path', { class: 'sc-friend', d: `${d} H${M.l + pw}`, stroke: colour }),
       best.map((p) => {
@@ -126,7 +134,7 @@ export function scatterPlot({
         hoverTip(dot, () => [h('b', {}, f.name ?? 'Friend'), h('div', { class: 'muted' }, scoreText(p))]);
         return dot;
       }),
-      s('text', { class: 'sc-friend-t', x: X(best[0].croupiers) + 6, y: Y(best[0].rounds) - 6, fill: colour }, f.name ?? 'Friend'));
+      s('text', { class: 'sc-friend-t', x: lx, y: ly, fill: colour }, f.name ?? 'Friend'));
     svg.append(g);
   });
 
