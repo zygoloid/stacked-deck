@@ -94,9 +94,10 @@ and desks could move keeps its canonical form, hash and check deals.
 place; `toSpec` uses it, and ignores movers on a floor where nothing moves. The
 editor works on `withMovers(level, cells)`, the machine plus a mover for every
 one still at home, so they are selected, dragged and picked up in groups like
-croupiers (copy and delete are disabled when a group holds a player or desk, and
-when put down off the floor or over another table they settle onto the nearest
-free hex after croupiers are placed); what it saves and scores is
+croupiers (copy and delete are disabled when a group holds a player or desk;
+put down on a croupier they replace it like any other lifted cell, and when off
+the floor or on another player or desk they settle onto the nearest empty hex
+after everything else is placed); what it saves and scores is
 `sanitizeCells` of that. A floor where they don't move draws its players and
 desks with bolts in the corners.
 

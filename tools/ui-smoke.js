@@ -2971,28 +2971,42 @@ try {
     w = await work('upper-hand');
     check(await mp.locator('.cell.payout[data-at="2,0"]').count() === 1 && w.cells.length === 3,
       'dropping a desk over the void snaps it to the nearest free floor hex without overwriting croupiers');
-    // Float desk onto a stationary croupier at (0,0) while (2,0) is occupied, verify it snaps to an adjacent free hex without overwriting (0,0).
-    await mp.mouse.move(px, py);
-    await mp.keyboard.press('1'); // put a Pass on (1,0) so we have 4 croupiers
-    await mp.keyboard.press('Escape');
-    await dragHex([2, 0], [1, -1]); // move desk to (1,-1)
-    await mp.mouse.move(hx, hy);
-    await mp.keyboard.press('1'); // put a Pass on (2,0) too
-    await mp.keyboard.press('Escape');
+    // Float desk onto a stationary croupier at (0,0): it marks "replaces" and overwrites it on drop.
     const croupiersBefore = (await work('upper-hand')).cells.filter((c) => c.kind !== 'payout' && c.kind !== 'source').length;
-    const [dx1, dy1] = await at(1, -1);
-    await mp.mouse.click(dx1, dy1);
+    await mp.mouse.click(hx, hy);
     await mp.keyboard.down('Shift');
     await mp.mouse.click(cx0, cy0);
     await mp.keyboard.up('Shift');
-    await mp.mouse.click(cx0, cy0); // leave desk@(1,-1) floating
-    await mp.keyboard.press('z'); // shift SW onto (0,0), which has a stationary croupier!
+    await mp.mouse.click(cx0, cy0); // leave desk@(2,0) floating
+    await mp.keyboard.press('a');
+    await mp.keyboard.press('a'); // float desk onto (0,0), where a stationary croupier stands
+    check(/replaces 1/.test(await mp.textContent('.lift-bar')) && await mp.locator('.board .cover-tag').count() === 1,
+      'floating a lifted desk over a croupier marks that it replaces it');
+    await mp.keyboard.press('Enter');
+    w = await work('upper-hand');
+    check(w.cells.find((c) => c.kind === 'payout')?.at.join() === '0,0' &&
+      w.cells.filter((c) => c.kind !== 'payout' && c.kind !== 'source').length === croupiersBefore - 1,
+      'dropping a lifted desk on a croupier overwrites that croupier');
+    await mp.keyboard.press('Control+z');
+    check((await work('upper-hand')).cells.filter((c) => c.kind !== 'payout' && c.kind !== 'source').length === croupiersBefore,
+      'undo restores both the desk and the overwritten croupier');
+    // Float desk onto the stationary player at (-2,0): can't land there, snaps to nearest empty hex without overwriting anything.
+    await mp.mouse.click(hx, hy);
+    await mp.keyboard.down('Shift');
+    await mp.mouse.click(cx0, cy0);
+    await mp.keyboard.up('Shift');
+    await mp.mouse.click(cx0, cy0); // leave desk@(2,0) floating
+    for (let i = 0; i < 4; i++) await mp.keyboard.press('a'); // float desk onto player at (-2,0)
+    check(await mp.locator('.lift-bar.bad').count() === 0 && await mp.locator('.board .cover-tag').count() === 0 &&
+      await mp.locator('.board .cell.lifted.covers').count() === 1,
+      'floating a desk over the player marks it displaced without a replaces tag');
     await mp.keyboard.press('Enter');
     w = await work('upper-hand');
     const deskAfter = w.cells.find((c) => c.kind === 'payout');
     const croupiersAfter = w.cells.filter((c) => c.kind !== 'payout' && c.kind !== 'source');
-    check(croupiersAfter.length === croupiersBefore && deskAfter && !croupiersAfter.some((c) => c.at.join() === deskAfter.at.join()),
-      `dropping a desk over a stationary croupier keeps every croupier and snaps the desk to a nearby free hex (${JSON.stringify(deskAfter)})`);
+    check(croupiersAfter.length === croupiersBefore && deskAfter && deskAfter.at.join() !== '-2,0' &&
+      !croupiersAfter.some((c) => c.at.join() === deskAfter.at.join()),
+      `dropping a desk over the player snaps it to the nearest empty hex (${JSON.stringify(deskAfter)})`);
     await open('opening-night');
     const [ox, oy] = await at(2, 0);
     await dragHex([2, 0], [1, 0]);

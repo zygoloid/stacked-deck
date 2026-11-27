@@ -346,7 +346,7 @@ export class Board {
         : this.arrowsSvg(cell, t, selected ? state.activePort : null, { key: k });
       if (state.lifted?.cells.has(cell)) {
         const bad = !isMover(cell) && state.lifted.bad.has(k);
-        const under = bad || isMover(cell) ? null : state.lifted.covers.get(k);
+        const under = bad ? null : state.lifted.covers.get(k);
         const nudged = isMover(cell) && state.lifted.nudged?.has(k);
         body.classList.add('lifted', ...(bad ? ['bad'] : []), ...(under || nudged ? ['covers'] : []));
         gLift.append(body, arrows);
