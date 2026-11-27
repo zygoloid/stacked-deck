@@ -52,6 +52,11 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
 
   // Keeps the focus where it is (so a phone's keyboard doesn't come up for a tap).
   const noFocus = (e) => e.preventDefault();
+  // On a touch screen, pressing the pad puts the keyboard away if nothing is half-typed.
+  const padDown = (e) => {
+    if (e.pointerType !== 'mouse' && typing() && !inp.value) inp.blur();
+    e.preventDefault();
+  };
 
   // ---------- the parts ----------
   const box = h('div', { class: 'lf-chips', tabindex: '-1', role: 'group', 'aria-label': deal ? 'Deal to: sides in order' : 'Deck, top first' });
@@ -62,10 +67,11 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   inp.value = keep.box ?? '';
   const slot = h('span', { class: 'lf-slot' });   // keeps the typing box's room among the entries
   const ghost = h('span', { class: 'lf-ghost', 'aria-hidden': 'true' });
+  const caretMark = h('span', { class: 'lf-caret', 'aria-hidden': 'true' });
   const drop = h('span', { class: 'lf-drop', 'aria-hidden': 'true' });
   const area = h('textarea', { class: 'lf-textarea', spellcheck: 'false', autocomplete: 'off', autocapitalize: 'characters', autocorrect: 'off', rows: 3, 'aria-label': deal ? 'Deal to, as text' : 'Deck, as text' });
   const selLayer = h('span', { class: 'lf-sel-layer', 'aria-hidden': 'true' });
-  const wrap = h('div', { class: 'lf-text' }, box, inp, drop, area);
+  const wrap = h('div', { class: 'lf-text' }, box, inp, caretMark, drop, area);
   const status = h('span', { class: 'lf-status' });
   const views = h('span', { class: 'seg lf-views', role: 'group', 'aria-label': 'Show the list as' });
   const ctx = h('div', { class: 'lf-ctx' });
@@ -229,11 +235,24 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   const typing = () => document.activeElement === inp;
   function placeBox() {
     const text = inp.value;
-    const shown = mode === 'cards' && !sel && (typing() || text);
+    const isTyping = typing();
+    wrap.classList.toggle('typing', isTyping);
+    const shown = mode === 'cards' && !sel && (isTyping || text);
     inp.classList.toggle('on', !!shown);
     inp.classList.toggle('filled', !!text);
     slot.remove(); ghost.remove();
     drawSel();
+    const showCaret = mode === 'cards' && !sel && !shown && !drop.classList.contains('on') && wrap.isConnected;
+    caretMark.classList.toggle('on', showCaret);
+    if (showCaret) {
+      const r = gapRect(caret), w = wrap.getBoundingClientRect(), s = uiScale();
+      const cx = !toks.length ? box.getBoundingClientRect().left + box.clientLeft + 9 * s
+        : caret === 0 ? r.x - 2 * s
+        : toks[caret - 1].kind === 'open' ? r.x + s
+        : r.x + 2 * s;
+      caretMark.style.left = `${cx - w.left - s}px`;
+      caretMark.style.top = `${(r.top + r.bottom) / 2 - w.top - caretMark.offsetHeight / 2}px`;
+    }
     if (!shown) { inp.style.left = inp.style.top = ''; return; }
     inp.style.width = text ? `calc(${text.length}ch + 0.75rem + ${4 * uiScale()}px)` : '';
     putAt(slot, caret);
@@ -364,20 +383,23 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     return !!r && edit(r, { sel: { a, b: b + 2 } });
   }
   // A tap on the pad (or from outside: the Deal's side keys, the port menu).
-  function tap(entry) {
+  function tap(entry, { touch = false } = {}) {
     closeStepper();
     if (mode === 'text') {
-      const at = document.activeElement === area ? area.selectionEnd : (draft ?? text).length;
+      const active = document.activeElement === area;
+      const at = active ? area.selectionEnd : (draft ?? text).length;
       const r = tapEntry(kind, draft ?? text, at, entry);
       area.value = r.text;
       draft = r.text;
-      if (document.activeElement === area) area.setSelectionRange(r.caret, r.caret);
+      if (active && !touch) area.setSelectionRange(r.caret, r.caret);
+      else if (active && touch) area.blur();
       else applyDraft();
       fitArea();
       renderBar();
       return;
     }
     commitBox();
+    if (touch && typing()) inp.blur();
     if (sel && sel.b - sel.a === 1 && toks[sel.a].kind === 'item') {
       const add = lexList(kind, entry);
       if (add.length === 1 && JSON.stringify(add[0].val) === JSON.stringify(toks[sel.a].val)) {
@@ -528,11 +550,38 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     if (a === b) { sel = null; caret = a; render(); return; }
     select(a, b);
   }
-  function collapse(to) {
+  // On a touch screen, opening the keyboard brings the edit box to the top of
+  // the screen so the card or side pad under it stays as clear of the keyboard
+  // as it can.
+  function scrollFieldToTop(behavior = 'smooth') {
+    if (!wrap.isConnected) return;
+    const topPad = 36 * uiScale();
+    const scroller = el.closest('.side');
+    if (scroller && scroller.scrollHeight > scroller.clientHeight && getComputedStyle(scroller).overflowY !== 'visible') {
+      const sr = scroller.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+      scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + wr.top - sr.top - topPad), behavior });
+    }
+    const wr = wrap.getBoundingClientRect();
+    const target = Math.max(0, window.scrollY + wr.top - topPad);
+    if (Math.abs(target - window.scrollY) > 2) window.scrollTo({ top: target, behavior });
+  }
+  function openTouchKeyboard(target) {
+    target.focus({ preventScroll: true });
+    if (target === inp) placeBox();
+    scrollFieldToTop(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth');
+    const vv = window.visualViewport;
+    if (vv) {
+      const onVp = () => { if (el.isConnected && (typing() || document.activeElement === area)) scrollFieldToTop('instant'); };
+      vv.addEventListener('resize', onVp);
+      setTimeout(() => vv.removeEventListener('resize', onVp), 650);
+    }
+  }
+  function collapse(to, { touchScroll = false } = {}) {
     sel = null;
     caret = to;
     render();
-    focusBox();
+    if (touchScroll) openTouchKeyboard(inp);
+    else focusBox();
   }
   function focusBox() { inp.focus({ preventScroll: true }); placeBox(); }
   box.addEventListener('keydown', (e) => {
@@ -637,7 +686,8 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   // Where gap g is drawn: the right edge of the entry before it, or the left
   // edge of the one after.
   function showDrop(g) {
-    if (g === null) { drop.classList.remove('on'); return; }
+    if (g === null) { drop.classList.remove('on'); placeBox(); return; }
+    caretMark.classList.remove('on');
     const w = wrap.getBoundingClientRect(), r = gapRect(g);
     drop.style.left = `${r.x + (g > 0 ? 1 : -3) - w.left}px`;
     drop.style.top = `${r.top - w.top}px`;
@@ -713,7 +763,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       return;
     }
     if (cancel) return;
-    if (p.moved) { if (sel) box.focus({ preventScroll: true }); else focusBox(); return; }
+    if (p.moved) { if (sel || p.touch) box.focus({ preventScroll: true }); else focusBox(); return; }
     commitBox();
     anchor = null;
     if (p.unit) {
@@ -727,7 +777,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
       } else select(p.unit.a, p.unit.b);
       return;
     }
-    collapse(p.gap);
+    collapse(p.gap, { touchScroll: p.touch });
   }
   box.addEventListener('pointerup', (e) => { if (press && e.pointerId === press.id) endPress(false); });
   box.addEventListener('pointercancel', () => endPress(true));
@@ -750,6 +800,19 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     area.value = text;
     return true;
   }
+  let areaTouch = false;
+  area.addEventListener('pointerdown', (e) => { areaTouch = e.pointerType !== 'mouse'; });
+  area.addEventListener('focus', () => {
+    if (!areaTouch) return;
+    areaTouch = false;
+    scrollFieldToTop(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth');
+    const vv = window.visualViewport;
+    if (vv) {
+      const onVp = () => { if (el.isConnected && document.activeElement === area) scrollFieldToTop('instant'); };
+      vv.addEventListener('resize', onVp);
+      setTimeout(() => vv.removeEventListener('resize', onVp), 650);
+    }
+  });
   area.addEventListener('input', () => { draft = area.value === text ? null : area.value; fitArea(); renderBar(); });
   area.addEventListener('blur', () => { if (area.isConnected && applyDraft()) { area.value = text; fitArea(); renderBar(); } });
   area.addEventListener('keydown', (e) => {
@@ -772,15 +835,20 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   // ---------- the pad ----------
   let pad;
   if (deal) {
+    let sideTouch = false;
     const side = (d) => h('button', {
       class: 'lf-pad-side', style: `--c: ${SIDE_COLOURS[d]}`, title: `Deal to ${SIDE_TEXT[d]}`, 'aria-label': `Deal to ${SIDE_TEXT[d]}`, 'data-side': d,
-      onpointerdown: noFocus, onclick: () => tap(SIDE_TEXT[d]),
+      onpointerdown: (e) => { sideTouch = e.pointerType !== 'mouse'; padDown(e); },
+      onclick: (e) => tap(SIDE_TEXT[d], { touch: e.detail > 0 && sideTouch }),
     }, arrowEl(d), SIDE_TEXT[d]);
     pad = h('div', { class: 'lf-pad deal' },
       h('div', { class: 'lf-hex' }, h('span'), side(4), side(5), h('span'), side(3), h('span', { class: 'lf-hub', 'aria-hidden': 'true' }, '⬡'), side(0), h('span'), side(2), side(1)));
   } else {
     // A card a tap adds; a drag along its suit adds the run to where it ends
-    // (either way up). Keys work by keyboard too (Enter or Space: one card).
+    // (either way up), and dragging off the pad cancels it. On a touch screen,
+    // a mostly-vertical start scrolls the page; a horizontal or diagonal start
+    // (|dx| >= |dy|) locks scrolling so runs, corner-to-corner decks and
+    // dragging off the pad all work. Keys work by keyboard too (Enter or Space).
     const keys = {};
     const tip = h('span', { class: 'lf-pad-tip', 'aria-live': 'polite' });
     const grid = h('div', { class: 'lf-grid' });
@@ -794,7 +862,7 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
         grid.append(keys[c]);
       }
     }
-    let run = null; // { s, from, to, id, deck }
+    let run = null; // { s, from, to, id, x0, y0, locked, touch, touchId, deck, aborted }
     // The pad's corners: a drag from one to the one opposite is a new deck.
     const OPPOSITE = { AS: 'KH', KH: 'AS', KS: 'AH', AH: 'KS' };
     const runKeys = () => {
@@ -804,7 +872,9 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     };
     const markRun = () => {
       grid.querySelectorAll('.lf-run').forEach((k) => k.classList.remove('lf-run'));
+      tip.classList.toggle('cancel', !!run?.aborted);
       if (!run) { tip.textContent = ''; return; }
+      if (run.aborted) { tip.textContent = 'Release to cancel'; return; }
       for (const k of runKeys()) k.classList.add('lf-run');
       const n = runKeys().length;
       tip.textContent = run.deck ? 'A new deck: 52 cards'
@@ -813,19 +883,51 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
     grid.addEventListener('pointerdown', (e) => {
       const k = e.target.closest?.('.lf-key');
       if (!k || e.button !== 0) return;
-      e.preventDefault(); // (no focus: a phone's keyboard stays down)
+      const mouse = e.pointerType === 'mouse';
+      padDown(e);
       grid.setPointerCapture?.(e.pointerId);
       const c = k.dataset.card;
-      run = { s: c[1], from: c[0], to: c[0], id: e.pointerId };
+      run = { s: c[1], from: c[0], to: c[0], id: e.pointerId, x0: e.clientX, y0: e.clientY, locked: mouse, touch: !mouse, aborted: false };
       markRun();
     });
+    grid.addEventListener('touchstart', (e) => {
+      if (run && !run.locked && e.touches.length === 1) run.touchId = e.changedTouches[0].identifier;
+    }, { passive: true });
+    grid.addEventListener('touchmove', (e) => {
+      if (!run) return;
+      const t = run.touchId != null ? [...e.touches].find((x) => x.identifier === run.touchId) : e.touches[0];
+      if (!t) return;
+      if (run.locked) { if (e.cancelable) e.preventDefault(); return; }
+      const dx = t.clientX - run.x0, dy = t.clientY - run.y0;
+      if (Math.hypot(dx, dy) < 4 * uiScale()) return;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        run.locked = true;
+        if (e.cancelable) e.preventDefault();
+      } else {
+        endRun(true);
+      }
+    }, { passive: false });
     grid.addEventListener('pointermove', (e) => {
       if (!run || e.pointerId !== run.id) return;
+      if (!run.locked) {
+        const dx = e.clientX - run.x0, dy = e.clientY - run.y0;
+        if (Math.hypot(dx, dy) < 4 * uiScale()) return;
+        if (Math.abs(dx) < Math.abs(dy)) { endRun(true); return; }
+        run.locked = true;
+      }
+      const gb = grid.getBoundingClientRect(), vx = 24 * uiScale(), vy = 10 * uiScale();
+      const outside = e.clientX < gb.left - vx || e.clientX > gb.right + vx || e.clientY < gb.top - vy || e.clientY > gb.bottom + vy;
+      if (outside) {
+        if (!run.aborted) { run.aborted = true; run.deck = false; markRun(); }
+        return;
+      }
+      const wasAborted = run.aborted;
+      run.aborted = false;
       const corner = OPPOSITE[run.from + run.s];
       if (corner) {
         const b = keys[corner].getBoundingClientRect();
         const deck = e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
-        if (deck !== !!run.deck) { run.deck = deck; markRun(); }
+        if (deck !== !!run.deck || wasAborted) { run.deck = deck; markRun(); }
         if (deck) return;
       }
       // The key in the run's own row under the pointer's x (clamped to the row).
@@ -834,20 +936,28 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
         const b = keys[r + run.s].getBoundingClientRect();
         if (e.clientX >= b.left - 1 || r === 'A') to = r;
       }
-      if (to !== run.to) { run.to = to; markRun(); }
+      if (to !== run.to || wasAborted) { run.to = to; markRun(); }
     });
     const endRun = (cancel) => {
       const r = run;
+      if (!r) return;
       run = null;
+      if (cancel) { try { grid.releasePointerCapture?.(r.id); } catch {} }
       markRun();
-      if (!r || cancel) return;
-      tap(r.deck ? 'deck' : r.from === r.to ? r.from + r.s : `${r.from}${r.s}-${r.to}${r.s}`);
+      if (cancel || r.aborted) return;
+      tap(r.deck ? 'deck' : r.from === r.to ? r.from + r.s : `${r.from}${r.s}-${r.to}${r.s}`, { touch: r.touch });
     };
     grid.addEventListener('pointerup', (e) => { if (run && e.pointerId === run.id) endRun(false); });
     grid.addEventListener('pointercancel', () => endRun(true));
+    grid.addEventListener('lostpointercapture', () => { if (run) endRun(true); });
+    let spTouch = false;
     const specialKeys = specials.map((c) => {
       const f = cardEl(c, 'lf-key-sp');
-      return h('button', { class: f.className, title: cardName(c), 'data-card': c, onpointerdown: noFocus, onclick: () => tap(c) }, ...f.childNodes);
+      return h('button', {
+        class: f.className, title: cardName(c), 'data-card': c,
+        onpointerdown: (e) => { spTouch = e.pointerType !== 'mouse'; padDown(e); },
+        onclick: (e) => tap(c, { touch: e.detail > 0 && spTouch }),
+      }, ...f.childNodes);
     });
     pad = h('div', { class: 'lf-pad shoe' },
       grid,
@@ -867,17 +977,20 @@ export function listField({ kind, text = '', specials = [], mode = 'cards', keep
   // The field may change width (a phone turned, the panel resized).
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { placeBox(); if (mode === 'text') fitArea(); }).observe(wrap);
 
+  const focusKind = () => (document.activeElement === inp ? 'inp' : document.activeElement === area ? 'area' : document.activeElement === box ? 'box' : null);
+
   return {
     el,
-    hasFocus: () => el.contains(document.activeElement) && document.activeElement !== el,
+    hasFocus: () => focusKind(),
     // Focus the field: the Text view's box, the selection or the caret.
-    focus() {
+    focus(which = keep.focus) {
       if (mode === 'text') area.focus({ preventScroll: true });
-      else if (sel) box.focus({ preventScroll: true });
+      else if (which === 'inp') focusBox();
+      else if (sel || which === 'box') box.focus({ preventScroll: true });
       else focusBox();
     },
     // What the field is showing, for the field that replaces it.
-    state: () => ({ text, caret, sel, box: inp.value, draft }),
+    state: () => ({ text, caret, sel, box: inp.value, draft, focus: focusKind() }),
     tap,
     // Replace the whole list (X: clear the Deal's list).
     setText(t) {
