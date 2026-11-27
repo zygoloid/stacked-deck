@@ -115,10 +115,40 @@ const browser = await chromium.launch();
 // sessionStorage): every page here starts past it, but the ones that check
 // the title itself (rawContext).
 const titleSeen = () => { try { sessionStorage.setItem('stacked-deck-title', '1'); } catch { /* storage blocked */ } };
-const rawContext = browser.newContext.bind(browser);
+// Headless Chromium can occasionally abort in-flight ES module imports during
+// rapid back-to-back navigations/reloads, leaving #app unbooted after load.
+function steadyPage(p) {
+  const rawGoto = p.goto.bind(p), rawReload = p.reload.bind(p);
+  const ensureBooted = async () => {
+    for (let k = 0; k < 2; k++) {
+      if (await p.evaluate(() => !document.getElementById('app') || !!document.body.dataset.screen).catch(() => true)) return;
+      await rawReload().catch(() => {});
+    }
+  };
+  p.goto = async (url, opts) => {
+    let r;
+    try { r = await rawGoto(url, opts); } catch (e) { if (!/ERR_ABORTED/.test(e.message)) throw e; r = await rawGoto(url, opts); }
+    await ensureBooted();
+    return r;
+  };
+  p.reload = async (opts) => {
+    let r;
+    try { r = await rawReload(opts); } catch (e) { if (!/ERR_ABORTED/.test(e.message)) throw e; r = await rawReload(opts); }
+    await ensureBooted();
+    return r;
+  };
+  return p;
+}
+function steadyContext(c) {
+  const np = c.newPage.bind(c);
+  c.newPage = async (opts) => steadyPage(await np(opts));
+  return c;
+}
+const baseContext = browser.newContext.bind(browser);
+const rawContext = async (opts) => steadyContext(await baseContext(opts));
 browser.newContext = async (opts) => { const c = await rawContext(opts); await c.addInitScript(titleSeen); return c; };
 const rawNewPage = browser.newPage.bind(browser);
-browser.newPage = async (opts) => { const p = await rawNewPage(opts); await p.addInitScript(titleSeen); return p; };
+browser.newPage = async (opts) => { const p = steadyPage(await rawNewPage(opts)); await p.addInitScript(titleSeen); return p; };
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
   const errors = [];
@@ -1280,14 +1310,100 @@ try {
       await phone.tap('.lf-ctx .stepper-n');
       await phone.fill('.lf-ctx .stepper-in', '9');
       await phone.tap('.lf-ctx .lf-del');
-      check(await listText() === '(E SE)x6' && (await dealTo()).length === 12, `✕ takes out the selected entry even while editing its count ("${await listText()}")`);
-      // A tap just inside the group puts the caret there, and the pad adds there.
+      check(await listText() === '(E SE)x6' && (await dealTo()).length === 12 &&
+        await phone.isVisible('.lf-caret.on') && !(await phone.locator('.lf-text.typing').count()) &&
+        await phone.evaluate(() => !document.activeElement?.matches('input, textarea')),
+      `✕ takes out the selected entry, keeping the keyboard down with the passive insertion mark ("${await listText()}")`);
+      // A tap just inside the group opens the keyboard, scrolls the edit box
+      // to the top of the screen so the pad stays clear of the keyboard, and
+      // tapping the pad adds there while putting the keyboard away again.
       const e0 = await phone.locator('.lf-chips [data-i="1"]').boundingBox();
       await tap([e0.x - 1, e0.y + e0.height / 2]);
-      await phone.waitForTimeout(100);
+      await phone.waitForTimeout(350);
+      const topAfterGap = await phone.evaluate(() => document.querySelector('.lf-text').getBoundingClientRect().top);
+      check(await phone.evaluate(() => document.activeElement?.classList.contains('lf-type')) &&
+        await phone.locator('.lf-text.typing').count() === 1 && !(await phone.isVisible('.lf-caret.on')) &&
+        topAfterGap >= 20 && topAfterGap <= 60,
+      `a tap in a gap focuses the typing box and scrolls the edit box to the top (top ${topAfterGap.toFixed(0)}px)`);
       await phone.tap('.lf-pad-side[data-side="3"]');
-      check(await listText() === '(W E SE)x6', `a tap in the group, then the pad: added at the caret ("${await listText()}")`);
-      await phone.evaluate(() => document.activeElement?.blur());
+      check(await listText() === '(W E SE)x6' && await phone.isVisible('.lf-caret.on') &&
+        !(await phone.locator('.lf-text.typing').count()) &&
+        await phone.evaluate(() => !document.activeElement?.matches('input, textarea')),
+      `a tap in the group, then the pad: added at the caret and puts the keyboard away ("${await listText()}")`);
+    }
+    // A shoe's card pad on a phone: vertical swipes scroll the page without
+    // adding a card; horizontal or diagonal starts lock out scrolling for runs,
+    // corner-to-corner decks and dragging off the pad to cancel.
+    const shoeLv = LEVELS.find((lv) => lv.croupiers.includes('shoe'));
+    if (shoeLv) {
+      const at = shoeLv.floor.find((x) => !shoeLv.fixed.some((c) => c.at.join() === x.join()));
+      await phone.evaluate(([id, at]) => {
+        const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
+        s.levels[id] = { cells: [{ at, kind: 'shoe', out: 0, deck: ['JC'] }] };
+        localStorage.setItem('stacked-deck-v1', JSON.stringify(s));
+      }, [shoeLv.id, at]);
+      await phone.goto(`${base}?unlockall#/level/${shoeLv.id}`);
+      await phone.reload();
+      await phone.waitForSelector('svg.board');
+      const shoeAt = await hexAt(at);
+      await tap([shoeAt[0], shoeAt[1] - 12]);
+      await phone.waitForSelector('.inspector .list-field.shoe');
+      const listText = () => phone.getAttribute('.inspector .list-field', 'data-text');
+      await phone.locator('.lf-grid').scrollIntoViewIfNeeded();
+      await phone.waitForTimeout(100);
+      const pKeyAt = async (c) => { const r = await phone.locator(`.lf-grid [data-card="${c}"]`).boundingBox(); return [r.x + r.width / 2, r.y + r.height / 2]; };
+      // Vertical drag (|dy| > |dx|): scrolls the page, adds nothing.
+      const sy0 = await phone.evaluate(() => scrollY);
+      const ks0 = await pKeyAt('5D');
+      await touch('touchStart', [ks0]);
+      for (let i = 1; i <= 6; i++) { await touch('touchMove', [[ks0[0] + 2, ks0[1] - i * 24]]); await phone.waitForTimeout(16); }
+      await phone.waitForTimeout(100);
+      await touch('touchEnd', []);
+      await phone.waitForTimeout(150);
+      const sy1 = await phone.evaluate(() => scrollY);
+      check(sy1 - sy0 > 30 && await listText() === 'JC', `phone: a vertical drag on the card pad scrolls without adding a card (scroll ${sy0.toFixed(0)} -> ${sy1.toFixed(0)}, "${await listText()}")`);
+      // Horizontal drag (|dx| >= |dy|): locks scrolling and adds the run.
+      const sy2 = await phone.evaluate(() => scrollY);
+      const [p2s, p5s] = [await pKeyAt('2S'), await pKeyAt('5S')];
+      await touch('touchStart', [p2s]);
+      for (let i = 1; i <= 6; i++) {
+        await touch('touchMove', [[p2s[0] + (p5s[0] - p2s[0]) * i / 6, p2s[1] + 10 * i / 6]]);
+        await phone.waitForTimeout(16);
+      }
+      await touch('touchEnd', []);
+      await phone.waitForTimeout(150);
+      check(Math.abs((await phone.evaluate(() => scrollY)) - sy2) < 2 && await listText() === 'JC 2S-5S',
+        `phone: a horizontal drag on the card pad locks scrolling and adds the run ("${await listText()}")`);
+      // Diagonal corner-to-corner drag (|dx| >= |dy|): locks scrolling and adds a deck.
+      const sy3 = await phone.evaluate(() => scrollY);
+      const [pas, pkh] = [await pKeyAt('AS'), await pKeyAt('KH')];
+      await touch('touchStart', [pas]);
+      for (let i = 1; i <= 8; i++) {
+        await touch('touchMove', [[pas[0] + (pkh[0] - pas[0]) * i / 8, pas[1] + (pkh[1] - pas[1]) * i / 8]]);
+        await phone.waitForTimeout(16);
+      }
+      await touch('touchEnd', []);
+      await phone.waitForTimeout(150);
+      check(Math.abs((await phone.evaluate(() => scrollY)) - sy3) < 2 && await listText() === 'JC 2S-5S deck',
+        `phone: a corner-to-corner drag on the card pad adds a new deck without scrolling ("${await listText()}")`);
+      // Horizontal start, then dragged off the pad: locks scrolling and cancels on release.
+      const sy4 = await phone.evaluate(() => scrollY);
+      const [padA, padFour] = [await pKeyAt('AD'), await pKeyAt('4D')];
+      const gb = await phone.locator('.lf-grid').boundingBox();
+      await touch('touchStart', [padA]);
+      for (let i = 1; i <= 4; i++) {
+        await touch('touchMove', [[padA[0] + (padFour[0] - padA[0]) * i / 4, padA[1]]]);
+        await phone.waitForTimeout(16);
+      }
+      await touch('touchMove', [[padFour[0], gb.y + gb.height + 24]]);
+      await phone.waitForTimeout(30);
+      const cancelTip = await phone.textContent('.lf-pad-tip.cancel').catch(() => '');
+      const runLit = await phone.locator('.lf-key.lf-run').count();
+      await touch('touchEnd', []);
+      await phone.waitForTimeout(150);
+      check(cancelTip === 'Release to cancel' && runLit === 0 && Math.abs((await phone.evaluate(() => scrollY)) - sy4) < 2 && await listText() === 'JC 2S-5S deck',
+        `phone: dragging off the card pad cancels the run without scrolling ("${cancelTip}", "${await listText()}")`);
+      if (shots) await phone.locator('.inspector').screenshot({ path: join(shots, '7g-phone-shoe-passive-caret.png') });
     }
     await phone.close();
   }
@@ -2017,6 +2133,14 @@ try {
     check(await page.locator('.lf-key.lf-run').count() === 52, 'dragging corner to corner on the pad marks the whole deck');
     await page.mouse.up();
     check((await listText()).endsWith('QSx2 deck') && (await savedDeck())?.length === 86 + 52, `corner to corner adds a new deck ("${await listText()}")`);
+    const padBox = await page.locator('.lf-grid').boundingBox();
+    await page.mouse.move(...await keyAt('7H'));
+    await page.mouse.down();
+    await page.mouse.move(padBox.x - 40, padBox.y + padBox.height / 2, { steps: 6 });
+    check(await page.locator('.lf-key.lf-run').count() === 0 && (await page.textContent('.lf-pad-tip.cancel')) === 'Release to cancel',
+      'dragging a card selection off the pad clears the highlight and offers to cancel');
+    await page.mouse.up();
+    check((await listText()).endsWith('QSx2 deck') && (await savedDeck())?.length === 86 + 52, 'releasing off the pad adds nothing');
     const lastChip = await page.locator('.lf-chips .lf-e').last().boundingBox();
     const chipsBox = await page.locator('.lf-chips').boundingBox();
     await page.mouse.move(lastChip.x + lastChip.width / 2, lastChip.y + lastChip.height / 2);

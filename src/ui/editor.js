@@ -958,7 +958,8 @@ export function openEditor(root, ctx, level) {
 
   function renderInspector() {
     // Redrawing replaces the list field: one with the focus gets it back.
-    const refocus = listUi?.field.hasFocus() ? listUi.key : null;
+    const focused = listUi?.field.hasFocus();
+    const refocus = focused ? { key: listUi.key, kind: focused } : null;
     // The new field shows what the old one did (for the same text).
     if (listUi) listKeep = { key: listUi.key, ...listUi.field.state() };
     listUi = null;
@@ -1101,7 +1102,7 @@ export function openEditor(root, ctx, level) {
         : h('p', { class: 'keys kbd-only' }, 'Keys: ', qeadzc, ' point the port NW NE W E SW SE, ', h('kbd', {}, 'X'), ' floor, ', h('kbd', {}, 'Tab'), ' next port.'));
     }
     inspector.replaceChildren(...parts.filter(Boolean));
-    if (refocus && listUi?.key === refocus) listUi.field.focus();
+    if (refocus && listUi?.key === refocus.key) listUi.field.focus(refocus.kind);
     coach.relight();
   }
 

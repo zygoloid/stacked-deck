@@ -758,9 +758,9 @@ svg.arrow path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linec
   padding: 0.3125rem 0.4375rem; min-height: calc(2.5rem + 0.625rem + 2px); /* one line, empty or not */ font-size: 0; line-height: 2.5rem; cursor: text; outline: none;
   user-select: none; -webkit-user-select: none; touch-action: pan-y;
 }
-.lf-text:focus-within .lf-chips { border-color: var(--gold); }
-.lf-empty { color: var(--muted); font-size: 0.75rem; margin-left: 0.25rem; vertical-align: middle; }
-.lf-text:focus-within .lf-empty { display: none; }
+.lf-text.typing .lf-chips { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.28); }
+.lf-empty { color: var(--muted); font-size: 0.75rem; margin-left: 0.5rem; vertical-align: middle; }
+.lf-text.typing .lf-empty { display: none; }
 .lf-e {
   display: inline-flex; align-items: center; gap: 0.125rem; vertical-align: middle; margin: 0 0.125rem;
   padding: 0.1875rem; border-radius: 0.375rem; line-height: 1; cursor: grab; touch-action: none;
@@ -830,6 +830,12 @@ svg.arrow path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linec
 .lf-ghost > * { opacity: 0.8; }
 .lf-ghost .lf-side { height: 1.25rem; font-size: 0.75rem; }
 .lf-ghost-n { font: 700 0.75rem var(--sans); color: var(--gold-2); }
+/* where the pad adds while the field doesn't have the typing focus */
+.lf-caret {
+  position: absolute; width: 0; height: 1.1875rem; border-left: 0.125rem dashed rgba(242, 193, 78, 0.55);
+  pointer-events: none; display: none;
+}
+.lf-caret.on { display: block; }
 .lf-drop {
   position: absolute; width: 0.1875rem; border-radius: 0.125rem; background: var(--gold-2); box-shadow: 0 0 0.375rem var(--gold-2);
   pointer-events: none; display: none;
@@ -854,7 +860,7 @@ svg.arrow path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linec
 }
 .lf-textarea:focus { border-color: var(--gold); }
 .list-field.as-text .lf-textarea { display: block; }
-.list-field.as-text .lf-chips, .list-field.as-text .lf-type { display: none; }
+.list-field.as-text .lf-chips, .list-field.as-text .lf-type, .list-field.as-text .lf-caret { display: none; }
 .lf-bar { display: flex; align-items: center; gap: 0.5rem; }
 .lf-views button { padding: 0.1875rem 0.625rem; font-size: 0.75rem; }
 .lf-views button:disabled { opacity: 0.45; cursor: default; }
@@ -913,6 +919,7 @@ svg.arrow path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linec
 .lf-pad-row { display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; min-height: 1.75rem; }
 .lf-pad-row .card { cursor: pointer; border: 0; }
 .lf-pad-tip { margin-left: auto; font-size: 0.75rem; font-weight: 700; color: var(--gold-2); }
+.lf-pad-tip.cancel { color: var(--muted); font-weight: 600; }
 
 /* tests panel */
 .tests { flex: 1; }
@@ -1224,6 +1231,8 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
   .editor.cell-selected:not(.watching) .transport, .editor.cell-selected .palette { display: none; }
   /* ... and the panel has play and step of its own. */
   .editor.cell-selected:not(.watching) .insp-head > .insp-tp { display: flex; }
+  /* Room under a list field so it can scroll to the top, keeping its pad clear of the keyboard. */
+  .side:has(.list-field) { padding-bottom: 50vh; }
 }
 .fixed-rule { font-size: 0.78125rem; font-weight: 700; color: var(--gold-2); }
 
