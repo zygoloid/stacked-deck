@@ -354,13 +354,13 @@ console.log('deal piles ok');
   for (let i = 0; i < 8; i++) f.step();
   assert.deepStrictEqual(f.paid, [['AS'], ['3S'], ['5S'], ['7S'], ['9S']], 'seat 0 deals the even hands');
   const dealt = () => [0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => f.dealt(i));
-  assert.deepStrictEqual(dealt(), [true, true, true, true, true, true, true, false, true]);
-  assert.strictEqual(f.inputPos, 8);
+  assert.deepStrictEqual(dealt(), [true, true, true, true, true, false, true, false, true]);
+  assert.strictEqual(f.inputPos, 7);
   assert(!f.done(), 'not done while a seat has hands left');
   const snap = f.snapshot();
   f.step();
   f.restore(snap);
-  assert.deepStrictEqual(dealt(), [true, true, true, true, true, true, true, false, true], 'restore keeps seats');
+  assert.deepStrictEqual(dealt(), [true, true, true, true, true, false, true, false, true], 'restore keeps seats');
 }
 console.log('seated players ok');
 // A seat may have fewer hands than the others: its missing hands are null
@@ -431,3 +431,17 @@ console.log('uneven seats and labelled desks ok');
   assert(!f.overflowed());
 }
 console.log('card limit ok');
+
+// A player whose table is blocked has not handed over their next hand: a
+// machine that jams before the last hand (even when that hand owes no payout)
+// fails with undealt > 0 instead of passing early.
+{
+  const spec = { cells: [
+    { at: [0, 0], kind: 'source', out: 0 },
+    { at: [1, 0], kind: 'croupier', fn: 'gather', out: {} },
+    { at: [2, 0], kind: 'payout' },
+  ] };
+  const r = runTest(spec, [['2C'], ['3C'], ['4C']], () => false);
+  assert(!r.ok && r.undealt === 1 && r.stop === 'cycle', JSON.stringify(r));
+}
+console.log('blocked source handover ok');

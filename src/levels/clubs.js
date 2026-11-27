@@ -411,7 +411,7 @@ export const LEVELS = [
 const PAR = {
   'upper-hand': { croupiers: 4, rounds: 90 },
   'high-spade': { croupiers: 6, rounds: 101 },
-  'top-pair': { croupiers: 5, rounds: 73 },
+  'top-pair': { croupiers: 5, rounds: 74 },
   'new-rules': { croupiers: 4, rounds: 53 },
   'bottom-dealer': { croupiers: 5, rounds: 77 },
   'upside-down': { croupiers: 3, rounds: 63 },

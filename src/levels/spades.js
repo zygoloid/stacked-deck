@@ -411,18 +411,18 @@ export const LEVELS = [
 // BEGIN PAR
 const PAR = {
   'hot-streak': { croupiers: 4, rounds: 80 },
-  'high-roller': { croupiers: 4, rounds: 89 },
+  'high-roller': { croupiers: 4, rounds: 91 },
   'burn-card': { croupiers: 3, rounds: 55 },
   'third-time-lucky': { croupiers: 2, rounds: 49 },
-  'full-house': { croupiers: 13, rounds: 409 },
+  'full-house': { croupiers: 13, rounds: 433 },
   'the-wheel': { croupiers: 6, rounds: 63 },
-  'calling-card': { croupiers: 11, rounds: 210 },
-  'seven-heaven': { croupiers: 5, rounds: 168 },
+  'calling-card': { croupiers: 11, rounds: 212 },
+  'seven-heaven': { croupiers: 5, rounds: 180 },
   'suit-yourself': { croupiers: 9, rounds: 69 },
   'change-of-heart': { croupiers: 6, rounds: 696 },
   'next-in-line': { croupiers: 6, rounds: 133 },
   'jacks-or-better': { croupiers: 19, rounds: 147 },
-  'house-record': { croupiers: 31, rounds: 627 },
+  'house-record': { croupiers: 31, rounds: 637 },
 };
 // END PAR
 finishChapter(LEVELS, PAR);

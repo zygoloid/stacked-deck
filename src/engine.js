@@ -48,9 +48,10 @@ import {
 //      dealt or a payout) since, or after STALL_ROUNDS rounds without
 //      progress, or at a wrong payout; player and house cards alike (see Run)
 //  11  Suits sends the colour joker to the first of S, D, C, H with a port
-//      (was S, H, D, C); also shipped floors' tests changed (Four of a Kind
-//      deals from three decks), and the server re-scores only on a version
-//      change
+//      (was S, H, D, C); a player hands over a hand only when the table it
+//      faces can take it (not a round early into pending); also shipped
+//      floors' tests changed (Four of a Kind deals from three decks), and
+//      the server re-scores only on a version change
 // (The card limit going from 1000 to 2000 and Hand's n from 13 to 52 at
 // most are not rules changes either: no machine that cleared a floor before
 // behaves differently.)
@@ -304,10 +305,9 @@ export class Floor {
       if (cell.kind === 'shoe' && !cell.pending.length && shoeDeals(cell)) {
         cell.pending = [[cell.out, [{ c: cell.deck[cell.pos++ % cell.deck.length], src: 'house' }]]];
       }
-      if (cell.kind === 'source' && !cell.pending.length) {
+      if (cell.kind === 'source') {
         const i = this.seats ? (cell.seat ?? 0) + cell.pos * this.seats : this.inputPos;
-        if (i < this.inputs.length && this.inputs[i]) {
-          cell.pending = [[cell.out, this.inputs[i]]];
+        if (i < this.inputs.length && this.inputs[i] && this.deposit(cell, cell.out, this.inputs[i])) {
           cell.pos++;
           this.inputPos++;
         }
@@ -420,8 +420,7 @@ export class Floor {
 
   // Every player card has left the floor (house cards may still be on it).
   done() {
-    return this.allDealt() && this.live === 0 &&
-      ![...this.cells.values()].some((c) => c.kind === 'source' && c.pending.length);
+    return this.allDealt() && this.live === 0;
   }
 
   // Everything the floor's future depends on, as of now: the cards (not
