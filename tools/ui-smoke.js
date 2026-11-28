@@ -2929,6 +2929,21 @@ try {
     await kp.waitForSelector('.coach-card', { state: 'detached' });
     check(/^2 \/ /.test(((await kp.textContent('.coach:not(.hidden) .coach-count')) || '').trim()),
       'Esc dismisses the tutorial welcome card to step 2');
+    await kp.waitForTimeout(350);
+    const crawlBefore = await kp.evaluate(() => {
+      const r = document.querySelector('.coach-ring');
+      r._tag = 1;
+      return parseFloat(getComputedStyle(r).strokeDashoffset) || 0;
+    });
+    const [rx, ry] = await hexCenter([-1, -1]);
+    await kp.mouse.move(rx, ry);
+    await kp.mouse.move(rx + 32, ry); // cross dist > 0.45 to force a full board.render()
+    const crawlAfter = await kp.evaluate(() => {
+      const r = document.querySelector('.coach-ring');
+      return { rebuilt: !r._tag, off: parseFloat(getComputedStyle(r).strokeDashoffset) || 0, delay: r.style.getPropertyValue('--ring-t') };
+    });
+    check(crawlAfter.rebuilt && crawlBefore < -3 && crawlAfter.off <= crawlBefore + 0.5,
+      `hovering a ringed tutorial hex rebuilds the SVG without resetting the ant crawl (${crawlBefore.toFixed(1)} -> ${crawlAfter.off.toFixed(1)}, ${crawlAfter.delay})`);
 
     // 3. War default dealer heuristics & PORTS keyboard footer on high-card.
     await kp.goto(`${base}?unlockall#/level/high-card`);

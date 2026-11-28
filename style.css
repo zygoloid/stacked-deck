@@ -610,8 +610,9 @@ a.tile > :not(.tile-pip):not(.tile-corner):not(.tile-foil) { position: relative;
 .coach-text { flex: 1 1 16.25rem; margin: 0; }
 .coach-actions { display: flex; gap: 0.5rem; flex: none; margin-left: auto; }
 .coach .btn.ghost { color: #5a4a20; border-color: rgba(90, 74, 32, 0.35); }
-.coach-ring { fill: rgba(242, 193, 78, 0.18); stroke: #f2c14e; stroke-width: 4; stroke-dasharray: 10 6; animation: coach-spin 6s linear infinite; }
-.coach-edge { stroke: #f2c14e; stroke-width: 9; stroke-linecap: round; animation: coach-pulse 1.2s ease-in-out infinite; }
+.coach-mark { pointer-events: none; }
+.coach-ring { fill: rgba(242, 193, 78, 0.18); stroke: #f2c14e; stroke-width: 4; stroke-dasharray: 10 6; animation: coach-spin 6s linear var(--ring-t, 0ms) infinite; }
+.coach-edge { stroke: #f2c14e; stroke-width: 9; stroke-linecap: round; animation: coach-pulse 1.2s ease-in-out var(--edge-t, 0ms) infinite; }
 @keyframes coach-spin { to { stroke-dashoffset: -160; } }
 @keyframes coach-pulse { 50% { opacity: 0.35; } }
 /* The glow pulses (an animation outranks the part's own box-shadow). */
@@ -1028,7 +1029,7 @@ svg.placing .hex.floor:hover { fill: rgba(242, 193, 78, 0.08); }
 .paid-badge { fill: #1f7a45; stroke: #fff; stroke-width: 1.2; }
 .paid-badge-t { font-size: 9px; font-weight: 800; fill: #fff; }
 /* Only the ring's opacity changes: nothing is laid out or restyled per frame. */
-.alert-ring { fill: none; stroke: var(--bad); stroke-width: 5; pointer-events: none; animation: alert 0.9s ease-in-out infinite alternate; }
+.alert-ring { fill: none; stroke: var(--bad); stroke-width: 5; pointer-events: none; animation: alert 0.9s ease-in-out var(--alert-t, 0ms) infinite alternate; }
 @keyframes alert { from { opacity: 1; } to { opacity: 0.2; } }
 
 /* (stroke-opacity, not opacity: the same for one stroke, without a layer of its own to paint.) */

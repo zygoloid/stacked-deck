@@ -204,6 +204,12 @@ export class Board {
     // fades carry on smoothly over the next renders).
     this.fadeGone = new Map();
     this.fadeBack = new Map();
+    this.coachRingKey = null;
+    this.coachRingT0 = 0;
+    this.coachEdgeKey = null;
+    this.coachEdgeT0 = 0;
+    this.alertKey = null;
+    this.alertT0 = 0;
     for (const f of level.fixed) this.floorKeys.delete(hexKey(f.at));
   }
 
@@ -283,6 +289,8 @@ export class Board {
       return;
     }
     this.drawn = state;
+    if (!state.alert) this.alertKey = null;
+    else if (this.alertKey !== state.alert) { this.alertKey = state.alert; this.alertT0 = performance.now(); }
     // What a collapsed stack or label holds ([data-peek] indexes this): the
     // labels' entries first, then the stacks' (redrawn with the cards).
     this.peeks = [];
@@ -338,14 +346,33 @@ export class Board {
     this.gCards = gCards;
 
     // The tutorial's ring (src/ui/coach.js): a hex to use, and the edge to point.
+    // Keep each animation's start time across full renders so hovering the board
+    // doesn't reset the marching ants or edge pulse.
     if (state.coach) {
+      const now = performance.now();
+      const rk = hexKey(state.coach.at);
+      if (this.coachRingKey !== rk) { this.coachRingKey = rk; this.coachRingT0 = now; }
       const [x, y] = center(state.coach.at);
-      const g = s('g', { class: 'coach-mark', transform: `translate(${x},${y})` }, s('polygon', { class: 'hex coach-ring', points: HEX_IN }));
+      const ring = s('polygon', {
+        class: 'hex coach-ring', points: HEX_IN,
+        style: `--ring-t: -${((now - this.coachRingT0) % 6000).toFixed(1)}ms`,
+      });
+      const g = s('g', { class: 'coach-mark', transform: `translate(${x},${y})` }, ring);
       if (state.coach.side !== null && state.coach.side !== undefined) {
+        const ek = `${rk}|${state.coach.side}`;
+        if (this.coachEdgeKey !== ek) { this.coachEdgeKey = ek; this.coachEdgeT0 = now; }
         const [[x1, y1], [x2, y2]] = edge(state.coach.side, R - 5, 0.8);
-        g.append(s('line', { class: 'coach-edge', x1, y1, x2, y2 }));
+        g.append(s('line', {
+          class: 'coach-edge', x1, y1, x2, y2,
+          style: `--edge-t: -${((now - this.coachEdgeT0) % 1200).toFixed(1)}ms`,
+        }));
+      } else {
+        this.coachEdgeKey = null;
       }
       gOver.append(g);
+    } else {
+      this.coachRingKey = null;
+      this.coachEdgeKey = null;
     }
     // The empty hex the croupier picker is open for, and the edge its first port will point at.
     if (state.pick) {
@@ -432,7 +459,10 @@ export class Board {
     // whose opacity pulses. (Animating the hex's own stroke width made the
     // page lay itself out again every frame, which on a phone made a long
     // page, the payout lists of 21-card hands, lag for seconds.)
-    if (state.alert === k) body.append(s('polygon', { class: 'alert-ring', points: HEX }));
+    if (state.alert === k) {
+      const dt = this.alertKey === k ? (performance.now() - this.alertT0) % 1800 : 0;
+      body.append(s('polygon', { class: 'alert-ring', points: HEX, style: `--alert-t: -${dt.toFixed(1)}ms` }));
+    }
     return body;
   }
 
