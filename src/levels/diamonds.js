@@ -68,10 +68,19 @@ export const LEVELS = [
     title: 'High Card',
     difficulty: 2,
     story: [
-      'A new croupier joins: she plays War. Your card against the dealer\'s card, high card wins, aces high, and ties go to the house. Both cards come out of her ports, so you choose where the winner and loser go.',
+      'The Owner is pleased with your first week and has had the bolts taken out of the furniture. From tonight on, unless a note says otherwise, you may move the players and the cash desks wherever they suit you.',
+      'A new croupier joins too: she plays War. Your card against the dealer\'s card, high card wins, aces high, and ties go to the house. Both cards come out of her ports, so you choose where the winner and loser go.',
       'Single cards for her first night. The dealer always plays a 9.',
     ],
     brief: 'Pay out every card that beats a 9 (aces high; a tie doesn\'t beat it).',
+    // Movable desks debut here: start with the player one hex west and the
+    // desk one hex east while keeping F1 unchanged so earlier solutions stay valid.
+    startCells: [source([-3, 0], E), desk([1, 0])],
+    tutorial: [
+      { say: 'Players and chip desks are unbolted from here on (except where you see bolts in their corners). Drag the player table closer to the middle of the floor; with a player selected, {click}ing an edge turns it.', at: [-3, 0], until: { moved: 'source' } },
+      { say: 'Drag the chip desk closer too, so you don\'t need extra Passes to reach it.', at: [1, 0], until: { moved: 'payout' } },
+      { say: 'Now meet War: she plays a player\'s card against a dealer\'s card from her dealer side (ties go to the house). Pay every card that beats a 9.', until: 'cleared' },
+    ],
     handSize: 1,
     floor: floorOf(hexRange(2, [-1, 0]), F1),
     fixed: F1,
@@ -262,7 +271,7 @@ export const LEVELS = [
     // Where the players and desks stand is part of the puzzle: they can't be moved.
     boltDesks: true,
     story: [
-      'The Owner has had the floor rewired: three card tables down one wall, three cash desks down the other, and a note under the tray. Every player is to be paid at the desk diametrically opposite their seat, so that the money is seen to cross the room.',
+      'The Owner has had the floor rewired: three card tables down one wall, three cash desks down the other, all bolted to the floor, and a note under the tray. Every player is to be paid at the desk diametrically opposite their seat, so that the money is seen to cross the room.',
       'Player A, at the top, is paid at desk Z, at the bottom; player B, in the middle, at desk Y; player C, at the bottom, at desk X. The Marchetti twins have brought a cousin, and all three are already arguing about the view.',
     ],
     brief: 'Three players, hands of 1 to 3 cards. Pay out every hand at the desk diametrically opposite its player: A\'s at Z, B\'s at Y, C\'s at X.',

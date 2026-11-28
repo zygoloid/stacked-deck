@@ -1049,9 +1049,9 @@ try {
       await phone.locator('svg.board').scrollIntoViewIfNeeded();
     }
     const v0 = await viewBox();
-    const [a, b] = [await hexAt(free[0]), await hexAt(free[1])];
+    const a = await hexAt(free[0]), b = [a[0] + 60, a[1] + 20];
     await touch('touchStart', [a]);
-    for (let i = 1; i <= 8; i++) await touch('touchMove', [[a[0] + (b[0] - a[0]) * i / 8, a[1] + (b[1] - a[1]) * i / 8]]);
+    for (let i = 1; i <= 4; i++) await touch('touchMove', [[a[0] + (b[0] - a[0]) * i / 4, a[1] + (b[1] - a[1]) * i / 4]]);
     await touch('touchEnd', []);
     check(await viewBox() !== v0 && await placed() === 0 && !(await phone.isVisible('.picker')), 'a drag over empty hexes pans the floor, opening nothing');
     await phone.click('.zoom button:last-child'); // fit
@@ -1543,7 +1543,7 @@ try {
   // moves the active port.
   {
     const lv = LEVELS.find((l) => ['straight', 'war', 'pass'].every((t) => l.croupiers.includes(t)));
-    const free = lv.floor.filter((x) => !lv.fixed.some((c) => c.at.join() === x.join()));
+    const free = lv.floor.filter((x) => ![...lv.fixed, ...(lv.startCells ?? [])].some((c) => c.at.join() === x.join()));
     await page.goto(base);
     await page.evaluate((id) => {
       const s = JSON.parse(localStorage.getItem('stacked-deck-v1') || '{"levels":{}}');
@@ -3028,6 +3028,17 @@ try {
     await open('crossed-wires');
     check(await mp.locator('.cell.source.bolted').count() === 3 && await mp.locator('.cell.payout.bolted').count() === 3,
       'Crossed Wires keeps all three players and all three desks bolted');
+    await open('dumbwaiter');
+    check(await mp.locator('.cell.source.bolted').count() === 0 &&
+      await mp.locator('.cell.payout.bolted').count() === 0 &&
+      await mp.locator('.cell.croupier.bolted').count() === 1,
+      'Dumbwaiter unbolts its player and desk while keeping Hand(1) bolted');
+    await dragHex([-4, 0], [-3, 0]);
+    await dragHex([-3, 0], [3, 0]); // across the wall into the desk's room: refused
+    const dwWork = await work('dumbwaiter');
+    check(dwWork?.cells?.some((c) => c.kind === 'source' && c.at.join() === '-3,0') &&
+      !dwWork?.cells?.some((c) => c.kind === 'source' && c.at[0] > 0),
+      `Dumbwaiter lets the player move within its room and refuses cross-room drops (${JSON.stringify(dwWork?.cells)})`);
     await mctx.close();
   }
 
@@ -3045,6 +3056,14 @@ try {
       return [p.x, p.y];
     }, at);
     const clickCenter = async (at) => { const [x, y] = await hexCenter(at); await kp.mouse.click(x, y); };
+    const dragCenter = async (from, to) => {
+      const [x0, y0] = await hexCenter(from), [x1, y1] = await hexCenter(to);
+      await kp.mouse.move(x0, y0);
+      await kp.mouse.down();
+      await kp.mouse.move((x0 + x1) / 2, (y0 + y1) / 2, { steps: 3 });
+      await kp.mouse.move(x1, y1, { steps: 3 });
+      await kp.mouse.up();
+    };
     const savedCells = (id) => kp.evaluate((k) => JSON.parse(localStorage.getItem('stacked-deck-v1') || '{}').levels?.[k]?.cells ?? [], id);
 
     // 1. Story screen: Enter on focused "← All floors" returns to #/, and Esc
@@ -3095,9 +3114,20 @@ try {
     check(crawlAfter.rebuilt && crawlBefore < -3 && crawlAfter.off <= crawlBefore + 0.5,
       `hovering a ringed tutorial hex rebuilds the SVG without resetting the ant crawl (${crawlBefore.toFixed(1)} -> ${crawlAfter.off.toFixed(1)}, ${crawlAfter.delay})`);
 
-    // 3. War default dealer heuristics & PORTS keyboard footer on high-card.
+    // 3. High Card tutorial (startCells + { moved }), War default dealer heuristics & PORTS keyboard footer.
     await kp.goto(`${base}?unlockall#/level/high-card`);
     await kp.waitForSelector('svg.board');
+    check(await kp.locator('svg.board .cell.source[data-at="-3,0"]').count() === 1 &&
+      await kp.locator('svg.board .cell.payout[data-at="1,0"]').count() === 1 &&
+      ((await kp.textContent('.coach:not(.hidden) .coach-count')) || '').trim() === '1 / 3',
+      'High Card starts with player at [-3,0], desk at [1,0], and tutorial step 1 / 3');
+    await dragCenter([-3, 0], [-2, 0]);
+    check(((await kp.textContent('.coach:not(.hidden) .coach-count')) || '').trim() === '2 / 3',
+      'moving High Card player advances tutorial to 2 / 3');
+    await dragCenter([1, 0], [0, 0]);
+    check(((await kp.textContent('.coach:not(.hidden) .coach-count')) || '').trim() === '3 / 3',
+      'moving High Card chip desk advances tutorial to 3 / 3');
+    await kp.evaluate(() => document.activeElement?.blur?.());
     // Keyboard activation of .pal-item via Enter and Space (Space doesn't start Play).
     await kp.focus('.pal-item[data-tool="pass"]');
     await kp.keyboard.press('Enter');
@@ -3205,6 +3235,15 @@ try {
     await clickCenter([-1, 0]);
     const sideUnlabelled = await kp.$$eval('.inspector .side-btn', (bs) => bs.filter((b) => !b.getAttribute('aria-label')).length);
     check(sideUnlabelled === 0 && await kp.locator('.inspector .side-btn').count() === 6, 'inspector side buttons all have aria-labels');
+    await kp.click('.coach-skip');
+    await kp.goto(`${base}?unlockall#/level/high-card/story`);
+    await kp.waitForSelector('.coach-again');
+    await kp.click('.coach-again');
+    await kp.waitForSelector('svg.board');
+    check(await kp.locator('svg.board .cell.source[data-at="-3,0"]').count() === 1 &&
+      await kp.locator('svg.board .cell.payout[data-at="1,0"]').count() === 1 &&
+      ((await kp.textContent('.coach:not(.hidden) .coach-count')) || '').trim() === '1 / 3',
+      'Replay tutorial on High Card restores startCells ([-3,0], [1,0]) and restarts at 1 / 3');
     await kctx.close();
   }
 

@@ -1173,8 +1173,8 @@ export const LEVELS = [
     unlockAfter: ['one-deck', 'deja-vu'],
     title: 'Dumbwaiter',
     difficulty: 6,
-    // Where the players and desks stand is part of the puzzle: they can't be moved.
-    boltDesks: true,
+    // The player and the desk may move within their own rooms, never across the wall.
+    stayInRoom: true,
     story: [
       'The auditors have taken over the main floor. The card tables have moved upstairs and the cash desk downstairs, and the two rooms have nothing in common but the old dumbwaiter, which the auditors have bolted into the wall.',
       'It takes cards from any side and sends them down one card at a time, and it will not be adjusted. The Owner\'s note says every hand is still to be paid exactly as it was played, card for card, top card first.',

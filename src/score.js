@@ -18,10 +18,12 @@ export const warRules = (level) => (Array.isArray(level.warRules) && level.warRu
 export const specialCardsOf = (level) => SPECIALS.filter((c) => Array.isArray(level?.specialCards) && level.specialCards.includes(c));
 
 // ---------- moving the players and chip desks ----------
-// On most floors the player may move the card players and chip desks (turning
-// players, too), unless the floor bolts them down (`boltDesks: true`, for the
-// opening floors and floors whose puzzle is where they stand: docs/campaign.md).
-// Where there are several players or several desks on a movable floor, each is
+// On most floors from chapter 2 on, the player may move the card players and
+// chip desks (turning players, too), unless the floor bolts them down
+// (`boltDesks: true`, for chapter 1 and floors whose puzzle is where they
+// stand: docs/campaign.md) or keeps them in their own rooms (`stayInRoom: true`,
+// Dumbwaiter). Where there are several players or several desks on a movable
+// floor, each is
 // identified by its `seat` or `desk`. A machine that moves one holds a copy of
 // it, a "mover", among its cells: the level's cell with its new `at` (and, for
 // a player, its new `out`). One left where the level puts it isn't in the
@@ -47,6 +49,27 @@ export function buildable(level) {
 // The level's fixed cell a mover stands for (the one of its kind, with the
 // same seat or desk label), or undefined.
 const homeOf = (level, m) => level.fixed.find((f) => f.kind === m.kind && f.seat === m.seat && f.desk === m.desk);
+
+// The buildable hexes where mover `m` (or fixed cell `f`) may stand: the whole
+// buildable floor unless `level.stayInRoom` is set, in which case only the
+// connected component of `floor` containing its starting hex.
+export function moverFloor(level, m, floor = buildable(level)) {
+  if (!level.stayInRoom) return floor;
+  const f = level.fixed.includes(m) ? m : homeOf(level, m);
+  if (!f) return new Set();
+  const start = hexKey(f.at);
+  if (!floor.has(start)) return new Set();
+  const room = new Set([start]);
+  const q = [[...f.at]];
+  while (q.length) {
+    const at = q.pop();
+    for (let d = 0; d < 6; d++) {
+      const nb = addDir(at, d), nk = hexKey(nb);
+      if (floor.has(nk) && !room.has(nk)) { room.add(nk); q.push(nb); }
+    }
+  }
+  return room;
+}
 
 // A mover left where (and as) the level puts it: the same as no mover.
 const atHome = (level, m) => {
@@ -83,7 +106,7 @@ function sanitizeMovers(level, cells, floor, seen) {
   for (const c of cells) {
     if (!isMover(c) || !Array.isArray(c.at)) continue;
     const f = homeOf(level, c);
-    if (!f || done.has(f) || !floor.has(hexKey(c.at)) || taken.has(hexKey(c.at))) continue;
+    if (!f || done.has(f) || !moverFloor(level, f, floor).has(hexKey(c.at)) || taken.has(hexKey(c.at))) continue;
     const m = { ...structuredClone(f), at: [...c.at] };
     if (f.kind === 'source') m.out = isSide(c.out) ? c.out : f.out;
     done.add(f);
@@ -179,6 +202,7 @@ function moverError(level, c, floor = buildable(level)) {
   if (!Array.isArray(c.at) || c.at.length !== 2 || !c.at.every(Number.isInteger)) return 'bad position';
   if (c.kind === 'source' && !isSide(c.out)) return 'bad side';
   if (!floor.has(hexKey(c.at))) return 'not on the buildable floor';
+  if (!moverFloor(level, f, floor).has(hexKey(c.at))) return 'not in its room';
   if (atHome(level, c)) return 'not moved';
   return null;
 }

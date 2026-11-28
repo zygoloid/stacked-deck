@@ -4,7 +4,7 @@ import {
   PORT_STYLE, infoFor, chipLabel, arrowsOf, SIDE_NAMES,
 } from './croupiers.js';
 import { hexKey } from './model.js';
-import { fixedOf, isMover, desksMove, buildable } from '../score.js';
+import { fixedOf, isMover, desksMove, buildable, moverFloor } from '../score.js';
 import { DESK_NAMES } from './sim.js';
 
 export const R = 50;                       // hex circumradius
@@ -260,14 +260,16 @@ export class Board {
 
   isBuildable(at) { return this.floorKeys.has(hexKey(at)); }
 
+  canMoverStand(cell, at) { return moverFloor(this.level, cell, this.floorKeys).has(hexKey(at)); }
+
   // Whether `cell` (one of `cells`) could be dropped on `at`: on a buildable
   // hex, a croupier in place of a croupier there (never a player or desk), and
-  // a player or desk only where nothing else stands.
+  // a player or desk only where nothing else stands (and within its room).
   canDrop(cell, at, cells) {
     if (!this.isBuildable(at)) return false;
     const k = hexKey(at);
     const under = cells.find((c) => c !== cell && hexKey(c.at) === k);
-    if (cell && isMover(cell)) return !under;
+    if (cell && isMover(cell)) return this.canMoverStand(cell, at) && !under;
     return !(under && isMover(under));
   }
 
@@ -560,6 +562,8 @@ export class Board {
 
   bodySvg(cell, t, selected, alert, live) {
     const g = s('g', { class: `cell ${cell.kind}${selected ? ' selected' : ''}${alert ? ' alert' : ''}`, transform: t, 'data-at': hexKey(cell.at) });
+    const moveHint = !this.moves ? '. Bolted to the floor here: it can\'t be moved.'
+      : this.level.stayInRoom ? '. Drag to move it within its room.' : '. Drag to move it.';
     if (cell.kind === 'source') {
       g.append(s('polygon', { class: 'hex src', points: HEX }),
         s('rect', { class: 'cardback', x: -11, y: -22, width: 22, height: 30, rx: 3 }),
@@ -571,7 +575,7 @@ export class Board {
       if (left !== null) g.append(s('text', { class: 'src-count', y: -3, 'text-anchor': 'middle' }, String(left)));
       this.fixedBolts(g);
       g.append(s('title', {}, (seated ? `Player ${'ABCDEF'[cell.seat]}: hands out their own test hands (marked ${'ABCDEF'[cell.seat]} in the list)` : 'Card player: hands out the test hands')
-        + (this.moves ? '. Drag to move it.' : '. Bolted to the floor here: it can\'t be moved.')));
+        + moveHint));
       return g;
     }
     if (cell.kind === 'payout') {
@@ -590,7 +594,7 @@ export class Board {
       this.fixedBolts(g);
       g.append(s('title', {}, (cell.desk === undefined ? 'Chip desk: hands that reach it are paid out'
         : `Chip desk ${DESK_NAMES[cell.desk]}: hands that reach it are paid out here (marked → ${DESK_NAMES[cell.desk]} in the expected payouts)`)
-        + (this.moves ? '. Drag to move it.' : '. Bolted to the floor here: it can\'t be moved.')));
+        + moveHint));
       return g;
     }
     const info = infoFor(cell) ?? { family: '#555', name: cell.fn };

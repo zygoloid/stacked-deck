@@ -129,14 +129,15 @@ export const FIXED_INFO = {
   },
 };
 
-export function infoFor(cell) {
+export function infoFor(cell, level) {
   if (cell.kind === 'shoe') return CROUPIERS.shoe;
+  const scope = level?.stayInRoom ? 'anywhere in its room' : 'anywhere on the floor';
   if (cell.kind === 'source' && cell.seat !== undefined) {
     const seat = 'ABCDEF'[cell.seat] ?? String(cell.seat + 1);
     return {
       ...FIXED_INFO.source,
       name: `Player ${seat}`,
-      desc: `Hands out player ${seat}'s test hands (marked ${seat} in the list). Drag it to move it; it can go anywhere on the floor.`,
+      desc: `Hands out player ${seat}'s test hands (marked ${seat} in the list). Drag it to move it; it can go ${scope}.`,
     };
   }
   if (cell.kind === 'payout' && cell.desk !== undefined) {
@@ -144,10 +145,15 @@ export function infoFor(cell) {
     return {
       ...FIXED_INFO.payout,
       name: `Chip desk ${desk}`,
-      desc: `Pays out the hands that reach it (marked → ${desk} in the expected payouts), from any side. Drag it to move it; it can go anywhere on the floor.`,
+      desc: `Pays out the hands that reach it (marked → ${desk} in the expected payouts), from any side. Drag it to move it; it can go ${scope}.`,
     };
   }
-  return FIXED_INFO[cell.kind] ?? CROUPIERS[cell.fn];
+  if (FIXED_INFO[cell.kind]) {
+    return level?.stayInRoom
+      ? { ...FIXED_INFO[cell.kind], desc: FIXED_INFO[cell.kind].desc.replace('anywhere on the floor', scope) }
+      : FIXED_INFO[cell.kind];
+  }
+  return CROUPIERS[cell.fn];
 }
 // A cell for showing a palette entry or help row: every param at its default.
 export function sampleCell(tool) {

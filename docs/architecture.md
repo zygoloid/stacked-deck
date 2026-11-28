@@ -78,10 +78,12 @@ coordinates: `0 E [1,0]`, `1 SE [0,1]`, `2 SW [-1,1]`, `3 W [-1,0]`,
 | `croupier` | `at, fn, out: {port: side}, facing?, ...params` |
 
 **Moving players and desks.** The player may move a floor's card players and
-chip desks (and turn players), unless the level has `boltDesks: true` (the
-opening floors `A♥`–`5♥` and floors whose puzzle is where they stand:
-docs/campaign.md, "Moving the players and desks"; `desksMove` in
-`src/score.js`). Their starting hexes are ordinary buildable floor hexes
+chip desks (and turn players), unless the level has `boltDesks: true` (chapter 1
+`A♥`–`K♥` and floors whose puzzle is where they stand: docs/campaign.md,
+"Moving the players and desks"; `desksMove` in `src/score.js`). On a floor with
+`stayInRoom: true` (Dumbwaiter), each player and desk may move only within the
+connected component of `buildable(level)` around its starting hex (`moverFloor`
+in `src/score.js`). Their starting hexes are ordinary buildable floor hexes
 (`buildable` in `src/score.js`), so once a player or desk moves away a croupier
 can stand where it started. On any movable floor with multiple players or
 multiple desks, each is uniquely identified by its `seat` or `desk` (`test/levels.js`
@@ -91,16 +93,20 @@ with its `seat` or `desk` if it has one) at its new place and, for a player,
 facing its new side; no croupier may share its hex. One left where the level
 puts it is never in the machine: `sanitizeCells` drops it and `validateCells`
 refuses it, so every machine from before players and desks could move keeps its
-canonical form, hash and check deals. `fixedOf(level, cells)` is the level's
+canonical form, hash and check deals. A floor may also give `startCells` (High
+Card), initial cells loaded only when a floor has not yet been touched or
+solved (and on Replay tutorial), so its starting positions can differ from
+`fixed` without breaking saved solutions. `fixedOf(level, cells)` is the level's
 fixed cells with the machine's movers in place; `toSpec` uses it, and ignores
 movers on a floor where nothing moves. The editor works on `withMovers(level, cells)`,
 the machine plus a mover for every one still at home, so they are selected,
 dragged and picked up in groups like croupiers (copy and delete are disabled
-when a group holds a player or desk; put down on a croupier they replace it
-like any other lifted cell, and when off the floor or on another player or desk
-they settle onto the nearest empty hex after everything else is placed); what
-it saves and scores is `sanitizeCells` of that. A floor where they don't move
-draws its players and desks with bolts in the corners.
+when a group holds a player or desk; put down on a croupier inside its room
+they replace it like any other lifted cell, and when off the floor, out of
+their room, or on another player or desk they settle onto the nearest empty hex
+where they may stand after everything else is placed); what it saves and scores
+is `sanitizeCells` of that. A floor where they don't move draws its players and
+desks with bolts in the corners.
 
 A level's fixed cells are its players and chip desks, and may also include
 shoes and croupiers **bolted to the floor**: cells of the two kinds above
@@ -227,6 +233,8 @@ whenever a rule changes; the level select shows it.
   fixed: [cells],               // sources and payouts, and any shoes and croupiers
                                 //   bolted to the floor (not editable)
   boltDesks: true,              // the player can't move the players and desks (see Cells)
+  stayInRoom: true,             // players and desks move only within their own rooms (Dumbwaiter)
+  startCells: [cells],          // initial working cells on an untouched floor (High Card)
   croupiers: ['pass', 'shoe', ...],  // palette: fn names plus 'shoe'
   warRules: ['high', 'top'],    // War rules allowed (when 'war' is in the palette)
   card: 'AS',                   // the floor's playing card: 'AS'…'KS' (suit floors), '?' '??' '$' '$$' (finale);
@@ -260,24 +268,25 @@ of the editor (`play`, `tests`, `ports`, `roster`, `undo`, `brief`,
 `until` is `'next'` (the player presses Next), `'ran'` (a test has
 run), `'cleared'` (since the editor opened), `{ cell: { at, fn, out? } }`
 (that croupier there, with those ports; `'*'` for a port pointed anywhere),
-or `{ any: [...] }` (any one of those). `modal: true` (the first step only)
+`{ moved: 'source' | 'payout' }` (that mover moved or turned from its initial
+position), or `{ any: [...] }` (any one of those). `modal: true` (the first step only)
 shows that step as a dialog in the middle of the screen, which on Next flies
 up into the strip, so the player sees where the tutorial lives (the first
 floor's welcome). `on: 'failed'` takes a step (one waiting for Next) out of
 the sequence: it shows the first time in a visit that a run fails, then the
 tutorial goes back to where it was (the second floor's: the rules are in the
 brief). Steps only go forward, and a player who is ahead skips the steps
-between: to a later step that is done when every croupier the steps before it
+between: to a later step that is done when every croupier (or move) the steps before it
 ask for is in place too (so pressing play early doesn't skip the building),
 or to `'cleared'`. Back shows the steps before, skipped ones too, each with
 Next, until the player is back where they were. The last step is usually
 `'cleared'`: the results that follow would hide anything after it. Finishing or skipping
 it is remembered in this browser (`stacked-deck-coach`); the floor's story
-page offers it again (Replay the tutorial, on an empty floor). A tutorial of
+page offers it again (Replay the tutorial, on an empty floor or `startCells`). A tutorial of
 one step is a note (no count, no Skip, no Back, and no replay). `test/levels.js`
 checks the steps, and that every croupier a step asks for is in the floor's
-reference solution. The first two floors carry a tutorial, which explains
-the controls, never the floor's solution. Notes: 6♥, the first big step up,
+reference solution. The first two floors and A♦ High Card carry tutorials, which explain
+the controls and moving players/desks, never the floor's solution. Notes: 6♥, the first big step up,
 says floors can be left for later; 4♦ says clearing some floors opens bonus
 floors.
 

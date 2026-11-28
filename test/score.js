@@ -183,19 +183,42 @@ console.log('solution hashes ok');
 }
 console.log('check deals ok');
 
-// Moving the player and the chip desk (src/score.js: desksMove, movers).
+// Moving the player and the chip desk (src/score.js: desksMove, moverFloor, movers).
 {
-  const { desksMove, buildable, sanitizeCells, withMovers, fixedOf } = await import('../src/score.js');
+  const { desksMove, buildable, moverFloor, sanitizeCells, withMovers, fixedOf } = await import('../src/score.js');
   // Every floor moves its players and desks unless bolted down (`boltDesks`).
   for (const level of ALL) {
     assert.strictEqual(desksMove(level), !level.boltDesks, level.id);
   }
-  for (const id of ['first-night', 'red-and-black', 'two-at-a-time', 'thursdays-game', 'threes-company', 'crossed-wires', 'uneven-tables', 'dumbwaiter']) {
+  // Chapter 1 (Hearts) bolts every floor; movable desks debut at A♦ High Card.
+  for (const level of LEVELS.filter((l) => l.chapter === 1)) {
+    assert(!desksMove(level), `${level.id} stays bolted in chapter 1`);
+  }
+  for (const id of ['crossed-wires', 'uneven-tables']) {
     assert(!desksMove(byId.get(id)), `${id} stays bolted`);
   }
-  for (const id of ['in-the-black', 'sevens-and-eights', 'face-off', 'pot-luck', 'follow-suit']) {
+  for (const id of ['high-card', 'face-off', 'pot-luck', 'follow-suit', 'dumbwaiter']) {
     assert(desksMove(byId.get(id)), `${id} is unbolted`);
   }
+  // High Card starts new runs with `startCells` (player west, desk east) while
+  // keeping `fixed` unchanged so existing solutions keep their canonical form and par.
+  const highCard = byId.get('high-card');
+  const hcRef = await reference(highCard);
+  assert.deepStrictEqual(validateCells(highCard, highCard.startCells).cells, highCard.startCells, 'High Card startCells valid');
+  const hcScore = await scoreMachine(highCard, hcRef);
+  assert(hcScore.ok && hcScore.croupiers === highCard.par.croupiers && hcScore.rounds === highCard.par.rounds, 'existing High Card solutions stay valid at par');
+  // Dumbwaiter (`stayInRoom: true`): player and desk move within their own rooms, never across the wall.
+  const dumbwaiter = byId.get('dumbwaiter');
+  const dwPlayer = dumbwaiter.fixed.find((c) => c.kind === 'source');
+  const dwDesk = dumbwaiter.fixed.find((c) => c.kind === 'payout');
+  const pRoom = moverFloor(dumbwaiter, dwPlayer), dRoom = moverFloor(dumbwaiter, dwDesk);
+  assert(pRoom.size > 0 && dRoom.size > 0 && pRoom.size + dRoom.size === buildable(dumbwaiter).size, 'Dumbwaiter rooms partition the buildable floor');
+  assert(![...pRoom].some((k) => dRoom.has(k)), 'Dumbwaiter rooms are disjoint');
+  assert(!validateCells(dumbwaiter, [{ at: [-3, 0], kind: 'source', out: 0 }]).error, 'Dumbwaiter player moves within its room');
+  assert(!validateCells(dumbwaiter, [{ at: [3, 0], kind: 'payout' }]).error, 'Dumbwaiter desk moves within its room');
+  assert.match(validateCells(dumbwaiter, [{ at: [3, 0], kind: 'source', out: 0 }]).error, /not in its room/, 'Dumbwaiter player rejected in desk room');
+  assert.match(validateCells(dumbwaiter, [{ at: [-3, 0], kind: 'payout' }]).error, /not in its room/, 'Dumbwaiter desk rejected in player room');
+  assert.deepStrictEqual(sanitizeCells(dumbwaiter, [{ at: [3, 0], kind: 'source', out: 0 }, { at: [-3, 0], kind: 'payout' }]), [], 'sanitizeCells strips out-of-room movers');
   // Upper Hand's reference ends Wheel → Pass → desk: the desk can stand on
   // the Pass's hex instead, and its old starting hex is an ordinary buildable
   // floor hex where a croupier may stand once the desk moves away.

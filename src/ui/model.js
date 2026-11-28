@@ -178,7 +178,7 @@ export function floorPrint(level) {
       level.decks ?? 1, level.ordered ?? false, level.inOrder ?? false, level.handSize, level.tests,
       String(level.pays ?? level.expected), String(level.tests?.deal ?? ''),
       // (Only where the players and desks move, so other floors keep their prints.)
-      ...(desksMove(level) ? ['desks move'] : []),
+      ...(desksMove(level) ? [level.stayInRoom ? 'desks move in room' : 'desks move'] : []),
     ]);
     let h1 = 0x811c9dc5, h2 = 0x01000193; // FNV-1a, twice over (64 bits)
     for (let i = 0; i < text.length; i++) {

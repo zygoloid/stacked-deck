@@ -115,7 +115,7 @@ export const LEVELS = [
     card: 'AH',
     title: 'Opening Night',
     difficulty: 1,
-    // Where the players and desks stand is part of the puzzle: they can't be moved.
+    // Players and desks stay bolted down across chapter 1 (movable desks debut at A♦ High Card).
     boltDesks: true,
     story: [
       'Congratulations on your new job as floor manager of The Stacked Deck. The pay is good, the carpet is loud, and every croupier on staff knows exactly one move.',
@@ -272,6 +272,7 @@ export const LEVELS = [
     card: '6H',
     title: 'In the Black',
     difficulty: 4,
+    boltDesks: true,
     story: [
       'The Kesslers deal their own game, one card at a time with the suits in turn: a spade, a heart, a club, a diamond, then round again. The red cards are just for show. Once two or more black cards have been played since the last payout and together they make a run, the house pays them all as one hand.',
       'Runs as always: aces high or low, no wrapping. Black cards still waiting when the night ends are not paid.',
@@ -299,6 +300,7 @@ export const LEVELS = [
     card: '7H',
     title: 'Top and Bottom',
     difficulty: 3,
+    boltDesks: true,
     story: [
       'Five-card hands tonight. The Owner\'s note asks for the top card and the bottom card of each hand to be paid together, as one hand. The three in the middle can go on the carpet; nobody will ask after them.',
       'Your new croupier cuts: it splits a hand into its top half and the rest.',
@@ -317,6 +319,7 @@ export const LEVELS = [
     card: '8H',
     title: 'The Neighbours',
     difficulty: 3,
+    boltDesks: true,
     story: [
       'The Owner\'s next note: "The house lucky number is 7. Pay the neighbours." Back to single cards: a 6 or an 8 wins.',
       'Your new croupier is a shoe: it deals the same stacked card over and over.',
@@ -339,6 +342,7 @@ export const LEVELS = [
     card: '9H',
     title: 'Lucky Seven',
     difficulty: 5,
+    boltDesks: true,
     story: [
       'The neighbours were a success, and the Owner is warming to the theme. Tonight\'s note says: "Pay the sevens. All four suits. Nothing else."',
       'Old Thursday claims he once pulled a seven out of a mayor\'s ear. He has brought a pocketful of them, just in case.',
@@ -361,6 +365,7 @@ export const LEVELS = [
     card: 'TH',
     title: 'Sevens and Eights',
     difficulty: 3,
+    boltDesks: true,
     story: [
       'Sal and the Kesslers have a table each tonight, and they take turns, a card at a time. Sal is paid for his sevens, the Kesslers for their eights, and neither will hear of being paid for the other\'s.',
       'Your new croupier counts: it says whether some rank turns up at least n times in a hand, for the n you set.',
@@ -383,6 +388,7 @@ export const LEVELS = [
     card: 'JH',
     title: 'Seven Up',
     difficulty: 5,
+    boltDesks: true,
     story: [
       'Sal has discovered Seven Up. Two cards each, and any hand holding a seven wins. A pair of sevens wins too, but not twice.',
       'Sal\'s uncle, over from across the river for the night, points out that the house deals from a very large shoe, and the house pretends not to hear.',
@@ -405,6 +411,7 @@ export const LEVELS = [
     card: 'QH',
     title: 'Even Money',
     difficulty: 7,
+    boltDesks: true,
     story: [
       'Dmitri, an accountant who plays exactly one hour a night, wants to bet on even cards: 2, 4, 6, 8, 10 and Q.',
       'Management says yes, if you can tell them apart. Across the river, the Vellanis have started asking who Dmitri is.',
@@ -427,6 +434,7 @@ export const LEVELS = [
     card: 'KH',
     title: 'Lucky Number',
     difficulty: 6,
+    boltDesks: true,
     story: [
       'Dmitri has worked it out. A five-card hand with exactly one seven is lucky; two sevens are unlucky, and no sevens at all is merely Tuesday.',
       'He would like the house to pay the lucky ones. He has brought a spreadsheet.',
