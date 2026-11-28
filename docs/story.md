@@ -71,7 +71,8 @@ Vellanis start asking who he is.
 
 ## Chapter 2 ♦ Stacking the Deck (War, flush)
 
-The Vellanis arrive in force. A new croupier plays War, and the house learns
+The Vellanis arrive in force. The Owner takes the bolts out of the furniture, a
+new croupier plays War, and the house learns
 to compare a card with a constant (Old Thursday's small stakes, where the ace
 counts low and the War croupier still counts it high), one player with
 another (the twins face off), and a hand with its own pieces. Sal's uncle
@@ -83,7 +84,7 @@ whole floor, and two blocks away a rival casino switches on its neon.
 
 | Floor | Level | Beat |
 |---|---|---|
-| A♦ | High Card | War |
+| A♦ | High Card | the bolts come out of the furniture; War |
 | 2♦ | Small Stakes | Old Thursday's pension; aces high, ties to the house |
 | 3♦ | Face Off | the twins against each other |
 | 4♦ | Red Flush | Sal's uncle; flush |
@@ -91,7 +92,7 @@ whole floor, and two blocks away a rival casino switches on its neon.
 | 6♦ | High Suit | the uncle's second game |
 | 7♦ | Natural | Sal back from out of town; blackjack |
 | 8♦ | Low Kicker | the Kesslers' two-card game |
-| 9♦ | Crossed Wires | the Owner rewires the floor; the twins bring a cousin |
+| 9♦ | Crossed Wires | the Owner rewires the floor, tables bolted down; the twins bring a cousin |
 | 10♦ | Top Dog | the doormen's game |
 | J♦ | Pecking Order | the doormen want their hands in order |
 | Q♦ | Royal Flush | forty years of waiting |

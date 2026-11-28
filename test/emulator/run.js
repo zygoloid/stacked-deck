@@ -273,6 +273,19 @@ const key = `${PAR.croupiers}_${PAR.rounds}`;
     const { croupiers, rounds } = byId.get(id).par;
     assert.deepStrictEqual((await direct.ref(`solutions/p7/${id}/${h}/score`).get()).val(), { croupiers, rounds }, id);
   }
+  // Movers in submitted solutions: a moved desk on Upper Hand scores one
+  // croupier fewer, and an out-of-room mover on Dumbwaiter is tombstoned.
+  const uhRef = await reference('upper-hand');
+  const uhMoved = [...uhRef.filter((c) => !(c.fn === 'pass' && c.at.join() === '1,0')), { at: [1, 0], kind: 'payout' }];
+  const uhHash = await solutionHash(uhMoved);
+  await direct.ref(`solutions/p7/upper-hand/${uhHash}`).set({ at: 1, rules: RULES_VERSION, cells: JSON.stringify(uhMoved) });
+  assert.strictEqual(await processSolution(direct, { uid: 'p7', level: 'upper-hand', hash: uhHash }), 'scored');
+  assert.strictEqual((await direct.ref(`solutions/p7/upper-hand/${uhHash}/score/croupiers`).get()).val(), uhRef.length - 1);
+  const badRoom = [{ at: [3, 0], kind: 'source', out: 0 }];
+  const badHash = await solutionHash(badRoom);
+  await direct.ref(`solutions/p7/dumbwaiter/${badHash}`).set({ at: 1, rules: RULES_VERSION, cells: JSON.stringify(badRoom) });
+  assert.match(await processSolution(direct, { uid: 'p7', level: 'dumbwaiter', hash: badHash }), /^invalid/);
+  assert.match((await direct.ref(`solutions/p7/dumbwaiter/${badHash}/invalid`).get()).val(), /not in its room/);
 }
 {
   // Frontiers: points that don't beat each other are both kept; a point

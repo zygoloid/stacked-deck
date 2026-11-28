@@ -27,19 +27,25 @@ const ids = new Set(levels.map((l) => l.id));
 
 const problems = [];
 let added = 0, newlyMoving = 0;
+const moveKind = (l) => (!desksMove(l) ? false : l.stayInRoom ? 'room' : true);
 for (const l of levels) {
   const s = snap[l.id];
-  const now = { fixed: fixedOf(l), floor: l.floor.map(key).sort(), ...(desksMove(l) ? { moves: true } : {}) };
+  const m = moveKind(l);
+  const now = { fixed: fixedOf(l), floor: l.floor.map(key).sort(), ...(m ? { moves: m } : {}) };
   if (!s) { snap[l.id] = now; added++; continue; }
-  if (s.moves && !now.moves) problems.push(`${l.id}: players and desks bolted down (saved machines may have moved them)`);
-  if (!s.moves && now.moves) newlyMoving++;
+  if (s.moves && !m) problems.push(`${l.id}: players and desks bolted down (saved machines may have moved them)`);
+  if (s.moves === true && m === 'room') problems.push(`${l.id}: players and desks confined to their rooms (saved machines may have moved them across rooms)`);
+  if ((!s.moves && m) || (s.moves === 'room' && m === true)) newlyMoving++;
   if (JSON.stringify(s.fixed) !== JSON.stringify(now.fixed)) {
     problems.push(`${l.id}: players/desks moved ${JSON.stringify(s.fixed)} -> ${JSON.stringify(now.fixed)}`);
   }
   const floor = new Set(now.floor);
   const lost = s.floor.filter((h) => !floor.has(h));
   if (lost.length) problems.push(`${l.id}: floor lost hexes ${lost.join(' ')}`);
-  if (update) snap[l.id] = { fixed: now.fixed, floor: [...new Set([...s.floor, ...now.floor])].sort(), ...(s.moves || now.moves ? { moves: true } : {}) };
+  if (update) {
+    const keptMoves = s.moves === true || m === true ? true : (s.moves || m);
+    snap[l.id] = { fixed: now.fixed, floor: [...new Set([...s.floor, ...now.floor])].sort(), ...(keptMoves ? { moves: keptMoves } : {}) };
+  }
 }
 for (const id of Object.keys(snap)) if (!ids.has(id)) problems.push(`${id}: floor removed (saves for it are orphaned)`);
 

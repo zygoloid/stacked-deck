@@ -27,9 +27,9 @@ easy to forget.
 ## Adding or changing a floor
 
 - Give the level a `difficulty` (1-10) matching its Diff in docs/campaign.md.
-- One player and one desk: they can be moved unless the level has
-  `boltDesks: true`; add it if where they stand is the puzzle (docs/campaign.md,
-  "Moving the players and desks").
+- Players and desks can be moved unless the level has `boltDesks: true`; add it
+  if where they stand is the puzzle, and seat/label multiple players or desks on
+  movable floors (docs/campaign.md, "Moving the players and desks").
 - Recipe in tools/level-specs/<chapter>.js, mutants in
   test/mutants/<chapter>.js, docs rows in docs/campaign.md and
   docs/story.md.
