@@ -218,7 +218,6 @@ kbd {
 .tiles.fan { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .tiles.fan > * { position: absolute; left: 0; top: 0; width: var(--card-w); transition: transform 0.22s ease-out; }
 .tiles.fan > .row-up { z-index: 20; }
-.tiles.fan > .shown { z-index: 30; }
 .tiles.fan a.tile:hover, .tiles.fan .tile-slot:hover a.tile {
   transform: none;
   --lift: 0 0.375rem 1.125rem rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.2);
