@@ -98,18 +98,18 @@ export const SPECS = {
   },
   'suit-yourself': {
     // Split the cards by suit, and collect each suit in its own Hand(5): the
-    // suits go S, H, D, C clockwise round the splitter from its NW side. (Only
-    // the orders giving spades and hearts the two shortest routes score 9
+    // suits go S, D, C, H clockwise round the splitter from its NW side. (Only
+    // the orders giving spades and hearts the two shortest routes score 66
     // rounds; par shouldn't depend on spotting that, so this plain order
-    // scores 10.)
+    // scores 68.)
     nodes: {
       suits: c([-2, 0], 'suits'),
-      hs: c([-2, -1], 'hand', { n: 5 }), hh: c([-1, -1], 'hand', { n: 5 }),
-      hd: c([-1, 0], 'hand', { n: 5 }), hc: c([-2, 1], 'hand', { n: 5 }),
+      hs: c([-2, -1], 'hand', { n: 5 }), hd: c([-1, -1], 'hand', { n: 5 }),
+      hc: c([-1, 0], 'hand', { n: 5 }), hh: c([-2, 1], 'hand', { n: 5 }),
     },
     links: [
-      ['suits', 'S', 'hs'], ['suits', 'H', 'hh'], ['suits', 'D', 'hd'], ['suits', 'C', 'hc'],
-      ['hs', 'out', 'desk'], ['hh', 'out', 'desk'], ['hd', 'out', 'desk'], ['hc', 'out', 'desk'],
+      ['suits', 'S', 'hs'], ['suits', 'D', 'hd'], ['suits', 'C', 'hc'], ['suits', 'H', 'hh'],
+      ['hs', 'out', 'desk'], ['hd', 'out', 'desk'], ['hc', 'out', 'desk'], ['hh', 'out', 'desk'],
     ],
   },
   'change-of-heart': {

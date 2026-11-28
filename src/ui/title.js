@@ -65,7 +65,7 @@ export function showTitle(host, { progress = null, onClose = () => {} } = {}) {
   const board = new Board(svg, { ...TITLE_LEVEL, floor: [] });
   const startBtn = h('button', { class: 'btn gold title-start', onclick: () => start() }, 'Start');
   const logo = h('span', {}, 'Stacked Deck');
-  const suits = h('div', { class: 'title-suits', 'aria-hidden': 'true' }, '♠ ♥ ♣ ♦');
+  const suits = h('div', { class: 'title-suits', 'aria-hidden': 'true' }, '♠ ♦ ♣ ♥');
   const tagline = h('p', { class: 'title-tagline' }, 'An esoteric casino. Build machines of croupiers that pay out exactly the right hands.');
   const el = h('div', { class: 'title-screen', role: 'dialog', 'aria-label': 'Stacked Deck' },
     h('div', { class: 'title-felt-bg' }), felt, svg, h('div', { class: 'title-shade' }),

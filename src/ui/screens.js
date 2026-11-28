@@ -1,6 +1,7 @@
 // Level select, story and help screens.
 import { h, s, handEl, SPECIAL_FACE, SUIT_GLYPH, SUIT_NAME, uiScale } from './dom.js';
 import { CROUPIERS, PORT_STYLE, chipLabel, sampleCell } from './croupiers.js';
+import { BONUS_SUITS } from '../levels.js';
 import { CAMPAIGN as LEVELS, BONUS, FLOOR, ALL_LEVELS, findLevel } from './catalog.js';
 import { RULES_VERSION } from '../engine.js';
 import { CHANNEL } from '../build.js';
@@ -32,10 +33,10 @@ function saveUi(ui) {
   try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch { /* storage full or blocked */ }
 }
 
-// The bonus deck's groups, by the suit of their cards: ♠ ♥ ♣ ♦, then special
-// cards, then floors without a playing card.
+// The bonus deck's groups, by the suit of their cards (BONUS_SUITS), then
+// special cards, then floors without a playing card.
 const BONUS_GROUPS = [
-  ...['S', 'H', 'C', 'D'].map((k) => ({ key: k, glyph: SUIT_GLYPH[k], name: SUIT_NAME[k], red: k === 'H' || k === 'D' })),
+  ...BONUS_SUITS.map((k) => ({ key: k, glyph: SUIT_GLYPH[k], name: SUIT_NAME[k], red: k === 'H' || k === 'D' })),
   { key: 'special', glyph: '✦', name: 'Specials', red: false },
   { key: 'other', glyph: '★', name: 'More floors', red: false },
 ];
@@ -93,7 +94,7 @@ export function levelSelect(root, ctx, focus = null) {
     hidePop();
     page.replaceChildren(...[
       h('header', { class: 'marquee' },
-        h('div', { class: 'marquee-suits' }, '♠ ♥ ♣ ♦'),
+        h('div', { class: 'marquee-suits' }, '♠ ♦ ♣ ♥'),
         // (The name opens the title screen again: title.js.)
         h('h1', {}, h('button', { class: 'logo-btn', title: 'Back to the title screen', onclick: () => ctx.title?.() }, 'Stacked Deck')),
         h('p', { class: 'tagline' }, 'An esoteric casino. Build machines of croupiers that pay out exactly the right hands.'),

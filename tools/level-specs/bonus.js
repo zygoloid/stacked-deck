@@ -1088,7 +1088,7 @@ export const SPECS = {
   },
   'odds-and-evens': {
     // Test a copy. A colour joker goes under it, and Suits keeps the hearts
-    // and diamonds in one pile (the joker joins the hearts, the first suit
+    // and diamonds in one pile (the joker joins the diamonds, the first suit
     // with a port, last), so the pile has r + 1 cards for r red cards. Deal
     // to two sides leaves the last card dealt on top of its pile: the joker
     // tops pile X exactly when r is even. Pile X plays an ace by its top

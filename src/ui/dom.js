@@ -40,8 +40,8 @@ export function arrowEl(d, cls = '') {
       s('path', { d: 'M-5.5 0H4.5M0.5-4.5L5 0L0.5 4.5' })));
 }
 
-export const SUIT_GLYPH = { S: '♠', H: '♥', D: '♦', C: '♣' };
-export const SUIT_NAME = { S: 'Spades', H: 'Hearts', D: 'Diamonds', C: 'Clubs' };
+export const SUIT_GLYPH = { S: '♠', D: '♦', C: '♣', H: '♥' };
+export const SUIT_NAME = { S: 'Spades', D: 'Diamonds', C: 'Clubs', H: 'Hearts' };
 
 // Special cards (late game, dealt only by shoes): how they are drawn.
 //   cls    extra class on the card (style.css colours them)

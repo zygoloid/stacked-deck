@@ -21,9 +21,9 @@ export const PORT_STYLE = {
   dwin: { label: 'd-win', short: 'dW', color: '#4fc3f7' },
   dlose: { label: 'd-lose', short: 'dL', color: '#ffa45c' },
   S: { label: '♠', short: '♠', color: '#e6e9f2' },
-  H: { label: '♥', short: '♥', color: '#ff7a93' },
   D: { label: '♦', short: '♦', color: '#ffa45c' },
   C: { label: '♣', short: '♣', color: '#7ee0c3' },
+  H: { label: '♥', short: '♥', color: '#ff7a93' },
   misc: { label: 'misc', short: 'misc', color: '#b8b8b8' },
   to: { label: 'deal', short: 'deal', color: '#f2c14e' },
   // input markers (param sides, not outputs)

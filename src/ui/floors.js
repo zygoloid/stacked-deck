@@ -1,7 +1,7 @@
 // Floor numbering: every floor is a playing card. Levels name their card
 // (`card`: 'AS'…'KS' for the 52 suit floors, '?', '??', '$', '$$' for the
 // finale); without one it is derived from the chapter and the position in it
-// (chapters 1–4 are ♠ ♥ ♣ ♦, A to K; chapter 5's floors are ? ?? $ $$).
+// (chapters 1–4 are ♥ ♦ ♣ ♠, A to K; chapter 5's floors are ? ?? $ $$).
 //
 // Bonus floors (catalog.js BONUS) have their own `card` labels in the bonus
 // deck: a playing card or special card is drawn as one, any other string is
@@ -9,13 +9,10 @@
 //
 // The floor's levels (catalog.js FLOOR) keep the card they had in the
 // campaign.
-import { CHAPTERS } from '../levels.js';
+import { CHAPTERS, CHAPTER_SUITS, FINALE_CARDS } from '../levels.js';
 import { CAMPAIGN as LEVELS, BONUS, FLOOR } from './catalog.js';
 import { h, SUIT_GLYPH, SUIT_NAME, isSpecialCard, rankText, cardClass, SPECIAL_FACE } from './dom.js';
 import { RANKS } from '../cards.js';
-
-const CHAPTER_SUIT = { 1: 'S', 2: 'H', 3: 'C', 4: 'D' };
-const FINALE = ['?', '??', '$', '$$'];
 
 const isSuitCard = (c) => typeof c === 'string' && c.length === 2 && RANKS.includes(c[0]) && c[1] in SUIT_GLYPH;
 const chapterOf = (lv) => lv.chapter ?? 1;
@@ -32,8 +29,8 @@ export function floorCardOf(i) {
   const lv = LEVELS[i];
   if (isSuitCard(lv.card) || isSpecialCard(lv.card)) return lv.card;
   const ch = chapterOf(lv), n = position(i);
-  if (CHAPTER_SUIT[ch]) return n <= 13 ? RANKS[n - 1] + CHAPTER_SUIT[ch] : null;
-  return n <= FINALE.length ? FINALE[n - 1] : null;
+  if (CHAPTER_SUITS[ch]) return n <= 13 ? RANKS[n - 1] + CHAPTER_SUITS[ch] : null;
+  return n <= FINALE_CARDS.length ? FINALE_CARDS[n - 1] : null;
 }
 
 // Campaign index of a floor given as an index or a level (-1: not in the campaign).
@@ -85,7 +82,7 @@ export function chapterInfo(ch) {
   const suit = chapterSuit(ch);
   return {
     suit, glyph: suit ? SUIT_GLYPH[suit] : '✦', red: suit === 'H' || suit === 'D',
-    suitName: suit ? SUIT_NAME[suit] : (CHAPTER_SUIT[ch] ? `Chapter ${ch}` : 'Finale'),
+    suitName: suit ? SUIT_NAME[suit] : (CHAPTER_SUITS[ch] ? `Chapter ${ch}` : 'Finale'),
     name: CHAPTERS?.[ch] ?? '',
   };
 }
