@@ -3012,6 +3012,22 @@ try {
     await dragHex([2, 0], [1, 0]);
     check(await mp.locator('.cell.payout.bolted[data-at="2,0"]').count() === 1 && !(await work('opening-night'))?.cells?.length && ox > 0 && oy > 0,
       'a bolted floor\'s desk is drawn bolted and doesn\'t move');
+    // Multi-player / multi-desk floor (Pot Luck: Player A, Player B, Desk X, Desk Y):
+    // each names its seat/desk when selected and saves its seat/desk when moved.
+    await open('pot-luck');
+    const [ax, ay] = await at(-3, 0);
+    await mp.mouse.click(ax, ay);
+    check((await mp.textContent('.sel-bar .lift-n')).trim() === 'Player A' && (await mp.textContent('.inspector h3')).trim() === 'Player A',
+      'selecting a seated player names its seat (Player A)');
+    await dragHex([-3, 0], [-2, 0]);
+    await dragHex([2, 0], [1, 0]);
+    const plWork = await work('pot-luck');
+    check(plWork?.cells?.some((c) => c.kind === 'source' && c.seat === 0 && c.at.join() === '-2,0') &&
+      plWork?.cells?.some((c) => c.kind === 'payout' && c.desk === 1 && c.at.join() === '1,0'),
+      `multi-desk floor moves seated players and labelled desks independently (${JSON.stringify(plWork?.cells)})`);
+    await open('crossed-wires');
+    check(await mp.locator('.cell.source.bolted').count() === 3 && await mp.locator('.cell.payout.bolted').count() === 3,
+      'Crossed Wires keeps all three players and all three desks bolted');
     await mctx.close();
   }
 

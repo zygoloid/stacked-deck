@@ -193,6 +193,7 @@ export const LEVELS = [
     card: '3H',
     title: 'Two at a Time',
     difficulty: 1,
+    boltDesks: true,
     story: [
       'Business is good, so the house now deals two cards at a time, and the Marchetti twins have taken a table each. A two-card hand wins if its ranks are next to each other, like 7 and 8.',
       'Aces play high or low (A-2 and K-A both count), but a run does not wrap around the corner: K-2 is no good. A pair is not a run either. Your new croupier checks for runs.',
@@ -215,6 +216,7 @@ export const LEVELS = [
     card: '4H',
     title: 'Thursday\'s Game',
     difficulty: 3,
+    boltDesks: true,
     story: [
       'Old Thursday, a retired stage magician, has played every table in town for forty years and still pulls sevens out of mayors\' ears. His game: a two-card hand wins if its ranks are next to each other, or if both cards are the same suit. A hand that is both, like the 7 and 8 of hearts, is paid once.',
       'Runs work as before: aces high or low, no wrapping round the corner, and a pair is not a run.',
@@ -238,6 +240,7 @@ export const LEVELS = [
     card: '5H',
     title: 'Three\'s Company',
     difficulty: 2,
+    boltDesks: true,
     story: [
       'Old Thursday and the Marchetti twins share a table at last, and each lays down one card a deal. When the three cards make a run (4, 5 and 6, dealt in any order), the house pays all three together as one hand, stacked in seating order: player A\'s card on top, then B\'s, then C\'s. Otherwise, nothing.',
       'Your new croupier gathers: it stacks two hands into one.',

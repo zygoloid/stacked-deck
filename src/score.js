@@ -18,21 +18,19 @@ export const warRules = (level) => (Array.isArray(level.warRules) && level.warRu
 export const specialCardsOf = (level) => SPECIALS.filter((c) => Array.isArray(level?.specialCards) && level.specialCards.includes(c));
 
 // ---------- moving the players and chip desks ----------
-// On most floors the player may move the card player and the chip desk
-// (turning the player, too): on a floor with one player and one desk, unless
-// the floor bolts them down (`boltDesks: true`, for floors whose puzzle is
-// where they stand: docs/campaign.md). A machine that moves one holds a copy
-// of it, a "mover", among its cells: the level's cell with its new `at` (and,
-// for a player, its new `out`). One left where the level puts it isn't in
-// the machine at all, so every machine from before players and desks could
-// move is the same machine (same canonical form, hash and check deals).
+// On most floors the player may move the card players and chip desks (turning
+// players, too), unless the floor bolts them down (`boltDesks: true`, for the
+// opening floors and floors whose puzzle is where they stand: docs/campaign.md).
+// Where there are several players or several desks on a movable floor, each is
+// identified by its `seat` or `desk`. A machine that moves one holds a copy of
+// it, a "mover", among its cells: the level's cell with its new `at` (and, for
+// a player, its new `out`). One left where the level puts it isn't in the
+// machine at all, so every machine from before players and desks could move is
+// the same machine (same canonical form, hash and check deals).
 export const isMover = (c) => c?.kind === 'source' || c?.kind === 'payout';
 
-const players = (level) => level.fixed.filter((c) => c.kind === 'source');
-const desks = (level) => level.fixed.filter((c) => c.kind === 'payout');
-
-// Whether the player may move this floor's player and chip desk.
-export const desksMove = (level) => !level.boltDesks && players(level).length === 1 && desks(level).length === 1;
+// Whether the player may move this floor's players and chip desks.
+export const desksMove = (level) => !level.boltDesks;
 
 // The hexes of a level the player may build on (and where movable players and
 // chip desks may stand: their starting hexes are ordinary floor hexes).

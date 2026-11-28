@@ -115,9 +115,9 @@ export const CROUPIERS = {
 
 export const SIDE_NAMES = ['E', 'SE', 'SW', 'W', 'NW', 'NE'];
 
-// The card player and the chip desk, on a floor where they can be moved
-// (src/score.js: `desksMove`): selected and dragged like croupiers, and the
-// player turned. Not croupiers, so not in the palette or the help's list.
+// Card players and chip desks, on a floor where they can be moved
+// (src/score.js: `desksMove`): selected and dragged like croupiers, and
+// players turned. Not croupiers, so not in the palette or the help's list.
 export const FIXED_INFO = {
   source: {
     name: 'Player', abbr: 'PLAYER', family: '#4a5568', ports: ['out'], required: ['out'],
@@ -129,7 +129,26 @@ export const FIXED_INFO = {
   },
 };
 
-export const infoFor = (cell) => (cell.kind === 'shoe' ? CROUPIERS.shoe : FIXED_INFO[cell.kind] ?? CROUPIERS[cell.fn]);
+export function infoFor(cell) {
+  if (cell.kind === 'shoe') return CROUPIERS.shoe;
+  if (cell.kind === 'source' && cell.seat !== undefined) {
+    const seat = 'ABCDEF'[cell.seat] ?? String(cell.seat + 1);
+    return {
+      ...FIXED_INFO.source,
+      name: `Player ${seat}`,
+      desc: `Hands out player ${seat}'s test hands (marked ${seat} in the list). Drag it to move it; it can go anywhere on the floor.`,
+    };
+  }
+  if (cell.kind === 'payout' && cell.desk !== undefined) {
+    const desk = 'XYZW'[cell.desk] ?? String(cell.desk + 1);
+    return {
+      ...FIXED_INFO.payout,
+      name: `Chip desk ${desk}`,
+      desc: `Pays out the hands that reach it (marked → ${desk} in the expected payouts), from any side. Drag it to move it; it can go anywhere on the floor.`,
+    };
+  }
+  return FIXED_INFO[cell.kind] ?? CROUPIERS[cell.fn];
+}
 // A cell for showing a palette entry or help row: every param at its default.
 export function sampleCell(tool) {
   if (tool === 'shoe') return { kind: 'shoe' };
@@ -143,6 +162,8 @@ export const toolOf = (cell) => (cell.kind === 'shoe' ? 'shoe' : cell.fn);
 // Short label drawn on the chip.
 export function chipLabel(cell) {
   if (cell.kind === 'shoe') return 'SHOE';
+  if (cell.kind === 'source' && cell.seat !== undefined) return `PLY·${'ABCDEF'[cell.seat] ?? cell.seat + 1}`;
+  if (cell.kind === 'payout' && cell.desk !== undefined) return `DSK·${'XYZW'[cell.desk] ?? cell.desk + 1}`;
   if (FIXED_INFO[cell.kind]) return FIXED_INFO[cell.kind].abbr;
   if (cell.fn === 'kind') return `K${cell.n ?? 2}`;
   if (cell.fn === 'hand') return `HND${cell.n ?? 5}`;

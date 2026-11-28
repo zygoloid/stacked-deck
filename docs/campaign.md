@@ -499,30 +499,30 @@ only when it has a floor.
 
 ### Moving the players and desks
 
-On a floor with one player and one chip desk the player may move both, and
-turn the player (docs/architecture.md, "Moving players and desks"). So par
-and the floor's shape no longer fix how far apart they are: a reference that
-ends in a line of passes to the desk can lose them (Upper Hand: 4 → 3 with
-the desk on the last Pass's hex), which is fine, as par is the plain build.
+The player may move a floor's players and chip desks, and turn the players
+(docs/architecture.md, "Moving players and desks"), unless the floor sets
+`boltDesks: true`. So par and the floor's shape no longer fix how far apart
+they are: a reference that ends in a line of passes to the desk can lose them
+(Upper Hand: 4 → 3 with the desk on the last Pass's hex), which is fine, as par
+is the plain build.
 
-Floors with more than one player or desk keep them bolted for now: they are
-simpler that way (which player feeds which desk, seats in turn). That could
-be relaxed later; a floor whose places matter would then need `boltDesks`.
-
-A floor whose puzzle is where they stand bolts them down with `boltDesks:
-true` (drawn with bolts; test/compat.js keeps a floor that has shipped
-movable from being bolted later):
+The first five campaign floors (`A♥`–`5♥`) and any floor whose puzzle is where
+the players and desks stand bolt them down with `boltDesks: true` (drawn with
+bolts; test/compat.js keeps a floor that has shipped movable from being bolted
+later):
 
 | Floor | Why |
 |---|---|
 | A♥ first-night, 2♥ red-and-black | the tutorial points at hexes; Red and Black's notes weigh sharing a side against routes round to the desks |
+| 3♥ two-at-a-time, 4♥ thursdays-game, 5♥ threes-company | the opening sequence: Two at a Time's second table would collapse to one croupier, Thursday's Game places two unlabelled desks for its two branches, and Three's Company aims A/B/C at the first Gather build |
 | A♥ opening-night, 2♥ around-the-bar, 3♥ two-tables (the floor) | passes only: the route is the puzzle (each would need no croupiers) |
 | 5♥ seeing-red, 6♥ standing-room, 7♥ black-tie, 8♥ back-to-back, 9♥ next-door (the floor) | the layout is the puzzle: a wheel in the way, palms, cramped, by the door, a corridor |
 | 9♦ crossed-wires, K♠ uneven-tables (bonus) | every player is paid at the desk opposite: the crossing is the puzzle |
 | 3♥ dumbwaiter (bonus) | the players' and desk's rooms are joined only by the bolted Hand(1) |
 
-When adding a floor with one player and one desk, decide whether it needs
-`boltDesks` (would moving them make the puzzle trivial or beside the point?).
+When adding a floor, decide whether it needs `boltDesks` (would moving them
+make the puzzle trivial or beside the point?), and ensure multiple players or
+desks on a movable floor are seated/labelled so movers are uniquely identified.
 
 ### Design rules
 

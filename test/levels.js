@@ -134,6 +134,12 @@ async function checkOneLevel(level, bonusSpecialsMap) {
   const seats = labels('source', 'seat').filter((x) => x !== undefined).length;
   const desks = labels('payout', 'desk').filter((x) => x !== undefined).length;
   checkL(desks <= 1 || hasExpected, 'labelled desks only on an expected level');
+  if (!level.boltDesks) {
+    const nSrc = level.fixed.filter((c) => c.kind === 'source').length;
+    const nPay = level.fixed.filter((c) => c.kind === 'payout').length;
+    checkL(nSrc <= 1 || seats === nSrc, 'movable floor with multiple players seats all of them');
+    checkL(nPay <= 1 || desks === nPay, 'movable floor with multiple desks labels all of them');
+  }
   checkL(level.tests.length >= 3, 'at least 3 tests');
   for (const t of level.tests) {
     checkL(t.some(Boolean), 'test has hands');

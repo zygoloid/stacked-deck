@@ -186,11 +186,15 @@ console.log('check deals ok');
 // Moving the player and the chip desk (src/score.js: desksMove, movers).
 {
   const { desksMove, buildable, sanitizeCells, withMovers, fixedOf } = await import('../src/score.js');
-  // Floors with one player and one desk move them unless bolted down; floors
-  // with more never (yet).
+  // Every floor moves its players and desks unless bolted down (`boltDesks`).
   for (const level of ALL) {
-    const one = level.fixed.filter((c) => c.kind === 'source').length === 1 && level.fixed.filter((c) => c.kind === 'payout').length === 1;
-    assert.strictEqual(desksMove(level), one && !level.boltDesks, level.id);
+    assert.strictEqual(desksMove(level), !level.boltDesks, level.id);
+  }
+  for (const id of ['first-night', 'red-and-black', 'two-at-a-time', 'thursdays-game', 'threes-company', 'crossed-wires', 'uneven-tables', 'dumbwaiter']) {
+    assert(!desksMove(byId.get(id)), `${id} stays bolted`);
+  }
+  for (const id of ['in-the-black', 'sevens-and-eights', 'face-off', 'pot-luck', 'follow-suit']) {
+    assert(desksMove(byId.get(id)), `${id} is unbolted`);
   }
   // Upper Hand's reference ends Wheel → Pass → desk: the desk can stand on
   // the Pass's hex instead, and its old starting hex is an ordinary buildable
@@ -230,6 +234,26 @@ console.log('check deals ok');
   assert(!ok([...ref, { at: [...desk.at], kind: 'croupier', fn: 'pass', out: { out: 0 } }]), 'croupier onto unmoved desk');
   assert(ok([...ref.filter((c) => c !== pass), { at: pass.at, kind: 'payout' }, { at: [0, 1], kind: 'source', out: 0 }]), 'both moved');
   assert(!ok([...moved.slice(0, -1), { at: pass.at, kind: 'payout', facing: 2 }]), 'unknown field');
+  // Multi-player, multi-desk floor (Pot Luck: seats 0, 1 and desks 0, 1).
+  const potLuck = byId.get('pot-luck');
+  const plRef = await reference(potLuck);
+  const [pA, pB] = potLuck.fixed.filter((c) => c.kind === 'source');
+  const [dX, dY] = potLuck.fixed.filter((c) => c.kind === 'payout');
+  assert.strictEqual(canonicalCells(sanitizeCells(potLuck, withMovers(potLuck, plRef))), canonicalCells(plRef), 'unmoved multi-movers strip cleanly');
+  const swapPlayers = [
+    { at: [...pB.at], kind: 'source', out: pB.out, seat: 0 },
+    { at: [...pA.at], kind: 'source', out: pA.out, seat: 1 },
+  ];
+  assert.deepStrictEqual(validateCells(potLuck, swapPlayers).cells, swapPlayers, 'seated players may swap places');
+  assert.notStrictEqual(
+    canonicalCells([{ at: [0, 2], kind: 'payout', desk: 0 }]),
+    canonicalCells([{ at: [0, 2], kind: 'payout', desk: 1 }]),
+    'desk 0 and desk 1 have distinct canonical forms',
+  );
+  assert.match(validateCells(potLuck, [{ at: [0, 2], kind: 'payout' }]).error, /no such player or desk/, 'missing desk label rejected');
+  assert.match(validateCells(potLuck, [{ at: [0, 2], kind: 'payout', desk: 2 }]).error, /no such player or desk/, 'out-of-range desk label rejected');
+  assert.match(validateCells(potLuck, [{ at: [0, 2], kind: 'payout', desk: 0 }, { at: [1, 2], kind: 'payout', desk: 0 }]).error, /moved twice/, 'same desk moved twice rejected');
+  assert(!validateCells(potLuck, [{ at: [...dY.at], kind: 'payout', desk: 0 }, { at: [0, 2], kind: 'payout', desk: 1 }]).error, 'desk X may take vacated desk Y hex');
   const bolted = byId.get('opening-night');
   assert(bolted.boltDesks && !desksMove(bolted));
   assert(!buildable(bolted).has(bolted.fixed[0].at.join(',')), 'bolted starting hexes are not buildable');

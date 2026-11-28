@@ -1078,7 +1078,13 @@ export function openEditor(root, ctx, level) {
         h('ul', { class: 'howto' },
           h('li', {}, `${Tap()} an empty hex to place a croupier there.`),
           h('li', {}, `Select a croupier, then ${tap()} the edges of its hex to point its ports.`),
-          desksMove(level) ? h('li', {}, `Drag the player or the chip desk to move it. Select the player, then ${tap()} an edge of its hex to turn it.`) : null,
+          desksMove(level) ? (() => {
+            const nSrc = level.fixed.filter((f) => f.kind === 'source').length;
+            const nPay = level.fixed.filter((f) => f.kind === 'payout').length;
+            return h('li', {}, nSrc === 1 && nPay === 1
+              ? `Drag the player or the chip desk to move it. Select the player, then ${tap()} an edge of its hex to turn it.`
+              : `Drag ${nSrc > 1 ? 'the players' : 'the player'} or ${nPay > 1 ? 'the chip desks' : 'the chip desk'} to move them. Select ${nSrc > 1 ? 'a' : 'the'} player, then ${tap()} an edge of its hex to turn it.`);
+          })() : null,
           h('li', { class: 'touch-only' }, 'Long-press to pick up a group.'),
           h('li', { class: 'kbd-only' }, 'Shift-click or Shift-drag to pick up a group.'),
           h('li', {}, 'Press play to watch a test. Pass every test to clear the floor.')),
