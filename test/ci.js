@@ -121,9 +121,10 @@ const B_NEW = 'bbbb222222222222222222222222222222222222';
   assert.deepStrictEqual(got, { liveRef: M_V10, betaRef: B_NEW });
 }
 
-// 4. waitForArtifact: retries empty/expired REST listings until indexed, and fails on timeout.
+// 4. waitForArtifact: honours minWaitMs settle delay, retries empty/expired REST listings, and fails on timeout.
 {
-  let calls = 0, sleeps = 0;
+  let calls = 0;
+  const sleeps = [];
   const fetchFn = async () => {
     calls++;
     if (calls === 1) return { ok: true, status: 200, json: async () => ({ total_count: 0, artifacts: [] }) };
@@ -131,15 +132,15 @@ const B_NEW = 'bbbb222222222222222222222222222222222222';
     return { ok: true, status: 200, json: async () => ({ total_count: 1, artifacts: [{ id: 42, name: 'github-pages', expired: false, size_in_bytes: 540000 }] }) };
   };
   const art = await waitForArtifact({
-    repo: 'o/r', runId: '999', attempts: 5, intervalMs: 10, fetchFn, sleepFn: async () => { sleeps++; },
+    repo: 'o/r', runId: '999', attempts: 5, intervalMs: 10, fetchFn, sleepFn: async (ms) => { sleeps.push(ms); },
   });
   assert.strictEqual(art.id, 42);
   assert.strictEqual(calls, 3);
-  assert.strictEqual(sleeps, 2);
+  assert.deepStrictEqual(sleeps, [5000, 10, 10]);
 
   await assert.rejects(
     waitForArtifact({
-      repo: 'o/r', runId: '999', attempts: 2, intervalMs: 1,
+      repo: 'o/r', runId: '999', minWaitMs: 0, attempts: 2, intervalMs: 1,
       fetchFn: async () => ({ ok: true, status: 200, json: async () => ({ total_count: 0, artifacts: [] }) }),
       sleepFn: async () => {},
     }),
@@ -149,11 +150,14 @@ const B_NEW = 'bbbb222222222222222222222222222222222222';
 
 // 5. Workflow invariants (.github/workflows/deploy.yml): SHA-pinned actions,
 // persist-credentials: false on every checkout, no cache or pull_request_target,
-// and the `test` status-check job required by the main branch ruleset.
+// the `test` status-check job required by the main branch ruleset, and a retry
+// step for actions/deploy-pages against Twirp ListArtifacts lag.
 {
   const yml = readFileSync(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
   assert.doesNotMatch(yml, /pull_request_target|actions\/cache/);
   assert.match(yml, /^  test:\n    needs: \[unit, ui-smoke, emulator\]/m);
+  assert.match(yml, /id:\s*deployment\n\s+continue-on-error:\s*true/);
+  assert.match(yml, /id:\s*deployment_retry\n\s+if:\s*steps\.deployment\.outcome\s*!=\s*'success'/);
   const uses = [...yml.matchAll(/\buses:\s*([^\s#]+)/g)].map((m) => m[1]);
   assert(uses.length > 0 && uses.every((u) => /^[^@]+@[0-9a-f]{40}$/.test(u)), `unpinned action: ${uses}`);
   const checkouts = yml.split(/\buses:\s*actions\/checkout@/).slice(1);
