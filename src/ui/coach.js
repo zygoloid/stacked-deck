@@ -33,7 +33,6 @@
 // floor's story page offers it again (forgetTutorial).
 import { h, uiScale } from './dom.js';
 import { CHANNEL } from '../build.js';
-import { fixedOf } from '../score.js';
 
 const KEY = CHANNEL === 'beta' ? 'stacked-deck-beta-coach' : 'stacked-deck-coach';
 
@@ -74,21 +73,16 @@ export function forgetTutorial(id) {
 }
 
 const hexKey = ([q, r]) => `${q},${r}`;
-// A step that asks for a croupier (or moving a player or desk).
-const builds = (until) => !!(until?.cell || until?.moved || until?.any);
+// A step that asks for a croupier.
+const builds = (until) => !!(until?.cell || until?.any);
 
 // Whether `state` ({ cells, round, cleared }) meets a step's `until`;
 // `acked`: Next was pressed on it.
-function met(until, state, acked, startFixed = []) {
+function met(until, state, acked) {
   if (until === 'next') return acked;
   if (until === 'ran') return state.round > 0;
   if (until === 'cleared') return !!state.cleared;
-  if (until?.any) return until.any.some((u) => met(u, state, acked, startFixed));
-  if (until?.moved) {
-    const f = startFixed.find((x) => x.kind === until.moved);
-    const c = state.cells.find((x) => x.kind === until.moved && x.seat === f?.seat && x.desk === f?.desk);
-    return !!(f && c && (hexKey(c.at) !== hexKey(f.at) || c.out !== f.out));
-  }
+  if (until?.any) return until.any.some((u) => met(u, state, acked));
   if (until?.cell) {
     const want = until.cell;
     const c = state.cells.find((x) => hexKey(x.at) === hexKey(want.at));
@@ -115,7 +109,6 @@ export function createCoach(level, { tapWord, root, changed }) {
   const all = level.tutorial ?? [];
   const steps = all.filter((st) => !st.on);
   const onFail = all.find((st) => st.on === 'failed') ?? null;
-  const startFixed = fixedOf(level, level.startCells ?? []);
   const el = h('div', { class: 'coach hidden', role: 'status', 'aria-live': 'polite' });
   const dim = h('div', { class: 'coach-dim', 'aria-hidden': 'true' });
   const layer = h('div', { class: 'coach-layer' }, dim);
@@ -153,15 +146,15 @@ export function createCoach(level, { tapWord, root, changed }) {
   // far) waits for Next, unless the player gets further ahead.
   function advance() {
     if (!on) return;
-    const built = (j) => steps.slice(0, j).every((st) => !builds(st.until) || met(st.until, state, false, startFixed));
+    const built = (j) => steps.slice(0, j).every((st) => !builds(st.until) || met(st.until, state, false));
     for (let j = steps.length - 1; j > far; j--) {
       const u = steps[j].until;
-      if (u !== 'next' && met(u, state, false, startFixed) && (u === 'cleared' || built(j))) { index = far = j; acked = false; break; }
+      if (u !== 'next' && met(u, state, false) && (u === 'cleared' || built(j))) { index = far = j; acked = false; break; }
     }
     // Looking back, and the step reached is done: on from there.
-    if (index < far && steps[far].until !== 'next' && met(steps[far].until, state, false, startFixed)) { index = far; acked = false; }
+    if (index < far && steps[far].until !== 'next' && met(steps[far].until, state, false)) { index = far; acked = false; }
     if (index < far) return;
-    while (index < steps.length && met(steps[index].until, state, acked, startFixed)) { index++; acked = false; }
+    while (index < steps.length && met(steps[index].until, state, acked)) { index++; acked = false; }
     far = index;
     if (index >= steps.length) finish();
   }

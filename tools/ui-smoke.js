@@ -3114,19 +3114,18 @@ try {
     check(crawlAfter.rebuilt && crawlBefore < -3 && crawlAfter.off <= crawlBefore + 0.5,
       `hovering a ringed tutorial hex rebuilds the SVG without resetting the ant crawl (${crawlBefore.toFixed(1)} -> ${crawlAfter.off.toFixed(1)}, ${crawlAfter.delay})`);
 
-    // 3. High Card tutorial (startCells + { moved }), War default dealer heuristics & PORTS keyboard footer.
+    // 3. High Card one-step note + startCells, War default dealer heuristics & PORTS keyboard footer.
     await kp.goto(`${base}?unlockall#/level/high-card`);
     await kp.waitForSelector('svg.board');
     check(await kp.locator('svg.board .cell.source[data-at="-3,0"]').count() === 1 &&
       await kp.locator('svg.board .cell.payout[data-at="1,0"]').count() === 1 &&
-      ((await kp.textContent('.coach:not(.hidden) .coach-count')) || '').trim() === '1 / 3',
-      'High Card starts with player at [-3,0], desk at [1,0], and tutorial step 1 / 3');
+      await kp.locator('.coach:not(.hidden) .coach-count').count() === 0 &&
+      ((await kp.textContent('.coach:not(.hidden) .coach-next')) || '').trim() === 'Got it',
+      'High Card starts with player at [-3,0], desk at [1,0], and a one-step note ("Got it")');
+    await kp.click('.coach-next');
+    check(await kp.locator('.coach.hidden').count() === 1, 'Got it dismisses High Card\'s note');
     await dragCenter([-3, 0], [-2, 0]);
-    check(((await kp.textContent('.coach:not(.hidden) .coach-count')) || '').trim() === '2 / 3',
-      'moving High Card player advances tutorial to 2 / 3');
     await dragCenter([1, 0], [0, 0]);
-    check(((await kp.textContent('.coach:not(.hidden) .coach-count')) || '').trim() === '3 / 3',
-      'moving High Card chip desk advances tutorial to 3 / 3');
     await kp.evaluate(() => document.activeElement?.blur?.());
     // Keyboard activation of .pal-item via Enter and Space (Space doesn't start Play).
     await kp.focus('.pal-item[data-tool="pass"]');
@@ -3235,15 +3234,13 @@ try {
     await clickCenter([-1, 0]);
     const sideUnlabelled = await kp.$$eval('.inspector .side-btn', (bs) => bs.filter((b) => !b.getAttribute('aria-label')).length);
     check(sideUnlabelled === 0 && await kp.locator('.inspector .side-btn').count() === 6, 'inspector side buttons all have aria-labels');
-    await kp.click('.coach-skip');
     await kp.goto(`${base}?unlockall#/level/high-card/story`);
     await kp.waitForSelector('.coach-again');
     await kp.click('.coach-again');
     await kp.waitForSelector('svg.board');
-    check(await kp.locator('svg.board .cell.source[data-at="-3,0"]').count() === 1 &&
-      await kp.locator('svg.board .cell.payout[data-at="1,0"]').count() === 1 &&
-      ((await kp.textContent('.coach:not(.hidden) .coach-count')) || '').trim() === '1 / 3',
-      'Replay tutorial on High Card restores startCells ([-3,0], [1,0]) and restarts at 1 / 3');
+    check(await kp.locator('.coach:not(.hidden) .coach-next').count() === 1 &&
+      await kp.locator('svg.board .cell.shoe[data-at="-1,0"]').count() === 1,
+      'Replay tutorial on High Card shows its note again over the machine as it is');
     await kctx.close();
   }
 

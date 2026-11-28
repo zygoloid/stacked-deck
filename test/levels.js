@@ -45,7 +45,7 @@ import {
   runTest, expectedPayouts, payoutKey, payoutHand, FUNCTIONS, DIRS,
 } from '../src/engine.js';
 import { RANKS, SUITS, SPECIALS } from '../src/cards.js';
-import { checkDeals, totalRounds, MAX_HAND, cellError, validateCells, buildable, countCroupiers } from '../src/score.js';
+import { checkDeals, totalRounds, MAX_HAND, cellError, validateCells, countCroupiers } from '../src/score.js';
 
 const MUTANTS = {}, DOOR = [];
 for (const name of [...Object.values(CHAPTER_FILES), BONUS_FILE, FLOOR_FILE]) {
@@ -188,30 +188,27 @@ async function checkOneLevel(level, bonusSpecialsMap) {
   }
   if (level.tutorial !== undefined) {
     const COACH_UI = ['play', 'tests', 'ports', 'roster', 'undo', 'brief', 'stats'];
-    const openHexes = buildable(level);
     checkL(Array.isArray(level.tutorial) && level.tutorial.length > 0, 'tutorial is a list of steps');
     checkL(level.tutorial?.some((st) => !st.on), 'tutorial has a step in its sequence (not only on-failed ones)');
     checkL((level.tutorial ?? []).filter((st) => st.on === 'failed').length <= 1, 'tutorial has at most one on-failed step');
     for (const [i, st] of (level.tutorial ?? []).entries()) {
       const where = `tutorial step ${i + 1}:`;
       checkL(typeof st.say === 'string' && st.say.length, `${where} says something`);
-      checkL(st.at === undefined || floor.has(key(st.at)) || openHexes.has(key(st.at)), `${where} rings a hex on the floor`);
+      checkL(st.at === undefined || floor.has(key(st.at)), `${where} rings a hex on the floor`);
       checkL(st.side === undefined || (st.at && Number.isInteger(st.side) && st.side >= 0 && st.side < 6), `${where} side is an edge of its hex`);
       checkL(st.ui === undefined || COACH_UI.includes(st.ui), `${where} ui ${st.ui} is one coach.js knows`);
       checkL(st.modal === undefined || (st.modal === true && i === 0 && st.until === 'next'), `${where} modal only on the first step, which waits for Next`);
       checkL(st.on === undefined || (st.on === 'failed' && st.until === 'next' && !st.at && !st.modal), `${where} on is 'failed', on a step that waits for Next and rings no hex`);
       const u = st.until;
       const cellOk = (x) => x && x.cell && Array.isArray(x.cell.at);
-      const movedOk = (x) => x && (x.moved === 'source' || x.moved === 'payout');
-      const stepOk = (x) => cellOk(x) || movedOk(x);
-      checkL(['next', 'ran', 'cleared'].includes(u) || stepOk(u) || (Array.isArray(u?.any) && u.any.length && u.any.every(stepOk)),
-        `${where} until is next, ran, cleared, { cell }, { moved } or { any }`);
+      checkL(['next', 'ran', 'cleared'].includes(u) || cellOk(u) || (Array.isArray(u?.any) && u.any.length && u.any.every(cellOk)),
+        `${where} until is next, ran, cleared, { cell } or { any: [{ cell }, ...] }`);
       const inRef = (x) => {
         const ref = cells.find((c) => key(c.at) === key(x.cell.at));
         return ref && (!x.cell.fn || (ref.fn ?? ref.kind) === x.cell.fn) &&
           Object.entries(x.cell.out ?? {}).every(([port, side]) => (side === '*' ? ref.out?.[port] !== undefined : ref.out?.[port] === side));
       };
-      const alts = (u?.cell ? [u] : u?.any ?? []).filter(cellOk);
+      const alts = u?.cell ? [u] : u?.any ?? [];
       if (alts.length) checkL(alts.some(inRef), `${where} a croupier it asks for (${alts.map((x) => `${x.cell.fn} at ${x.cell.at}`).join(' or ')}) is in the reference solution`);
     }
   }

@@ -878,8 +878,8 @@ export function storyScreen(root, ctx, level) {
             onclick: () => {
               forgetTutorial(level.id);
               const ls = ctx.save.levels[level.id];
-              if (level.tutorial.length > 1 && (ls?.cells?.length || level.startCells)) {
-                (ctx.save.levels[level.id] ??= {}).cells = level.startCells ? structuredClone(level.startCells) : [];
+              if (level.tutorial.length > 1 && ls?.cells?.length) {
+                ls.cells = [];
                 ctx.persist();
                 ctx.cloud?.levelChanged(level.id, { work: true });
               }

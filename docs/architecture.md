@@ -95,8 +95,8 @@ puts it is never in the machine: `sanitizeCells` drops it and `validateCells`
 refuses it, so every machine from before players and desks could move keeps its
 canonical form, hash and check deals. A floor may also give `startCells` (High
 Card), initial cells loaded only when a floor has not yet been touched or
-solved (and on Replay tutorial), so its starting positions can differ from
-`fixed` without breaking saved solutions. `fixedOf(level, cells)` is the level's
+solved, so its starting positions can differ from `fixed` without breaking
+saved solutions. `fixedOf(level, cells)` is the level's
 fixed cells with the machine's movers in place; `toSpec` uses it, and ignores
 movers on a floor where nothing moves. The editor works on `withMovers(level, cells)`,
 the machine plus a mover for every one still at home, so they are selected,
@@ -268,27 +268,27 @@ of the editor (`play`, `tests`, `ports`, `roster`, `undo`, `brief`,
 `until` is `'next'` (the player presses Next), `'ran'` (a test has
 run), `'cleared'` (since the editor opened), `{ cell: { at, fn, out? } }`
 (that croupier there, with those ports; `'*'` for a port pointed anywhere),
-`{ moved: 'source' | 'payout' }` (that mover moved or turned from its initial
-position), or `{ any: [...] }` (any one of those). `modal: true` (the first step only)
+or `{ any: [...] }` (any one of those). `modal: true` (the first step only)
 shows that step as a dialog in the middle of the screen, which on Next flies
 up into the strip, so the player sees where the tutorial lives (the first
 floor's welcome). `on: 'failed'` takes a step (one waiting for Next) out of
 the sequence: it shows the first time in a visit that a run fails, then the
 tutorial goes back to where it was (the second floor's: the rules are in the
 brief). Steps only go forward, and a player who is ahead skips the steps
-between: to a later step that is done when every croupier (or move) the steps before it
+between: to a later step that is done when every croupier the steps before it
 ask for is in place too (so pressing play early doesn't skip the building),
 or to `'cleared'`. Back shows the steps before, skipped ones too, each with
 Next, until the player is back where they were. The last step is usually
 `'cleared'`: the results that follow would hide anything after it. Finishing or skipping
 it is remembered in this browser (`stacked-deck-coach`); the floor's story
-page offers it again (Replay the tutorial, on an empty floor or `startCells`). A tutorial of
-one step is a note (no count, no Skip, no Back, and no replay). `test/levels.js`
-checks the steps, and that every croupier a step asks for is in the floor's
-reference solution. The first two floors and A♦ High Card carry tutorials, which explain
-the controls and moving players/desks, never the floor's solution. Notes: 6♥, the first big step up,
-says floors can be left for later; 4♦ says clearing some floors opens bonus
-floors.
+page offers it again (Replay the tutorial, on an empty floor). A tutorial of
+one step is a note (no count, no Skip, no Back, and Replay tutorial shows it
+over the floor as it is). `test/levels.js` checks the steps, and that every
+croupier a step asks for is in the floor's reference solution. The first two
+floors carry a tutorial, which explains the controls, never the floor's
+solution. Notes: 6♥, the first big step up, says floors can be left for later;
+A♦ says players and chip desks can now be moved; 4♦ says clearing some floors
+opens bonus floors.
 
 **Payouts.** A `pays` level pays out a subset of the input hands unchanged. An
 `expected` level lists the hands the chip desk should receive for a test's

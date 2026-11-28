@@ -76,10 +76,9 @@ export const LEVELS = [
     // Movable desks debut here: start with the player one hex west and the
     // desk one hex east while keeping F1 unchanged so earlier solutions stay valid.
     startCells: [source([-3, 0], E), desk([1, 0])],
+    // A note (a one-step tutorial, src/ui/coach.js): movable players and desks.
     tutorial: [
-      { say: 'Players and chip desks are unbolted from here on (except where you see bolts in their corners). Drag the player table closer to the middle of the floor; with a player selected, {click}ing an edge turns it.', at: [-3, 0], until: { moved: 'source' } },
-      { say: 'Drag the chip desk closer too, so you don\'t need extra Passes to reach it.', at: [1, 0], until: { moved: 'payout' } },
-      { say: 'Now meet War: she plays a player\'s card against a dealer\'s card from her dealer side (ties go to the house). Pay every card that beats a 9.', until: 'cleared' },
+      { say: 'Players and chip desks are no longer bolted down (unless you see bolts in their corners): you can drag them around the floor, and select a player to turn it.', until: 'next' },
     ],
     handSize: 1,
     floor: floorOf(hexRange(2, [-1, 0]), F1),

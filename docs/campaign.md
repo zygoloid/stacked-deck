@@ -38,7 +38,7 @@ into chapter 1 (Flush now comes after War):
 | 7♥ | cut | Top and Bottom |
 | 8♥ | shoe | The Neighbours |
 | 10♥ | kind (n 2–8) | Sevens and Eights |
-| A♦ | war (high card); movable players and desks (tutorial) | High Card |
+| A♦ | war (high card); movable players and desks (note) | High Card |
 | 4♦ | flush | Red Flush |
 | A♣ | duplicate | Upper Hand |
 | 3♣ | set | Top Pair |
@@ -111,7 +111,7 @@ War first, then Flush. The floors this replaced are on the floor.
 
 | Card | id | Title | New | Hand | Puzzle | Reference (par) | Diff | Reused |
 |---|---|---|---|---|---|---|---|---|
-| A♦ | high-card | High Card | war; movable players and desks (tutorial) | 1 | beats a 9 | War vs a 9 shoe (2/58; `startCells` starts the player one hex west and the desk one hex east) | 2 | new (a small Beat the Dealer) |
+| A♦ | high-card | High Card | war; movable players and desks (note) | 1 | beats a 9 | War vs a 9 shoe (2/58; `startCells` starts the player one hex west and the desk one hex east) | 2 | new (a small Beat the Dealer) |
 | 2♦ | small-stakes | Small Stakes | aces high; ties go to the house | 1 | A to 4, the ace low | the hand plays a 4 and 2 to 4 lose to it (a 4 ties, and ties go to the house); the rest play a K, which only an ace beats (4/88). The K first is a round faster: 4/87 | 3 | new |
 | 3♦ | face-off | Face Off | a player's card as the dealer; ties | 1, two players | **expected**: the higher card of each deal, on its own; a tie pays nothing | gather, Kind (2) drops the ties, cut, the halves play War, both winners' ports to the desk (5/83). Smaller and faster with two Wars: A plays B and a win is paid; B (the winner, or a tie) then plays A, which comes round by a pass, and a win is paid (3/63). The desk sits by the players so that build needs no more passes | 4 | new |
 | 4♦ | red-flush | Red Flush | flush | 3 | red flushes | flush, then suits H D (3/53). Grown to the same floor as Off Suit, Night Off, Skeleton Crew and No Kings, which it opens | 3 | yes (was A♦) |
@@ -503,7 +503,7 @@ From chapter 2 (`A♦` High Card) on, the player may move a floor's players and
 chip desks, and turn the players (docs/architecture.md, "Moving players and
 desks"), unless the floor sets `boltDesks: true` (or `stayInRoom: true` on
 Dumbwaiter, which lets the player and desk move only within their own rooms).
-High Card introduces unbolted desks with a short tutorial and `startCells`
+High Card introduces unbolted desks with a one-step note and `startCells`
 placing the player one hex west and the desk one hex east while keeping `fixed`
 unchanged so earlier solutions stay valid. So par and the floor's shape no
 longer fix how far apart they are: a reference that ends in a line of passes to
