@@ -13,11 +13,15 @@
 //   exists); `beta` publishes its own `GITHUB_SHA` at `/beta/` and keeps `/`
 //   at the commit `main` last published to `github-pages`.
 //
-// Why `wait-artifact` is needed:
+// Why `wait-artifact` (plus retrying `actions/deploy-pages`) is needed:
 // - `actions/upload-pages-artifact` finalizes via Twirp storage, while
-//   `actions/deploy-pages` immediately queries the eventually-consistent REST
-//   `/actions/runs/{id}/artifacts` endpoint and fails without retrying when
-//   it returns 0 artifacts ~450 ms later.
+//   `actions/deploy-pages` queries Twirp `ArtifactService/ListArtifacts` (using
+//   `ACTIONS_RUNTIME_TOKEN`, which GitHub only exposes to `uses:` actions, not
+//   `run:` steps). Even after the REST `/actions/runs/{id}/artifacts` endpoint
+//   lists the artifact (~350 ms), Twirp `ListArtifacts` replicas can still
+//   return 0 artifacts ~750 ms after finalization and fail without retrying.
+//   Waiting `minWaitMs` (5s) and retrying `deploy-pages` once on failure masks
+//   that lag while keeping `resolve-refs` -> build -> deploy in one atomic job.
 import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -113,10 +117,11 @@ export async function resolveRefs({
 
 export async function waitForArtifact({
   repo, runId, apiUrl = 'https://api.github.com', token = '', name = 'github-pages',
-  attempts = 30, intervalMs = 2000, fetchFn = fetch,
+  minWaitMs = 5000, attempts = 30, intervalMs = 2000, fetchFn = fetch,
   sleepFn = (ms) => new Promise((r) => setTimeout(r, ms)),
 }) {
   if (!repo || !runId) throw new Error('waitForArtifact requires repo and runId');
+  if (minWaitMs > 0) await sleepFn(minWaitMs);
   const apiBase = apiUrl.replace(/\/+$/, '');
   const url = `${apiBase}/repos/${repo}/actions/runs/${encodeURIComponent(runId)}/artifacts?name=${encodeURIComponent(name)}`;
   for (let i = 1; i <= attempts; i++) {
