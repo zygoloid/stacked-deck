@@ -933,6 +933,60 @@ try {
     const swiped = (await phone.evaluate(() => scrollY)) - s0;
     check(swiped > 50 && await after() === -1, `phone: a swipe on a hand still scrolls the page (by ${swiped}px; after ${await after()})`);
     if (shots) await phone.screenshot({ path: join(shots, '7f-phone-hand.png') });
+    // Post-tap / sticky focus without an open break must not lift a card to the
+    // front (which would hide the next ~4 cards behind it with --brk: 0).
+    await hand.evaluate((t) => t.scrollIntoView({ block: 'center' }));
+    await phone.waitForTimeout(100);
+    const zCheck = await hand.evaluate((t) => {
+      t.children[1].querySelector('a.tile')?.focus();
+      return { z: getComputedStyle(t.children[1]).zIndex, shown: t.querySelectorAll('.shown').length };
+    });
+    check(zCheck.z === 'auto' && zCheck.shown === 0 && await after() === -1,
+      `phone: non-keyboard focus does not lift a card in front of its neighbours with a closed break (${JSON.stringify(zCheck)})`);
+    // Long-pressing and dragging along the bottom row (even across its break
+    // gap, where the top row sits behind it) stays on the bottom row and never
+    // pulls top-row cards in front.
+    const b7 = await hand.locator(':scope > *').nth(7).boundingBox();
+    const row1Pt = [b7.x + 12, b7.y + 70];
+    await touch('touchStart', [row1Pt]);
+    await phone.waitForTimeout(450);
+    const row1Seen = [await after()];
+    let topRowPulled = false;
+    for (let x = row1Pt[0]; row1Seen[row1Seen.length - 1] < 10 && x < row1Pt[0] + 280; x += 6) {
+      await touch('touchMove', [[x, row1Pt[1]]]);
+      await phone.waitForTimeout(20);
+      const st = await hand.evaluate((t) => ({
+        shown: [...t.children].findIndex((c) => c.classList.contains('shown')),
+        topUp: [...t.children].slice(0, 7).some((c) => c.classList.contains('row-up') || c.classList.contains('shown')),
+      }));
+      if (st.topUp) topRowPulled = true;
+      if (st.shown >= 0 && st.shown !== row1Seen[row1Seen.length - 1]) row1Seen.push(st.shown);
+    }
+    await touch('touchEnd', []);
+    await phone.waitForTimeout(150);
+    check(!topRowPulled && row1Seen[0] === 7 && row1Seen.includes(8) && row1Seen.includes(9) && row1Seen.every((k) => k >= 7),
+      `phone: dragging along the bottom row stays on the bottom row without pulling top-row cards in front (${row1Seen.join(',')})`);
+    // Mobile URL-bar height-only resize keeps the shown card and its break intact,
+    // and tapping off afterwards still closes the break cleanly.
+    const shownBeforeResize = await hand.evaluate((t) => [...t.children].findIndex((c) => c.classList.contains('shown')));
+    await phone.setViewportSize({ width: 390, height: 780 });
+    await phone.waitForTimeout(100);
+    const shownAfterResize = await hand.evaluate((t) => [...t.children].findIndex((c) => c.classList.contains('shown')));
+    await tap([5, 5]);
+    check(shownBeforeResize >= 7 && shownAfterResize === shownBeforeResize && await after() === -1,
+      `phone: height-only toolbar resize keeps the open break intact, and tapping off still closes it (${shownBeforeResize} -> ${shownAfterResize})`);
+    // Narrow 360px phone still fans multiple cards per row (never 13 single-card rows), all inside the viewport.
+    await phone.setViewportSize({ width: 360, height: 800 });
+    await phone.waitForTimeout(100);
+    const narrow = await hand.evaluate((t) => {
+      const boxes = [...t.children].map((c) => c.getBoundingClientRect());
+      return {
+        rows: t._hand?.rowBounds.length ?? 0,
+        allVisible: boxes.length === 13 && boxes.every((b) => b.width > 100 && b.left >= -1 && b.right <= innerWidth + 1),
+      };
+    });
+    check(narrow.rows >= 2 && narrow.rows <= 3 && narrow.allVisible,
+      `phone (360px): folded suit fans into ${narrow.rows} rows with all 13 cards visible inside the viewport`);
     await phone.close();
   }
     },
