@@ -332,8 +332,8 @@ export function levelSelect(root, ctx, focus = null) {
     kids.forEach((el, j) => {
       const open = k >= 0 && j > k && lay.places[j].row === lay.places[k].row;
       el.style.setProperty('--brk', open ? `${lay.gap.toFixed(1)}px` : '0px');
-      // The card's whole row comes in front of any other row dealt over it,
-      // and the card in front of its row.
+      // The card's whole row comes in front of any other row; within the row
+      // cards keep their natural order so cards to the right slide over it.
       el.classList.toggle('shown', j === k);
       el.classList.toggle('row-up', k >= 0 && lay.places[j].row === lay.places[k].row);
     });
@@ -373,7 +373,6 @@ export function levelSelect(root, ctx, focus = null) {
         }
         if (targetRow < 0) targetRow = py < b.y0 ? 0 : lay.rowBounds.length - 1;
       }
-      if (openIdx >= 0 && openRow === targetRow && hitsCard(openIdx)) return { card: kids[openIdx], row: targetRow };
       for (let j = kids.length - 1; j >= 0; j--) {
         if (lay.places[j].row === targetRow && hitsCard(j)) return { card: kids[j], row: targetRow };
       }
@@ -384,7 +383,6 @@ export function levelSelect(root, ctx, focus = null) {
     if (openRow >= 0) rowOrder.push(openRow);
     for (let r = lay.rowBounds.length - 1; r >= 0; r--) if (r !== openRow) rowOrder.push(r);
     for (const r of rowOrder) {
-      if (openIdx >= 0 && openRow === r && hitsCard(openIdx)) return { card: kids[openIdx], row: r };
       for (let j = kids.length - 1; j >= 0; j--) {
         if (lay.places[j].row === r && hitsCard(j)) return { card: kids[j], row: r };
       }
