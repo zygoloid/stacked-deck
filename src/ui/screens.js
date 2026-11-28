@@ -86,6 +86,9 @@ export function levelSelect(root, ctx, focus = null) {
 
   const page = h('div', { class: 'select' });
   const pop = h('div', { class: 'tile-pop hidden' });
+  let lastTouchTime = -1e9;
+  let lastDeckW = 0, lastScale = 0;
+  const recordWidth = () => { lastDeckW = page.querySelector('.deck')?.clientWidth ?? 0; lastScale = uiScale(); };
   const draw = () => {
     hidePop();
     page.replaceChildren(...[
@@ -109,6 +112,7 @@ export function levelSelect(root, ctx, focus = null) {
     layHands();
     pinFoil();
     fitBriefs();
+    recordWidth();
   };
 
   // What the marks on the cards mean.
@@ -218,18 +222,36 @@ export function levelSelect(root, ctx, focus = null) {
     h('span', { class: 'ch-rule', 'aria-hidden': 'true' }),
     h('span', { class: `ch-count${done === floors.length ? ' all' : ''}` }, `${done} / ${floors.length}`),
     h('span', { class: 'ch-chev', 'aria-hidden': 'true' }));
-    // In a hand, the card under the pointer (or focused) is shown whole by a
-    // break opening after it; on a touch screen, see touchHand().
-    const breakAt = (e) => {
-      if (e.pointerType === 'touch') return;
+    // In a hand, the card under the pointer (or focused from the keyboard) is
+    // shown whole by a break opening after it; on a touch screen, see touchHand().
+    const recentTouch = () => performance.now() - lastTouchTime < 800;
+    const unbreak = () => openBreak(tiles, tiles._shown ?? null);
+    tiles.addEventListener('pointerover', (e) => {
+      if (e.pointerType !== 'mouse' || recentTouch()) return;
+      const kids = [...tiles.children];
+      const card = kids.find((k) => k.contains(e.target));
+      if (!card) return;
+      const lay = tiles._hand;
+      if (lay && tiles.classList.contains('fan')) {
+        const curIdx = kids.findIndex((el) => el.classList.contains('shown'));
+        const curRow = curIdx >= 0 ? lay.places[curIdx]?.row ?? -1 : -1;
+        const newRow = lay.places[kids.indexOf(card)]?.row ?? -1;
+        // Crossing a lower row's break gap exposes the upper row behind it:
+        // stay on the lower row while the pointer is still in its band.
+        if (curRow > 0 && newRow >= 0 && newRow < curRow) {
+          const py = e.clientY - tiles.getBoundingClientRect().top;
+          if (py >= lay.rowBounds[curRow].y0) return;
+        }
+      }
+      openBreak(tiles, card);
+    });
+    tiles.addEventListener('focusin', (e) => {
+      if (recentTouch() || !e.target.matches?.(':focus-visible')) return;
       const card = [...tiles.children].find((k) => k.contains(e.target));
       if (card) openBreak(tiles, card);
-    };
-    const unbreak = () => openBreak(tiles, tiles._shown ?? null);
-    tiles.addEventListener('pointerover', breakAt);
-    tiles.addEventListener('focusin', breakAt);
-    tiles.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch') unbreak(); });
-    tiles.addEventListener('focusout', (e) => { if (!tiles.contains(e.relatedTarget)) unbreak(); });
+    });
+    tiles.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !recentTouch()) unbreak(); });
+    tiles.addEventListener('focusout', (e) => { if (!recentTouch() && !tiles.contains(e.relatedTarget)) unbreak(); });
     touchHand(tiles);
     sec.append(h('h2', { 'data-chapter': c.chapter }, toggle), tiles);
     if (folded()) sec.classList.add('folded');
@@ -256,9 +278,10 @@ export function levelSelect(root, ctx, focus = null) {
   }
 
   // Each card's place in a hand of n cards w wide that fits in W:
-  // { width, height, places: [{ x, y, a, row }], gap }: `gap` is how far the
-  // cards after a card move aside to show it whole. Where the hand is turned
-  // least (at the bottom), each card shows about 0.6 `step` of the last.
+  // { width, height, places: [{ x, y, a, row }], rowBounds, w, hgt, gap }:
+  // `gap` is how far the cards after a card move aside to show it whole. Where
+  // the hand is turned least (at the bottom), each card shows about 0.6 `step`
+  // of the last.
   function handLayout(n, W, w) {
     const hgt = (w * 7) / 5, R = 2.4 * hgt, step = 0.17 * w, lift = 0.05 * hgt, pitch = 0.42 * hgt;
     const row = (m) => {
@@ -282,8 +305,9 @@ export function levelSelect(root, ctx, focus = null) {
     per = Math.ceil(n / rows);
     const hands = Array.from({ length: rows }, (_, r) => row(Math.min(per, n - r * per)));
     const width = Math.max(...hands.map((f) => f.width));
+    const rowBounds = hands.map((f, r) => ({ y0: lift + r * pitch, y1: lift + r * pitch + f.height }));
     const places = hands.flatMap((f, r) => f.cards.map((p) => ({ a: p.a, x: p.x + (width - f.width) / 2, y: p.y + lift + r * pitch, row: r })));
-    return { width, height: lift + (rows - 1) * pitch + hands[rows - 1].height, places, gap: 1.04 * w - 0.6 * step };
+    return { width, height: rowBounds[rows - 1].y1, places, rowBounds, w, hgt, gap: 1.04 * w - 0.6 * step };
   }
 
   const place = (el, p) => {
@@ -291,7 +315,10 @@ export function levelSelect(root, ctx, focus = null) {
     el.style.setProperty('--y', `${p.y.toFixed(1)}px`);
     el.style.setProperty('--a', `${p.a.toFixed(4)}rad`);
   };
-  const unplace = (el) => ['--x', '--y', '--a', '--brk'].forEach((k) => el.style.removeProperty(k));
+  const unplace = (el) => {
+    ['--x', '--y', '--a', '--brk'].forEach((k) => el.style.removeProperty(k));
+    el.classList.remove('shown', 'row-up');
+  };
 
   // A break in a hand after `card` (null: none): the cards after it in its
   // row move aside, clear of it. The card itself and those before it stay
@@ -312,6 +339,59 @@ export function levelSelect(root, ctx, focus = null) {
     });
   }
 
+  // Hit-test (clientX, clientY) against a folded hand's cards in their current
+  // (shifted and rotated) positions. With `lockRow` (while sliding a finger
+  // along a row), stay on `lockRow` unless the finger moves vertically outside
+  // that row's band, so crossing a break gap in a lower row never pulls an
+  // upper row's card in front.
+  function cardAtPoint(tiles, clientX, clientY, lockRow = null) {
+    const lay = tiles._hand;
+    if (!lay) return null;
+    const box = tiles.getBoundingClientRect();
+    const px = clientX - box.left, py = clientY - box.top;
+    const kids = [...tiles.children];
+    const openIdx = kids.findIndex((el) => el.classList.contains('shown'));
+    const openRow = openIdx >= 0 ? lay.places[openIdx]?.row ?? -1 : -1;
+
+    const hitsCard = (j) => {
+      const p = lay.places[j];
+      const brk = openIdx >= 0 && j > openIdx && p.row === openRow ? lay.gap : 0;
+      const cx = p.x + brk + lay.w / 2, cy = p.y + lay.hgt / 2;
+      const dx = px - cx, dy = py - cy;
+      const cos = Math.cos(p.a), sin = Math.sin(p.a);
+      const ux = dx * cos + dy * sin, uy = -dx * sin + dy * cos;
+      return Math.abs(ux) <= lay.w / 2 && Math.abs(uy) <= lay.hgt / 2;
+    };
+
+    if (lockRow !== null && lay.rowBounds[lockRow]) {
+      const b = lay.rowBounds[lockRow];
+      let targetRow = lockRow;
+      if (py < b.y0 - 12 || py > b.y1 + 12) {
+        targetRow = -1;
+        for (let r = lay.rowBounds.length - 1; r >= 0; r--) {
+          if (py >= lay.rowBounds[r].y0 && py <= lay.rowBounds[r].y1) { targetRow = r; break; }
+        }
+        if (targetRow < 0) targetRow = py < b.y0 ? 0 : lay.rowBounds.length - 1;
+      }
+      if (openIdx >= 0 && openRow === targetRow && hitsCard(openIdx)) return { card: kids[openIdx], row: targetRow };
+      for (let j = kids.length - 1; j >= 0; j--) {
+        if (lay.places[j].row === targetRow && hitsCard(j)) return { card: kids[j], row: targetRow };
+      }
+      return { card: null, row: targetRow };
+    }
+
+    const rowOrder = [];
+    if (openRow >= 0) rowOrder.push(openRow);
+    for (let r = lay.rowBounds.length - 1; r >= 0; r--) if (r !== openRow) rowOrder.push(r);
+    for (const r of rowOrder) {
+      if (openIdx >= 0 && openRow === r && hitsCard(openIdx)) return { card: kids[openIdx], row: r };
+      for (let j = kids.length - 1; j >= 0; j--) {
+        if (lay.places[j].row === r && hitsCard(j)) return { card: kids[j], row: r };
+      }
+    }
+    return null;
+  }
+
   // ---------- a hand on a touch screen ----------
   // With no pointer to hover, a hand is read by touch. A long press opens
   // the break at the card under the finger, and sliding the finger moves it
@@ -323,9 +403,8 @@ export function levelSelect(root, ctx, focus = null) {
   // selection (style.css), link previews and dragging the link away.
   const HOLD_MS = 300;   // as long a press as on the floor itself (editor.js)
   function touchHand(tiles) {
-    let press = null;          // { id, x, y, card, timer, browsing }
+    let press = null;          // { id, x, y, card, row, timer, browsing }
     let eatClick = false;      // the click after a long press, or after a tap that only showed a card
-    let lastTouch = -1e9;
     const inFan = () => tiles.classList.contains('fan');
     const cardOf = (el) => [...tiles.children].find((k) => k.contains(el)) ?? null;
     const show = (card) => { tiles._shown = card; openBreak(tiles, card); };
@@ -338,30 +417,37 @@ export function levelSelect(root, ctx, focus = null) {
     tiles.addEventListener('pointerdown', (e) => {
       eatClick = false;
       if (e.pointerType !== 'touch') return;
-      lastTouch = performance.now();
-      if (!inFan() || press) return;
-      const card = cardOf(e.target);
+      lastTouchTime = performance.now();
+      if (!inFan() || press || e.target.closest?.('.tile-chart')) return;
+      closeShown(tiles);
+      const hit = cardAtPoint(tiles, e.clientX, e.clientY);
+      const card = hit?.card ?? cardOf(e.target);
       if (!card) return;
-      const p = press = { id: e.pointerId, x: e.clientX, y: e.clientY, card, browsing: false };
+      const row = hit?.row ?? tiles._hand?.places[[...tiles.children].indexOf(card)]?.row ?? 0;
+      const p = press = { id: e.pointerId, x: e.clientX, y: e.clientY, card, row, browsing: false };
       p.timer = setTimeout(() => {
         if (press !== p || !inFan()) return;
         p.browsing = true;
         tiles.classList.add('browsing');
-        show(cardOf(document.elementFromPoint(p.x, p.y)) ?? card);
+        const h = cardAtPoint(tiles, p.x, p.y, p.row);
+        if (h) p.row = h.row;
+        show(h?.card ?? p.card);
         navigator.vibrate?.(8);
       }, HOLD_MS);
     });
     tiles.addEventListener('pointermove', (e) => {
       if (!press || e.pointerId !== press.id) return;
       if (press.browsing) {
-        const card = cardOf(document.elementFromPoint(e.clientX, e.clientY));
-        if (card && card !== tiles._shown) show(card);
+        const h = cardAtPoint(tiles, e.clientX, e.clientY, press.row);
+        if (h) press.row = h.row;
+        if (h?.card && h.card !== tiles._shown) show(h.card);
       } else if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) {
         end();   // a swipe: the page scrolls
       }
     });
     tiles.addEventListener('pointerup', (e) => {
       if (!press || e.pointerId !== press.id) return;
+      lastTouchTime = performance.now();
       const p = press;
       end();
       if (p.browsing) eatClick = true;
@@ -378,14 +464,14 @@ export function levelSelect(root, ctx, focus = null) {
       e.stopPropagation();
     }, true);
     tiles.addEventListener('contextmenu', (e) => {
-      if (inFan() && (press || performance.now() - lastTouch < 1500)) e.preventDefault();
+      if (inFan() && (press || performance.now() - lastTouchTime < 1500)) e.preventDefault();
     });
     tiles.addEventListener('dragstart', (e) => { if (inFan()) e.preventDefault(); });
   }
-  // Closes the break left open by touch in every hand.
-  function closeShown() {
+  // Closes the break left open by touch in every hand (except `except`).
+  function closeShown(except = null) {
     for (const tiles of page.querySelectorAll('.tiles.fan')) {
-      if (!tiles._shown) continue;
+      if (tiles === except || !tiles._shown) continue;
       tiles._shown = null;
       openBreak(tiles, null);
     }
@@ -409,27 +495,33 @@ export function levelSelect(root, ctx, focus = null) {
     const kids = [...tiles.children];
     const before = animate ? kids.map((k) => k.getBoundingClientRect()) : null;
     const oldH = animate ? tiles.offsetHeight : 0;
+    const kept = !animate && tiles._shown && tiles.contains(tiles._shown) ? tiles._shown : null;
     // Laid out without moving (on drawing the list, or a resize), the cards
     // must not slide from wherever the browser last drew them.
     tiles.classList.add('still');
     tiles.classList.remove('moving', 'placed');
     clearTimeout(moveTimers.get(tiles));
     const { W, w } = cardWidth();
-    const lay = handLayout(kids.length, W, w);
+    // On ultra-narrow phones where the grid drops to 1 column (`w === W`), cap
+    // the fan's card width so a folded suit still fans several cards per row.
+    const fanW = W > 0 ? Math.min(w, (W - 12 * uiScale()) / 2) : w;
+    const lay = handLayout(kids.length, W, fanW);
     sec.classList.add('folded');
     sec.style.width = `${lay.width}px`;
-    tiles.style.setProperty('--card-w', `${w}px`);
+    tiles.style.setProperty('--card-w', `${fanW}px`);
     tiles.classList.add('fan');
     tiles._hand = lay;
-    tiles._shown = null;
+    tiles._shown = kept;
     if (!animate || !animated()) {
       tiles.style.height = `${lay.height}px`;
       kids.forEach((k, j) => place(k, lay.places[j]));
+      openBreak(tiles, kept);
       pinFoil(sec);
       void tiles.offsetHeight;
       tiles.classList.remove('still');
       return;
     }
+    kids.forEach((el) => { el.style.setProperty('--brk', '0px'); el.classList.remove('shown', 'row-up'); });
     tiles.style.height = `${oldH}px`;
     const box = tiles.getBoundingClientRect();
     kids.forEach((k, j) => place(k, { x: before[j].left - box.left, y: before[j].top - box.top, a: 0 }));
@@ -442,6 +534,7 @@ export function levelSelect(root, ctx, focus = null) {
   function unfold(sec, tiles) {
     const kids = [...tiles.children];
     const lay = tiles._hand;
+    const prevShownIdx = tiles._shown ? kids.indexOf(tiles._shown) : -1;
     const oldBox = tiles.getBoundingClientRect(), oldH = tiles.offsetHeight;
     tiles.classList.remove('moving', 'placed', 'fan');
     tiles._shown = null;
@@ -457,7 +550,8 @@ export function levelSelect(root, ctx, focus = null) {
     const after = kids.map((k) => k.getBoundingClientRect());
     kids.forEach((k, j) => {
       const p = lay.places[j];
-      place(k, { x: oldBox.left + p.x - after[j].left, y: oldBox.top + p.y - after[j].top, a: p.a });
+      const brk = prevShownIdx >= 0 && j > prevShownIdx && p.row === lay.places[prevShownIdx]?.row ? lay.gap : 0;
+      place(k, { x: oldBox.left + p.x + brk - after[j].left, y: oldBox.top + p.y - after[j].top, a: p.a });
     });
     tiles.style.height = `${oldH}px`;
     tiles.classList.add('placed', 'still');
@@ -716,7 +810,18 @@ export function levelSelect(root, ctx, focus = null) {
     if (e.pointerType === 'touch' && !e.target.closest?.('.tiles.fan > *') && !pop.contains(e.target)) closeShown();
   };
   let fitFrame = 0;
-  const onResize = () => { hidePop(); cancelAnimationFrame(fitFrame); fitFrame = requestAnimationFrame(() => { layHands(); pinFoil(); fitBriefs(); }); };
+  const onResize = () => {
+    cancelAnimationFrame(fitFrame);
+    fitFrame = requestAnimationFrame(() => {
+      const wNow = page.querySelector('.deck')?.clientWidth ?? 0, sNow = uiScale();
+      if (wNow === lastDeckW && sNow === lastScale) return;
+      hidePop();
+      layHands();
+      pinFoil();
+      fitBriefs();
+      recordWidth();
+    });
+  };
   const onScroll = () => { if (!pop.classList.contains('hidden')) hidePop(); };
   document.addEventListener('keydown', onKey);
   document.addEventListener('pointerdown', onDown);
